@@ -57,6 +57,22 @@ Requirement IDs are stable references for implementation, tests, release notes, 
 - **REL-003:** Deleted or unavailable related records remain distinguishable from an empty relation and never silently retarget.
 - **REL-004:** Reciprocal updates are atomic locally and reconcile deterministically when sync is introduced.
 - **REL-005:** Rollups are derived from relation targets and specify aggregation, missing/deleted-target handling, and result type.
+- **REL-006:** Rollups support count, count values, count unique, sum, average, minimum, maximum, earliest/latest date, percent checked, and show original values, with cross-collection type validation.
+- **REL-007:** Rollup/relation dependency cycles are detected before evaluation and cannot cause uncontrolled recursion.
+
+## Formulas
+
+- **FORM-001:** Formulas use a versioned lexer, parser, typed AST, evaluator, explicit null/error semantics, and stable property-ID references; JavaScript `eval` is forbidden.
+- **FORM-002:** Numeric, string, Boolean, and date operations evaluate deterministically from explicit workspace locale/time-zone context.
+- **FORM-003:** A dependency graph drives incremental invalidation and rejects direct or indirect cycles with a visible error value.
+- **FORM-004:** Formula source and language version are persisted and unknown newer versions survive round trips unchanged.
+
+## Search
+
+- **SEARCH-001:** Local search indexes page titles/aliases, body and heading text, collection/property names, textual/select values, attachment filenames, and incoming/outgoing links using rebuildable SQLite FTS5 indexes.
+- **SEARCH-002:** Quick and full search provide keyboard navigation, snippets, highlighted matches, deterministic ranking, and filters by workspace, content type, collection, date, property, and links.
+- **SEARCH-003:** Index updates are incrementally queued with canonical mutations; reindex and integrity-check operations recover missing, stale, duplicate, or orphan entries without network access.
+- **SEARCH-004:** Recent-search history is local, optional, disableable, and clearable.
 
 ## Keyboard and accessible interaction
 

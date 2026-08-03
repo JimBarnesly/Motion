@@ -29,6 +29,9 @@ contact an external service.
 
 - `apps/web` — offline-capable browser application
 - `packages/core` — versioned domain model, persistence, search, and export
+- `packages/storage` — durable SQLite workspace storage and content-addressed files
+- `packages/search` — incremental local search with filtered ranked results
+- `packages/formula` — versioned parser, typed AST, evaluator, and cycle detection
 - `docs` — product, architecture, protocols, security, and decisions
 
 ## Data portability

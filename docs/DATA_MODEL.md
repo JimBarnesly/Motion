@@ -18,6 +18,18 @@ The initial logical schema is `motion.workspace/1.0`. Persisted databases also c
 - **Comment:** thread, target entity/range, author identity when collaboration is enabled, body, resolved state.
 - **Operation:** actor ID, monotonic actor sequence, operation ID, dependency/vector summary, kind, payload, timestamp.
 
+## Formal entity catalogue
+
+The storage schema is divided into bounded groups while domain DTOs remain independent of table layout:
+
+- **Identity/workspace:** `User`, `Device`, `Workspace`, `WorkspaceMember`, `Role`, `Permission`, `Invitation`, `EncryptionKeyEnvelope`.
+- **Content:** `Page`, `PageTreePosition`, `Document`, `DocumentUpdate`, `DocumentSnapshot`, `BlockReference`, `PageLink`, `Attachment`, `AttachmentReference`, `Tag`, `Favourite`, `Template`.
+- **Collections:** `Collection`, `CollectionProperty`, `CollectionRecord`, `PropertyValue`, `CollectionView`, `Relation`, `RollupDefinition`, `FormulaDefinition`.
+- **Collaboration:** `CommentThread`, `Comment`, `Mention`, `Notification`, `PresenceState`, `Revision`, `AuditEntry`.
+- **Synchronization:** `Replica`, `Operation`, `OperationCursor`, `OutboxEntry`, `InboxEntry`, `Tombstone`, `SyncCheckpoint`, `ConflictRecord`.
+
+Every persistent entity has a globally unique stable ID, creation and modification metadata, tombstone semantics, workspace scope where applicable, schema version where its payload can evolve, and deterministic serialization tests. Actor fields are optional where local-only mode has no user identity. `PresenceState` is ephemeral and is not exported as durable workspace history. Storage rows are mapped through repositories/application services; the UI never receives storage-layer entities directly.
+
 Deletion is tombstoned while operations may still reference an entity. Compaction may physically remove tombstones only after all known replicas acknowledge the containing frontier or an explicit single-device retention policy permits it.
 
 ## Invariants

@@ -18,6 +18,13 @@ Install dependencies with `npm install`, then run `npm test`, `npm run
 typecheck`, and `npm run build`. The workspaces are intentionally small and do
 not require Docker, a database server, or internet access at runtime.
 
+Prove the canonical local vertical slice across a separate-process restart with
+all Node networking APIs denied, and scan for remote runtime assets, with:
+
+```sh
+npm run test:offline
+```
+
 Validate the desktop boundary and native shell with:
 
 ```sh
@@ -31,8 +38,15 @@ CI runs those checks and builds `.deb` and AppImage packages natively on both
 x86-64 (`ubuntu-24.04`) and ARM64 (`ubuntu-24.04-arm`). This is a native runner
 matrix, not cross-compilation, so GTK/WebKit linking and architecture-specific
 Tauri tooling are exercised on each target architecture. The package currently
-expects a compatible `node` executable at runtime for the local service runner;
-removing that deployment dependency remains separate packaging work.
+expects a compatible Node 24 executable at runtime for the local service runner,
+and starts a new Node process for each IPC request. Removing that deployment and
+latency cost with a bundled persistent runtime or measured Rust-owned service is
+a release gate.
+
+On the current development host Rust/Cargo are installed, but the GTK/WebKit
+development packages above are not. Consequently local TypeScript and Web tests
+can run, while native compilation and packaging remain blocked until those
+system packages are installed with administrator access.
 
 ## Boundaries
 

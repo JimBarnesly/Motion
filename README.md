@@ -8,6 +8,9 @@ account or network connection.
 This repository currently contains the first vertical slice: create and nest
 pages, edit typed block content with keyboard operations, create database
 tables, search, inspect stable-ID links/backlinks, and export workspace data.
+The Web UI now selects a persistence adapter: IndexedDB for browser development
+and an allowlisted Tauri IPC adapter for the desktop shell. The Tauri path
+migrates UI schema v1 into the canonical SQLite application service.
 The core also defines records-as-pages, typed filter/sort trees, materialised
 link indexing, unknown-block preservation, and schema migration. Local storage is authoritative. Sync, collaboration,
 encryption, and AI integrations are optional layers and are documented as
@@ -18,6 +21,7 @@ future protocol-compatible services rather than dependencies of local mode.
 ```sh
 npm install
 npm test
+npm run test:offline
 npm run build
 npm run dev
 ```
@@ -28,6 +32,7 @@ contact an external service.
 ## Repository map
 
 - `apps/web` — offline-capable browser application
+- `apps/desktop` — typed Tauri 2 shell and allowlisted application-service IPC boundary
 - `packages/core` — versioned domain model, persistence, search, and export
 - `packages/app-service` — canonical command/query boundary over domain and SQLite
 - `packages/storage` — durable SQLite workspace storage and content-addressed files
@@ -46,4 +51,7 @@ formats and compatibility rules are documented in `docs/`.
 ## Status
 
 Motion is early-stage software. The local vertical slice is intended to be a
-real foundation, not a compatibility clone or a hosted-service mock-up.
+real foundation, not a compatibility clone or a hosted-service mock-up. Native
+Linux package CI is configured for x86-64 and ARM64, but the desktop package is
+not yet self-contained: it requires an external Node 24 runtime and currently
+starts one service process per IPC request.

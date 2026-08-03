@@ -2,11 +2,11 @@
 
 | Risk | State | Mitigation / next evidence |
 |---|---|---|
-| Web UI is a parallel schema-v1 localStorage application disconnected from core/storage/search/backup | Open, critical | Stop feature expansion; introduce one application-service contract, migrate browser data explicitly, and run behavioural persistence tests through it. |
-| Imported web backup fields are only shallowly validated before HTML rendering | Open, critical | Reject invalid IDs/types/hierarchies, avoid string-built attribute markup, add hostile-backup/XSS fixtures before exposing restore. |
-| Browser slice and core are not yet a packaged Linux desktop app | Open, high | ADR 0012 is provisional: run the Tauri spike on supported Ubuntu with Rust/WebKit prerequisites, then test packaged offline persistence. |
+| Desktop shell depends on an external Node 24 executable and starts a process per IPC request | Open, critical | Bundle a persistent runtime or implement the service in Rust; benchmark repeated commands and remove the external deployment dependency before accepting the desktop milestone. |
+| Browser and Tauri adapters still translate schema-v1 UI documents rather than using typed domain commands directly | Open, high | Keep validation/migration at the boundary, then move UI operations onto typed app-service commands and add packaged behavioural E2E coverage. |
+| Native Linux desktop package is not locally verified | Open, high | Rust is installed, but this host lacks GTK/WebKit development packages. Install them with administrator access, then run locked Rust tests and package/restart/offline checks; native x86-64/ARM64 CI is configured as independent evidence. |
 | Browser editor behavior remains unvalidated despite the headless editor model passing | Open, high | ADRs 0006-0008 settle Tiptap/ProseMirror, Yjs, and IDs; add IME, clipboard, keyboard, selection, drag/drop, migration, and accessibility tests. |
-| SQLite/storage packages may not yet be wired through the UI | Open, high | ADR 0009 makes SQLite authoritative; choose Rust versus Node adapter using packaged benchmarks, then add multi-version migration, concurrency, disk-full, and UI restart tests. |
+| Packaged UI-to-SQLite restart and crash recovery remain unverified | Open, high | The Tauri adapter reaches the canonical SQLite service and the canonical separate-process offline restart test passes; add packaged UI restart, concurrency, disk-full, and forced-termination tests. |
 | Attachment database/file commit can tear across a crash | Open, high | ADR 0010 remains provisional; implement staging, atomic rename, recovery scan, streamed limits, and failure injection at each boundary. |
 | FTS5 correctness and latency are unmeasured at target scale | Open, medium | ADR 0011 accepts a rebuildable projection; benchmark 10,000 pages/100,000 blocks and test tombstones, reindex, tokenizer migrations, and index integrity. |
 | Backup/export foundations may omit edge metadata at scale | Open, high | Publish canonical schema fixtures and compare full restore equivalence including attachments. |

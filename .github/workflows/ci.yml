@@ -88,6 +88,15 @@ jobs:
         with:
           workspaces: apps/desktop/src-tauri -> target
       - run: npm ci --ignore-scripts
+      - name: Cache pinned Node desktop runtime archive
+        uses: actions/cache@v4
+        with:
+          path: .cache/node-runtime
+          key: motion-node-runtime-24.18.0-${{ matrix.arch }}
+      - name: Prepare verified bundled Node runtime
+        run: npm run runtime:prepare --workspace @motion/desktop
+      - name: Build desktop Web assets for Tauri context
+        run: npm run build --workspace @motion/web
       - name: Check desktop TypeScript and IPC contract
         run: |
           npm run typecheck --workspace @motion/desktop

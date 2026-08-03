@@ -57,8 +57,20 @@ struct ServiceState {
     process: Arc<Mutex<Option<ServiceProcess>>>,
 }
 
-fn start_service(runner: &Path, data_root: &Path) -> Result<ServiceProcess, IpcError> {
-    let node = std::env::var("MOTION_NODE_BINARY").unwrap_or_else(|_| "node".into());
+fn select_node_binary(
+    resource_dir: &Path,
+    development_override: Option<std::ffi::OsString>,
+) -> PathBuf {
+    let bundled = resource_dir.join("node-runtime");
+    if bundled.is_file() {
+        return bundled;
+    }
+    development_override
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("node"))
+}
+
+fn start_service(node: &Path, runner: &Path, data_root: &Path) -> Result<ServiceProcess, IpcError> {
     let mut child = Command::new(node)
         .arg(runner)
         .arg(data_root)
@@ -163,16 +175,17 @@ async fn run_service(app: tauri::AppHandle, envelope: Value) -> Result<Value, Ip
         .app_local_data_dir()
         .map_err(|e| reject("STORAGE_FAILURE", e.to_string()))?;
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let packaged_runner = app
+    let resource_dir = app
         .path()
         .resource_dir()
-        .map_err(|e| reject("INTERNAL_ERROR", e.to_string()))?
-        .join("service-bundle.mjs");
+        .map_err(|e| reject("INTERNAL_ERROR", e.to_string()))?;
+    let packaged_runner = resource_dir.join("service-bundle.mjs");
     let runner = if packaged_runner.exists() {
         packaged_runner
     } else {
         manifest.join("..").join("dist").join("service-bundle.mjs")
     };
+    let node = select_node_binary(&resource_dir, std::env::var_os("MOTION_NODE_BINARY"));
     let state = app.state::<ServiceState>().inner().clone();
     let reply = tauri::async_runtime::spawn_blocking(move || {
         let mut guard = state
@@ -186,7 +199,7 @@ async fn run_service(app: tauri::AppHandle, envelope: Value) -> Result<Value, Ip
             *guard = None;
         }
         if guard.is_none() {
-            *guard = Some(start_service(&runner, &data_root)?);
+            *guard = Some(start_service(&node, &runner, &data_root)?);
         }
         let reply = exchange(guard.as_mut().expect("service initialized"), &encoded);
         if reply.is_err() {
@@ -220,4 +233,34 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Motion desktop");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::select_node_binary;
+    use std::{ffi::OsString, fs, path::PathBuf};
+
+    #[test]
+    fn bundled_runtime_wins_over_development_override() {
+        let root =
+            std::env::temp_dir().join(format!("motion-node-selection-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("node-runtime"), b"runtime").unwrap();
+        assert_eq!(
+            select_node_binary(&root, Some(OsString::from("/development/node"))),
+            root.join("node-runtime")
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn development_override_is_used_without_bundle() {
+        assert_eq!(
+            select_node_binary(
+                &PathBuf::from("/missing-motion-resources"),
+                Some(OsString::from("/development/node"))
+            ),
+            PathBuf::from("/development/node")
+        );
+    }
 }

@@ -9,5 +9,5 @@
     "windows": [{ "title": "Motion", "width": 1180, "height": 760, "minWidth": 720, "minHeight": 520 }],
     "security": { "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" }
   },
-  "bundle": { "active": true, "targets": ["deb", "appimage"], "resources": { "../dist/service-bundle.mjs": "service-bundle.mjs" } }
+  "bundle": { "active": true, "targets": ["deb", "appimage"], "resources": { "../dist/service-bundle.mjs": "service-bundle.mjs", "../dist/node-runtime": "node-runtime", "../dist/node-runtime-LICENSE": "node-runtime-LICENSE" } }
 }

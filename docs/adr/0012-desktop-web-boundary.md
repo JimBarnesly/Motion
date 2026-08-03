@@ -33,6 +33,12 @@ Domain schemas and export formats stay independent of Tauri. Browser/mobile adap
 
 Accept after a supported Ubuntu runner compiles, launches, and packages Tauri 2 offline and boundary tests run against the real native command. Revisit Tauri if supportable packaging fails.
 
+## Implementation evidence
+
+- Tauri owns a serialized, persistent application-service child process; UI IPC cannot invoke arbitrary executables or filesystem/database operations.
+- Native Linux packages bundle the pinned official Node.js 24.18.0 executable for x86-64 or ARM64. The build-only preparation step verifies an embedded SHA-256 copied from the official release `SHASUMS256.txt`; installed applications never fetch a runtime.
+- Development may explicitly select `MOTION_NODE_BINARY`; packaged resolution prefers the bundled resource.
+
 ## Spike evidence
 
 - `spikes/001-tauri-linux/test/boundary.test.mjs` proves browser fallback and that the UI calls only `runtime_label` through an injectable boundary.

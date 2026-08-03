@@ -9,8 +9,9 @@
     "pretypecheck": "npm run build --workspace @motion/app-service",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test test/*.test.mjs",
+    "runtime:prepare": "node scripts/prepare-node-runtime.mjs",
     "tauri": "tauri",
-    "tauri:build": "npm run build && tauri build",
+    "tauri:build": "npm run runtime:prepare && npm run build && tauri build",
     "tauri:dev": "tauri dev"
   },
   "dependencies": {

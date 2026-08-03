@@ -31,17 +31,19 @@ Validate the desktop boundary and native shell with:
 npm run typecheck --workspace @motion/desktop
 npm run test --workspace @motion/desktop
 cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
+npm run runtime:prepare --workspace @motion/desktop
 npm run tauri:build --workspace @motion/desktop -- --bundles deb,appimage
 ```
 
 CI runs those checks and builds `.deb` and AppImage packages natively on both
 x86-64 (`ubuntu-24.04`) and ARM64 (`ubuntu-24.04-arm`). This is a native runner
 matrix, not cross-compilation, so GTK/WebKit linking and architecture-specific
-Tauri tooling are exercised on each target architecture. The package currently
-expects a compatible Node 24 executable at runtime for the local service runner,
-and starts a new Node process for each IPC request. Removing that deployment and
-latency cost with a bundled persistent runtime or measured Rust-owned service is
-a release gate.
+Tauri tooling are exercised on each target architecture. Package preparation
+downloads the matching official Node.js 24.18.0 archive from `nodejs.org`, checks
+it against the embedded official SHA-256, and bundles only its executable. Set
+`MOTION_NODE_RUNTIME_CACHE` to a preseeded directory and
+`MOTION_NODE_RUNTIME_OFFLINE=1` for a network-free build. The installed program
+uses one persistent bundled process and makes no runtime download.
 
 On the current development host Rust/Cargo are installed, but the GTK/WebKit
 development packages above are not. Consequently local TypeScript and Web tests

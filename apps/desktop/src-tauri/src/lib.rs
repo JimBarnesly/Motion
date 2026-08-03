@@ -1,6 +1,11 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{path::PathBuf, process::Command};
+use std::{
+    io::{BufRead, BufReader, Write},
+    path::{Path, PathBuf},
+    process::{Child, ChildStdin, ChildStdout, Command, Stdio},
+    sync::{Arc, Mutex},
+};
 use tauri::Manager;
 
 const MAX_REQUEST_BYTES: usize = 16 * 1024 * 1024;
@@ -31,6 +36,77 @@ fn reject(code: &str, message: impl Into<String>) -> IpcError {
         code: code.into(),
         message: message.into(),
     }
+}
+
+struct ServiceProcess {
+    child: Child,
+    stdin: ChildStdin,
+    stdout: BufReader<ChildStdout>,
+}
+
+impl Drop for ServiceProcess {
+    fn drop(&mut self) {
+        let _ = self.stdin.flush();
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+#[derive(Clone, Default)]
+struct ServiceState {
+    process: Arc<Mutex<Option<ServiceProcess>>>,
+}
+
+fn start_service(runner: &Path, data_root: &Path) -> Result<ServiceProcess, IpcError> {
+    let node = std::env::var("MOTION_NODE_BINARY").unwrap_or_else(|_| "node".into());
+    let mut child = Command::new(node)
+        .arg(runner)
+        .arg(data_root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .map_err(|e| {
+            reject(
+                "INTERNAL_ERROR",
+                format!("Could not start local service: {e}"),
+            )
+        })?;
+    let stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| reject("INTERNAL_ERROR", "Service stdin unavailable"))?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| reject("INTERNAL_ERROR", "Service stdout unavailable"))?;
+    Ok(ServiceProcess {
+        child,
+        stdin,
+        stdout: BufReader::new(stdout),
+    })
+}
+
+fn exchange(process: &mut ServiceProcess, encoded: &str) -> Result<RunnerReply, IpcError> {
+    process
+        .stdin
+        .write_all(encoded.as_bytes())
+        .and_then(|_| process.stdin.write_all(b"\n"))
+        .and_then(|_| process.stdin.flush())
+        .map_err(|e| reject("INTERNAL_ERROR", format!("Service request failed: {e}")))?;
+    let mut response = String::new();
+    let read = process
+        .stdout
+        .read_line(&mut response)
+        .map_err(|e| reject("INTERNAL_ERROR", format!("Service response failed: {e}")))?;
+    if read == 0 {
+        return Err(reject(
+            "INTERNAL_ERROR",
+            "Local service stopped unexpectedly",
+        ));
+    }
+    serde_json::from_str(&response)
+        .map_err(|e| reject("INTERNAL_ERROR", format!("Invalid service response: {e}")))
 }
 
 #[tauri::command]
@@ -97,24 +173,31 @@ async fn run_service(app: tauri::AppHandle, envelope: Value) -> Result<Value, Ip
     } else {
         manifest.join("..").join("dist").join("service-bundle.mjs")
     };
-    let node = std::env::var("MOTION_NODE_BINARY").unwrap_or_else(|_| "node".into());
-    let output = tauri::async_runtime::spawn_blocking(move || {
-        Command::new(node)
-            .arg(runner)
-            .arg(data_root)
-            .arg(encoded)
-            .output()
+    let state = app.state::<ServiceState>().inner().clone();
+    let reply = tauri::async_runtime::spawn_blocking(move || {
+        let mut guard = state
+            .process
+            .lock()
+            .map_err(|_| reject("INTERNAL_ERROR", "Service lock poisoned"))?;
+        if guard
+            .as_mut()
+            .is_some_and(|process| process.child.try_wait().ok().flatten().is_some())
+        {
+            *guard = None;
+        }
+        if guard.is_none() {
+            *guard = Some(start_service(&runner, &data_root)?);
+        }
+        let reply = exchange(guard.as_mut().expect("service initialized"), &encoded);
+        if reply.is_err() {
+            // Never replay a mutation after an ambiguous process failure. The next
+            // request starts a clean runner and the caller can reload durable state.
+            *guard = None;
+        }
+        reply
     })
     .await
-    .map_err(|e| reject("INTERNAL_ERROR", e.to_string()))?
-    .map_err(|e| {
-        reject(
-            "INTERNAL_ERROR",
-            format!("Could not start local service: {e}"),
-        )
-    })?;
-    let reply: RunnerReply = serde_json::from_slice(&output.stdout)
-        .map_err(|_| reject("INTERNAL_ERROR", String::from_utf8_lossy(&output.stderr)))?;
+    .map_err(|e| reject("INTERNAL_ERROR", e.to_string()))??;
     if reply.ok {
         reply
             .value
@@ -129,6 +212,7 @@ async fn run_service(app: tauri::AppHandle, envelope: Value) -> Result<Value, Ip
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(ServiceState::default())
         .invoke_handler(tauri::generate_handler![
             app_dispatch,
             motion_ui_load,

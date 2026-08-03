@@ -1,11 +1,12 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { createInterface } from "node:readline";
 import { MotionAppService, MotionAppError } from "@motion/app-service";
 import { SqliteWorkspaceStore, ContentAddressedAttachmentStore } from "@motion/storage";
 import { migrateWebWorkspaceV1 } from "@motion/core";
 
-const [dataRoot, requestJson] = process.argv.slice(2);
-if (!dataRoot || !requestJson) throw new Error("Usage: service-runner <data-root> <request-json>");
+const [dataRoot] = process.argv.slice(2);
+if (!dataRoot) throw new Error("Usage: service-runner <data-root>");
 
 const revive = value => {
   if (Array.isArray(value)) return value.map(revive);
@@ -24,10 +25,10 @@ const encode = value => value instanceof Uint8Array ? { $motionBytes: Array.from
   : value;
 
 mkdirSync(dataRoot, { recursive: true });
-const request = revive(JSON.parse(requestJson));
 const store = new SqliteWorkspaceStore(join(dataRoot, "motion.sqlite3"));
 const service = new MotionAppService(store, new ContentAddressedAttachmentStore(join(dataRoot, "attachments")));
-try {
+async function dispatch(rawRequest) {
+  const request = revive(rawRequest);
   let result;
   switch (request.lane) {
     case "command": result = service.execute(request.payload); break;
@@ -64,13 +65,21 @@ try {
     }
     default: throw new MotionAppError("INVALID_INPUT", "Unsupported IPC lane");
   }
-  process.stdout.write(JSON.stringify({ ok: true, value: encode(result) }));
-} catch (error) {
-  process.stdout.write(JSON.stringify({ ok: false, error: {
-    code: error instanceof MotionAppError ? error.code : "INTERNAL_ERROR",
-    message: error instanceof Error ? error.message : "Unknown service failure"
-  }}));
-  process.exitCode = 1;
-} finally {
-  store.close();
+  return encode(result);
 }
+
+const lines = createInterface({ input: process.stdin, crlfDelay: Infinity, terminal: false });
+for await (const line of lines) {
+  let reply;
+  try {
+    if (Buffer.byteLength(line) > 16 * 1024 * 1024) throw new MotionAppError("INVALID_INPUT", "Service request exceeds 16 MiB");
+    reply = { ok: true, value: await dispatch(JSON.parse(line)) };
+  } catch (error) {
+    reply = { ok: false, error: {
+      code: error instanceof MotionAppError ? error.code : "INTERNAL_ERROR",
+      message: error instanceof Error ? error.message : "Unknown service failure"
+    }};
+  }
+  process.stdout.write(`${JSON.stringify(reply)}\n`);
+}
+store.close();

@@ -1,0 +1,25 @@
+{
+  "name": "@motion/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "tauri": "tauri",
+    "tauri:build": "npm run build && tauri build",
+    "tauri:dev": "tauri dev"
+  },
+  "dependencies": {
+    "@motion/app-service": "0.1.0",
+    "@motion/storage": "0.1.0",
+    "@tauri-apps/api": "^2.8.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.8.0",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.5.0"
+  }
+}

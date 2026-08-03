@@ -1,0 +1,13 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Motion",
+  "version": "0.1.0",
+  "identifier": "app.motion.desktop",
+  "build": { "beforeBuildCommand": "npm run build --workspace @motion/app-service && npm run build --workspace @motion/web && npm run build --workspace @motion/desktop", "frontendDist": "../../web/dist" },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [{ "title": "Motion", "width": 1180, "height": 760, "minWidth": 720, "minHeight": 520 }],
+    "security": { "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" }
+  },
+  "bundle": { "active": true, "targets": ["deb", "appimage"], "resources": { "../dist/service-bundle.mjs": "service-bundle.mjs" } }
+}

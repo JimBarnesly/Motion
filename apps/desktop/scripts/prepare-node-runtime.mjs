@@ -7,8 +7,8 @@ import { fileURLToPath } from "node:url";
 
 export const NODE_VERSION = "24.18.0";
 export const OFFICIAL_ARCHIVES = Object.freeze({
-  x64: { file: `node-v${NODE_VERSION}-linux-x64.tar.xz`, sha256: "55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742" },
-  arm64: { file: `node-v${NODE_VERSION}-linux-arm64.tar.xz`, sha256: "58c9520501f6ae2b52d5b210444e24b9d0c029a58c5011b797bc1fe7105886f6" }
+  x64: { file: `node-v${NODE_VERSION}-linux-x64.tar.xz`, url: "https://nodejs.org/dist/v24.18.0/node-v24.18.0-linux-x64.tar.xz", sha256: "55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742" },
+  arm64: { file: `node-v${NODE_VERSION}-linux-arm64.tar.xz`, url: "https://nodejs.org/dist/v24.18.0/node-v24.18.0-linux-arm64.tar.xz", sha256: "58c9520501f6ae2b52d5b210444e24b9d0c029a58c5011b797bc1fe7105886f6" }
 });
 
 const exec = promisify(execFile);
@@ -29,7 +29,7 @@ export async function prepareNodeRuntime(options = {}) {
   try { cached = (await stat(archive)).isFile(); } catch {}
   if (!cached) {
     if (options.offline ?? process.env.MOTION_NODE_RUNTIME_OFFLINE === "1") throw new Error(`Pinned runtime is not in the offline cache: ${archive}`);
-    const response = await fetch(`https://nodejs.org/dist/v${NODE_VERSION}/${selected.file}`, { redirect: "error" });
+    const response = await fetch(selected.url, { redirect: "error" });
     if (!response.ok) throw new Error(`Official Node download failed: HTTP ${response.status}`);
     const temporaryArchive = `${archive}.download`;
     await writeFile(temporaryArchive, new Uint8Array(await response.arrayBuffer()), { mode: 0o600 });
@@ -48,7 +48,7 @@ export async function prepareNodeRuntime(options = {}) {
   const licenseOutput = `${output}-LICENSE`;
   const license = await exec("tar", ["-xJOf", archive, `node-v${NODE_VERSION}-linux-${architecture}/LICENSE`], { encoding: "buffer", maxBuffer: 1024 * 1024 });
   await writeFile(licenseOutput, license.stdout, { mode: 0o644 });
-  return { architecture, archive, output, licenseOutput, sha256: actual, source: `https://nodejs.org/dist/v${NODE_VERSION}/${selected.file}` };
+  return { architecture, archive, output, licenseOutput, sha256: actual, source: selected.url };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === SCRIPT_PATH) {

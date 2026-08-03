@@ -44,6 +44,9 @@ it against the embedded official SHA-256, and bundles only its executable. Set
 `MOTION_NODE_RUNTIME_CACHE` to a preseeded directory and
 `MOTION_NODE_RUNTIME_OFFLINE=1` for a network-free build. The installed program
 uses one persistent bundled process and makes no runtime download.
+The offline source scanner permits only those two exact pinned archive URLs and
+only in the build preparation script; general `nodejs.org` references and all
+application runtime network references still fail the scan.
 
 On the current development host Rust/Cargo are installed, but the GTK/WebKit
 development packages above are not. Consequently local TypeScript and Web tests

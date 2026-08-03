@@ -36,7 +36,7 @@ export function migrateWebWorkspaceV1(input: unknown, options: WebV1MigrationOpt
       const properties = (Array.isArray(raw.columns) ? raw.columns : []).map((column, columnIndex) => { if (!plain(column)) throw new Error(`Invalid web v1 column ${columnIndex}`); return { id: requiredString(column.id, `column.id`), name: typeof column.name === "string" ? column.name : "", type: "plain-text" as const }; });
       databases.push({ id: `database:${raw.id}`, pageId: raw.id, name: typeof raw.title === "string" ? raw.title : "", properties, rows: (Array.isArray(raw.rows) ? raw.rows : []).map((row, rowIndex) => { if (!plain(row) || !plain(row.values)) throw new Error(`Invalid web v1 row ${rowIndex}`); return { id: requiredString(row.id, `row.id`), values: structuredClone(row.values), createdAt: EPOCH, updatedAt: EPOCH }; }), views: [{ id: `view:${raw.id}:table`, collectionId: `database:${raw.id}`, name: "Table", type: "table", visiblePropertyIds: properties.map(property => property.id) }] });
     }
-    return { id: raw.id, parentId, title: typeof raw.title === "string" ? raw.title : "", blocks, createdAt: EPOCH, updatedAt: EPOCH, archivedAt: raw.archived ? EPOCH : undefined };
+    return { id: raw.id, parentId, title: typeof raw.title === "string" ? raw.title : "", blocks, createdAt: EPOCH, updatedAt: EPOCH, archivedAt: raw.archived ? EPOCH : undefined, deletedAt: raw.deleted ? EPOCH : undefined };
   });
   const linkIndex: PageLink[] = [];
   for (const page of pages) for (const block of page.blocks) for (const ref of block.references ?? []) linkIndex.push({ sourcePageId: page.id, targetPageId: ref.pageId, blockId: block.id });
@@ -44,6 +44,6 @@ export function migrateWebWorkspaceV1(input: unknown, options: WebV1MigrationOpt
   const migratedAt = options.migratedAt ?? EPOCH;
   const workspace: Workspace = { schemaVersion: WORKSPACE_SCHEMA_VERSION, id: options.workspaceId ?? "web-workspace-v1", name: options.workspaceName ?? "Motion Workspace", pages, databases, attachments: [], linkIndex, createdAt: migratedAt, updatedAt: migratedAt };
   assertWorkspaceValue(workspace);
-  const activePageId = typeof input.activePageId === "string" && pageIds.has(input.activePageId) ? input.activePageId : null;
+  const activePageId = typeof input.activePageId === "string" && pageIds.has(input.activePageId) && !rawPages.find(page => page.id === input.activePageId)?.deleted ? input.activePageId : null;
   return { workspace, uiState: { activePageId } };
 }

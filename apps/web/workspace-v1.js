@@ -56,6 +56,7 @@ function normalizePage(value, position) {
     title: text(value.title, `page ${pageId} title`, 10_000)
   };
   if (value.archived !== undefined) page.archived = Boolean(value.archived);
+  page.deleted = Boolean(value.deleted);
   if (type === "document") {
     if (!Array.isArray(value.blocks) || value.blocks.length > 100_000) fail(`page ${pageId} blocks must be an array`);
     page.blocks = value.blocks.map((block, at) => normalizeBlock(block, pageId, at));

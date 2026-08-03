@@ -150,3 +150,21 @@ test("page and block ordering have accessible controls", async () => {
   assert.match(source, /data-move-block/);
   assert.match(source, /aria-label="Move/);
 });
+
+test("page deletion is reversible trash with stable content", async () => {
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  const normalizer = await readFile(resolve(root, "workspace-v1.js"), "utf8");
+  assert.match(source, /function trashPage\(pageId\)/);
+  assert.match(source, /page\.deleted = true/);
+  assert.match(source, /function restorePage\(pageId\)/);
+  assert.match(source, /page\.deleted = false/);
+  assert.doesNotMatch(source, /state\.pages = state\.pages\.filter/);
+  assert.match(source, /data-restore-page/);
+  assert.match(normalizer, /page\.deleted = Boolean\(value\.deleted\)/);
+  const { normalizeWorkspaceV1 } = await import("../workspace-v1.js");
+  const saved = normalizeWorkspaceV1({ schemaVersion: 1, activePageId: null, pages: [{ id: "page-1", parentId: null, order: 0, type: "document", title: "Keep me", deleted: true, blocks: [{ id: "block-1", type: "paragraph", text: "Still here" }] }] });
+  const reloaded = normalizeWorkspaceV1(JSON.parse(JSON.stringify(saved)));
+  assert.equal(reloaded.pages[0].deleted, true);
+  assert.equal(reloaded.pages[0].id, "page-1");
+  assert.equal(reloaded.pages[0].blocks[0].text, "Still here");
+});

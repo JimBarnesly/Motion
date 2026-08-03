@@ -3,13 +3,14 @@ import { normalizeWorkspaceV1 } from "./workspace-v1.js";
 
 const workspaceStore = createMotionUiAdapter();
 let state = await workspaceStore.load();
+if (state.pages.find(page => page.id === state.activePageId)?.deleted) state.activePageId = state.pages.find(page => !page.deleted)?.id ?? null;
 let saveQueue = Promise.resolve();
 let confirmedAttachments = [];
 let undoStack = [], redoStack = [], editStartedFor = null;
 const $ = (selector) => document.querySelector(selector);
 const uid = () => crypto.randomUUID();
 const activePage = () => state.pages.find((page) => page.id === state.activePageId);
-const childrenOf = (parentId) => state.pages.filter((page) => page.parentId === parentId).sort((a, b) => a.order - b.order);
+const childrenOf = (parentId) => state.pages.filter((page) => !page.deleted && page.parentId === parentId).sort((a, b) => a.order - b.order);
 const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);
 const BLOCK_TYPES = ["paragraph", "heading1", "heading2", "heading3", "bullet", "number", "task", "toggle", "quote", "code", "divider"];
 const blockLabel = (type) => ({ paragraph:"Text", heading1:"Heading 1", heading2:"Heading 2", heading3:"Heading 3", bullet:"Bulleted list", number:"Numbered list", task:"Task", toggle:"Toggle", quote:"Quote", code:"Code", divider:"Divider" }[type] || `Unsupported: ${type}`);
@@ -95,7 +96,7 @@ async function restoreWorkspace(file) {
   const candidate = parsed?.exportVersion === "motion.workspace/1.0" ? parsed.workspace : parsed;
   if (candidate?.schemaVersion !== 1 || !Array.isArray(candidate.pages)) throw new Error("Unsupported or invalid Motion workspace backup");
   state = normalizeWorkspaceV1(candidate);
-  if (!state.pages.some((page) => page.id === state.activePageId)) state.activePageId = state.pages[0]?.id ?? null;
+  if (!state.pages.some((page) => page.id === state.activePageId && !page.deleted)) state.activePageId = state.pages.find(page => !page.deleted)?.id ?? null;
   await persist();
   render();
 }
@@ -108,14 +109,30 @@ function addPage(parentId = null, type = "document") {
   requestAnimationFrame(() => $("#pageTitle")?.select());
 }
 
-function removePage(pageId) {
+function trashPage(pageId) {
   checkpoint();
   const doomed = new Set([pageId]);
   let changed = true;
   while (changed) { changed = false; state.pages.forEach((p) => { if (p.parentId && doomed.has(p.parentId) && !doomed.has(p.id)) { doomed.add(p.id); changed = true; } }); }
-  state.pages = state.pages.filter((p) => !doomed.has(p.id));
-  if (doomed.has(state.activePageId)) state.activePageId = state.pages[0]?.id ?? null;
+  state.pages.forEach(page => { if (doomed.has(page.id)) page.deleted = true; });
+  if (doomed.has(state.activePageId)) state.activePageId = state.pages.find(page => !page.deleted)?.id ?? null;
   persist(); render();
+}
+
+function restorePage(pageId) {
+  checkpoint();
+  const restored = new Set([pageId]);
+  let changed = true;
+  while (changed) { changed = false; state.pages.forEach(page => { if (page.parentId && restored.has(page.parentId) && !restored.has(page.id)) { restored.add(page.id); changed = true; } }); }
+  let current = state.pages.find(page => page.id === pageId);
+  while (current) { restored.add(current.id); current = state.pages.find(page => page.id === current.parentId); }
+  state.pages.forEach(page => { if (restored.has(page.id)) page.deleted = false; });
+  state.activePageId = pageId; persist(); render();
+}
+
+function renderTrash() {
+  const roots = state.pages.filter(page => page.deleted && (!page.parentId || !state.pages.find(parent => parent.id === page.parentId)?.deleted));
+  $("#trashList").innerHTML = roots.length ? roots.map(page => `<div class="tree-row"><span class="disclosure" aria-hidden="true">×</span><span class="page-link">${escapeHtml(page.title || "Untitled")}</span><button class="row-action" data-restore-page="${page.id}" type="button" aria-label="Restore ${escapeHtml(page.title || "Untitled")}">Restore</button></div>`).join("") : `<div class="empty-nav">Trash is empty</div>`;
 }
 
 function renderTree(parentId = null, depth = 0) {
@@ -137,6 +154,7 @@ function ancestors(page) {
 
 function render() {
   $("#pageTree").innerHTML = state.pages.length ? renderTree() : `<div class="empty-nav">No pages yet</div>`;
+  renderTrash();
   const page = activePage();
   if (!page) { renderEmptyWorkspace(); renderContext(null); return; }
   $("#breadcrumbs").innerHTML = ancestors(page).map((item) => `<button type="button" data-open-page="${item.id}">${escapeHtml(item.title || "Untitled")}</button>`).join(`<span aria-hidden="true">/</span>`);
@@ -205,12 +223,12 @@ async function renderSearch(query) {
     const seenPages = new Set();
     hits = nativeHits.map(hit => {
       const page = state.pages.find(candidate => candidate.id === hit.entityId || candidate.blocks?.some(block => block.id === hit.entityId));
-      if (!page || seenPages.has(page.id)) return null;
+      if (!page || page.deleted || seenPages.has(page.id)) return null;
       seenPages.add(page.id);
       return { page, snippet: hit.snippet, native: true };
     }).filter(Boolean);
   } else {
-    hits = state.pages.filter((p) => p.title.toLowerCase().includes(term) || p.blocks?.some((b) => b.text.toLowerCase().includes(term))).map(page => ({ page, snippet: page.type === "database" ? `${page.rows.length} rows` : "Browser development search", native: false }));
+    hits = state.pages.filter((p) => !p.deleted && (p.title.toLowerCase().includes(term) || p.blocks?.some((b) => b.text.toLowerCase().includes(term)))).map(page => ({ page, snippet: page.type === "database" ? `${page.rows.length} rows` : "Browser development search", native: false }));
   }
   $("#searchResults").innerHTML = hits.length ? hits.map(({ page, snippet, native }) => `<button type="button" data-search-page="${page.id}"><span class="result-icon">${page.type === "database" ? "▦" : "□"}</span><span><strong>${escapeHtml(page.title)}</strong><small>${escapeHtml(snippet || (native ? "Indexed result" : "Document"))}</small></span></button>`).join("") : `<div class="search-hint">No results for “${escapeHtml(query)}”.</div>`;
 }
@@ -221,7 +239,8 @@ document.addEventListener("click", (event) => {
   if (el.dataset.addChild) addPage(el.dataset.addChild);
   if (el.dataset.movePage) { checkpoint(); const [id, deltaText] = el.dataset.movePage.split(":"); const page = state.pages.find(p => p.id === id), siblings = childrenOf(page.parentId), at = siblings.findIndex(p => p.id === id), to = at + Number(deltaText); if (to >= 0 && to < siblings.length) { const other = siblings[to]; [page.order, other.order] = [other.order, page.order]; persist(); render(); } }
   if (el.dataset.create) addPage(null, el.dataset.create);
-  if (el.dataset.deletePage && confirm("Delete this page and any pages inside it?")) removePage(el.dataset.deletePage);
+  if (el.dataset.deletePage && confirm("Move this page and any pages inside it to Trash?")) trashPage(el.dataset.deletePage);
+  if (el.dataset.restorePage) restorePage(el.dataset.restorePage);
   if (el.dataset.deleteBlock) { checkpoint(); const page = activePage(); page.blocks = page.blocks.filter((b) => b.id !== el.dataset.deleteBlock); persist(); render(); }
   if (el.dataset.moveBlock) { checkpoint(); const [id, deltaText] = el.dataset.moveBlock.split(":"); const blocks = activePage().blocks, at = blocks.findIndex(b => b.id === id), to = at + Number(deltaText); if (at >= 0 && to >= 0 && to < blocks.length) [blocks[at], blocks[to]] = [blocks[to], blocks[at]]; persist(); render(); }
   if (el.dataset.deleteRow) { const page = activePage(); page.rows = page.rows.filter((r) => r.id !== el.dataset.deleteRow); persist(); render(); }

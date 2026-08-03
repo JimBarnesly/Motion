@@ -42,11 +42,11 @@ async function dispatch(rawRequest) {
       const databases = new Map(loaded.databases.map(database => [database.pageId, database]));
       let activePageId = null;
       try { activePageId = JSON.parse(readFileSync(join(dataRoot, "ui-state.json"), "utf8")).activePageId ?? null; } catch {}
-      result = { schemaVersion: 1, activePageId: loaded.pages.some(page => page.id === activePageId) ? activePageId : loaded.pages[0]?.id ?? null,
+      result = { schemaVersion: 1, activePageId: loaded.pages.some(page => page.id === activePageId && !page.deletedAt) ? activePageId : loaded.pages.find(page => !page.deletedAt)?.id ?? null,
         pages: loaded.pages.map((page, order) => {
           const database = databases.get(page.id);
           return { id: page.id, parentId: page.parentId, order, type: database ? "database" : "document", title: page.title,
-            archived: Boolean(page.archivedAt), blocks: page.blocks.map(block => ({ id: block.id, type: ({ "heading-1":"heading1", "heading-2":"heading2", "heading-3":"heading3", "bulleted-list":"bullet", "numbered-list":"number" })[block.type] ?? block.type, text: block.text, checked: block.checked })),
+            archived: Boolean(page.archivedAt), deleted: Boolean(page.deletedAt), blocks: page.blocks.map(block => ({ id: block.id, type: ({ "heading-1":"heading1", "heading-2":"heading2", "heading-3":"heading3", "bulleted-list":"bullet", "numbered-list":"number" })[block.type] ?? block.type, text: block.text, checked: block.checked })),
             ...(database ? { columns: database.properties.map(property => ({ id: property.id, name: property.name, type: property.type === "plain-text" ? "text" : property.type })), rows: database.rows } : {}) };
         }) };
       break;

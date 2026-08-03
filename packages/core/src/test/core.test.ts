@@ -151,3 +151,14 @@ test("web v1 migration is deterministic, separates UI state, preserves unknown b
   assert.equal(first.workspace.databases[0]?.rows[0]?.values["column-name"], "Ship Motion");
   assertWorkspaceValue(first.workspace);
 });
+
+test("web v1 trash migration preserves page identity and content", () => {
+  const fixture = JSON.parse(readFileSync(new URL("../../../../fixtures/web-workspace-v1.json", import.meta.url), "utf8"));
+  fixture.pages[0].deleted = true;
+  fixture.activePageId = fixture.pages[0].id;
+  const result = migrateWebWorkspaceV1(fixture);
+  const page = result.workspace.pages.find(item => item.id === fixture.pages[0].id);
+  assert.equal(page?.deletedAt, "1970-01-01T00:00:00.000Z");
+  assert.equal(page?.blocks[0]?.id, fixture.pages[0].blocks[0].id);
+  assert.equal(result.uiState.activePageId, null);
+});

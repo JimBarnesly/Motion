@@ -67,12 +67,9 @@ export function migrateWorkspace(input: unknown): Workspace {
 function flatten(blocks: Block[]): Block[] { return blocks.flatMap(block => [block, ...flatten(block.children ?? [])]); }
 
 export function assertWorkspace(value: unknown): asserts value is Workspace {
-  const w = value as Partial<Workspace>;
-  if (!w || w.schemaVersion !== 2 || !w.id || !w.name || !Array.isArray(w.pages) || !Array.isArray(w.databases) || !Array.isArray(w.attachments) || !Array.isArray(w.linkIndex)) throw new Error("Invalid workspace structure or schema");
-  const pageIds = new Set(w.pages.map(p => p.id));
-  for (const page of w.pages) {
-    if (page.parentId !== null && !pageIds.has(page.parentId)) throw new Error(`Missing parent ${page.parentId} for page ${page.id}`);
-    const visited = new Set<ID>(); let cursor: Page | undefined = page;
-    while (cursor?.parentId) { if (visited.has(cursor.id)) throw new Error(`Page hierarchy cycle at ${cursor.id}`); visited.add(cursor.id); cursor = w.pages.find(p => p.id === cursor!.parentId); }
-  }
+  // Kept as the public compatibility entry point; the implementation lives in
+  // validation.ts so loading and import boundaries use identical rules.
+  assertWorkspaceValue(value);
 }
+
+import { assertWorkspaceValue } from "./validation.js";

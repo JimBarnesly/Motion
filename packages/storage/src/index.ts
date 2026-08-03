@@ -17,6 +17,22 @@ export interface StoredAttachment {
   path: string;
 }
 
+export interface SearchHit {
+  workspaceId: string;
+  entityId: string;
+  title: string;
+  snippet: string;
+}
+
+export interface WorkspaceWrite {
+  workspaceId: string;
+  schemaVersion: number;
+  document: unknown;
+  expectedRevision?: number;
+  /** Test/diagnostic hook. Throwing here proves the workspace and index share one transaction. */
+  afterWorkspaceWrite?: () => void;
+}
+
 const migrations = [
   `CREATE TABLE IF NOT EXISTS motion_migrations (
     version INTEGER PRIMARY KEY,
@@ -29,7 +45,25 @@ const migrations = [
     revision INTEGER NOT NULL,
     document_json TEXT NOT NULL,
     updated_at TEXT NOT NULL
-  );`
+  );`,
+  `CREATE VIRTUAL TABLE IF NOT EXISTS workspace_search USING fts5(
+    workspace_id UNINDEXED,
+    entity_id UNINDEXED,
+    title,
+    body,
+    tokenize = 'unicode61'
+  );
+  CREATE TABLE IF NOT EXISTS reindex_jobs (
+    job_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id TEXT NOT NULL,
+    workspace_revision INTEGER NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('pending', 'complete')),
+    created_at TEXT NOT NULL,
+    completed_at TEXT,
+    UNIQUE(workspace_id, workspace_revision),
+    FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS reindex_jobs_status_idx ON reindex_jobs(status, job_id);`
 ];
 
 const digest = (input: string | Uint8Array) => createHash("sha256").update(input).digest("hex");
@@ -45,28 +79,41 @@ export class SqliteWorkspaceStore {
     this.database = new DatabaseSync(databasePath);
     this.database.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL;");
     this.migrate();
+    this.runPendingReindexJobs();
   }
 
   close(): void { this.database.close(); }
 
   save(workspaceId: string, schemaVersion: number, document: unknown, expectedRevision?: number): number {
-    const existing = this.load(workspaceId);
-    if (expectedRevision !== undefined && (existing?.revision ?? 0) !== expectedRevision) {
-      throw new Error(`Revision conflict for workspace ${workspaceId}`);
+    return this.saveUnitOfWork({ workspaceId, schemaVersion, document, expectedRevision });
+  }
+
+  saveUnitOfWork(write: WorkspaceWrite): number {
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      const row = this.database.prepare("SELECT revision FROM workspaces WHERE workspace_id = ?").get(write.workspaceId) as { revision: number } | undefined;
+      const currentRevision = Number(row?.revision ?? 0);
+      if (write.expectedRevision !== undefined && currentRevision !== write.expectedRevision) {
+        throw new Error(`Revision conflict for workspace ${write.workspaceId}`);
+      }
+      const revision = currentRevision + 1;
+      const now = new Date().toISOString();
+      this.database.prepare(`INSERT INTO workspaces(workspace_id, schema_version, revision, document_json, updated_at)
+        VALUES (?, ?, ?, ?, ?) ON CONFLICT(workspace_id) DO UPDATE SET schema_version=excluded.schema_version,
+        revision=excluded.revision, document_json=excluded.document_json, updated_at=excluded.updated_at`)
+        .run(write.workspaceId, write.schemaVersion, revision, JSON.stringify(write.document), now);
+      this.database.prepare(`INSERT INTO reindex_jobs(workspace_id, workspace_revision, status, created_at)
+        VALUES (?, ?, 'pending', ?)` ).run(write.workspaceId, revision, now);
+      write.afterWorkspaceWrite?.();
+      this.reindexWorkspace(write.workspaceId, write.document);
+      this.database.prepare("UPDATE reindex_jobs SET status='complete', completed_at=? WHERE workspace_id=? AND workspace_revision=?")
+        .run(now, write.workspaceId, revision);
+      this.database.exec("COMMIT");
+      return revision;
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
     }
-    const revision = (existing?.revision ?? 0) + 1;
-    const updatedAt = new Date().toISOString();
-    const statement = this.database.prepare(`
-      INSERT INTO workspaces(workspace_id, schema_version, revision, document_json, updated_at)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(workspace_id) DO UPDATE SET
-        schema_version = excluded.schema_version,
-        revision = excluded.revision,
-        document_json = excluded.document_json,
-        updated_at = excluded.updated_at
-    `);
-    statement.run(workspaceId, schemaVersion, revision, JSON.stringify(document), updatedAt);
-    return revision;
   }
 
   load(workspaceId: string): StoredWorkspace | undefined {
@@ -81,18 +128,108 @@ export class SqliteWorkspaceStore {
     };
   }
 
+  list(): StoredWorkspace[] {
+    const rows = this.database.prepare("SELECT * FROM workspaces ORDER BY updated_at DESC, workspace_id").all() as Record<string, unknown>[];
+    return rows.map((row) => ({ workspaceId: String(row.workspace_id), schemaVersion: Number(row.schema_version),
+      revision: Number(row.revision), document: JSON.parse(String(row.document_json)), updatedAt: String(row.updated_at) }));
+  }
+
+  remove(workspaceId: string): void {
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      this.database.prepare("DELETE FROM workspace_search WHERE workspace_id = ?").run(workspaceId);
+      this.database.prepare("DELETE FROM workspaces WHERE workspace_id = ?").run(workspaceId);
+      this.database.exec("COMMIT");
+    } catch (error) { this.database.exec("ROLLBACK"); throw error; }
+  }
+
+  search(query: string, workspaceId?: string, limit = 50): SearchHit[] {
+    const match = toFtsQuery(query);
+    if (!match) return [];
+    const boundedLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
+    const sql = workspaceId
+      ? "SELECT workspace_id, entity_id, title, snippet(workspace_search, 3, '[', ']', '…', 12) snippet FROM workspace_search WHERE workspace_search MATCH ? AND workspace_id = ? ORDER BY rank LIMIT ?"
+      : "SELECT workspace_id, entity_id, title, snippet(workspace_search, 3, '[', ']', '…', 12) snippet FROM workspace_search WHERE workspace_search MATCH ? ORDER BY rank LIMIT ?";
+    const rows = (workspaceId
+      ? this.database.prepare(sql).all(match, workspaceId, boundedLimit)
+      : this.database.prepare(sql).all(match, boundedLimit)) as Record<string, unknown>[];
+    return rows.map((row) => ({ workspaceId: String(row.workspace_id), entityId: String(row.entity_id), title: String(row.title), snippet: String(row.snippet) }));
+  }
+
+  runPendingReindexJobs(): number {
+    const jobs = this.database.prepare("SELECT job_id, workspace_id FROM reindex_jobs WHERE status='pending' ORDER BY job_id").all() as { job_id: number; workspace_id: string }[];
+    for (const job of jobs) {
+      const workspace = this.load(job.workspace_id);
+      if (!workspace) continue;
+      this.database.exec("BEGIN IMMEDIATE");
+      try {
+        this.reindexWorkspace(job.workspace_id, workspace.document);
+        this.database.prepare("UPDATE reindex_jobs SET status='complete', completed_at=? WHERE job_id=?").run(new Date().toISOString(), job.job_id);
+        this.database.exec("COMMIT");
+      } catch (error) { this.database.exec("ROLLBACK"); throw error; }
+    }
+    return jobs.length;
+  }
+
+  private reindexWorkspace(workspaceId: string, document: unknown): void {
+    this.database.prepare("DELETE FROM workspace_search WHERE workspace_id = ?").run(workspaceId);
+    const insert = this.database.prepare("INSERT INTO workspace_search(workspace_id, entity_id, title, body) VALUES (?, ?, ?, ?)");
+    for (const entry of extractSearchEntries(document, workspaceId)) insert.run(workspaceId, entry.entityId, entry.title, entry.body);
+  }
+
   private migrate(): void {
     this.database.exec("BEGIN IMMEDIATE");
     try {
-      this.database.exec(migrations[0]);
+      this.database.exec(`CREATE TABLE IF NOT EXISTS motion_migrations (
+        version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL, checksum TEXT NOT NULL
+      )`);
       const insert = this.database.prepare("INSERT OR IGNORE INTO motion_migrations(version, applied_at, checksum) VALUES (?, ?, ?)");
-      insert.run(1, new Date().toISOString(), digest(migrations[0]));
+      for (const [index, migration] of migrations.entries()) {
+        const version = index + 1;
+        const existing = this.database.prepare("SELECT checksum FROM motion_migrations WHERE version=?").get(version) as { checksum: string } | undefined;
+        if (existing && existing.checksum !== digest(migration)) throw new Error(`Migration checksum mismatch at version ${version}`);
+        if (!existing) { this.database.exec(migration); insert.run(version, new Date().toISOString(), digest(migration)); }
+      }
       this.database.exec("COMMIT");
     } catch (error) {
       this.database.exec("ROLLBACK");
       throw error;
     }
   }
+}
+
+/** Converts arbitrary user input to an FTS expression containing literals only. */
+export function toFtsQuery(input: string): string {
+  const tokens = input.normalize("NFKC").match(/[\p{L}\p{N}_]+/gu) ?? [];
+  return tokens.slice(0, 32).map((token) => `"${token.replaceAll('"', '""')}"`).join(" AND ");
+}
+
+function extractSearchEntries(document: unknown, fallbackId: string): { entityId: string; title: string; body: string }[] {
+  const result: { entityId: string; title: string; body: string }[] = [];
+  const visit = (value: unknown, path: string): void => {
+    if (Array.isArray(value)) { value.forEach((child, index) => visit(child, `${path}.${index}`)); return; }
+    if (!value || typeof value !== "object") return;
+    const record = value as Record<string, unknown>;
+    const id = typeof record.id === "string" ? record.id : path;
+    const title = typeof record.title === "string" ? record.title : typeof record.name === "string" ? record.name : "";
+    const text = [record.text, record.content, record.label].filter((part): part is string => typeof part === "string").join(" ");
+    if (title || text) result.push({ entityId: id, title, body: text });
+    for (const [key, child] of Object.entries(record)) if (typeof child === "object" && child !== null) visit(child, `${path}.${key}`);
+  };
+  visit(document, fallbackId);
+  if (result.length === 0) result.push({ entityId: fallbackId, title: "", body: JSON.stringify(document) });
+  return result;
+}
+
+/** Promise-shaped facade structurally compatible with core WorkspaceStore. */
+export class AsyncSqliteWorkspaceStore<T extends { id: string; name: string; updatedAt: string; schemaVersion?: number }> {
+  constructor(private readonly store: SqliteWorkspaceStore) {}
+  async load(workspaceId: string): Promise<T | undefined> { return this.store.load(workspaceId)?.document as T | undefined; }
+  async save(workspace: T): Promise<void> { this.store.save(workspace.id, workspace.schemaVersion ?? 1, workspace); }
+  async list(): Promise<Pick<T, "id" | "name" | "updatedAt">[]> {
+    return this.store.list().map(({ document }) => { const value = document as T; return { id: value.id, name: value.name, updatedAt: value.updatedAt }; });
+  }
+  async remove(workspaceId: string): Promise<void> { this.store.remove(workspaceId); }
 }
 
 /** Files are immutable and addressed by content hash; metadata remains in the workspace database. */

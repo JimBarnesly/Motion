@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MemoryWorkspaceStore, WorkspaceDocument, createWorkspace, exportDatabaseCsv, exportFullWorkspace, exportPageMarkdown, exportWorkspaceJson, migrateWorkspace, type Page } from "../index.js";
+import { readFileSync } from "node:fs";
+import { MemoryWorkspaceStore, WorkspaceDocument, assertWorkspaceValue, createWorkspace, exportDatabaseCsv, exportFullWorkspace, exportPageMarkdown, exportWorkspaceJson, migrateWebWorkspaceV1, migrateWorkspace, type Page } from "../index.js";
 
 test("hierarchy, links, backlinks and search", async () => {
   const ws = createWorkspace("Private notes");
@@ -82,4 +83,49 @@ test("broken stable references remain indexed and null placement is direction-in
   const missing = doc.addRecord(database.id, "Missing", {});
   const present = doc.addRecord(database.id, "Present", { score: 5 });
   assert.deepEqual(doc.queryRecords(database.id, undefined, [{ propertyId: "score", direction: "desc", nulls: "last" }]).map(page => page.id), [present.id, missing.id]);
+});
+
+test("validation rejects hostile structure, duplicates, cycles, references, hashes and timestamps", () => {
+  const base = createWorkspace("Validation");
+  assertWorkspaceValue(base);
+  const duplicate: any = structuredClone(base);
+  duplicate.pages = [
+    { id: "same", parentId: null, title: "A", blocks: [], createdAt: base.createdAt, updatedAt: base.updatedAt },
+    { id: "same", parentId: null, title: "B", blocks: [], createdAt: base.createdAt, updatedAt: base.updatedAt }
+  ];
+  assert.throws(() => assertWorkspaceValue(duplicate), /duplicate ID/);
+  const cycle: any = structuredClone(base);
+  cycle.pages = [
+    { id: "a", parentId: "b", title: "A", blocks: [], createdAt: base.createdAt, updatedAt: base.updatedAt },
+    { id: "b", parentId: "a", title: "B", blocks: [], createdAt: base.createdAt, updatedAt: base.updatedAt }
+  ];
+  assert.throws(() => assertWorkspaceValue(cycle), /cycle/);
+  const badAttachment: any = structuredClone(base);
+  badAttachment.attachments = [{ id: "att", fileName: "x", mediaType: "text/plain", byteLength: 1, sha256: "abc", path: "objects/x", createdAt: base.createdAt }];
+  assert.throws(() => assertWorkspaceValue(badAttachment), /SHA-256/);
+  const missingAttachment: any = structuredClone(base);
+  missingAttachment.pages = [{ id: "p", parentId: null, title: "P", createdAt: base.createdAt, updatedAt: base.updatedAt, blocks: [{ id: "b", type: "file", text: "", children: [], attachmentId: "missing" }] }];
+  assert.throws(() => assertWorkspaceValue(missingAttachment), /missing attachment/);
+  const badTime: any = structuredClone(base); badTime.updatedAt = "yesterday";
+  assert.throws(() => assertWorkspaceValue(badTime), /UTC ISO timestamp/);
+  const oversized: any = structuredClone(base); oversized.pages = [{ id: "p", parentId: null, title: "P", createdAt: base.createdAt, updatedAt: base.updatedAt, blocks: [] }];
+  assert.throws(() => assertWorkspaceValue(oversized, { maxPages: 0 }), /pages must be an array within limits/);
+  const polluted = Object.create({ inherited: true }); Object.assign(polluted, base);
+  assert.throws(() => assertWorkspaceValue(polluted), /plain object/);
+  const poisoned: any = structuredClone(base); poisoned.pages = [{ id: "p", parentId: null, title: "P", createdAt: base.createdAt, updatedAt: base.updatedAt, blocks: [], properties: JSON.parse('{"__proto__":{"admin":true}}') }];
+  assert.throws(() => assertWorkspaceValue(poisoned), /forbidden key/);
+});
+
+test("web v1 migration is deterministic, separates UI state, preserves unknown blocks and rebuilds links", () => {
+  const fixture = JSON.parse(readFileSync(new URL("../../../../fixtures/web-workspace-v1.json", import.meta.url), "utf8"));
+  const first = migrateWebWorkspaceV1(fixture); const second = migrateWebWorkspaceV1(structuredClone(fixture));
+  assert.deepEqual(first, second);
+  assert.equal(first.uiState.activePageId, "page-home");
+  assert.equal((first.workspace as any).activePageId, undefined);
+  assert.equal(first.workspace.schemaVersion, 2);
+  assert.equal(first.workspace.pages[0]?.blocks[1]?.type, "unsupported");
+  assert.equal(first.workspace.pages[0]?.blocks[1]?.unknownData?.importedType, "plugin-weather");
+  assert.deepEqual(first.workspace.linkIndex, [{ sourcePageId: "page-home", targetPageId: "page-tasks", blockId: "block-link" }]);
+  assert.equal(first.workspace.databases[0]?.rows[0]?.values["column-name"], "Ship Motion");
+  assertWorkspaceValue(first.workspace);
 });

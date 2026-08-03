@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "activePageId": "page-home",
+  "pages": [
+    {
+      "id": "page-home",
+      "parentId": null,
+      "order": 0,
+      "type": "document",
+      "title": "Home",
+      "blocks": [
+        { "id": "block-link", "type": "paragraph", "text": "See [[Tasks]]", "indent": 0, "links": [{ "pageId": "page-tasks", "title": "Tasks" }] },
+        { "id": "block-future", "type": "plugin-weather", "text": "", "config": { "units": "metric" } }
+      ]
+    },
+    {
+      "id": "page-tasks",
+      "parentId": "page-home",
+      "order": 0,
+      "type": "database",
+      "title": "Tasks",
+      "blocks": [],
+      "columns": [{ "id": "column-name", "name": "Name", "type": "text" }],
+      "rows": [{ "id": "row-one", "values": { "column-name": "Ship Motion" } }]
+    }
+  ]
+}

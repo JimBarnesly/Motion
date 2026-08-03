@@ -32,3 +32,51 @@ test("attachment storage is content-addressed, deduplicated, and verified", asyn
     await assert.rejects(store.get("../../workspace.json"), /64 lowercase hexadecimal/);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test("workspace write and FTS update roll back together", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-uow-"));
+  const store = new SqliteWorkspaceStore(join(root, "motion.sqlite3"));
+  try {
+    store.save("ws", 1, { id: "page", title: "Original", text: "durable" }, 0);
+    assert.throws(() => store.saveUnitOfWork({ workspaceId: "ws", schemaVersion: 1,
+      document: { id: "page", title: "Broken", text: "vanish" }, expectedRevision: 1,
+      afterWorkspaceWrite: () => { throw new Error("injected failure"); } }), /injected failure/);
+    assert.equal(store.load("ws")?.revision, 1);
+    assert.equal(store.search("durable").length, 1);
+    assert.equal(store.search("vanish").length, 0);
+  } finally { store.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test("FTS survives restart and follows rename and deletion", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-fts-"));
+  const path = join(root, "motion.sqlite3");
+  try {
+    const first = new SqliteWorkspaceStore(path);
+    first.save("ws", 1, { pages: [{ id: "p1", title: "Alpha", text: "needle" }] }, 0);
+    first.close();
+    const reopened = new SqliteWorkspaceStore(path);
+    assert.equal(reopened.search("needle", "ws")[0]?.entityId, "p1");
+    reopened.save("ws", 1, { pages: [{ id: "p1", title: "Beta", text: "replacement" }] }, 1);
+    assert.equal(reopened.search("Alpha").length, 0);
+    assert.equal(reopened.search("Beta").length, 1);
+    reopened.remove("ws");
+    assert.equal(reopened.search("Beta").length, 0);
+    reopened.close();
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("hostile FTS syntax is tokenized and migrations are idempotent", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-migrations-"));
+  const path = join(root, "motion.sqlite3");
+  try {
+    const first = new SqliteWorkspaceStore(path);
+    first.save("ws", 1, { id: "p", title: "Quoted", text: "safe query" }, 0);
+    assert.doesNotThrow(() => first.search('" OR * NEAR() - { }'));
+    first.close();
+    const second = new SqliteWorkspaceStore(path);
+    const migrations = second.database.prepare("SELECT version FROM motion_migrations ORDER BY version").all() as { version: number }[];
+    assert.deepEqual(migrations.map(({ version }) => version), [1, 2]);
+    assert.throws(() => second.save("ws", 1, { id: "p", title: "stale" }, 0), /Revision conflict/);
+    second.close();
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

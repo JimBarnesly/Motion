@@ -5,6 +5,9 @@ dist/
 dist-ts/
 coverage/
 artifacts/
+/.cache/node-runtime/
+playwright-report/
+test-results/
 .DS_Store
 *.log
 .env

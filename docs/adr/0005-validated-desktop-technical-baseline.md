@@ -1,6 +1,6 @@
 # ADR 0005: Validated desktop technical baseline
 
-- Status: Accepted as baseline; implementation components remain subject to compatibility validation
+- Status: Accepted direction; native database adapter ownership remains provisional
 - Date: 2026-08-04
 
 ## Context
@@ -9,7 +9,7 @@ Motion needs a Linux-first desktop runtime with later Windows/macOS portability,
 
 ## Decision
 
-Use Tauri 2 for the desktop shell; React with strict TypeScript, Vite, CSS variables/design tokens, and accessible headless primitives for the UI; Rust-owned SQLite access with explicit migrations and FTS5 for canonical local records and rebuildable search; and content-addressed attachment files with hashes and metadata stored in SQLite.
+Use Tauri 2 for the intended desktop shell; React with strict TypeScript, Vite, CSS variables/design tokens, and accessible headless primitives for the UI; SQLite with explicit migrations and FTS5 for canonical local records and rebuildable search; and content-addressed attachment files with hashes and metadata stored in SQLite. Whether production SQLite ownership is implemented in Rust or behind another measured native adapter remains open until packaged benchmarks and supportability tests resolve ADR 0009.
 
 Tauri commands expose narrow application-service APIs rather than raw SQL or unrestricted filesystem access. The UI remains separable enough for a later browser client, but desktop durability and integration take priority. Dependencies must use current compatible stable releases, have acceptable licenses, and be pinned through lockfiles and documented toolchain versions.
 

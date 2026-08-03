@@ -8,6 +8,11 @@ Updated: 2026-08-04
 - `packages/core`: versioned workspace/page/block/collection/view/attachment models, hierarchy cycle prevention, links/backlinks, ranked in-memory search, persistence abstraction, and JSON/Markdown/CSV export primitives.
 - `apps/web`: runnable offline-oriented vertical slice with nested navigation, editable blocks/tables, keyboard quick search, wiki links/backlinks, versioned browser persistence, and responsive light/dark UI.
 - Storage, search, formula, backup, and observability packages have initial implementations and focused tests.
+- Foundational spike verdicts are now recorded in ADRs 0006-0012:
+  editor/Yjs behavior and SQLite/FTS5 primitives are validated; stable block IDs,
+  versioned logical documents with Yjs persistence, and rebuildable local search
+  are accepted. Tauri packaging, the final production database adapter, and
+  crash-safe attachment staging retain explicit validation gates.
 
 ## Not yet a release
 
@@ -30,3 +35,13 @@ create/edit/link/search/attach, terminate/restart, export, restore into a new
 workspace, and run with networking blocked.
 
 See `RISKS.md`, `ROADMAP.md`, and `TEST_STRATEGY.md` for gates and dependencies.
+
+## Evidence baseline
+
+- Editor spike: `spikes/002-editor-yjs`, 4/4 tests pass for block types/IDs,
+  versioned offline reload, undo/redo, and unknown-node preservation.
+- SQLite/FTS spike: `spikes/003-sqlite-fts`, 3/3 tests pass for migrations,
+  document updates, FTS5, attachment hashing, rollback, restart, and WAL recovery.
+- Tauri spike: `spikes/001-tauri-linux`, 2/2 boundary tests and the offline web
+  build pass; native compilation/launch/package is unverified because this host
+  lacks Rust and Linux WebView development dependencies.

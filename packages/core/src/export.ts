@@ -9,7 +9,13 @@ const blockMarkdown = (b: Block, depth = 0): string => {
 };
 
 export const exportPageMarkdown = (page: Page) => `# ${page.title}\n\n${page.blocks.map(b => blockMarkdown(b)).join("\n\n")}\n`;
-export const exportWorkspaceJson = (workspace: Workspace) => JSON.stringify(workspace, null, 2);
+/** Canonical key ordering makes exports byte-stable for backup verification. Array order remains meaningful. */
+export const exportWorkspaceJson = (workspace: Workspace) => JSON.stringify(canonical(workspace), null, 2);
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, child]) => [key, canonical(child)]));
+  return value;
+}
 export function exportDatabaseCsv(database: Database): string {
   const header = ["id", ...database.properties.map(p => p.name)].map(csvCell).join(",");
   return [header, ...database.rows.map(row => [row.id, ...database.properties.map(p => row.values[p.id])].map(csvCell).join(","))].join("\n") + "\n";

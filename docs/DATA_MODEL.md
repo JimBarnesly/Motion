@@ -8,12 +8,12 @@ The initial logical schema is `motion.workspace/1.0`. Persisted databases also c
 
 - **Workspace:** name, settings, encryption metadata, schema version.
 - **Page:** parent page (nullable), title, icon/cover references, ordered root blocks, archived state.
-- **Block:** page, parent block (nullable), type, fractional/order key, typed JSON payload. Initial types: paragraph, headings, list item, task, quote, code, divider, image/file, database reference.
+- **Block:** page, parent block (nullable), type, payload schema version, fractional/order key, typed JSON payload. Unknown types are opaque canonical records whose discriminator, version, and payload must survive round trips unchanged.
 - **Database:** title and ordered property definitions.
 - **PropertyDefinition:** stable ID, name, type, options. Initial types: text, number, boolean, date, select, multi-select, page relation, attachment.
 - **Row:** database ID, optional page ID, ordered typed values keyed by property ID.
 - **View:** database ID, type (`table` initially), visible properties, filters, sorts, grouping and presentation settings.
-- **Link:** source entity/block, target page, optional display text; backlinks are a query over links.
+- **Link:** materialized index row containing source page and optional source block, target page, link kind, optional target block, and optional display text. Link identity uses stable IDs; backlinks query this index rather than scanning documents. Link rows are transactionally derived from canonical block payloads and can be rebuilt.
 - **Attachment:** content hash, byte size, MIME type, original filename, storage key, encryption metadata.
 - **Comment:** thread, target entity/range, author identity when collaboration is enabled, body, resolved state.
 - **Operation:** actor ID, monotonic actor sequence, operation ID, dependency/vector summary, kind, payload, timestamp.
@@ -27,6 +27,8 @@ Deletion is tombstoned while operations may still reference an entity. Compactio
 - Order keys are unique within a sibling collection; rebalance is represented as ordinary operations.
 - Property values are validated against definitions. Removing a property tombstones its definition so old operations remain interpretable.
 - Relations target stable IDs, never titles or paths.
+- Renaming or moving a page does not rewrite link identity; display titles are resolved from the target page.
+- Unknown block payloads are not normalized, stripped, or rewritten by clients that do not understand their type.
 - Attachment references target a verified content hash; missing blobs are represented explicitly, not as successful uploads.
 - Requested output state and confirmed external state are distinct if automation integrations are added later.
 

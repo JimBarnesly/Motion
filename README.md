@@ -6,8 +6,10 @@ databases, search, attachments, and portable exports without requiring an
 account or network connection.
 
 This repository currently contains the first vertical slice: create and nest
-pages, edit block content, create database tables, search, inspect backlinks,
-and export workspace data. Local storage is authoritative. Sync, collaboration,
+pages, edit typed block content with keyboard operations, create database
+tables, search, inspect stable-ID links/backlinks, and export workspace data.
+The core also defines records-as-pages, typed filter/sort trees, materialised
+link indexing, unknown-block preservation, and schema migration. Local storage is authoritative. Sync, collaboration,
 encryption, and AI integrations are optional layers and are documented as
 future protocol-compatible services rather than dependencies of local mode.
 

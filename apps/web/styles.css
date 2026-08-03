@@ -38,7 +38,24 @@ kbd { margin-left:auto; color:var(--muted); font-size:11px; background:var(--sur
 .page-kicker { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.08em; justify-content:space-between; }
 .danger-text { border:0; background:none; color:var(--danger); text-transform:none; letter-spacing:0; opacity:.7; }
 .page-title { display:block; width:100%; border:0; background:transparent; font-size:clamp(32px,5vw,48px); font-weight:720; letter-spacing:-.035em; margin:15px 0 36px; outline:none; }
-.block-row { display:flex; align-items:flex-start; position:relative; margin:2px 0; border-radius:6px; }
+.block-row { display:flex; align-items:flex-start; position:relative; margin:2px 0 2px calc(var(--indent) * 24px); border-radius:6px; }
+.block-tools { display:flex; opacity:0; margin-top:6px; }
+.block-tools button { border:0; background:transparent; color:var(--muted); padding:3px; }
+.block-row:hover .block-tools,.block-row:focus-within .block-tools { opacity:1; }
+.block-row select { width:24px; border:0; background:transparent; color:transparent; margin-top:8px; }
+.block-input.heading1 { font-size:28px; font-weight:720; }
+.block-input.heading2 { font-size:23px; font-weight:700; }
+.block-input.heading3 { font-size:19px; font-weight:680; }
+.block-input.bullet::before { content:"• "; color:var(--muted); }
+.block-input.number::before { content:"1. "; color:var(--muted); }
+.block-input.quote { border-left:3px solid var(--line); padding-left:12px; font-style:italic; }
+.block-input.code { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; background:var(--bg); border:1px solid var(--line); border-radius:6px; white-space:pre-wrap; }
+.block-row.unknown { border:1px dashed var(--line); }
+.block-row.unknown::before { content:"Preserved unsupported block"; color:var(--muted); font-size:10px; position:absolute; top:-12px; }
+.block-row hr { flex:1; border:0; border-top:1px solid var(--line); margin:19px 6px; }
+.task-check { margin:13px 4px 0; }
+.broken-link { color:var(--danger); font-size:12px; padding:6px 4px; }
+.context-link.archived { opacity:.62; }
 .block-row:focus-within { background:var(--bg); }
 .block-handle { color:var(--muted); opacity:0; padding:9px 5px; user-select:none; }
 .block-row:hover .block-handle,.block-row:focus-within .block-handle { opacity:.55; }

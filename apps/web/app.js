@@ -283,12 +283,15 @@ $("#restoreFile").addEventListener("change", async (event) => {
 });
 
 document.addEventListener("input", (event) => {
+  if (event.target.id === "searchInput") {
+    renderSearch(event.target.value).catch(error => { $("#searchResults").innerHTML = `<div class="search-hint">${escapeHtml(error instanceof Error ? error.message : "Search failed")}</div>`; });
+    return;
+  }
   const page = activePage(); if (!page) return;
   if (event.target.id === "pageTitle") { const old = page.title; page.title = event.target.value; state.pages.forEach(p => (p.blocks || []).forEach(b => { if ((b.links || []).some(l => l.pageId === page.id)) { b.text = (b.text || "").replaceAll(`[[${old}]]`, `[[${page.title}]]`); (b.links || []).filter(l => l.pageId === page.id).forEach(l => l.title = page.title); } })); persist(); $("#pageTree").innerHTML = renderTree(); renderContext(page); }
   if (event.target.dataset.block) { const block = page.blocks.find((b) => b.id === event.target.dataset.block); block.text = event.target.textContent; refreshBlockLinks(block); persist(); renderContext(page); }
   if (event.target.dataset.columnName) { page.columns.find((c) => c.id === event.target.dataset.columnName).name = event.target.value; persist(); }
   if (event.target.dataset.cell) { const [rowId, colId] = event.target.dataset.cell.split(":"); page.rows.find((r) => r.id === rowId).values[colId] = event.target.value; persist(); }
-  if (event.target.id === "searchInput") renderSearch(event.target.value).catch(error => { $("#searchResults").innerHTML = `<div class="search-hint">${escapeHtml(error instanceof Error ? error.message : "Search failed")}</div>`; });
 });
 
 document.addEventListener("focusin", event => {

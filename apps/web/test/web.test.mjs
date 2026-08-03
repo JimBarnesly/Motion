@@ -168,3 +168,11 @@ test("page deletion is reversible trash with stable content", async () => {
   assert.equal(reloaded.pages[0].id, "page-1");
   assert.equal(reloaded.pages[0].blocks[0].text, "Still here");
 });
+
+test("search remains available when every page is in Trash", async () => {
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  const listener = source.slice(source.indexOf('document.addEventListener("input"'), source.indexOf('document.addEventListener("focusin"'));
+  assert.ok(listener.indexOf('event.target.id === "searchInput"') < listener.indexOf("const page = activePage()"),
+    "search input must be handled before the no-active-page editor guard");
+  assert.match(listener, /renderSearch\(event\.target\.value\)/);
+});

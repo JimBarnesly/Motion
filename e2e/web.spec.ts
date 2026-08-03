@@ -50,6 +50,49 @@ test("local Web workspace persists, searches and exports without external networ
     blocks: [expect.objectContaining({ text: "Verified local pressure and flow before startup." })]
   });
 
+  page.once("dialog", dialog => dialog.accept());
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  const pageNavigation = page.getByRole("navigation", { name: "Workspace pages" });
+  const trashNavigation = page.getByRole("navigation", { name: "Trash" });
+  await expect(pageNavigation.getByRole("button", { name: "Pump commissioning notes", exact: true })).toHaveCount(0);
+  await expect(trashNavigation.getByRole("button", { name: "Restore Pump commissioning notes" })).toBeVisible();
+
+  await page.getByRole("button", { name: /Search/ }).click();
+  await page.getByRole("searchbox", { name: "Search workspace" }).fill("pressure");
+  await expect(page.locator("#searchResults").getByRole("button", { name: /Pump commissioning notes/ })).toHaveCount(0);
+  await expect(page.locator("#searchResults")).toContainText("No results");
+  await page.getByRole("button", { name: "Close search" }).click();
+
+  await page.reload();
+  await expect(pageNavigation.getByRole("button", { name: "Pump commissioning notes", exact: true })).toHaveCount(0);
+  await expect(trashNavigation.getByRole("button", { name: "Restore Pump commissioning notes" })).toBeVisible();
+  const trashedPage = await page.evaluate(async () => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("motion-web-development", 1);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      const workspace = await new Promise<any>((resolve, reject) => {
+        const request = database.transaction("workspace", "readonly").objectStore("workspace").get("default");
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      return workspace.pages.find((candidate: any) => candidate.title === "Pump commissioning notes");
+    } finally { database.close(); }
+  });
+  expect(trashedPage).toMatchObject({
+    deleted: true,
+    blocks: [expect.objectContaining({ text: "Verified local pressure and flow before startup." })]
+  });
+
+  await trashNavigation.getByRole("button", { name: "Restore Pump commissioning notes" }).click();
+  await expect(page.getByRole("textbox", { name: "Page title" })).toHaveValue("Pump commissioning notes");
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Page title" })).toHaveValue("Pump commissioning notes");
+  await expect(page.locator('[contenteditable="true"][data-block]').first()).toHaveText("Verified local pressure and flow before startup.");
+  await expect(trashNavigation.getByRole("button", { name: "Restore Pump commissioning notes" })).toHaveCount(0);
+
   expect(externalRequests, `unexpected external HTTP(S) requests: ${externalRequests.join(", ")}`).toEqual([]);
   expect(externalSockets, `unexpected external WebSockets: ${externalSockets.join(", ")}`).toEqual([]);
 });

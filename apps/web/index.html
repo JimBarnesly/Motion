@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Motion</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <header class="brand-row">
+          <button class="brand" id="homeButton" type="button" aria-label="Open workspace home">
+            <span class="brand-mark" aria-hidden="true">M</span><span>Motion</span>
+          </button>
+          <button class="icon-button mobile-only" id="closeSidebar" type="button" aria-label="Close navigation">×</button>
+        </header>
+        <button class="search-button" id="openSearch" type="button"><span aria-hidden="true">⌕</span> Search <kbd>Ctrl K</kbd></button>
+        <nav aria-label="Workspace pages">
+          <div class="nav-heading"><span>Pages</span><button class="icon-button" id="addRootPage" type="button" aria-label="Add page">+</button></div>
+          <div id="pageTree" class="page-tree"></div>
+        </nav>
+        <footer class="sidebar-footer">
+          <div><span class="status-dot" aria-hidden="true"></span> Stored on this device</div>
+          <div class="backup-actions">
+            <button id="exportWorkspace" type="button">Export JSON</button>
+            <button id="restoreWorkspace" type="button">Restore</button>
+            <input id="restoreFile" type="file" accept="application/json,.json" hidden />
+          </div>
+        </footer>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <button class="icon-button mobile-only" id="openSidebar" type="button" aria-label="Open navigation">☰</button>
+          <div id="breadcrumbs" class="breadcrumbs" aria-label="Breadcrumb"></div>
+          <span class="save-state" id="saveState" role="status">Saved locally</span>
+        </header>
+        <section class="content" id="content" aria-live="polite"></section>
+      </main>
+
+      <aside class="context-panel" id="contextPanel" aria-label="Page context">
+        <h2>Page context</h2>
+        <section><h3>Linked pages</h3><div id="outgoingLinks"></div></section>
+        <section><h3>Backlinks</h3><div id="backlinks"></div></section>
+      </aside>
+    </div>
+
+    <dialog id="searchDialog" class="search-dialog">
+      <form method="dialog" class="dialog-card">
+        <div class="search-input-row"><span aria-hidden="true">⌕</span><input id="searchInput" type="search" autocomplete="off" placeholder="Search pages and blocks…" aria-label="Search workspace" /><button value="cancel" class="key-button" aria-label="Close search">Esc</button></div>
+        <div id="searchResults" class="search-results"></div>
+      </form>
+    </dialog>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

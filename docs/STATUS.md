@@ -10,7 +10,8 @@ Updated: 2026-08-04
 - Storage, search, formula, backup, and observability packages have initial implementations and focused tests.
 - `packages/app-service` now proves a canonical command/query path through
   validation, domain mutations, SQLite revision commits, FTS, restart, search,
-  backlinks, trash/restore, export, and explicit Web-v1 migration.
+  backlinks, trash/restore, attachments, verified backup/restore into a new
+  workspace, export, and explicit Web-v1 migration.
 - Foundational spike verdicts are now recorded in ADRs 0006-0012:
   editor/Yjs behavior and SQLite/FTS5 primitives are validated; stable block IDs,
   versioned logical documents with Yjs persistence, and rebuildable local search

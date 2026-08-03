@@ -6,15 +6,16 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "prebuild": "npm run build --workspace @motion/core && npm run build --workspace @motion/storage",
+    "prebuild": "npm run build --workspace @motion/core && npm run build --workspace @motion/storage && npm run build --workspace @motion/backup",
     "build": "tsc -p tsconfig.json",
-    "pretypecheck": "npm run build --workspace @motion/core && npm run build --workspace @motion/storage",
+    "pretypecheck": "npm run build --workspace @motion/core && npm run build --workspace @motion/storage && npm run build --workspace @motion/backup",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test dist/test/*.test.js"
   },
   "dependencies": {
     "@motion/core": "0.1.0",
-    "@motion/storage": "0.1.0"
+    "@motion/storage": "0.1.0",
+    "@motion/backup": "0.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

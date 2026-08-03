@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import { readFile, rm } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { SqliteWorkspaceStore } from "@motion/storage";
+import { ContentAddressedAttachmentStore, SqliteWorkspaceStore } from "@motion/storage";
 import { MotionAppError, MotionAppService } from "../index.js";
 
 const databasePath = (name: string) => join(tmpdir(), `motion-app-service-${name}-${crypto.randomUUID()}.sqlite`);
 const removeDatabase = async (path: string) => Promise.all([path, `${path}-wal`, `${path}-shm`].map(file => rm(file, { force: true })));
+const hash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 
 test("committed vertical slice survives restart and supports search, backlinks, trash, restore and export", async () => {
   const path = databasePath("vertical");
@@ -73,4 +75,62 @@ test("web v1 import is deterministic and preserves unsupported blocks", async ()
     });
     assert.equal(outputs[0], outputs[1]);
   } finally { await Promise.all(paths.map(removeDatabase)); }
+});
+
+test("attachments and canonical backup survive restart and restore without trusting archived paths", async () => {
+  const sourcePath = databasePath("backup-source");
+  const targetPath = databasePath("backup-target");
+  const sourceFiles = `${sourcePath}.attachments`; const targetFiles = `${targetPath}.attachments`;
+  try {
+    let store = new SqliteWorkspaceStore(sourcePath);
+    let service = new MotionAppService(store, new ContentAddressedAttachmentStore(sourceFiles));
+    const created = service.execute({ type: "workspace.create", name: "Backup source" });
+    const bytes = new TextEncoder().encode("durable attachment");
+    const attached = await service.executeAsync({ type: "attachment.put", workspaceId: created.workspace.id, expectedRevision: created.revision, id: "file-1", fileName: "notes.txt", mediaType: "text/plain", sha256: hash(bytes), bytes });
+    store.close();
+    store = new SqliteWorkspaceStore(sourcePath); service = new MotionAppService(store, new ContentAddressedAttachmentStore(sourceFiles));
+    assert.deepEqual((await service.queryAsync({ type: "attachment.read", workspaceId: created.workspace.id, attachmentId: "file-1" })).bytes, bytes);
+    const bundle = await service.queryAsync({ type: "backup.create", workspaceId: created.workspace.id, createdAt: "2026-01-01T00:00:00.000Z" });
+    assert.deepEqual(await service.queryAsync({ type: "backup.verify", bundle }), { valid: true, errors: [] });
+    assert.equal((await service.queryAsync({ type: "backup.preview", bundle })).attachments, 1);
+    store.close();
+
+    const target = new SqliteWorkspaceStore(targetPath);
+    const targetService = new MotionAppService(target, new ContentAddressedAttachmentStore(targetFiles));
+    const restored = await targetService.executeAsync({ type: "backup.restore-new", bundle, newWorkspaceId: "restored-workspace" });
+    assert.equal(restored.workspace.name, attached.workspace.name);
+    const restoredAttachment = restored.workspace.attachments[0]!;
+    assert.ok(restoredAttachment.path.startsWith(targetFiles));
+    assert.equal(restoredAttachment.path.includes("untrusted/archive"), false);
+    target.close();
+    const reopenedStore = new SqliteWorkspaceStore(targetPath);
+    const reopened = new MotionAppService(reopenedStore, new ContentAddressedAttachmentStore(targetFiles));
+    assert.deepEqual((await reopened.queryAsync({ type: "attachment.read", workspaceId: "restored-workspace", attachmentId: restoredAttachment.id })).bytes, bytes);
+    const semantic = reopened.query({ type: "workspace.get", workspaceId: "restored-workspace" }).workspace;
+    assert.equal(semantic.pages.length, attached.workspace.pages.length);
+    assert.equal(semantic.attachments[0]?.sha256, attached.workspace.attachments[0]?.sha256);
+    reopenedStore.close();
+  } finally {
+    await Promise.all([removeDatabase(sourcePath), removeDatabase(targetPath), rm(sourceFiles, { recursive: true, force: true }), rm(targetFiles, { recursive: true, force: true })]);
+  }
+});
+
+test("attachment validation, revision conflict and corrupt restore write no metadata", async () => {
+  const path = databasePath("attachment-failures"); const files = `${path}.attachments`;
+  try {
+    const store = new SqliteWorkspaceStore(path); const service = new MotionAppService(store, new ContentAddressedAttachmentStore(files));
+    const created = service.execute({ type: "workspace.create", name: "Failures" });
+    const bytes = new Uint8Array([1, 2, 3]);
+    await assert.rejects(service.executeAsync({ type: "attachment.put", workspaceId: created.workspace.id, expectedRevision: created.revision, fileName: "x", mediaType: "application/octet-stream", sha256: "missing", bytes }), (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    await assert.rejects(service.executeAsync({ type: "attachment.put", workspaceId: created.workspace.id, expectedRevision: created.revision, fileName: "x", mediaType: "application/octet-stream", sha256: "0".repeat(64), bytes }), (error: unknown) => error instanceof MotionAppError && error.code === "VALIDATION_FAILED");
+    const first = await service.executeAsync({ type: "attachment.put", workspaceId: created.workspace.id, expectedRevision: created.revision, fileName: "x", mediaType: "application/octet-stream", sha256: hash(bytes), bytes });
+    await assert.rejects(service.executeAsync({ type: "attachment.put", workspaceId: created.workspace.id, expectedRevision: created.revision, fileName: "stale", mediaType: "application/octet-stream", sha256: hash(bytes), bytes }), (error: unknown) => error instanceof MotionAppError && error.code === "REVISION_CONFLICT" && /not atomic/.test(error.message));
+    assert.equal(service.query({ type: "workspace.get", workspaceId: created.workspace.id }).workspace.attachments.length, 1);
+    const bundle = await service.queryAsync({ type: "backup.create", workspaceId: created.workspace.id });
+    const corrupt = { manifest: bundle.manifest, files: { ...bundle.files, "workspace.json": new Uint8Array([0]) } };
+    await assert.rejects(service.executeAsync({ type: "backup.restore-new", bundle: corrupt, newWorkspaceId: "must-not-exist" }), /verification failed/i);
+    assert.equal(store.load("must-not-exist"), undefined);
+    assert.equal(first.revision, created.revision + 1);
+    store.close();
+  } finally { await Promise.all([removeDatabase(path), rm(files, { recursive: true, force: true })]); }
 });

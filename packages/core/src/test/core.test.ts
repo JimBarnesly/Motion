@@ -116,6 +116,28 @@ test("validation rejects hostile structure, duplicates, cycles, references, hash
   assert.throws(() => assertWorkspaceValue(poisoned), /forbidden key/);
 });
 
+test("validation strictly checks collection properties, rows, views and globally unique IDs", () => {
+  const base: any = createWorkspace("Collections");
+  base.pages.push({ id: "page", parentId: null, title: "Data", blocks: [], createdAt: base.createdAt, updatedAt: base.updatedAt });
+  base.databases.push({ id: "db", pageId: "page", name: "Data", properties: [
+    { id: "title", name: "Title", type: "title" },
+    { id: "done", name: "Done", type: "checkbox" },
+    { id: "status", name: "Status", type: "select", options: [{ id: "open", name: "Open" }] }
+  ], rows: [{ id: "row", values: { title: "Item", done: false, status: "open" }, createdAt: base.createdAt, updatedAt: base.updatedAt }], views: [{ id: "view", collectionId: "db", name: "All", type: "table", visiblePropertyIds: ["title", "done"], filters: { kind: "condition", propertyId: "done", operator: "equals", value: true }, sorts: [{ propertyId: "title", direction: "asc" }] }] });
+  assertWorkspaceValue(base);
+  const reject = (mutate: (workspace: any) => void, pattern: RegExp) => { const candidate = structuredClone(base); mutate(candidate); assert.throws(() => assertWorkspaceValue(candidate), pattern); };
+  reject(w => { w.databases[0].views = [null]; }, /views\[0\].*plain object/);
+  reject(w => { w.databases[0].properties[0].type = "javascript"; }, /unsupported value/);
+  reject(w => { w.databases[0].properties.push({ id: "rel", name: "Relation", type: "relation", relation: { targetCollectionId: "missing", maxItems: 0 } }); }, /positive safe integer/);
+  reject(w => { w.databases[0].rows[0].values.missing = "x"; }, /unknown property/);
+  reject(w => { w.databases[0].rows[0].values.done = "yes"; }, /boolean/);
+  reject(w => { w.databases[0].views[0].type = "spreadsheet"; }, /unsupported value/);
+  reject(w => { w.databases[0].views[0].filters = { kind: "condition", propertyId: "missing", operator: "equals" }; }, /unknown property/);
+  reject(w => { w.databases[0].views[0].sorts = [{ propertyId: "title", direction: "sideways" }]; }, /unsupported value/);
+  reject(w => { w.databases[0].views[0].id = "row"; }, /duplicate ID row/);
+  reject(w => { w.databases[0].properties[1].id = "title"; }, /duplicate ID title/);
+});
+
 test("web v1 migration is deterministic, separates UI state, preserves unknown blocks and rebuilds links", () => {
   const fixture = JSON.parse(readFileSync(new URL("../../../../fixtures/web-workspace-v1.json", import.meta.url), "utf8"));
   const first = migrateWebWorkspaceV1(fixture); const second = migrateWebWorkspaceV1(structuredClone(fixture));

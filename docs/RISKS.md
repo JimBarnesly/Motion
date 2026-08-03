@@ -17,6 +17,7 @@
 | Performance evidence may reflect toy fixtures | Open, medium | Run documented stress fixtures on representative packaged builds. |
 | Dependency/licence and update supply-chain policy incomplete | Open, medium | Pin toolchains, generate SBOM, review licences, sign artifacts, document rollback. |
 | Large attachments/imports can exhaust resources or traverse paths | Open, high | Streaming, quotas, canonical paths, archive limits, sanitisation tests. |
+| Filesystem blob promotion and SQLite metadata commit are not fully atomic | Open, high | Add staged attachment transactions and orphan recovery; current failures can leave an unreferenced immutable blob but not visible workspace metadata. |
 | Naming collision with existing products may affect release | Open, medium | Perform legal/trademark review before public branding investment. |
 
 Risks close only with measured evidence or an accepted ADR, not implementation claims.

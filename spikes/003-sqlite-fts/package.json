@@ -1,0 +1,9 @@
+{
+  "name": "motion-spike-sqlite-fts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test spike.test.mjs",
+    "demo": "node spike.mjs demo .tmp/demo"
+  }
+}

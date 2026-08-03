@@ -1,0 +1,10 @@
+{
+  "name": "motion-tauri-linux-spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:web": "node scripts/build.mjs",
+    "test": "node --test test/boundary.test.mjs",
+    "tauri:build": "cargo tauri build"
+  }
+}

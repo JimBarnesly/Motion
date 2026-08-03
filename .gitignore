@@ -2,6 +2,7 @@ node_modules/
 target/
 packages/*/package-lock.json
 dist/
+dist-ts/
 coverage/
 artifacts/
 .DS_Store

@@ -12,10 +12,33 @@ test("entrypoint references only local assets", async () => {
   assert.doesNotMatch(html, /https?:\/\//);
 });
 
-test("workspace storage is explicitly schema-versioned", async () => {
+test("workspace persistence uses an explicit async native/browser adapter", async () => {
   const source = await readFile(resolve(root, "app.js"), "utf8");
-  assert.match(source, /motion\.workspace\.v1/);
-  assert.match(source, /schemaVersion:\s*1/);
+  const adapter = await readFile(resolve(root, "app-adapter.js"), "utf8");
+  assert.match(source, /createMotionUiAdapter/);
+  assert.match(adapter, /motion_ui_load/);
+  assert.match(adapter, /motion_ui_save/);
+  assert.match(adapter, /browser-development/);
+  assert.match(adapter, /indexedDB\.open/);
+  assert.doesNotMatch(source + adapter, /localStorage/);
+  assert.match(adapter, /schemaVersion:\s*1/);
+});
+
+test("native adapter sends versioned typed IPC envelopes", async () => {
+  const calls = [];
+  const { createMotionUiAdapter } = await import("../app-adapter.js");
+  const workspace = { schemaVersion: 1, pages: [], activePageId: null };
+  const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => {
+    calls.push({ command, payload });
+    return command === "motion_ui_load" ? workspace : undefined;
+  } } } });
+  assert.equal(adapter.kind, "tauri");
+  assert.deepEqual(await adapter.load(), workspace);
+  await adapter.save(workspace);
+  assert.deepEqual(calls, [
+    { command: "motion_ui_load", payload: { schemaVersion: 1 } },
+    { command: "motion_ui_save", payload: { document: workspace, schemaVersion: 1 } }
+  ]);
 });
 
 test("workspace backup and restore use a documented version marker", async () => {

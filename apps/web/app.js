@@ -1,19 +1,8 @@
-const STORAGE_KEY = "motion.workspace.v1";
+import { createMotionUiAdapter } from "./app-adapter.js";
 
-/** Narrow persistence boundary. A future SQLite/CRDT adapter only needs load() and save(). */
-const workspaceStore = {
-  load() {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { schemaVersion: 1, pages: [], activePageId: null };
-    try {
-      const data = JSON.parse(raw);
-      return data?.schemaVersion === 1 && Array.isArray(data.pages) ? data : { schemaVersion: 1, pages: [], activePageId: null };
-    } catch { return { schemaVersion: 1, pages: [], activePageId: null }; }
-  },
-  save(workspace) { localStorage.setItem(STORAGE_KEY, JSON.stringify(workspace)); }
-};
-
-let state = workspaceStore.load();
+const workspaceStore = createMotionUiAdapter();
+let state = await workspaceStore.load();
+let saveQueue = Promise.resolve();
 let undoStack = [], redoStack = [], editStartedFor = null;
 const $ = (selector) => document.querySelector(selector);
 const uid = () => crypto.randomUUID();
@@ -24,14 +13,21 @@ const BLOCK_TYPES = ["paragraph", "heading1", "heading2", "heading3", "bullet", 
 const blockLabel = (type) => ({ paragraph:"Text", heading1:"Heading 1", heading2:"Heading 2", heading3:"Heading 3", bullet:"Bulleted list", number:"Numbered list", task:"Task", toggle:"Toggle", quote:"Quote", code:"Code", divider:"Divider" }[type] || `Unsupported: ${type}`);
 const snapshot = () => JSON.stringify(state);
 function checkpoint() { undoStack.push(snapshot()); if (undoStack.length > 80) undoStack.shift(); redoStack = []; }
-function restoreSnapshot(raw) { state = JSON.parse(raw); workspaceStore.save(state); render(); }
+function restoreSnapshot(raw) { state = JSON.parse(raw); void persist(); render(); }
 function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restoreSnapshot(undoStack.pop()); }
 function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restoreSnapshot(redoStack.pop()); }
 
-function persist() {
+async function persist() {
   $("#saveState").textContent = "Saving…";
-  workspaceStore.save(state);
-  window.setTimeout(() => { $("#saveState").textContent = "Saved locally"; }, 180);
+  try {
+    const candidate = structuredClone(state);
+    saveQueue = saveQueue.catch(() => undefined).then(() => workspaceStore.save(candidate));
+    await saveQueue;
+    $("#saveState").textContent = workspaceStore.kind === "tauri" ? "Saved to Motion" : "Saved in browser (development mode)";
+  } catch (error) {
+    console.error("Workspace save failed", error);
+    $("#saveState").textContent = "Save failed";
+  }
 }
 
 function exportWorkspace() {
@@ -49,9 +45,9 @@ async function restoreWorkspace(file) {
   const parsed = JSON.parse(await file.text());
   const candidate = parsed?.exportVersion === "motion.workspace/1.0" ? parsed.workspace : parsed;
   if (candidate?.schemaVersion !== 1 || !Array.isArray(candidate.pages)) throw new Error("Unsupported or invalid Motion workspace backup");
-  state = candidate;
+  state = structuredClone(candidate);
   if (!state.pages.some((page) => page.id === state.activePageId)) state.activePageId = state.pages[0]?.id ?? null;
-  persist();
+  await persist();
   render();
 }
 
@@ -101,7 +97,8 @@ function render() {
 
 function renderEmptyWorkspace() {
   $("#breadcrumbs").innerHTML = "Workspace";
-  $("#content").innerHTML = `<div class="empty-state"><div class="empty-icon" aria-hidden="true">◇</div><h1>Your workspace is ready</h1><p>Create a page or a table. Everything stays in this browser until you choose to sync or export it.</p><div class="empty-actions"><button class="primary" data-create="document" type="button">New page</button><button data-create="database" type="button">New table</button></div></div>`;
+  const storageCopy = workspaceStore.kind === "tauri" ? "Stored through Motion's native service." : "Browser development mode uses IndexedDB, not the native SQLite service.";
+  $("#content").innerHTML = `<div class="empty-state"><div class="empty-icon" aria-hidden="true">◇</div><h1>Your workspace is ready</h1><p>${storageCopy}</p><div class="empty-actions"><button class="primary" data-create="document" type="button">New page</button><button data-create="database" type="button">New table</button></div></div>`;
 }
 
 function renderDocument(page) {
@@ -222,4 +219,5 @@ document.addEventListener("keydown", (event) => {
   if (mod && event.key === "Backspace") { event.preventDefault(); checkpoint(); page.blocks.splice(at, 1); persist(); render(); requestAnimationFrame(() => document.querySelectorAll("[data-block]")[Math.max(0, at - 1)]?.focus()); }
   if (event.altKey && ["ArrowUp","ArrowDown"].includes(event.key)) { event.preventDefault(); const to = at + (event.key === "ArrowUp" ? -1 : 1); if (to >= 0 && to < page.blocks.length) { checkpoint(); [page.blocks[at], page.blocks[to]] = [page.blocks[to], page.blocks[at]]; persist(); render(); requestAnimationFrame(() => document.querySelector(`[data-block="${id}"]`)?.focus()); } }
 });
+$("#saveState").textContent = workspaceStore.kind === "tauri" ? "Connected to Motion" : "Browser development mode";
 render();

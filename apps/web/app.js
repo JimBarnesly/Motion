@@ -4,6 +4,7 @@ import { normalizeWorkspaceV1 } from "./workspace-v1.js";
 const workspaceStore = createMotionUiAdapter();
 let state = await workspaceStore.load();
 let saveQueue = Promise.resolve();
+let confirmedAttachments = [];
 let undoStack = [], redoStack = [], editStartedFor = null;
 const $ = (selector) => document.querySelector(selector);
 const uid = () => crypto.randomUUID();
@@ -48,6 +49,45 @@ async function exportWorkspace() {
   link.download = fileName;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function downloadJson(value, fileName) {
+  const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob), link = document.createElement("a");
+  link.href = url; link.download = fileName; link.click(); URL.revokeObjectURL(url);
+}
+
+async function sha256(bytes) {
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function attachNativeFile(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const digest = await sha256(bytes);
+  const result = await workspaceStore.putAttachment({ fileName: file.name, mediaType: file.type || "application/octet-stream", sha256: digest, bytes });
+  const attachment = result.workspace?.attachments?.filter(item => item.fileName === file.name && item.byteLength === bytes.byteLength && item.sha256 === digest).at(-1);
+  if (!attachment) throw new Error("Native service did not confirm the attachment metadata");
+  confirmedAttachments = [...confirmedAttachments.filter(item => item.id !== attachment.id), attachment];
+  renderContext(activePage());
+}
+
+async function createVerifiedBackup() {
+  const bundle = await workspaceStore.createBackup();
+  const verification = await workspaceStore.verifyBackup(bundle);
+  if (!verification.valid) throw new Error(`Backup verification failed: ${(verification.errors || []).join("; ")}`);
+  downloadJson(bundle, `motion-verified-backup-${new Date().toISOString().slice(0, 10)}.json`);
+}
+
+async function restoreVerifiedBackup(file) {
+  const bundle = JSON.parse(await file.text());
+  const verification = await workspaceStore.verifyBackup(bundle);
+  if (!verification.valid) throw new Error(`Backup verification failed: ${(verification.errors || []).join("; ")}`);
+  const preview = await workspaceStore.previewBackup(bundle);
+  const summary = `${preview.workspaceName || "Workspace"}: ${preview.pages} pages, ${preview.attachments} attachments, ${preview.totalBytes} bytes. Restore as a new workspace?`;
+  if (!confirm(summary)) return;
+  await workspaceStore.restoreBackup(bundle);
+  state = await workspaceStore.load(); confirmedAttachments = []; render();
 }
 
 async function restoreWorkspace(file) {
@@ -141,6 +181,7 @@ function refreshBlockLinks(block) {
 function pageLinks(page) { return (page.blocks || []).flatMap(block => block.links || []); }
 
 function renderContext(page) {
+  $("#attachments").innerHTML = confirmedAttachments.length ? confirmedAttachments.map(item => `<div class="context-link"><span>↗</span>${escapeHtml(item.fileName)} (${Number(item.byteLength)} bytes, ${escapeHtml(item.sha256.slice(0, 12))}…)</div>`).join("") : `<p class="muted">No attachments confirmed this session.</p>`;
   if (!page) { $("#outgoingLinks").innerHTML = $("#backlinks").innerHTML = `<p class="muted">Open a page to see connections.</p>`; return; }
   (page.blocks || []).forEach(block => { if (!block.links) refreshBlockLinks(block); });
   const outgoing = [...new Set(pageLinks(page).map(link => link.pageId))].map(id => state.pages.find(p => p.id === id)).filter(Boolean);
@@ -161,9 +202,12 @@ async function renderSearch(query) {
   if (workspaceStore.kind === "tauri") {
     const nativeHits = await workspaceStore.search(query, 50);
     if (request !== searchRequest) return;
+    const seenPages = new Set();
     hits = nativeHits.map(hit => {
       const page = state.pages.find(candidate => candidate.id === hit.entityId || candidate.blocks?.some(block => block.id === hit.entityId));
-      return page ? { page, snippet: hit.snippet, native: true } : null;
+      if (!page || seenPages.has(page.id)) return null;
+      seenPages.add(page.id);
+      return { page, snippet: hit.snippet, native: true };
     }).filter(Boolean);
   } else {
     hits = state.pages.filter((p) => p.title.toLowerCase().includes(term) || p.blocks?.some((b) => b.text.toLowerCase().includes(term))).map(page => ({ page, snippet: page.type === "database" ? `${page.rows.length} rows` : "Browser development search", native: false }));
@@ -191,7 +235,20 @@ document.addEventListener("click", (event) => {
   if (el.id === "closeSidebar") $("#sidebar").classList.remove("open");
   if (el.id === "exportWorkspace") exportWorkspace().catch(error => alert(error instanceof Error ? error.message : "Export failed"));
   if (el.id === "restoreWorkspace") $("#restoreFile").click();
+  if (el.id === "attachFile") $("#attachmentFile").click();
+  if (el.id === "createVerifiedBackup") createVerifiedBackup().catch(error => alert(error instanceof Error ? error.message : "Backup failed"));
+  if (el.id === "restoreVerifiedBackup") $("#verifiedBackupFile").click();
   if (el.id === "homeButton" && !state.pages.length) renderEmptyWorkspace();
+});
+
+$("#attachmentFile").addEventListener("change", async event => {
+  const [file] = event.target.files; event.target.value = ""; if (!file) return;
+  try { await attachNativeFile(file); } catch (error) { alert(error instanceof Error ? error.message : "Attachment failed"); }
+});
+
+$("#verifiedBackupFile").addEventListener("change", async event => {
+  const [file] = event.target.files; event.target.value = ""; if (!file) return;
+  try { await restoreVerifiedBackup(file); } catch (error) { alert(error instanceof Error ? error.message : "Restore failed"); }
 });
 
 $("#restoreFile").addEventListener("change", async (event) => {
@@ -241,4 +298,8 @@ document.addEventListener("keydown", (event) => {
   if (event.altKey && ["ArrowUp","ArrowDown"].includes(event.key)) { event.preventDefault(); const to = at + (event.key === "ArrowUp" ? -1 : 1); if (to >= 0 && to < page.blocks.length) { checkpoint(); [page.blocks[at], page.blocks[to]] = [page.blocks[to], page.blocks[at]]; persist(); render(); requestAnimationFrame(() => document.querySelector(`[data-block="${id}"]`)?.focus()); } }
 });
 $("#saveState").textContent = workspaceStore.kind === "tauri" ? "Connected to Motion" : "Browser development mode";
+for (const id of ["attachFile", "createVerifiedBackup", "restoreVerifiedBackup"]) {
+  const button = $(`#${id}`); button.disabled = workspaceStore.kind !== "tauri";
+  if (button.disabled) button.title = "Available in the native Motion application";
+}
 render();

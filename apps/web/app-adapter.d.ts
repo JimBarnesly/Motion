@@ -11,6 +11,11 @@ export interface MotionUiAdapter {
   save(workspace: WebWorkspaceV1): Promise<void>;
   search(query: string, limit?: number): Promise<NativeSearchHit[] | null>;
   exportWorkspace(): Promise<NativeFullExport | null>;
+  putAttachment(input: { fileName: string; mediaType: string; sha256: string; bytes: Uint8Array }): Promise<Record<string, unknown>>;
+  createBackup(): Promise<Record<string, unknown>>;
+  verifyBackup(bundle: unknown): Promise<Record<string, unknown>>;
+  previewBackup(bundle: unknown): Promise<Record<string, unknown>>;
+  restoreBackup(bundle: unknown): Promise<Record<string, unknown>>;
 }
 
 export interface NativeSearchHit { workspaceId: string; entityId: string; title: string; snippet: string }

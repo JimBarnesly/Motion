@@ -27,6 +27,11 @@
             <button id="exportWorkspace" type="button">Export JSON</button>
             <button id="restoreWorkspace" type="button">Restore</button>
             <input id="restoreFile" type="file" accept="application/json,.json" hidden />
+            <button id="attachFile" type="button">Attach file</button>
+            <input id="attachmentFile" type="file" hidden />
+            <button id="createVerifiedBackup" type="button">Verified backup</button>
+            <button id="restoreVerifiedBackup" type="button">Restore verified</button>
+            <input id="verifiedBackupFile" type="file" accept="application/json,.json" hidden />
           </div>
         </footer>
       </aside>
@@ -44,6 +49,7 @@
         <h2>Page context</h2>
         <section><h3>Linked pages</h3><div id="outgoingLinks"></div></section>
         <section><h3>Backlinks</h3><div id="backlinks"></div></section>
+        <section><h3>Confirmed attachments</h3><div id="attachments"></div></section>
       </aside>
     </div>
 

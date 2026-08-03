@@ -31,7 +31,7 @@ test("native adapter sends versioned typed IPC envelopes", async () => {
   const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => {
     calls.push({ command, payload });
     if (command === "motion_ui_load") return workspace;
-    if (command === "app_dispatch" && payload.request.payload.type === "workspace.list") return [{ id: "workspace-1" }];
+    if (command === "app_dispatch" && payload.request.payload.type === "workspace.list") return [{ id: "workspace-1", revision: 3 }];
     if (command === "app_dispatch" && payload.request.payload.type === "workspace.search") return [{ workspaceId: "workspace-1", entityId: "page-1", title: "Page", snippet: "match" }];
     if (command === "app_dispatch" && payload.request.payload.type === "workspace.export") return { schemaVersion: 1, files: {}, attachments: [] };
     return undefined;
@@ -57,6 +57,40 @@ test("search and export use canonical native queries with honest browser fallbac
   assert.match(adapter, /type: "workspace\.export"/);
   assert.match(source, /workspaceStore\.kind === "tauri"/);
   assert.match(source, /motion-browser-development/);
+  assert.match(source, /seenPages\.has\(page\.id\)/);
+});
+
+test("native attachment and verified backup operations use revisioned typed lanes", async () => {
+  const calls = [];
+  const { createMotionUiAdapter } = await import("../app-adapter.js");
+  const invoke = async (command, payload) => {
+    calls.push({ command, payload });
+    if (command === "app_dispatch" && payload.request.payload.type === "workspace.list") return [{ id: "workspace-1", revision: 7 }];
+    if (payload?.request?.payload?.type === "attachment.put") return { revision: 8, workspace: { attachments: [{ id: "attachment-1", fileName: "proof.txt", byteLength: 3, sha256: "a".repeat(64) }] } };
+    if (payload?.request?.payload?.type === "backup.create") return { manifest: { files: [] }, files: {} };
+    if (payload?.request?.payload?.type === "backup.verify") return { valid: true, errors: [] };
+    if (payload?.request?.payload?.type === "backup.preview") return { valid: true, pages: 1, attachments: 1, totalBytes: 3 };
+    if (payload?.request?.payload?.type === "backup.restore-new") return { revision: 1, saved: true };
+  };
+  const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke } } });
+  const bundle = await adapter.createBackup();
+  await adapter.putAttachment({ fileName: "proof.txt", mediaType: "text/plain", sha256: "a".repeat(64), bytes: Uint8Array.from([1, 2, 3]) });
+  await adapter.verifyBackup(bundle); await adapter.previewBackup(bundle); await adapter.restoreBackup(bundle);
+  const requests = calls.filter(call => call.command === "app_dispatch").map(call => call.payload.request);
+  assert.ok(requests.some(request => request.lane === "async-command" && request.payload.type === "attachment.put" && request.payload.expectedRevision === 7 && request.payload.bytes.$motionBytes.join(",") === "1,2,3"));
+  assert.ok(requests.some(request => request.lane === "async-query" && request.payload.type === "backup.create"));
+  assert.ok(requests.some(request => request.lane === "async-query" && request.payload.type === "backup.verify"));
+  assert.ok(requests.some(request => request.lane === "async-query" && request.payload.type === "backup.preview"));
+  assert.ok(requests.some(request => request.lane === "async-command" && request.payload.type === "backup.restore-new"));
+});
+
+test("native files are hashed and browser mode cannot fake attachments or verified backups", async () => {
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  const adapter = await readFile(resolve(root, "app-adapter.js"), "utf8");
+  assert.match(source, /crypto\.subtle\.digest\("SHA-256"/);
+  assert.match(source, /Native service did not confirm the attachment metadata/);
+  assert.match(source, /if \(!confirm\(summary\)\) return/);
+  assert.match(adapter, /Attachments and verified backups require the native Motion application/);
 });
 
 test("hostile restores are closed-shape normalised before rendering", async () => {

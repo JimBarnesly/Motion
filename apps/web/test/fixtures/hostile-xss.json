@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "activePageId": "page-1",
+  "pages": [{
+    "id": "page-1",
+    "parentId": null,
+    "order": 0,
+    "type": "document",
+    "title": "\"><img src=x onerror=alert(1)>",
+    "blocks": [{
+      "id": "block-1",
+      "type": "paragraph",
+      "text": "<script>alert('xss')</script>",
+      "indent": 0,
+      "links": []
+    }],
+    "unexpectedHtml": "<svg onload=alert(2)>"
+  }]
+}

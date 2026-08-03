@@ -1,4 +1,5 @@
 import { createMotionUiAdapter } from "./app-adapter.js";
+import { normalizeWorkspaceV1 } from "./workspace-v1.js";
 
 const workspaceStore = createMotionUiAdapter();
 let state = await workspaceStore.load();
@@ -8,7 +9,7 @@ const $ = (selector) => document.querySelector(selector);
 const uid = () => crypto.randomUUID();
 const activePage = () => state.pages.find((page) => page.id === state.activePageId);
 const childrenOf = (parentId) => state.pages.filter((page) => page.parentId === parentId).sort((a, b) => a.order - b.order);
-const escapeHtml = (value = "") => value.replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);
+const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);
 const BLOCK_TYPES = ["paragraph", "heading1", "heading2", "heading3", "bullet", "number", "task", "toggle", "quote", "code", "divider"];
 const blockLabel = (type) => ({ paragraph:"Text", heading1:"Heading 1", heading2:"Heading 2", heading3:"Heading 3", bullet:"Bulleted list", number:"Numbered list", task:"Task", toggle:"Toggle", quote:"Quote", code:"Code", divider:"Divider" }[type] || `Unsupported: ${type}`);
 const snapshot = () => JSON.stringify(state);
@@ -45,7 +46,7 @@ async function restoreWorkspace(file) {
   const parsed = JSON.parse(await file.text());
   const candidate = parsed?.exportVersion === "motion.workspace/1.0" ? parsed.workspace : parsed;
   if (candidate?.schemaVersion !== 1 || !Array.isArray(candidate.pages)) throw new Error("Unsupported or invalid Motion workspace backup");
-  state = structuredClone(candidate);
+  state = normalizeWorkspaceV1(candidate);
   if (!state.pages.some((page) => page.id === state.activePageId)) state.activePageId = state.pages[0]?.id ?? null;
   await persist();
   render();

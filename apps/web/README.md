@@ -6,4 +6,6 @@ A dependency-free local-first UI slice. From the repository root:
 npm run dev
 ```
 
-The workspace is persisted as versioned JSON in browser `localStorage` under `motion.workspace.v1`. The sidebar provides versioned JSON export and restore. The `workspaceStore` object in `app.js` is the adapter boundary for a future SQLite/CRDT-backed repository. The UI deliberately starts empty and creates only user-entered content.
+The UI uses an explicit asynchronous storage boundary. In Tauri it calls the versioned `motion_ui_load` and `motion_ui_save` IPC commands so the native application can own durable persistence. When run directly in a browser, it uses IndexedDB and clearly identifies itself as **browser development mode**; this fallback does not claim to exercise the native SQLite application service.
+
+The sidebar provides versioned JSON export and restore. All loaded and restored schema-v1 data is strictly normalised before rendering, including stable-ID validation, duplicate detection and page-hierarchy cycle checks. The UI deliberately starts empty and creates only user-entered content.

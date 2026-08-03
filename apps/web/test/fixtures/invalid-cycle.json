@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "activePageId": "page-a",
+  "pages": [
+    { "id": "page-a", "parentId": "page-b", "order": 0, "type": "document", "title": "A", "blocks": [] },
+    { "id": "page-b", "parentId": "page-a", "order": 0, "type": "document", "title": "B", "blocks": [] }
+  ]
+}

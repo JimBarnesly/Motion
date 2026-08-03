@@ -41,6 +41,32 @@ test("native adapter sends versioned typed IPC envelopes", async () => {
   ]);
 });
 
+test("hostile restores are closed-shape normalised before rendering", async () => {
+  const { normalizeWorkspaceV1 } = await import("../workspace-v1.js");
+  const hostile = JSON.parse(await readFile(resolve(root, "test/fixtures/hostile-xss.json"), "utf8"));
+  const normalized = normalizeWorkspaceV1(hostile);
+  assert.equal(normalized.pages[0].title, '\"><img src=x onerror=alert(1)>');
+  assert.equal(normalized.pages[0].blocks[0].text, "<script>alert('xss')</script>");
+  assert.equal("unexpectedHtml" in normalized.pages[0], false);
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  assert.match(source, /state = normalizeWorkspaceV1\(candidate\)/);
+  assert.match(source, /escapeHtml\(page\.title/);
+  assert.match(source, /escapeHtml\(block\.text/);
+});
+
+test("invalid hierarchy and duplicate IDs are rejected", async () => {
+  const { normalizeWorkspaceV1 } = await import("../workspace-v1.js");
+  for (const [fixture, pattern] of [["invalid-cycle.json", /hierarchy contains a cycle/], ["duplicate-id.json", /duplicate page ID/]]) {
+    const value = JSON.parse(await readFile(resolve(root, `test/fixtures/${fixture}`), "utf8"));
+    assert.throws(() => normalizeWorkspaceV1(value), pattern);
+  }
+});
+
+test("hostile IDs cannot enter HTML attributes", async () => {
+  const { normalizeWorkspaceV1 } = await import("../workspace-v1.js");
+  assert.throws(() => normalizeWorkspaceV1({ schemaVersion: 1, activePageId: null, pages: [{ id: '\" onclick=alert(1)', parentId: null, order: 0, type: "document", title: "x", blocks: [] }] }), /safe stable ID/);
+});
+
 test("workspace backup and restore use a documented version marker", async () => {
   const source = await readFile(resolve(root, "app.js"), "utf8");
   assert.match(source, /motion\.workspace\/1\.0/);

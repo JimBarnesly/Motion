@@ -1,3 +1,5 @@
+import { normalizeWorkspaceV1 } from "./workspace-v1.js";
+
 /**
  * @typedef {{schemaVersion: 1, pages: Array<object>, activePageId: string|null}} WebWorkspaceV1
  * @typedef {{kind: "tauri"|"browser-development", durable: boolean, load(): Promise<WebWorkspaceV1>, save(workspace: WebWorkspaceV1): Promise<void>}} MotionUiAdapter
@@ -8,11 +10,7 @@ const DB_NAME = "motion-web-development";
 const STORE_NAME = "workspace";
 const WORKSPACE_KEY = "default";
 
-function validWorkspace(value) {
-  return value?.schemaVersion === 1 && Array.isArray(value.pages)
-    ? value
-    : structuredClone(EMPTY_WORKSPACE);
-}
+function validWorkspace(value) { return value === undefined ? structuredClone(EMPTY_WORKSPACE) : normalizeWorkspaceV1(value); }
 
 function openDevelopmentDatabase() {
   return new Promise((resolve, reject) => {

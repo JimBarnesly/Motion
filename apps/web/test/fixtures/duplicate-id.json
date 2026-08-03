@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "activePageId": "duplicate",
+  "pages": [
+    { "id": "duplicate", "parentId": null, "order": 0, "type": "document", "title": "First", "blocks": [] },
+    { "id": "duplicate", "parentId": null, "order": 1, "type": "document", "title": "Second", "blocks": [] }
+  ]
+}

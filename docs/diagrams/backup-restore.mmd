@@ -1,0 +1,10 @@
+flowchart LR
+  DB[(Canonical workspace)] --> SNAP[Consistent snapshot]
+  FILES[(Attachment store)] --> HASH[Hash and manifest]
+  SNAP --> HASH
+  HASH --> BUNDLE[Versioned backup bundle]
+  BUNDLE --> VERIFY[Verify checksums and schema]
+  VERIFY --> PREVIEW[Restore preview]
+  PREVIEW --> STAGE[New workspace staging]
+  STAGE --> COMPARE[Integrity comparison]
+  COMPARE --> RESTORED[(Restored workspace)]

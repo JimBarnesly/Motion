@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Verify local-only application sources
+        run: node scripts/check-offline-assets.mjs
+      - name: Scan tracked files for common secret formats
+        run: node scripts/secret-scan.mjs
+      - name: Run benchmark smoke fixture
+        run: node scripts/benchmark-smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-smoke
+          path: artifacts/benchmark-smoke.json
+          if-no-files-found: warn
+          retention-days: 14

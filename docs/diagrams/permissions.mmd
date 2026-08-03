@@ -1,0 +1,9 @@
+flowchart LR
+  ACTOR[User, device, or agent] --> REQUEST[Domain command]
+  REQUEST --> AUTH[Permission evaluator]
+  POLICY[(Roles and grants)] --> AUTH
+  AUTH -->|allow| VALIDATE[Domain validation]
+  AUTH -->|deny| ERROR[Visible denial]
+  VALIDATE --> TX[Atomic transaction]
+  TX --> AUDIT[(Redacted audit record)]
+  TX --> STATE[(Local state)]

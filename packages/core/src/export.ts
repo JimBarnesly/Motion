@@ -3,7 +3,7 @@ import type { Block, Database, Page, Workspace } from "./model.js";
 const safeName = (name: string) => name.replace(/[\\/:*?"<>|]/g, "-").trim() || "untitled";
 const csvCell = (value: unknown) => `"${(Array.isArray(value) ? value.join("; ") : value ?? "").toString().replaceAll('"', '""')}"`;
 const blockMarkdown = (b: Block, depth = 0): string => {
-  const prefix: Record<string, string> = { heading: "## ", quote: "> ", todo: `- [${b.checked ? "x" : " "}] `, "bulleted-list": "- ", "numbered-list": "1. " };
+  const prefix: Record<string, string> = { "heading-1": "# ", "heading-2": "## ", "heading-3": "### ", quote: "> ", task: `- [${b.checked ? "x" : " "}] `, "bulleted-list": "- ", "numbered-list": "1. " };
   const own = b.type === "code" ? `\`\`\`${b.language ?? ""}\n${b.text}\n\`\`\`` : `${"  ".repeat(depth)}${prefix[b.type] ?? ""}${b.text}`;
   return [own, ...b.children.map(child => blockMarkdown(child, depth + 1))].join("\n");
 };

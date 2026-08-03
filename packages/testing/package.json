@@ -1,0 +1,14 @@
+{
+  "name": "@motion/testing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "typecheck": "node --check test/invariants.test.mjs",
+    "build": "node --check test/invariants.test.mjs"
+  },
+  "dependencies": {
+    "@motion/core": "0.1.0"
+  }
+}

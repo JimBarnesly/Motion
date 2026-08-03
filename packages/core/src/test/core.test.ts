@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MemoryWorkspaceStore, WorkspaceDocument, createWorkspace, exportDatabaseCsv, exportFullWorkspace, exportWorkspaceJson, migrateWorkspace } from "../index.js";
+import { MemoryWorkspaceStore, WorkspaceDocument, createWorkspace, exportDatabaseCsv, exportFullWorkspace, exportPageMarkdown, exportWorkspaceJson, migrateWorkspace, type Page } from "../index.js";
 
 test("hierarchy, links, backlinks and search", async () => {
   const ws = createWorkspace("Private notes");
@@ -27,6 +27,16 @@ test("portable full export contains JSON, Markdown, CSV and attachment manifest"
   assert.ok(Object.keys(bundle.files).some(name => name.endsWith(".md")));
   assert.ok(Object.keys(bundle.files).some(name => name.endsWith(".csv")));
   assert.equal(bundle.attachments[0]?.sourcePath, "objects/abc");
+});
+
+test("Markdown export preserves heading levels and task state", () => {
+  const page: Page = { id: "p", parentId: null, title: "Export", createdAt: "2026-08-04T00:00:00Z", updatedAt: "2026-08-04T00:00:00Z", blocks: [
+    { id: "h", type: "heading-1", text: "Heading", children: [] },
+    { id: "t", type: "task", text: "Complete", checked: true, children: [] }
+  ] };
+  const markdown = exportPageMarkdown(page);
+  assert.match(markdown, /# Heading/);
+  assert.match(markdown, /- \[x\] Complete/);
 });
 
 test("materialized stable-ID links update without scans at read time", () => {

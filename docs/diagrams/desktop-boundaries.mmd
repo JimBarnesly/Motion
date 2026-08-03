@@ -1,0 +1,17 @@
+flowchart LR
+  subgraph Untrusted[Untrusted content]
+    IMPORT[Imports]
+    PREVIEW[Previews]
+  end
+  subgraph WebView[Restricted UI process]
+    UI[React editor]
+  end
+  subgraph Core[Trusted desktop core]
+    API[Narrow commands]
+    DOMAIN[Domain validation]
+    STORE[Storage service]
+  end
+  IMPORT --> API
+  PREVIEW -. no privileged bridge .- UI
+  UI --> API --> DOMAIN --> STORE
+  STORE --> DB[(SQLite and files)]

@@ -1,0 +1,9 @@
+flowchart LR
+  SOURCE[Untrusted archive] --> LIMITS[Size and path limits]
+  LIMITS --> PARSE[Inert parsing]
+  PARSE --> CONVERT[Versioned conversion]
+  CONVERT --> PREVIEW[Warnings and preview]
+  PREVIEW --> STAGE[(Staging workspace)]
+  STAGE --> VERIFY[Links, IDs, and hashes]
+  VERIFY -->|commit| NEW[(New workspace)]
+  VERIFY -->|failure| ROLLBACK[Discard staging]

@@ -1,0 +1,9 @@
+flowchart LR
+  UI[Desktop UI] --> CMD[Domain commands]
+  CMD --> DB[(SQLite)]
+  CMD --> OP[(Operation log)]
+  CMD --> FILES[(Attachment store)]
+  DB --> INDEX[(FTS5 index)]
+  DB --> EXPORT[Export and backup]
+  INDEX --> UI
+  FILES --> EXPORT

@@ -29,5 +29,6 @@ test("attachment storage is content-addressed, deduplicated, and verified", asyn
     assert.equal(first.path, second.path);
     assert.deepEqual(Buffer.from(await store.get(first.sha256)), Buffer.from(bytes));
     assert.deepEqual(await readFile(first.path), Buffer.from(bytes));
+    await assert.rejects(store.get("../../workspace.json"), /64 lowercase hexadecimal/);
   } finally { await rm(root, { recursive: true, force: true }); }
 });

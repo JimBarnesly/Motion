@@ -1,0 +1,11 @@
+flowchart LR
+  PASS[User secret or device key] --> KDF[Memory-hard KDF]
+  KDF --> WK[Workspace key]
+  WK --> DOC[Encrypt document operations]
+  WK --> ATT[Encrypt attachment chunks]
+  WK --> ENV[Device/member key envelopes]
+  DOC --> SERVER[(Untrusted sync storage)]
+  ATT --> SERVER
+  ENV --> SERVER
+  SERVER -. ciphertext only .-> CLIENT[Authorised client]
+  CLIENT --> WK

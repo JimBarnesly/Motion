@@ -33,6 +33,9 @@ const migrations = [
 ];
 
 const digest = (input: string | Uint8Array) => createHash("sha256").update(input).digest("hex");
+const requireSha256 = (value: string): void => {
+  if (!/^[0-9a-f]{64}$/.test(value)) throw new Error("Attachment hash must be 64 lowercase hexadecimal characters");
+};
 
 /** Durable local repository. UI/domain entities cross this boundary as versioned JSON, never SQLite rows. */
 export class SqliteWorkspaceStore {
@@ -113,6 +116,7 @@ export class ContentAddressedAttachmentStore {
   }
 
   async get(sha256: string): Promise<Uint8Array> {
+    requireSha256(sha256);
     const bytes = await readFile(join(this.root, sha256.slice(0, 2), sha256));
     if (digest(bytes) !== sha256) throw new Error(`Attachment integrity check failed: ${sha256}`);
     return bytes;

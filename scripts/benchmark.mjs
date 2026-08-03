@@ -19,7 +19,7 @@ const startIndex = performance.now();
 await search.reindex(documents);
 const indexMs = performance.now() - startIndex;
 const startQuery = performance.now();
-const hits = await search.quickSearch("local knowledge page 9999");
+const hits = await search.quickSearch(`local knowledge page ${pageCount - 1}`);
 const queryMs = performance.now() - startQuery;
 const integrity = await search.checkIntegrity();
 

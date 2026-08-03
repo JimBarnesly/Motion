@@ -1,0 +1,13 @@
+sequenceDiagram
+  participant A as Replica A
+  participant S as Self-hosted server
+  participant B as Replica B
+  A->>A: Commit local mutation and outbox
+  B->>B: Commit offline mutation and outbox
+  A->>S: Send idempotent operations
+  S-->>A: Acknowledge checkpoint
+  B->>S: Send operations after reconnect
+  S-->>B: Return missing envelopes
+  S-->>A: Return B envelopes
+  A->>A: Validate and reconcile
+  B->>B: Validate and reconcile

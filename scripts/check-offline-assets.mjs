@@ -4,7 +4,8 @@ import { extname, join, relative } from "node:path";
 const root = new URL("../apps/", import.meta.url);
 const textExtensions = new Set([".html", ".css", ".js", ".mjs", ".ts", ".tsx", ".json"]);
 const networkReference = /(?:https?:)?\/\/[^\s'"`)]+/gi;
-const allowed = /^(?:http:\/\/www\.w3\.org\/2000\/svg|http:\/\/(?:localhost|127\.0\.0\.1)(?::|\/|$))/;
+// The Tauri JSON schema is editor/build metadata, not a fetched runtime asset.
+const allowed = /^(?:http:\/\/www\.w3\.org\/2000\/svg|https:\/\/schema\.tauri\.app\/config\/2|http:\/\/(?:localhost|127\.0\.0\.1)(?::|\/|$))/;
 const failures = [];
 
 async function scan(directory) {

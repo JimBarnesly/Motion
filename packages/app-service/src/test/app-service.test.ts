@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile, rm } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -10,6 +11,46 @@ import { MotionAppError, MotionAppService } from "../index.js";
 const databasePath = (name: string) => join(tmpdir(), `motion-app-service-${name}-${crypto.randomUUID()}.sqlite`);
 const removeDatabase = async (path: string) => Promise.all([path, `${path}-wal`, `${path}-shm`].map(file => rm(file, { force: true })));
 const hash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+
+const runRestartWorker = async (args: readonly string[]) => {
+  const worker = new URL("./fixtures/restart-worker.js", import.meta.url);
+  const networkGuard = new URL("../../../../scripts/deny-network.cjs", import.meta.url);
+  const child = spawn(process.execPath, [worker.pathname, ...args], {
+    env: {
+      ...process.env,
+      MOTION_E2E_NETWORK_GUARD: "required",
+      NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${networkGuard.pathname}`].filter(Boolean).join(" ")
+    },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  let stdout = "";
+  let stderr = "";
+  child.stdout.setEncoding("utf8").on("data", chunk => { stdout += chunk; });
+  child.stderr.setEncoding("utf8").on("data", chunk => { stderr += chunk; });
+  const exitCode = await new Promise<number | null>((resolve, reject) => {
+    child.once("error", reject);
+    child.once("exit", resolve);
+  });
+  assert.equal(exitCode, 0, `restart worker failed:\n${stderr}`);
+  return JSON.parse(stdout) as Record<string, unknown>;
+};
+
+test("canonical vertical slice works offline across separate process launches", async () => {
+  const path = databasePath("offline-restart-e2e");
+  try {
+    const created = await runRestartWorker(["create", path]);
+    assert.equal(created.networkGuard, true);
+    assert.equal(created.title, "Offline field notes");
+    assert.equal(created.body, "Pump inspection completed without a network.");
+
+    const reopened = await runRestartWorker(["reopen", path, String(created.workspaceId), String(created.pageId)]);
+    assert.equal(reopened.networkGuard, true);
+    assert.equal(reopened.title, created.title);
+    assert.equal(reopened.body, created.body);
+    assert.equal(reopened.searchMatched, true);
+    assert.equal(reopened.exportMatched, true);
+  } finally { await removeDatabase(path); }
+});
 
 test("committed vertical slice survives restart and supports search, backlinks, trash, restore and export", async () => {
   const path = databasePath("vertical");

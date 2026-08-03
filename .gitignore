@@ -2,6 +2,7 @@ node_modules/
 packages/*/package-lock.json
 dist/
 coverage/
+artifacts/
 .DS_Store
 *.log
 .env

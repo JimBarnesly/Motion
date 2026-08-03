@@ -10,7 +10,8 @@ pages, edit typed block content with keyboard operations, create database
 tables, search, inspect stable-ID links/backlinks, and export workspace data.
 The Web UI now selects a persistence adapter: IndexedDB for browser development
 and an allowlisted Tauri IPC adapter for the desktop shell. The Tauri path
-migrates UI schema v1 into the canonical SQLite application service.
+migrates UI schema v1 into the canonical SQLite application service and uses
+native search, export, attachments, and verified backup/restore operations.
 The core also defines records-as-pages, typed filter/sort trees, materialised
 link indexing, unknown-block preservation, and schema migration. Local storage is authoritative. Sync, collaboration,
 encryption, and AI integrations are optional layers and are documented as
@@ -22,6 +23,7 @@ future protocol-compatible services rather than dependencies of local mode.
 npm install
 npm test
 npm run test:offline
+npm run test:e2e
 npm run build
 npm run dev
 ```
@@ -52,6 +54,8 @@ formats and compatibility rules are documented in `docs/`.
 
 Motion is early-stage software. The local vertical slice is intended to be a
 real foundation, not a compatibility clone or a hosted-service mock-up. Native
-Linux package CI is configured for x86-64 and ARM64, but the desktop package is
-not yet self-contained: it requires an external Node 24 runtime and currently
-starts one service process per IPC request.
+Linux package CI is configured for x86-64 and ARM64. The shell bundles a pinned,
+checksum-verified Node 24 runtime and keeps one service process alive, but
+successful packaged artifacts and packaged-UI E2E evidence are still pending.
+The current UI remains a vanilla Web-v1 compatibility layer rather than the
+required React and Tiptap/ProseMirror implementation.

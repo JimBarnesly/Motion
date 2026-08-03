@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -30,6 +30,27 @@ test("attachment storage is content-addressed, deduplicated, and verified", asyn
     assert.deepEqual(Buffer.from(await store.get(first.sha256)), Buffer.from(bytes));
     assert.deepEqual(await readFile(first.path), Buffer.from(bytes));
     await assert.rejects(store.get("../../workspace.json"), /64 lowercase hexadecimal/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("attachment staging recovery promotes referenced content and removes abandoned staging", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-attachment-recovery-"));
+  try {
+    const store = new ContentAddressedAttachmentStore(root);
+    const referenced = await store.stage(new TextEncoder().encode("metadata committed"));
+    const abandoned = await store.stage(new TextEncoder().encode("metadata rolled back"));
+    const report = await store.recover([referenced.sha256]);
+    assert.deepEqual(report.promoted, [referenced.sha256]);
+    assert.equal(report.removedStaging.some(name => name.startsWith(abandoned.sha256)), true);
+    assert.deepEqual(report.missingReferenced, []);
+    assert.deepEqual(Buffer.from(await store.get(referenced.sha256)), Buffer.from("metadata committed"));
+    assert.deepEqual(await readdir(join(root, ".staging")), []);
+
+    const orphan = await store.put(new TextEncoder().encode("unreferenced final blob"));
+    const audit = await store.recover([referenced.sha256, "f".repeat(64)]);
+    assert.deepEqual(audit.missingReferenced, ["f".repeat(64)]);
+    assert.equal(audit.unreferencedBlobs.includes(orphan.sha256), true);
+    assert.deepEqual(Buffer.from(await store.get(orphan.sha256)), Buffer.from("unreferenced final blob"));
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
@@ -15,6 +15,18 @@ export interface StoredAttachment {
   sha256: string;
   byteLength: number;
   path: string;
+}
+
+export interface StagedAttachment extends StoredAttachment {
+  /** Opaque private path; callers must use promote/discard rather than persisting it. */
+  stagingPath: string;
+}
+
+export interface AttachmentRecoveryReport {
+  promoted: string[];
+  removedStaging: string[];
+  missingReferenced: string[];
+  unreferencedBlobs: string[];
 }
 
 export interface SearchHit {
@@ -236,20 +248,83 @@ export class AsyncSqliteWorkspaceStore<T extends { id: string; name: string; upd
 export class ContentAddressedAttachmentStore {
   constructor(private readonly root: string) {}
 
-  async put(bytes: Uint8Array): Promise<StoredAttachment> {
+  async stage(bytes: Uint8Array): Promise<StagedAttachment> {
     const sha256 = digest(bytes);
     const finalPath = join(this.root, sha256.slice(0, 2), sha256);
-    await mkdir(dirname(finalPath), { recursive: true });
+    const stagingRoot = join(this.root, ".staging");
+    await mkdir(stagingRoot, { recursive: true, mode: 0o700 });
+    const stagingPath = join(stagingRoot, `${sha256}.${crypto.randomUUID()}.staging`);
+    await writeFile(stagingPath, bytes, { flag: "wx", mode: 0o600 });
+    return { sha256, byteLength: bytes.byteLength, path: finalPath, stagingPath };
+  }
+
+  async promote(staged: StagedAttachment): Promise<StoredAttachment> {
+    requireSha256(staged.sha256);
+    const bytes = await readFile(staged.stagingPath);
+    if (bytes.byteLength !== staged.byteLength || digest(bytes) !== staged.sha256) {
+      throw new Error(`Staged attachment integrity check failed: ${staged.sha256}`);
+    }
+    await mkdir(dirname(staged.path), { recursive: true });
     try {
-      const current = await readFile(finalPath);
-      if (current.byteLength !== bytes.byteLength || digest(current) !== sha256) throw new Error(`Attachment hash collision at ${finalPath}`);
+      const current = await readFile(staged.path);
+      if (current.byteLength !== staged.byteLength || digest(current) !== staged.sha256) throw new Error(`Attachment hash collision at ${staged.path}`);
+      await this.discard(staged);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      const staged = `${finalPath}.${crypto.randomUUID()}.staging`;
-      await writeFile(staged, bytes, { flag: "wx", mode: 0o600 });
-      try { await rename(staged, finalPath); } finally { await rm(staged, { force: true }); }
+      await rename(staged.stagingPath, staged.path);
     }
-    return { sha256, byteLength: bytes.byteLength, path: finalPath };
+    return { sha256: staged.sha256, byteLength: staged.byteLength, path: staged.path };
+  }
+
+  async discard(staged: StagedAttachment): Promise<void> {
+    await rm(staged.stagingPath, { force: true });
+  }
+
+  /**
+   * Repairs interrupted metadata-then-promote writes and removes abandoned staging.
+   * Final unreferenced blobs are reported, not deleted: retention/GC policy is separate.
+   */
+  async recover(referencedHashes: Iterable<string>): Promise<AttachmentRecoveryReport> {
+    const referenced = new Set(referencedHashes);
+    for (const sha256 of referenced) requireSha256(sha256);
+    const report: AttachmentRecoveryReport = { promoted: [], removedStaging: [], missingReferenced: [], unreferencedBlobs: [] };
+    const stagingRoot = join(this.root, ".staging");
+    let entries: import("node:fs").Dirent[] = [];
+    try { entries = await readdir(stagingRoot, { withFileTypes: true }); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    entries.sort((left, right) => left.name.localeCompare(right.name));
+    for (const entry of entries) {
+      const stagingPath = join(stagingRoot, entry.name);
+      const match = /^([0-9a-f]{64})\.[0-9a-f-]+\.staging$/.exec(entry.name);
+      if (!entry.isFile() || !match) { await rm(stagingPath, { recursive: true, force: true }); report.removedStaging.push(entry.name); continue; }
+      const sha256 = match[1]!;
+      const bytes = await readFile(stagingPath);
+      if (digest(bytes) !== sha256 || !referenced.has(sha256)) {
+        await rm(stagingPath, { force: true }); report.removedStaging.push(entry.name); continue;
+      }
+      const staged = { sha256, byteLength: bytes.byteLength, path: join(this.root, sha256.slice(0, 2), sha256), stagingPath };
+      await this.promote(staged);
+      if (!report.promoted.includes(sha256)) report.promoted.push(sha256);
+    }
+    let buckets: import("node:fs").Dirent[] = [];
+    try { buckets = await readdir(this.root, { withFileTypes: true }); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    const present = new Set<string>();
+    for (const bucket of buckets) {
+      if (!bucket.isDirectory() || !/^[0-9a-f]{2}$/.test(bucket.name)) continue;
+      for (const blob of await readdir(join(this.root, bucket.name), { withFileTypes: true })) {
+        if (blob.isFile() && /^[0-9a-f]{64}$/.test(blob.name)) present.add(blob.name);
+      }
+    }
+    report.missingReferenced = [...referenced].filter(sha256 => !present.has(sha256)).sort();
+    report.unreferencedBlobs = [...present].filter(sha256 => !referenced.has(sha256)).sort();
+    return report;
+  }
+
+  async put(bytes: Uint8Array): Promise<StoredAttachment> {
+    const staged = await this.stage(bytes);
+    try { return await this.promote(staged); }
+    catch (error) { await this.discard(staged); throw error; }
   }
 
   async get(sha256: string): Promise<Uint8Array> {

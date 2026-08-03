@@ -12,7 +12,7 @@ import {
   type PageLink,
   type Workspace
 } from "@motion/core";
-import { ContentAddressedAttachmentStore, SqliteWorkspaceStore, type SearchHit, type StoredWorkspace } from "@motion/storage";
+import { ContentAddressedAttachmentStore, SqliteWorkspaceStore, type SearchHit, type StagedAttachment, type StoredWorkspace } from "@motion/storage";
 import { createBackup, previewRestore, restoreIntoNewWorkspace, verifyBackup, type BackupBundle, type RestorePreview, type VerificationResult } from "@motion/backup";
 
 export type AppErrorCode =
@@ -112,18 +112,28 @@ export class MotionAppService {
   }
 
   async executeAsync<C extends AsyncAppCommand>(command: C): Promise<AsyncCommandResults[C["type"]]> {
-    try { return await this.executeAsyncUnsafe(command) as AsyncCommandResults[C["type"]]; }
+    try { await this.recoverAttachments(); return await this.executeAsyncUnsafe(command) as AsyncCommandResults[C["type"]]; }
     catch (error) { throw mapError(error); }
   }
 
   async queryAsync<Q extends AsyncAppQuery>(query: Q): Promise<AsyncQueryResults[Q["type"]]> {
-    try { return await this.queryAsyncUnsafe(query) as AsyncQueryResults[Q["type"]]; }
+    try { await this.recoverAttachments(); return await this.queryAsyncUnsafe(query) as AsyncQueryResults[Q["type"]]; }
     catch (error) { throw mapError(error); }
   }
 
   private attachmentStore(): ContentAddressedAttachmentStore {
     if (!this.attachments) throw new MotionAppError("STORAGE_FAILURE", "Attachment storage is not configured");
     return this.attachments;
+  }
+
+  private async recoverAttachments(): Promise<void> {
+    if (!this.attachments) return;
+    const hashes: string[] = [];
+    for (const stored of this.store.list()) {
+      assertWorkspaceValue(stored.document);
+      hashes.push(...stored.document.attachments.map(attachment => validSha256(attachment.sha256)));
+    }
+    await this.attachments.recover(hashes);
   }
 
   private async executeAsyncUnsafe(command: AsyncAppCommand): Promise<MutationDto> {
@@ -134,20 +144,29 @@ export class MotionAppService {
       const mediaType = requiredText(command.mediaType, "mediaType");
       const sha256 = validSha256(command.sha256);
       if (!(command.bytes instanceof Uint8Array)) throw new MotionAppError("INVALID_INPUT", "bytes must be a Uint8Array");
-      const stored = await this.attachmentStore().put(command.bytes);
-      if (stored.sha256 !== sha256) throw new MotionAppError("VALIDATION_FAILED", "Attachment bytes do not match declared sha256");
       const document = clone(loaded.document);
       const id = command.id ? requiredText(command.id, "id") : crypto.randomUUID();
       if (document.attachments.some(item => item.id === id)) throw new MotionAppError("ALREADY_EXISTS", `Attachment already exists: ${id}`);
+      const staged = await this.attachmentStore().stage(command.bytes);
+      if (staged.sha256 !== sha256) {
+        await this.attachmentStore().discard(staged);
+        throw new MotionAppError("VALIDATION_FAILED", "Attachment bytes do not match declared sha256");
+      }
       const now = new Date().toISOString();
-      document.attachments.push({ id, fileName, mediaType, byteLength: stored.byteLength, sha256, path: stored.path, createdAt: now });
+      document.attachments.push({ id, fileName, mediaType, byteLength: staged.byteLength, sha256, path: staged.path, createdAt: now });
       document.updatedAt = now;
       assertWorkspaceValue(document);
       try {
         const savedRevision = this.store.saveUnitOfWork({ workspaceId: document.id, schemaVersion: document.schemaVersion, document, expectedRevision });
+        await this.attachmentStore().promote(staged);
         return immutable({ workspace: document, revision: savedRevision, saved: true as const }) as MutationDto;
       } catch (error) {
-        throw new MotionAppError(error instanceof Error && error.message.startsWith("Revision conflict") ? "REVISION_CONFLICT" : "STORAGE_FAILURE", `${error instanceof Error ? error.message : error}. Attachment content may remain as an unreferenced immutable blob; database and filesystem promotion are not atomic with the current storage API.`, { stagedAttachmentSha256: sha256 });
+        const committed = Boolean((this.store.load(document.id)?.document as Workspace | undefined)?.attachments
+          .some(attachment => attachment.id === id && attachment.sha256 === sha256));
+        if (!committed) await this.attachmentStore().discard(staged);
+        throw new MotionAppError(error instanceof Error && error.message.startsWith("Revision conflict") ? "REVISION_CONFLICT" : "STORAGE_FAILURE", committed
+          ? `${error instanceof Error ? error.message : error}. Metadata committed; staged content will be promoted by attachment recovery.`
+          : `${error instanceof Error ? error.message : error}. Metadata was not committed and staged content was discarded.`, { stagedAttachmentSha256: sha256, metadataCommitted: committed });
       }
     }
 
@@ -155,19 +174,30 @@ export class MotionAppService {
     assertWorkspaceValue(restored.workspace);
     if (this.store.load(restored.workspace.id)) throw new MotionAppError("ALREADY_EXISTS", `Workspace already exists: ${restored.workspace.id}`);
     const document = clone(restored.workspace);
-    for (const attachment of document.attachments) {
-      const bytes = restored.attachments.get(attachment.id);
-      if (!bytes) throw new MotionAppError("VALIDATION_FAILED", `Missing restored attachment: ${attachment.id}`);
-      const stored = await this.attachmentStore().put(bytes);
-      if (stored.sha256 !== attachment.sha256 || stored.byteLength !== attachment.byteLength) throw new MotionAppError("VALIDATION_FAILED", `Restored attachment metadata mismatch: ${attachment.id}`);
-      attachment.path = stored.path; // Never trust the archived source path.
+    const stagedAttachments: StagedAttachment[] = [];
+    try {
+      for (const attachment of document.attachments) {
+        const bytes = restored.attachments.get(attachment.id);
+        if (!bytes) throw new MotionAppError("VALIDATION_FAILED", `Missing restored attachment: ${attachment.id}`);
+        const staged = await this.attachmentStore().stage(bytes); stagedAttachments.push(staged);
+        if (staged.sha256 !== attachment.sha256 || staged.byteLength !== attachment.byteLength) throw new MotionAppError("VALIDATION_FAILED", `Restored attachment metadata mismatch: ${attachment.id}`);
+        attachment.path = staged.path; // Never trust the archived source path.
+      }
+    } catch (error) {
+      await Promise.all(stagedAttachments.map(staged => this.attachmentStore().discard(staged)));
+      throw error;
     }
     assertWorkspaceValue(document);
     try {
       const savedRevision = this.store.saveUnitOfWork({ workspaceId: document.id, schemaVersion: document.schemaVersion, document, expectedRevision: 0 });
+      await Promise.all(stagedAttachments.map(staged => this.attachmentStore().promote(staged)));
       return immutable({ workspace: document, revision: savedRevision, saved: true as const }) as MutationDto;
     } catch (error) {
-      throw new MotionAppError("STORAGE_FAILURE", `${error instanceof Error ? error.message : error}. Restored content may remain as unreferenced immutable blobs; database and filesystem promotion are not atomic with the current storage API.`);
+      const committed = Boolean(this.store.load(document.id));
+      if (!committed) await Promise.all(stagedAttachments.map(staged => this.attachmentStore().discard(staged)));
+      throw new MotionAppError("STORAGE_FAILURE", committed
+        ? `${error instanceof Error ? error.message : error}. Restore metadata committed; staged content will be promoted by attachment recovery.`
+        : `${error instanceof Error ? error.message : error}. Restore metadata was not committed and staged content was discarded.`);
     }
   }
 

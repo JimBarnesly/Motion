@@ -165,13 +165,38 @@ test("attachment validation, revision conflict and corrupt restore write no meta
     await assert.rejects(service.executeAsync({ type: "attachment.put", workspaceId: created.workspace.id, expectedRevision: created.revision, fileName: "x", mediaType: "application/octet-stream", sha256: "missing", bytes }), (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
     await assert.rejects(service.executeAsync({ type: "attachment.put", workspaceId: created.workspace.id, expectedRevision: created.revision, fileName: "x", mediaType: "application/octet-stream", sha256: "0".repeat(64), bytes }), (error: unknown) => error instanceof MotionAppError && error.code === "VALIDATION_FAILED");
     const first = await service.executeAsync({ type: "attachment.put", workspaceId: created.workspace.id, expectedRevision: created.revision, fileName: "x", mediaType: "application/octet-stream", sha256: hash(bytes), bytes });
-    await assert.rejects(service.executeAsync({ type: "attachment.put", workspaceId: created.workspace.id, expectedRevision: created.revision, fileName: "stale", mediaType: "application/octet-stream", sha256: hash(bytes), bytes }), (error: unknown) => error instanceof MotionAppError && error.code === "REVISION_CONFLICT" && /not atomic/.test(error.message));
+    await assert.rejects(service.executeAsync({ type: "attachment.put", workspaceId: created.workspace.id, expectedRevision: created.revision, fileName: "stale", mediaType: "application/octet-stream", sha256: hash(bytes), bytes }), (error: unknown) => error instanceof MotionAppError && error.code === "REVISION_CONFLICT" && /staged content was discarded/.test(error.message));
     assert.equal(service.query({ type: "workspace.get", workspaceId: created.workspace.id }).workspace.attachments.length, 1);
     const bundle = await service.queryAsync({ type: "backup.create", workspaceId: created.workspace.id });
     const corrupt = { manifest: bundle.manifest, files: { ...bundle.files, "workspace.json": new Uint8Array([0]) } };
     await assert.rejects(service.executeAsync({ type: "backup.restore-new", bundle: corrupt, newWorkspaceId: "must-not-exist" }), /verification failed/i);
     assert.equal(store.load("must-not-exist"), undefined);
     assert.equal(first.revision, created.revision + 1);
+    store.close();
+  } finally { await Promise.all([removeDatabase(path), rm(files, { recursive: true, force: true })]); }
+});
+
+test("attachment promotion failure is recovered from committed metadata on the next operation", async () => {
+  const path = databasePath("attachment-promotion-recovery"); const files = `${path}.attachments`;
+  class FailingPromotionStore extends ContentAddressedAttachmentStore {
+    failNextPromotion = true;
+    override async promote(staged: import("@motion/storage").StagedAttachment) {
+      if (this.failNextPromotion) { this.failNextPromotion = false; throw new Error("injected promotion failure"); }
+      return super.promote(staged);
+    }
+  }
+  try {
+    const store = new SqliteWorkspaceStore(path); const attachments = new FailingPromotionStore(files);
+    const service = new MotionAppService(store, attachments);
+    const created = service.execute({ type: "workspace.create", name: "Recovery" });
+    const bytes = new TextEncoder().encode("recover after metadata commit");
+    await assert.rejects(service.executeAsync({ type: "attachment.put", workspaceId: created.workspace.id,
+      expectedRevision: created.revision, id: "recover-me", fileName: "recover.txt", mediaType: "text/plain",
+      sha256: hash(bytes), bytes }), (error: unknown) => error instanceof MotionAppError && error.code === "STORAGE_FAILURE"
+        && error.details?.metadataCommitted === true && /will be promoted/.test(error.message));
+    assert.equal(service.query({ type: "workspace.get", workspaceId: created.workspace.id }).workspace.attachments[0]?.id, "recover-me");
+    const recovered = await service.queryAsync({ type: "attachment.read", workspaceId: created.workspace.id, attachmentId: "recover-me" });
+    assert.deepEqual(recovered.bytes, bytes);
     store.close();
   } finally { await Promise.all([removeDatabase(path), rm(files, { recursive: true, force: true })]); }
 });

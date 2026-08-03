@@ -1,6 +1,6 @@
 # ADR 0010: Content-addressed attachment files with transactional metadata
 
-- Status: Provisional pending crash-safe staging tests
+- Status: Provisional; buffered staging/recovery implemented, streaming and fsync hardening pending
 - Date: 2026-08-04
 
 ## Context
@@ -9,7 +9,9 @@ Attachments must survive restart, deduplicate safely, stream at useful sizes, ex
 
 ## Decision
 
-Store attachment bytes outside SQLite under a SHA-256 content address; store original display name, media type, byte length, hash, stable attachment-reference identity, and lifecycle state in SQLite. Writes use symlink-safe/no-follow private staging, streamed hashing and size enforcement, file fsync, atomic same-filesystem rename, and containing-directory fsync where the platform supports it, followed by transactional metadata/reference commit. Existing hash-path blobs are opened without following links and rehashed before deduplication reuse. Recovery removes stale staging files and unreferenced rename-success/DB-failure orphans, and reports referenced missing blobs. Never use user file names as storage paths.
+Store attachment bytes outside SQLite under a SHA-256 content address; store original display name, media type, byte length, hash, stable attachment-reference identity, and lifecycle state in SQLite. The current write path creates a private same-root staging file, validates its hash, commits metadata referencing the final hash path, then atomically renames staging to that path. If promotion is interrupted after metadata commit, the next attachment operation scans all workspace references and promotes matching staging. Rolled-back/unreferenced staging is removed deterministically. Referenced missing blobs and unreferenced final blobs are reported; final blobs are not automatically deleted until retention and concurrent-process rules exist. Never use user file names as storage paths.
+
+The current API buffers bytes in memory and does not yet prove no-follow opens, file/directory fsync, streamed size enforcement, or coordination between multiple application processes. Those remain acceptance work rather than implied properties of the implementation.
 
 ## Alternatives considered
 
@@ -31,9 +33,11 @@ Full exports include a versioned attachment manifest and original names alongsid
 
 ## Revisit conditions
 
-Accept fully only after interruption tests cover every staging/rename/commit boundary and large files are streamed without full buffering.
+Accept fully only after interruption tests cover process termination at every staging/rename/commit boundary, multi-process coordination is defined, fsync/no-follow handling is verified on supported filesystems, and large files are streamed without full buffering.
 
 ## Spike evidence
 
 - `spikes/003-sqlite-fts/spike.test.mjs` writes a binary payload through `putAttachment`, reads it by hash, and proves byte equality.
 - `spikes/003-sqlite-fts/README.md` explicitly identifies the unproven atomicity of metadata and filesystem creation, making this decision provisional.
+- `packages/storage/src/test/storage.test.ts` proves referenced-stage promotion, abandoned-stage removal, missing-reference reporting, and conservative orphan reporting.
+- `packages/app-service/src/test/app-service.test.ts` injects failure after metadata commit and proves the next operation recovers and reads the attachment.

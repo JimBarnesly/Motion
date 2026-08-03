@@ -2,6 +2,10 @@
 
 Each milestone is complete only when its acceptance criteria pass in a packaged Linux desktop build with networking disabled, unless explicitly marked as a later server milestone. Requirement IDs refer to [REQUIREMENTS.md](REQUIREMENTS.md).
 
+## Current status
+
+No milestone below is complete. The repository currently contains foundation code and specifications, not a packaged, security-gated desktop release. Items are exit criteria, not implementation claims.
+
 ## M0 — Durable local foundation
 
 - A workspace can be created, reopened after process termination, migrated, backed up, and restored with stable IDs (`LOCAL-001`–`LOCAL-004`).
@@ -9,6 +13,7 @@ Each milestone is complete only when its acceptance criteria pass in a packaged 
 - Unknown block fixtures survive load/save/export byte-equivalently at the payload level (`BLOCK-007`).
 - The materialized link index can be discarded, rebuilt, and verified against canonical blocks (`LINK-004`, `LINK-006`).
 - Automated tests cover power-loss/restart boundaries, migrations, and export/restore equivalence.
+- Threat-model local-release gates pass, including hostile imports, redacted diagnostics, network-denied operation, and restore-and-compare verification (`PORT-001`–`BACKUP-002`, `OBS-001`–`OBS-003`).
 
 ## M1 — Trustworthy documents and navigation
 
@@ -17,6 +22,7 @@ Each milestone is complete only when its acceptance criteria pass in a packaged 
 - Single/multi-block selection, reorder, nesting, cross-page move, duplicate, delete, transform, copy/paste, Markdown copy, undo, and redo work by keyboard (`BLOCK-004`, `BLOCK-005`).
 - Page and block drag operations work and every action has an equivalent keyboard path (`A11Y-004`, `A11Y-005`).
 - Shortcut reference and automated keyboard/focus tests cover all initial commands (`A11Y-001`–`A11Y-003`, `A11Y-006`).
+- WCAG 2.2 AA automation plus documented manual keyboard and screen-reader passes cover the packaged build (`A11Y-007`–`A11Y-009`).
 
 ## M2 — Linked knowledge and attachments
 
@@ -46,12 +52,20 @@ Each milestone is complete only when its acceptance criteria pass in a packaged 
 - Rollups have explicit aggregation and missing-target semantics with deterministic results (`REL-005`).
 - Chart and form views are implemented as saved configurations over the same records (`VIEW-001`, `VIEW-002`).
 
+## M5.5 — Reliability and operational release gate
+
+- Reproducible benchmark reports exercise launch, typing, search, long pages, collection virtualization, and streamed attachments (`PERF-001`, `PERF-002`, `PERF-005`).
+- Published stress fixtures and failure-injection tests cover the required scales and deterministic recovery (`PERF-003`, `PERF-004`).
+- Database/index diagnostics, redacted local crash reports, and previewable support bundles are usable without telemetry (`OBS-001`–`OBS-004`).
+- Import/export/backup schemas, hostile-input handling, and automated restore equivalence pass (`PORT-001`–`BACKUP-003`).
+
 ## M6 — Optional private multi-device sync
 
 - Two offline replicas reconcile page trees, block edits/order, links, relations, and reciprocal updates deterministically without requiring wall-clock agreement.
 - Unknown blocks and fields pass through replicas unchanged (`BLOCK-007`).
 - Conflicts are explicit and recoverable; convergence, reconnect, duplicate-delivery, and interrupted-transfer tests pass.
 - The local application remains fully useful when the sync server is absent.
+- All remote-collaboration acceptance gates in [THREAT_MODEL.md](THREAT_MODEL.md) pass before release.
 
 ## M7 — Optional collaborative self-hosting
 
@@ -59,3 +73,9 @@ Each milestone is complete only when its acceptance criteria pass in a packaged 
 - Client-side encrypted workspaces do not require server plaintext access.
 - Presence is ephemeral; content/history durability and authorization are tested separately.
 - A fresh self-hosted deployment, backup, and restore are documented and verified.
+
+## M8 — Optional AI, agents, and MCP
+
+- The integrations are disabled by default and the application remains fully functional offline (`AGENT-001`).
+- Provider consent, bounded context, mutation preview/approval/undo, attribution, and revocation pass the tests in [specifications/AI_MCP.md](specifications/AI_MCP.md) (`AGENT-001`, `AGENT-002`, `AGENT-005`).
+- MCP least-privilege and prompt-injection tests demonstrate object-scoped access, separate read/write permission, no arbitrary filesystem access, and no capability expansion from content (`AGENT-003`, `AGENT-004`).

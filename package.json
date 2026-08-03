@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
+    "benchmark": "npm run build --workspace @motion/search && node scripts/benchmark.mjs",
     "dev": "npm run dev --workspace @motion/web",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present"

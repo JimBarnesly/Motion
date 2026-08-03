@@ -32,6 +32,8 @@ contact an external service.
 - `packages/storage` — durable SQLite workspace storage and content-addressed files
 - `packages/search` — incremental local search with filtered ranked results
 - `packages/formula` — versioned parser, typed AST, evaluator, and cycle detection
+- `packages/backup` — checksummed canonical backups, preview, verified restore, and exports
+- `packages/observability` — redacted local logs, diagnostics, crash records, and support bundles
 - `docs` — product, architecture, protocols, security, and decisions
 
 ## Data portability

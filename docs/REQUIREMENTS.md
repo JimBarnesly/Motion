@@ -89,3 +89,42 @@ Requirement IDs are stable references for implementation, tests, release notes, 
 - **LOCAL-002:** Canonical content and its operation entry commit atomically; derived indexes are rebuildable.
 - **LOCAL-003:** Markdown, structured JSON, database CSV, attachments, and full-workspace export preserve the reconstruction contract, including hierarchy, blocks, views, relations, links, metadata, and unknown blocks.
 - **LOCAL-004:** Tests cover deterministic serialization, restart durability, index rebuilding, unknown-block round trips, and export/restore equivalence.
+
+## Import, export, and backup
+
+- **PORT-001:** Import is staged, cancellable, transactional, and produces a preflight summary of warnings, conflicts, unsupported content, skipped items, and resource limits before canonical data changes.
+- **PORT-002:** Importers sanitize active content, reject unsafe archive paths, stream bounded attachments, preserve unknown metadata where practical, resolve internal links by stable IDs, avoid duplicates on rerun, and can import into a new workspace for rollback safety.
+- **PORT-003:** Exports support a page or subtree as Markdown, a collection as CSV plus reconstruction metadata, a full versioned JSON workspace with attachments, and human-readable static HTML. Export never requires a network service.
+- **PORT-004:** A canonical export schema and migration rules reconstruct hierarchy, blocks, collection schemas/records/values/views/relations, attachments, links/backlinks, requested comments, metadata, tombstones, and unknown fields.
+- **BACKUP-001:** Manual backup produces a versioned manifest, cryptographic checksums, schema/tool versions, attachment inventory, and optional authenticated encryption without overwriting the only verified backup.
+- **BACKUP-002:** Restore verifies integrity in staging, previews the result, and defaults to a new workspace; an automated test restores and compares canonical entities and attachment hashes.
+- **BACKUP-003:** Scheduled local backups and retention are later capabilities, but their configuration cannot require a vendor service.
+
+## Accessibility
+
+- **A11Y-007:** The desktop UI targets WCAG 2.2 AA with semantic headings, labelled controls, logical focus order, visible focus, sufficient contrast, reduced motion, zoom/font scaling, high-contrast compatibility, and clear validation errors.
+- **A11Y-008:** Automated accessibility checks run in CI, while milestone acceptance also includes documented manual keyboard and screen-reader passes; automation alone is insufficient.
+- **A11Y-009:** Large editors and virtualized collection views preserve accessible reading order, focus, selection announcements, and keyboard reachability.
+
+## Performance and reliability
+
+- **PERF-001:** Reproducible cold/warm launch, typing latency, long-page scroll, indexed search, collection rendering, attachment streaming, and recovery benchmarks record hardware, dataset, build, and result.
+- **PERF-002:** Initial targets are a useful cold shell within two seconds on representative mid-range hardware, quick indexed search under 200 ms for a moderate workspace, no synchronous remote request in the typing path, and no network dependency in local mode.
+- **PERF-003:** Stress fixtures include at least 10,000 pages, 100,000 blocks, 50,000 records, deep hierarchies, large backlink graphs, long documents, thousands of attachments, and concurrent offline edits.
+- **PERF-004:** Process termination, interrupted migration, disk-full/write failure, corrupt index, missing attachment, duplicate operation, and offline reconciliation tests demonstrate deterministic recovery and no acknowledged-but-uncommitted state.
+- **PERF-005:** Large collections use bounded or virtualized rendering and large attachments are streamed rather than fully buffered; benchmark regressions remain visible even when targets are revised.
+
+## Local observability and privacy
+
+- **OBS-001:** Local structured logs have configurable levels and redact content, prompts, credentials, keys, attachment bytes, private filenames, and raw queries by default.
+- **OBS-002:** Local diagnostics include database integrity checking, search-index rebuild/verification, sync diagnostics when enabled, migration status, and development-only performance traces.
+- **OBS-003:** Crash reports remain local by default. A support bundle is generated only on request and previews its exact files and fields before export.
+- **OBS-004:** Any future remote crash reporting is separate, transparent, scrubbed, opt-in, disableable, and never required for ordinary operation.
+
+## Optional AI, agents, and MCP
+
+- **AGENT-001:** The complete local product works with AI/MCP disabled; no content is transmitted without an explicit action, provider, and visible bounded context selection.
+- **AGENT-002:** AI mutations require a structured preview, affected-object list, approval, validated domain commands, permission checks, actor attribution, local commit confirmation, and undo.
+- **AGENT-003:** The MCP server is optional and disabled by default, separates read/write grants, scopes access by workspace/object, exposes no general filesystem or shell access, and uses revocable authenticated clients.
+- **AGENT-004:** Workspace and imported content is untrusted data; prompt-injection tests prove it cannot expand context, grant capabilities, reveal secrets, or approve tools and mutations.
+- **AGENT-005:** Provider/domain allow-lists, retention warnings, credentials, usage visibility, audit redaction, and revocation follow [specifications/AI_MCP.md](specifications/AI_MCP.md) and [THREAT_MODEL.md](THREAT_MODEL.md).

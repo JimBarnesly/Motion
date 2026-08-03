@@ -31,13 +31,21 @@ async function persist() {
   }
 }
 
-function exportWorkspace() {
-  const payload = JSON.stringify({ exportVersion: "motion.workspace/1.0", exportedAt: new Date().toISOString(), workspace: state }, null, 2);
+async function exportWorkspace() {
+  let payload, fileName;
+  if (workspaceStore.kind === "tauri") {
+    const exported = await workspaceStore.exportWorkspace();
+    payload = JSON.stringify(exported, null, 2);
+    fileName = `motion-canonical-export-${new Date().toISOString().slice(0, 10)}.json`;
+  } else {
+    payload = JSON.stringify({ exportVersion: "motion.workspace/1.0", exportedAt: new Date().toISOString(), workspace: state }, null, 2);
+    fileName = `motion-browser-development-${new Date().toISOString().slice(0, 10)}.json`;
+  }
   const blob = new Blob([payload], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `motion-workspace-${new Date().toISOString().slice(0, 10)}.json`;
+  link.download = fileName;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -144,11 +152,23 @@ function renderContext(page) {
 }
 
 function openSearch() { $("#searchDialog").showModal(); $("#searchInput").value = ""; renderSearch(""); $("#searchInput").focus(); }
-function renderSearch(query) {
+let searchRequest = 0;
+async function renderSearch(query) {
+  const request = ++searchRequest;
   const term = query.trim().toLowerCase();
   if (!term) { $("#searchResults").innerHTML = `<div class="search-hint">Start typing to search page titles and document text.</div>`; return; }
-  const hits = state.pages.filter((p) => p.title.toLowerCase().includes(term) || p.blocks?.some((b) => b.text.toLowerCase().includes(term)));
-  $("#searchResults").innerHTML = hits.length ? hits.map((p) => `<button type="button" data-search-page="${p.id}"><span class="result-icon">${p.type === "database" ? "▦" : "□"}</span><span><strong>${escapeHtml(p.title)}</strong><small>${p.type === "database" ? `${p.rows.length} rows` : "Document"}</small></span></button>`).join("") : `<div class="search-hint">No results for “${escapeHtml(query)}”.</div>`;
+  let hits;
+  if (workspaceStore.kind === "tauri") {
+    const nativeHits = await workspaceStore.search(query, 50);
+    if (request !== searchRequest) return;
+    hits = nativeHits.map(hit => {
+      const page = state.pages.find(candidate => candidate.id === hit.entityId || candidate.blocks?.some(block => block.id === hit.entityId));
+      return page ? { page, snippet: hit.snippet, native: true } : null;
+    }).filter(Boolean);
+  } else {
+    hits = state.pages.filter((p) => p.title.toLowerCase().includes(term) || p.blocks?.some((b) => b.text.toLowerCase().includes(term))).map(page => ({ page, snippet: page.type === "database" ? `${page.rows.length} rows` : "Browser development search", native: false }));
+  }
+  $("#searchResults").innerHTML = hits.length ? hits.map(({ page, snippet, native }) => `<button type="button" data-search-page="${page.id}"><span class="result-icon">${page.type === "database" ? "▦" : "□"}</span><span><strong>${escapeHtml(page.title)}</strong><small>${escapeHtml(snippet || (native ? "Indexed result" : "Document"))}</small></span></button>`).join("") : `<div class="search-hint">No results for “${escapeHtml(query)}”.</div>`;
 }
 
 document.addEventListener("click", (event) => {
@@ -169,7 +189,7 @@ document.addEventListener("click", (event) => {
   if (el.id === "openSearch") openSearch();
   if (el.id === "openSidebar") $("#sidebar").classList.add("open");
   if (el.id === "closeSidebar") $("#sidebar").classList.remove("open");
-  if (el.id === "exportWorkspace") exportWorkspace();
+  if (el.id === "exportWorkspace") exportWorkspace().catch(error => alert(error instanceof Error ? error.message : "Export failed"));
   if (el.id === "restoreWorkspace") $("#restoreFile").click();
   if (el.id === "homeButton" && !state.pages.length) renderEmptyWorkspace();
 });
@@ -192,7 +212,7 @@ document.addEventListener("input", (event) => {
   if (event.target.dataset.block) { const block = page.blocks.find((b) => b.id === event.target.dataset.block); block.text = event.target.textContent; refreshBlockLinks(block); persist(); renderContext(page); }
   if (event.target.dataset.columnName) { page.columns.find((c) => c.id === event.target.dataset.columnName).name = event.target.value; persist(); }
   if (event.target.dataset.cell) { const [rowId, colId] = event.target.dataset.cell.split(":"); page.rows.find((r) => r.id === rowId).values[colId] = event.target.value; persist(); }
-  if (event.target.id === "searchInput") renderSearch(event.target.value);
+  if (event.target.id === "searchInput") renderSearch(event.target.value).catch(error => { $("#searchResults").innerHTML = `<div class="search-hint">${escapeHtml(error instanceof Error ? error.message : "Search failed")}</div>`; });
 });
 
 document.addEventListener("focusin", event => {

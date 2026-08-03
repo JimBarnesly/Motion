@@ -39,11 +39,22 @@ function browserDevelopmentAdapter() {
     kind: "browser-development",
     durable: true,
     async load() { return validWorkspace(await transact("readonly", store => store.get(WORKSPACE_KEY))); },
-    async save(workspace) { await transact("readwrite", store => store.put(validWorkspace(workspace), WORKSPACE_KEY)); }
+    async save(workspace) { await transact("readwrite", store => store.put(validWorkspace(workspace), WORKSPACE_KEY)); },
+    async search() { return null; },
+    async exportWorkspace() { return null; }
   };
 }
 
 function tauriAdapter(invoke) {
+  let workspaceId;
+  const dispatch = (lane, payload) => invoke("app_dispatch", { request: { protocolVersion: 1, lane, payload } });
+  const requiredWorkspaceId = async () => {
+    if (workspaceId) return workspaceId;
+    const workspaces = await dispatch("query", { type: "workspace.list" });
+    workspaceId = workspaces?.[0]?.id;
+    if (!workspaceId) throw new Error("Create a workspace before using native search or export");
+    return workspaceId;
+  };
   return {
     kind: "tauri",
     durable: true,
@@ -52,6 +63,13 @@ function tauriAdapter(invoke) {
     },
     async save(workspace) {
       await invoke("motion_ui_save", { document: validWorkspace(workspace), schemaVersion: 1 });
+      workspaceId = undefined;
+    },
+    async search(query, limit = 50) {
+      return dispatch("query", { type: "workspace.search", workspaceId: await requiredWorkspaceId(), query, limit });
+    },
+    async exportWorkspace() {
+      return dispatch("query", { type: "workspace.export", workspaceId: await requiredWorkspaceId() });
     }
   };
 }

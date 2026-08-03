@@ -9,7 +9,12 @@ export interface MotionUiAdapter {
   readonly durable: true;
   load(): Promise<WebWorkspaceV1>;
   save(workspace: WebWorkspaceV1): Promise<void>;
+  search(query: string, limit?: number): Promise<NativeSearchHit[] | null>;
+  exportWorkspace(): Promise<NativeFullExport | null>;
 }
+
+export interface NativeSearchHit { workspaceId: string; entityId: string; title: string; snippet: string }
+export interface NativeFullExport { schemaVersion: 1; files: Record<string, string>; attachments: Array<{ archivePath: string; sourcePath: string; sha256: string; byteLength: number }> }
 
 export interface MotionUiRuntime {
   __TAURI__?: { core?: { invoke(command: string, payload: unknown): Promise<unknown> } };

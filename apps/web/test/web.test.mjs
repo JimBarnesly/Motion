@@ -30,15 +30,33 @@ test("native adapter sends versioned typed IPC envelopes", async () => {
   const workspace = { schemaVersion: 1, pages: [], activePageId: null };
   const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => {
     calls.push({ command, payload });
-    return command === "motion_ui_load" ? workspace : undefined;
+    if (command === "motion_ui_load") return workspace;
+    if (command === "app_dispatch" && payload.request.payload.type === "workspace.list") return [{ id: "workspace-1" }];
+    if (command === "app_dispatch" && payload.request.payload.type === "workspace.search") return [{ workspaceId: "workspace-1", entityId: "page-1", title: "Page", snippet: "match" }];
+    if (command === "app_dispatch" && payload.request.payload.type === "workspace.export") return { schemaVersion: 1, files: {}, attachments: [] };
+    return undefined;
   } } } });
   assert.equal(adapter.kind, "tauri");
   assert.deepEqual(await adapter.load(), workspace);
   await adapter.save(workspace);
+  assert.equal((await adapter.search("match"))[0].entityId, "page-1");
+  assert.equal((await adapter.exportWorkspace()).schemaVersion, 1);
   assert.deepEqual(calls, [
     { command: "motion_ui_load", payload: { schemaVersion: 1 } },
-    { command: "motion_ui_save", payload: { document: workspace, schemaVersion: 1 } }
+    { command: "motion_ui_save", payload: { document: workspace, schemaVersion: 1 } },
+    { command: "app_dispatch", payload: { request: { protocolVersion: 1, lane: "query", payload: { type: "workspace.list" } } } },
+    { command: "app_dispatch", payload: { request: { protocolVersion: 1, lane: "query", payload: { type: "workspace.search", workspaceId: "workspace-1", query: "match", limit: 50 } } } },
+    { command: "app_dispatch", payload: { request: { protocolVersion: 1, lane: "query", payload: { type: "workspace.export", workspaceId: "workspace-1" } } } }
   ]);
+});
+
+test("search and export use canonical native queries with honest browser fallbacks", async () => {
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  const adapter = await readFile(resolve(root, "app-adapter.js"), "utf8");
+  assert.match(adapter, /type: "workspace\.search"/);
+  assert.match(adapter, /type: "workspace\.export"/);
+  assert.match(source, /workspaceStore\.kind === "tauri"/);
+  assert.match(source, /motion-browser-development/);
 });
 
 test("hostile restores are closed-shape normalised before rendering", async () => {

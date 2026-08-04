@@ -2,7 +2,7 @@
 
 | Risk | State | Mitigation / next evidence |
 |---|---|---|
-| Native Linux packages have not yet completed the corrected CI matrix | Open, critical | The shell now bundles a pinned, checksum-verified Node 24.18.0 runtime and original icon; wait for successful x86-64/ARM64 `.deb` and AppImage jobs, then smoke-test installed artifacts offline. |
+| Native Linux packages are built but not installed/smoke-tested | Open, high | CI run `30876348219` built and uploaded x86-64 and ARM64 package artifacts; install each on a representative host and prove launch, restart, persistence, and offline operation. |
 | Browser and Tauri adapters still translate schema-v1 UI documents rather than using typed domain commands directly | Open, high | Keep validation/migration at the boundary, then move UI operations onto typed app-service commands and add packaged behavioural E2E coverage. |
 | Native Linux desktop package is not locally verified | Open, high | Rust is installed, but this host lacks GTK/WebKit development packages. Install them with administrator access, then run locked Rust tests and package/restart/offline checks. |
 | Product UI is vanilla JavaScript/Web-v1 rather than required React and Tiptap/ProseMirror | Open, high | Preserve the canonical IPC/service boundary while replacing the compatibility editor; add IME, clipboard, keyboard, selection, drag/drop, migration, and accessibility tests. |

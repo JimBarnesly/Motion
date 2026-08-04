@@ -27,10 +27,9 @@ Updated: 2026-08-04
 - `npm run test:offline` proves the canonical SQLite vertical slice survives a
   restart in a separate Node process while outbound networking is denied, then
   runs the offline-asset scan.
-- Native CI is configured to test the Rust shell and build `.deb` and AppImage
-  artifacts on native x86-64 and ARM64 Ubuntu runners. It is currently rerunning
-  after frontend path, application-icon, and offline-source scan gates were fixed;
-  packaged artifacts are not yet proven.
+- Native CI tests the Rust shell and builds `.deb` and AppImage artifacts on
+  native x86-64 and ARM64 Ubuntu runners. Run `30876348219` passed both native
+  jobs and uploaded architecture-specific package artifacts.
 - Playwright covers the offline browser create/edit/reload/search/export flow.
 - Page trash is reversible and restores affected ancestors/descendants. Attachment
   staging and deterministic recovery mitigate interrupted blob promotion.
@@ -44,9 +43,10 @@ Updated: 2026-08-04
 
 ## Not yet a release
 
-- No locally or CI-verified packaged Tauri desktop application yet. Rust is
-  installed on this host, but the required GTK/WebKit development packages are
-  missing and require administrator access; the corrected native CI is rerunning.
+- Native Tauri packages now build successfully in CI for x86-64 and ARM64.
+  Installed-package launch, restart, and offline smoke tests remain outstanding;
+  this host still lacks the GTK/WebKit development packages required for local
+  native compilation and launch.
 - The UI remains vanilla JavaScript and a Web-v1 compatibility document adapter,
   not the required React plus Tiptap/ProseMirror editor. Not every UI mutation
   is expressed as a fine-grained typed domain command.
@@ -61,10 +61,11 @@ Updated: 2026-08-04
 
 ## Next vertical slice
 
-Get the corrected native CI green, install local GTK/WebKit prerequisites, then
-package the bundled persistent-runtime shell for Linux desktop and prove:
-create/edit/link/search/attach, terminate/restart, export, restore into a new
-workspace, and run with networking blocked.
+Smoke-test the uploaded x86-64 and ARM64 packages on representative Linux hosts,
+including create/edit/link/search/attach, terminate/restart, export, restore into
+a new workspace, and operation with networking blocked. Then replace the Web-v1
+compatibility editor with the React plus Tiptap/ProseMirror editor over the same
+typed service boundary.
 
 See `RISKS.md`, `ROADMAP.md`, and `TEST_STRATEGY.md` for gates and dependencies.
 
@@ -76,5 +77,5 @@ See `RISKS.md`, `ROADMAP.md`, and `TEST_STRATEGY.md` for gates and dependencies.
   document updates, FTS5, attachment hashing, rollback, restart, and WAL recovery.
 - Tauri spike: `spikes/001-tauri-linux`, 2/2 boundary tests and the offline web
   build pass. The typed shell, verified bundled runtime, icon, and native CI
-  matrix now exist; native artifacts remain unproven until CI succeeds, and
-  local compilation/launch/package remains blocked by missing GTK/WebKit packages.
+  matrix now exist. CI run `30876348219` built and uploaded x86-64 and ARM64
+  packages; installed-artifact behavior remains unverified.

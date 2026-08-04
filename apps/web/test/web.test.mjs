@@ -12,6 +12,13 @@ test("entrypoint references only local assets", async () => {
   assert.doesNotMatch(html, /https?:\/\//);
 });
 
+test("development server supports an explicit bind host without embedding a remote URL", async () => {
+  const source = await readFile(resolve(root, "scripts/serve.mjs"), "utf8");
+  assert.match(source, /process\.env\.HOST \?\? "127\.0\.0\.1"/);
+  assert.match(source, /\.listen\(port, host/);
+  assert.doesNotMatch(source, /http:\/\/\$\{host\}/);
+});
+
 test("workspace persistence uses an explicit async native/browser adapter", async () => {
   const source = await readFile(resolve(root, "app.js"), "utf8");
   const adapter = await readFile(resolve(root, "app-adapter.js"), "utf8");

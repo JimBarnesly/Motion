@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const port = Number(process.env.PORT ?? 4173);
+const host = process.env.HOST ?? "127.0.0.1";
 const mime = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8" };
 
 createServer(async (request, response) => {
@@ -17,4 +18,4 @@ createServer(async (request, response) => {
     response.writeHead(200, { "content-type": mime[extname(candidate)] ?? "application/octet-stream", "cache-control": "no-store" });
     createReadStream(candidate).pipe(response);
   } catch { response.writeHead(404).end("Not found"); }
-}).listen(port, "127.0.0.1", () => console.log(`Motion web: http://127.0.0.1:${port}`));
+}).listen(port, host, () => console.log(`Motion web listening on ${host}:${port}`));

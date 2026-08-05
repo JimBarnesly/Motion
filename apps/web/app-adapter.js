@@ -65,10 +65,10 @@ function tauriAdapter(invoke) {
     kind: "tauri",
     durable: true,
     async load() {
-      return validWorkspace(await invoke("motion_ui_load", { schemaVersion: 1 }));
+      return validWorkspace(await invoke("motion_ui_load", { request: { schemaVersion: 1 } }));
     },
     async save(workspace) {
-      await invoke("motion_ui_save", { document: validWorkspace(workspace), schemaVersion: 1 });
+      await invoke("motion_ui_save", { request: { document: validWorkspace(workspace), schemaVersion: 1 } });
       workspaceSummary = undefined;
     },
     async search(query, limit = 50) {

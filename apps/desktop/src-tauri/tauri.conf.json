@@ -6,8 +6,11 @@
   "build": { "beforeBuildCommand": "npm run build --workspace @motion/app-service && npm run build --workspace @motion/web && npm run build --workspace @motion/desktop", "frontendDist": "../../web/dist" },
   "app": {
     "withGlobalTauri": true,
-    "windows": [{ "title": "Motion", "width": 1180, "height": 760, "minWidth": 720, "minHeight": 520 }],
-    "security": { "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" }
+    "windows": [{ "label": "main", "title": "Motion", "width": 1180, "height": 760, "minWidth": 720, "minHeight": 520 }],
+    "security": {
+      "capabilities": ["main-window"],
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    }
   },
   "bundle": {
     "active": true,

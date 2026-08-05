@@ -19,6 +19,19 @@ struct IpcRequest {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct UiLoadRequest {
+    schema_version: u8,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct UiSaveRequest {
+    schema_version: u8,
+    document: Value,
+}
+
+#[derive(Deserialize)]
 struct RunnerReply {
     ok: bool,
     value: Option<Value>,
@@ -36,6 +49,53 @@ fn reject(code: &str, message: impl Into<String>) -> IpcError {
         code: code.into(),
         message: message.into(),
     }
+}
+
+fn validate_dispatch_request(request: &IpcRequest) -> Result<(), IpcError> {
+    if request.protocol_version != 1 {
+        return Err(reject("INVALID_INPUT", "Unsupported IPC protocol version"));
+    }
+    let payload = request
+        .payload
+        .as_object()
+        .ok_or_else(|| reject("INVALID_INPUT", "IPC payload must be an object"))?;
+    let operation = payload
+        .get("type")
+        .and_then(Value::as_str)
+        .ok_or_else(|| reject("INVALID_INPUT", "IPC payload requires an operation type"))?;
+    // Keep this list aligned with production callers in apps/web/app-adapter.js.
+    // Page/workspace mutations use the separately validated motion_ui_save command.
+    let allowed: &[&str] = match (request.lane.as_str(), operation) {
+        ("query", "workspace.list") => &["type"],
+        ("query", "workspace.export") => &["type", "workspaceId"],
+        ("query", "workspace.search") => &["type", "workspaceId", "query", "limit"],
+        ("async-command", "attachment.put") => &[
+            "type",
+            "workspaceId",
+            "expectedRevision",
+            "id",
+            "fileName",
+            "mediaType",
+            "sha256",
+            "bytes",
+        ],
+        ("async-command", "backup.restore-new") => &["type", "bundle", "newWorkspaceId"],
+        ("async-query", "backup.create") => &["type", "workspaceId", "createdAt"],
+        ("async-query", "backup.verify" | "backup.preview") => &["type", "bundle"],
+        _ => {
+            return Err(reject(
+                "INVALID_INPUT",
+                "IPC operation is not allowed on this lane",
+            ))
+        }
+    };
+    if payload.keys().any(|key| !allowed.contains(&key.as_str())) {
+        return Err(reject(
+            "INVALID_INPUT",
+            "IPC payload contains an unsupported field",
+        ));
+    }
+    Ok(())
 }
 
 struct ServiceProcess {
@@ -123,15 +183,7 @@ fn exchange(process: &mut ServiceProcess, encoded: &str) -> Result<RunnerReply, 
 
 #[tauri::command]
 async fn app_dispatch(app: tauri::AppHandle, request: IpcRequest) -> Result<Value, IpcError> {
-    if request.protocol_version != 1 {
-        return Err(reject("INVALID_INPUT", "Unsupported IPC protocol version"));
-    }
-    if !matches!(
-        request.lane.as_str(),
-        "command" | "query" | "async-command" | "async-query"
-    ) {
-        return Err(reject("INVALID_INPUT", "Unsupported IPC lane"));
-    }
+    validate_dispatch_request(&request)?;
     run_service(
         app,
         serde_json::json!({ "lane": request.lane, "payload": request.payload }),
@@ -140,8 +192,8 @@ async fn app_dispatch(app: tauri::AppHandle, request: IpcRequest) -> Result<Valu
 }
 
 #[tauri::command]
-async fn motion_ui_load(app: tauri::AppHandle, schema_version: u8) -> Result<Value, IpcError> {
-    if schema_version != 1 {
+async fn motion_ui_load(app: tauri::AppHandle, request: UiLoadRequest) -> Result<Value, IpcError> {
+    if request.schema_version != 1 {
         return Err(reject("INVALID_INPUT", "Unsupported UI schema version"));
     }
     run_service(
@@ -152,15 +204,11 @@ async fn motion_ui_load(app: tauri::AppHandle, schema_version: u8) -> Result<Val
 }
 
 #[tauri::command]
-async fn motion_ui_save(
-    app: tauri::AppHandle,
-    document: Value,
-    schema_version: u8,
-) -> Result<Value, IpcError> {
-    if schema_version != 1 {
+async fn motion_ui_save(app: tauri::AppHandle, request: UiSaveRequest) -> Result<Value, IpcError> {
+    if request.schema_version != 1 {
         return Err(reject("INVALID_INPUT", "Unsupported UI schema version"));
     }
-    run_service(app, serde_json::json!({ "lane": "ui-save", "payload": { "schemaVersion": 1, "document": document } })).await
+    run_service(app, serde_json::json!({ "lane": "ui-save", "payload": { "schemaVersion": 1, "document": request.document } })).await
 }
 
 async fn run_service(app: tauri::AppHandle, envelope: Value) -> Result<Value, IpcError> {
@@ -237,7 +285,8 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::select_node_binary;
+    use super::{select_node_binary, validate_dispatch_request, IpcRequest};
+    use serde_json::json;
     use std::{ffi::OsString, fs, path::PathBuf};
 
     #[test]
@@ -262,5 +311,53 @@ mod tests {
             ),
             PathBuf::from("/development/node")
         );
+    }
+
+    #[test]
+    fn dispatch_rejects_unknown_commands_and_injected_capabilities() {
+        let unknown = IpcRequest {
+            protocol_version: 1,
+            lane: "command".into(),
+            payload: json!({ "type": "shell.execute", "command": "id" }),
+        };
+        assert_eq!(
+            validate_dispatch_request(&unknown).unwrap_err().code,
+            "INVALID_INPUT"
+        );
+        let path_injection = IpcRequest {
+            protocol_version: 1,
+            lane: "async-command".into(),
+            payload: json!({
+                "type": "attachment.put", "workspaceId": "w", "expectedRevision": 1, "fileName": "x", "mediaType": "text/plain",
+                "sha256": "0".repeat(64), "bytes": { "$motionBytes": [] }, "path": "/etc/passwd"
+            }),
+        };
+        assert_eq!(
+            validate_dispatch_request(&path_injection).unwrap_err().code,
+            "INVALID_INPUT"
+        );
+        let wrong_lane = IpcRequest {
+            protocol_version: 1,
+            lane: "query".into(),
+            payload: json!({ "type": "backup.restore-new", "bundle": {} }),
+        };
+        assert_eq!(
+            validate_dispatch_request(&wrong_lane).unwrap_err().code,
+            "INVALID_INPUT"
+        );
+    }
+
+    #[test]
+    fn dispatch_accepts_documented_attachment_boundary() {
+        let request = IpcRequest {
+            protocol_version: 1,
+            lane: "async-command".into(),
+            payload: json!({
+                "type": "attachment.put", "workspaceId": "workspace", "expectedRevision": 1,
+                "fileName": "attachment.txt", "mediaType": "text/plain", "sha256": "0".repeat(64),
+                "bytes": { "$motionBytes": [] }
+            }),
+        };
+        assert!(validate_dispatch_request(&request).is_ok());
     }
 }

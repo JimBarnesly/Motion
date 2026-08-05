@@ -1,8 +1,9 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { readFileSync, renameSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { MotionAppService, MotionAppError } from "@motion/app-service";
-import { SqliteWorkspaceStore, ContentAddressedAttachmentStore } from "@motion/storage";
+import { SqliteWorkspaceStore, ContentAddressedAttachmentStore, ensurePrivateDirectory, hardenPrivateFile } from "@motion/storage";
 import { migrateWebWorkspaceV1 } from "@motion/core";
 
 const [dataRoot] = process.argv.slice(2);
@@ -24,15 +25,16 @@ const encode = value => value instanceof Uint8Array ? { $motionBytes: Array.from
   : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).map(([key, child]) => [key, encode(child)]))
   : value;
 
-mkdirSync(dataRoot, { recursive: true });
+ensurePrivateDirectory(dataRoot);
 const store = new SqliteWorkspaceStore(join(dataRoot, "motion.sqlite3"));
 const service = new MotionAppService(store, new ContentAddressedAttachmentStore(join(dataRoot, "attachments")));
 const uiStatePath = join(dataRoot, "ui-state.json");
-const readUiState = () => { try { return JSON.parse(readFileSync(uiStatePath, "utf8")); } catch { return {}; } };
+const readUiState = () => { try { hardenPrivateFile(uiStatePath); return JSON.parse(readFileSync(uiStatePath, "utf8")); } catch (error) { if (error?.code === "ENOENT") return {}; throw error; } };
 const writeUiState = state => {
-  const temporary = `${uiStatePath}.tmp`;
-  writeFileSync(temporary, JSON.stringify({ schemaVersion: 1, workspaceId: state.workspaceId, activePageId: state.activePageId ?? null }), { mode: 0o600 });
+  const temporary = `${uiStatePath}.${randomUUID()}.tmp`;
+  writeFileSync(temporary, JSON.stringify({ schemaVersion: 1, workspaceId: state.workspaceId, activePageId: state.activePageId ?? null }), { flag: "wx", mode: 0o600 });
   renameSync(temporary, uiStatePath);
+  hardenPrivateFile(uiStatePath);
 };
 async function dispatch(rawRequest) {
   const request = revive(rawRequest);
@@ -92,7 +94,7 @@ for await (const line of lines) {
   } catch (error) {
     reply = { ok: false, error: {
       code: error instanceof MotionAppError ? error.code : "INTERNAL_ERROR",
-      message: error instanceof Error ? error.message : "Unknown service failure"
+      message: error instanceof MotionAppError ? error.message : "Internal service failure"
     }};
   }
   process.stdout.write(`${JSON.stringify(reply)}\n`);

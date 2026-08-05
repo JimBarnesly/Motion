@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 2,
+  "oldPolicySha256": null,
+  "newPolicySha256": "e6f39d7b204bf45a00e3a5f67a378ea529396cfcdfb1295ad95ffab91734a679",
+  "rationale": "Establish independently reviewed dependency policy and control-plane governance.",
+  "approverRole": "Operations & Security Director",
+  "scopeDiff": [
+    "baseline:established"
+  ],
+  "controlPlaneDiff": [
+    ".github/CODEOWNERS:absent->sha256:90ddeb2c41218804b1eb3a4ac24fb98366d033014c9a9d2b39532cbec7607207",
+    ".github/workflows/ci.yml:sha256:40e69c1b9988475ed35d36e712ae145a0cf3e822c2d741752ddeab67ed939bfd->sha256:5e5510fb223a803df1dcbb07eab9d50efe8b0b4248eefa287aea2f0c11553078",
+    ".github/workflows/release-provenance.yml:absent->sha256:6646ee34bae338194c3e77c9949ec0d1db0b2e8cd2e8d6cd81ef72777e2a57ca",
+    "docs/dependency-inventory.json:absent->sha256:f7f65f4a15964952a79e9d3364e0ced2dd29575af82ce429091ebd17240f443d",
+    "scripts/dependency-inventory.mjs:absent->sha256:e2968edef3629e5a3ed8212b52c79dd2e1c1a2217d3626edcfd1bd0fb50426cd",
+    "scripts/dependency-inventory.test.mjs:absent->sha256:0e674f95c2aba13be53db5e19ddb60b74772751cbba56bf54eff63d1df18a71b",
+    "scripts/dependency-policy-change-gate.mjs:absent->sha256:eafb40b1b3ee645a98a4052150db7a9d4559e74916f3a874e1e4752d0223fa94",
+    "scripts/dependency-policy-change-gate.test.mjs:absent->sha256:f396eae61889b21406209efc87aac3ae62c2d1b1b74c343b6b07b0c24a5eeca9",
+    "scripts/vulnerability-gate.mjs:absent->sha256:013174e9e5cd32cec2d9f98573dc527226e479750834c960bd3357fc77b70778",
+    "scripts/vulnerability-gate.test.mjs:absent->sha256:c0529a3aa2df1178ef24e89a2af9e1ca1d9d17df43b2c80a60f7c070b8ce68bd",
+    "vulnerability-policy.json:absent->sha256:11d5ac3821506c5bf61a2a4cfeedf3432a8a33696c4e767bdbc1980caa176e31"
+  ]
+}

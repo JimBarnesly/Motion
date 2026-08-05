@@ -48,5 +48,8 @@ test("tampering and traversal paths are rejected", () => {
   const corrupted = { ...backup, files: { ...backup.files, "workspace.json": new TextEncoder().encode("{}") } };
   assert.equal(verifyBackup(corrupted).valid, false);
   assert.throws(() => safeArchivePath("attachments", "..", "secret"), /Unsafe/);
+  for (const path of ["/absolute/escape", "\\server\\share", "C:\\escape", "attachments/%2e%2e/escape", "attachments\\..\\escape"]) {
+    assert.throws(() => safeArchivePath(path), /Unsafe/, `accepted ${path}`);
+  }
   assert.throws(() => createBackup(workspace, [{ id: "attachment-1", fileName: "note.txt", bytes: new Uint8Array([1]) }]), /does not match/);
 });

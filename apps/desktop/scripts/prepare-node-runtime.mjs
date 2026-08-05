@@ -26,7 +26,7 @@ export async function prepareNodeRuntime(options = {}) {
   const archive = join(cacheRoot, selected.file);
   await mkdir(cacheRoot, { recursive: true });
   let cached = false;
-  try { cached = (await stat(archive)).isFile(); } catch {}
+  try { cached = (await stat(archive)).isFile(); } catch { cached = false; }
   if (!cached) {
     if (options.offline ?? process.env.MOTION_NODE_RUNTIME_OFFLINE === "1") throw new Error(`Pinned runtime is not in the offline cache: ${archive}`);
     const response = await fetch(selected.url, { redirect: "error" });

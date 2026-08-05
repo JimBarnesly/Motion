@@ -1,0 +1,5 @@
+{
+  "packages": [
+    { "ecosystem": "npm", "name": "seeded-unknown", "version": "1.0.0", "licence": "Unknown-Seed-1.0", "direct": true, "sourcePackage": "https://registry.npmjs.org/seeded-unknown/-/seeded-unknown-1.0.0.tgz" }
+  ]
+}

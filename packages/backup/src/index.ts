@@ -33,6 +33,9 @@ export interface RestoreResult { workspace: WorkspaceSnapshot; attachments: Map<
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+const MAX_BACKUP_FILES = 10_000;
+const MAX_BACKUP_METADATA_STRING = 4_096;
+const MAX_BACKUP_TOTAL_BYTES = 2 * 1024 * 1024 * 1024;
 
 /** Stable JSON bytes make checksums reproducible on every platform. */
 export function canonicalJson(value: unknown): string {
@@ -45,8 +48,13 @@ export function canonicalJson(value: unknown): string {
 }
 
 export function safeArchivePath(...parts: string[]): string {
+  if (parts.some(part => part.startsWith("/") || part.startsWith("\\") || /^[A-Za-z]:[\\/]/.test(part))) throw new Error("Unsafe archive path");
   const clean = parts.map(part => part.normalize("NFC").replaceAll("\\", "/").replace(/^\/+|\/+$/g, ""));
-  if (clean.some(part => !part || part === "." || part === ".." || part.includes("\0") || part.split("/").some(bit => bit === ".." || bit === "."))) throw new Error("Unsafe archive path");
+  if (clean.some(part => {
+    let decoded: string;
+    try { decoded = decodeURIComponent(part).replaceAll("\\", "/"); } catch { return true; }
+    return !part || part.includes("\0") || decoded.includes("\0") || decoded.split("/").some(bit => bit === ".." || bit === ".");
+  })) throw new Error("Unsafe archive path");
   const joined = posix.normalize(clean.join("/"));
   if (posix.isAbsolute(joined) || joined.startsWith("../")) throw new Error("Unsafe archive path");
   return joined;
@@ -76,19 +84,28 @@ export function createBackup(workspace: WorkspaceSnapshot, attachments: readonly
 export function verifyBackup(bundle: BackupBundle): VerificationResult {
   const errors: string[] = [];
   if (bundle.manifest.format !== "motion-workspace-backup" || bundle.manifest.schemaVersion !== 1) errors.push("Unsupported backup format or schema version");
+  if (!Array.isArray(bundle.manifest.files) || bundle.manifest.files.length > MAX_BACKUP_FILES) return { valid: false, errors: ["Backup manifest exceeds file-count limit"] };
+  if ([bundle.manifest.createdAt, bundle.manifest.workspaceId].some(value => typeof value !== "string" || value.length > MAX_BACKUP_METADATA_STRING)) errors.push("Backup manifest metadata exceeds limit");
   const declared = new Set<string>();
-  for (const file of bundle.manifest.files) {
-    try { safeArchivePath(file.path); } catch { errors.push(`Unsafe path: ${file.path}`); }
-    if (declared.has(file.path)) errors.push(`Duplicate manifest path: ${file.path}`);
+  let totalBytes = 0;
+  for (const [index, file] of bundle.manifest.files.entries()) {
+    const allowedKeys = new Set(["path", "byteLength", "sha256", "mediaType"]);
+    if (!file || typeof file !== "object" || Object.keys(file).some(key => !allowedKeys.has(key))) { errors.push(`Unsupported link-like or metadata field at manifest file ${index}`); continue; }
+    if (typeof file.path !== "string" || file.path.length > MAX_BACKUP_METADATA_STRING || typeof file.mediaType !== "string" || file.mediaType.length > MAX_BACKUP_METADATA_STRING) errors.push(`Manifest file ${index} metadata exceeds limit`);
+    if (!Number.isSafeInteger(file.byteLength) || file.byteLength < 0 || !/^[0-9a-f]{64}$/.test(file.sha256)) errors.push(`Manifest file ${index} has invalid size or checksum metadata`);
+    totalBytes += Number.isSafeInteger(file.byteLength) ? file.byteLength : 0;
+    try { safeArchivePath(file.path); } catch { errors.push(`Unsafe archive path at manifest file ${index}`); }
+    if (declared.has(file.path)) errors.push(`Duplicate manifest path at file ${index}`);
     declared.add(file.path);
     const bytes = bundle.files[file.path];
-    if (!bytes) errors.push(`Missing file: ${file.path}`);
+    if (!bytes) errors.push(`Missing payload for manifest file ${index}`);
     else {
-      if (bytes.byteLength !== file.byteLength) errors.push(`Size mismatch: ${file.path}`);
-      if (digest(bytes) !== file.sha256) errors.push(`Checksum mismatch: ${file.path}`);
+      if (bytes.byteLength !== file.byteLength) errors.push(`Size mismatch at manifest file ${index}`);
+      if (digest(bytes) !== file.sha256) errors.push(`Checksum mismatch at manifest file ${index}`);
     }
   }
-  for (const path of Object.keys(bundle.files)) if (!declared.has(path)) errors.push(`Undeclared file: ${path}`);
+  if (totalBytes > MAX_BACKUP_TOTAL_BYTES) errors.push("Backup payload exceeds total-size limit");
+  for (const path of Object.keys(bundle.files)) if (!declared.has(path)) errors.push("Undeclared backup payload");
   if (!declared.has("workspace.json")) errors.push("Missing workspace.json declaration");
   return { valid: errors.length === 0, errors };
 }

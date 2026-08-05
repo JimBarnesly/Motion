@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 2,
+  "allowedLicenceIdentifiers": [
+    "0BSD", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "CC0-1.0",
+    "ISC", "LGPL-2.1-or-later", "LLVM-exception", "MIT", "MIT-0",
+    "MPL-2.0", "Unicode-3.0", "Unlicense", "Zlib"
+  ],
+  "prohibitedLicenceIdentifiers": [
+    "AGPL-1.0", "AGPL-1.0-only", "AGPL-1.0-or-later",
+    "AGPL-3.0", "AGPL-3.0-only", "AGPL-3.0-or-later",
+    "BUSL-1.1", "Commons-Clause", "GPL-1.0", "GPL-1.0-only",
+    "GPL-1.0-or-later", "GPL-2.0", "GPL-2.0-only", "GPL-2.0-or-later",
+    "GPL-3.0", "GPL-3.0-only", "GPL-3.0-or-later", "SSPL-1.0"
+  ],
+  "allowedSources": {
+    "npmRegistry": "https://registry.npmjs.org/",
+    "cargoRegistry": "registry+https://github.com/rust-lang/crates.io-index",
+    "workspace": true,
+    "git": false,
+    "file": false,
+    "unknown": false
+  },
+  "failureConditions": {
+    "missingVersion": true,
+    "missingLicence": true,
+    "missingSource": true,
+    "unknownLicence": true,
+    "prohibitedLicence": true,
+    "unapprovedSource": true
+  }
+}

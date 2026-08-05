@@ -1,9 +1,22 @@
 import assert from "node:assert/strict";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ContentAddressedAttachmentStore, SqliteWorkspaceStore } from "../index.js";
+
+const runCrashWorker = async (mode: "during-transaction" | "after-commit", databasePath: string) => {
+  const worker = new URL("./fixtures/crash-worker.js", import.meta.url);
+  const child = spawn(process.execPath, [worker.pathname, mode, databasePath], { stdio: ["ignore", "pipe", "pipe"] });
+  let stderr = "";
+  child.stderr.setEncoding("utf8").on("data", chunk => { stderr += chunk; });
+  const result = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
+    child.once("error", reject);
+    child.once("exit", (code, signal) => resolve({ code, signal }));
+  });
+  assert.deepEqual(result, { code: null, signal: "SIGKILL" }, `crash worker did not reach kill point:\n${stderr}`);
+};
 
 test("SQLite workspace storage survives restart and rejects stale revisions", async () => {
   const root = await mkdtemp(join(tmpdir(), "motion-storage-"));
@@ -68,6 +81,31 @@ test("workspace write and FTS update roll back together", async () => {
   } finally { store.close(); await rm(root, { recursive: true, force: true }); }
 });
 
+test("SQLite and FTS recover atomically from real process termination at commit boundaries", async () => {
+  for (const mode of ["during-transaction", "after-commit"] as const) {
+    const root = await mkdtemp(join(tmpdir(), `motion-crash-${mode}-`));
+    const path = join(root, "motion.sqlite3");
+    try {
+      const seed = new SqliteWorkspaceStore(path);
+      seed.save("ws", 1, { pages: [{ id: "p1", title: "Original", text: "old searchable value" }] }, 0);
+      seed.close();
+
+      await runCrashWorker(mode, path);
+
+      const reopened = new SqliteWorkspaceStore(path);
+      const expectedCommitted = mode === "after-commit";
+      assert.equal(reopened.load("ws")?.revision, expectedCommitted ? 2 : 1);
+      assert.equal(reopened.search("new searchable value", "ws").length, expectedCommitted ? 1 : 0);
+      assert.equal(reopened.search("old searchable value", "ws").length, expectedCommitted ? 0 : 1);
+      const integrity = reopened.database.prepare("PRAGMA integrity_check").get() as { integrity_check: string };
+      assert.equal(integrity.integrity_check, "ok");
+      const pending = reopened.database.prepare("SELECT COUNT(*) count FROM reindex_jobs WHERE status='pending'").get() as { count: number };
+      assert.equal(pending.count, 0);
+      reopened.close();
+    } finally { await rm(root, { recursive: true, force: true }); }
+  }
+});
+
 test("FTS survives restart and follows rename and deletion", async () => {
   const root = await mkdtemp(join(tmpdir(), "motion-fts-"));
   const path = join(root, "motion.sqlite3");
@@ -100,4 +138,23 @@ test("hostile FTS syntax is tokenized and migrations are idempotent", async () =
     assert.throws(() => second.save("ws", 1, { id: "p", title: "stale" }, 0), /Revision conflict/);
     second.close();
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("private runtime paths ignore permissive and restrictive umasks without following symlinks", async (context) => {
+  if (process.platform === "win32") { context.skip("POSIX modes are not enforceable on Windows"); return; }
+  for (const mask of ["000", "077"]) {
+    const root = await mkdtemp(join(tmpdir(), `motion-permissions-${mask}-`));
+    try {
+      const worker = new URL("./fixtures/permission-worker.js", import.meta.url);
+      const result = spawnSync(process.execPath, [worker.pathname, root, mask], { encoding: "utf8" });
+      assert.equal(result.status, 0, result.stderr);
+      const report = JSON.parse(result.stdout) as { root: number; attachmentsRoot: number; staging: number; bucket: number; attachment: number; databaseFiles: Record<string, number>; fileSymlinkRejected: boolean; directorySymlinkRejected: boolean; targetFile: number; targetDirectory: number };
+      assert.deepEqual({ root: report.root, attachmentsRoot: report.attachmentsRoot, staging: report.staging, bucket: report.bucket }, { root: 0o700, attachmentsRoot: 0o700, staging: 0o700, bucket: 0o700 });
+      assert.equal(report.attachment, 0o600);
+      assert.ok(Object.keys(report.databaseFiles).includes("motion.sqlite3"));
+      assert.ok(Object.values(report.databaseFiles).every(value => value === 0o600));
+      assert.deepEqual({ file: report.fileSymlinkRejected, directory: report.directorySymlinkRejected }, { file: true, directory: true });
+      assert.deepEqual({ file: report.targetFile, directory: report.targetDirectory }, { file: 0o666, directory: 0o777 });
+    } finally { await rm(root, { recursive: true, force: true }); }
+  }
 });

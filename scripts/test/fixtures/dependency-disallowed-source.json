@@ -1,0 +1,5 @@
+{
+  "packages": [
+    { "ecosystem": "cargo", "name": "seeded-git", "version": "1.0.0", "licence": "MIT", "direct": false, "sourcePackage": "git+https://invalid.example/seeded" }
+  ]
+}

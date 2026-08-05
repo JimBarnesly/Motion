@@ -1,16 +1,39 @@
 import assert from "node:assert/strict";
-import { readFile, rm } from "node:fs/promises";
+import { readFile, readdir, rm, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ContentAddressedAttachmentStore, SqliteWorkspaceStore } from "@motion/storage";
-import { MotionAppError, MotionAppService } from "../index.js";
+import { MotionAppError, MotionAppService, toAppError } from "../index.js";
 
 const databasePath = (name: string) => join(tmpdir(), `motion-app-service-${name}-${crypto.randomUUID()}.sqlite`);
 const removeDatabase = async (path: string) => Promise.all([path, `${path}-wal`, `${path}-shm`].map(file => rm(file, { force: true })));
 const hash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+
+test("private database path failures map to stable storage errors without internals", () => {
+  const privatePath = `/private/workspace-${crypto.randomUUID()}.sqlite`;
+  const mapped = toAppError(new Error(`Private file path has an unexpected type: ${privatePath}`));
+  assert.equal(mapped.code, "STORAGE_FAILURE");
+  assert.equal(mapped.message, "Local database operation failed");
+  assert.equal(mapped.message.includes(privatePath), false);
+  assert.equal(mapped.details, undefined);
+});
+const integrityHash = async (database: string, attachmentRoot: string): Promise<string> => {
+  const digest = createHash("sha256");
+  for (const file of [database, `${database}-wal`, `${database}-shm`]) {
+    try { digest.update(file); digest.update(await readFile(file)); } catch { digest.update(`${file}:missing`); }
+  }
+  let entries: string[] = [];
+  try { entries = (await readdir(attachmentRoot, { recursive: true })) as string[]; } catch { /* absent attachment root */ }
+  for (const entry of entries.sort()) {
+    const full = join(attachmentRoot, entry); const metadata = await stat(full);
+    digest.update(entry); digest.update(String(metadata.mode & 0o777));
+    if (metadata.isFile()) digest.update(await readFile(full));
+  }
+  return digest.digest("hex");
+};
 
 const runRestartWorker = async (args: readonly string[]) => {
   const worker = new URL("./fixtures/restart-worker.js", import.meta.url);
@@ -168,10 +191,85 @@ test("attachment validation, revision conflict and corrupt restore write no meta
     await assert.rejects(service.executeAsync({ type: "attachment.put", workspaceId: created.workspace.id, expectedRevision: created.revision, fileName: "stale", mediaType: "application/octet-stream", sha256: hash(bytes), bytes }), (error: unknown) => error instanceof MotionAppError && error.code === "REVISION_CONFLICT" && /staged content was discarded/.test(error.message));
     assert.equal(service.query({ type: "workspace.get", workspaceId: created.workspace.id }).workspace.attachments.length, 1);
     const bundle = await service.queryAsync({ type: "backup.create", workspaceId: created.workspace.id });
-    const corrupt = { manifest: bundle.manifest, files: { ...bundle.files, "workspace.json": new Uint8Array([0]) } };
-    await assert.rejects(service.executeAsync({ type: "backup.restore-new", bundle: corrupt, newWorkspaceId: "must-not-exist" }), /verification failed/i);
-    assert.equal(store.load("must-not-exist"), undefined);
+    const originalBefore = structuredClone(store.load(created.workspace.id));
+    const withWorkspace = (mutate: (value: any) => void) => {
+      const value = JSON.parse(new TextDecoder().decode(bundle.files["workspace.json"]!)); mutate(value);
+      const payload = new TextEncoder().encode(JSON.stringify(value));
+      return { manifest: { ...bundle.manifest, files: bundle.manifest.files.map(file => file.path === "workspace.json" ? { ...file, byteLength: payload.byteLength, sha256: hash(payload) } : file) }, files: { ...bundle.files, "workspace.json": payload } };
+    };
+    const withManifestPath = (unsafePath: string) => { const payload = bundle.files["workspace.json"]!; return { manifest: { ...bundle.manifest, files: bundle.manifest.files.map(file => file.path === "workspace.json" ? { ...file, path: unsafePath } : file) }, files: { ...bundle.files, [unsafePath]: payload } }; };
+    const hostileInputs = [
+      { name: "corrupt", bundle: { manifest: bundle.manifest, files: { ...bundle.files, "workspace.json": new Uint8Array([0]) } } },
+      { name: "truncated", bundle: (() => { const payload = new TextEncoder().encode("{\"schemaVersion\":"); return { manifest: { ...bundle.manifest, files: bundle.manifest.files.map(file => file.path === "workspace.json" ? { ...file, byteLength: payload.byteLength, sha256: hash(payload) } : file) }, files: { ...bundle.files, "workspace.json": payload } }; })() },
+      ...["../workspace.json", "%2e%2e/workspace.json", "attachments\\..\\workspace.json", "/private/escape/workspace.json", "C:\\private\\escape.json", "\\\\server\\share\\escape.json"].map((unsafePath, index) => ({ name: `path-${index}`, bundle: withManifestPath(unsafePath) })),
+      { name: "link-like", bundle: { manifest: { ...bundle.manifest, files: bundle.manifest.files.map(file => file.path === "workspace.json" ? { ...file, linkTarget: "../private" } : file) }, files: bundle.files } },
+      { name: "duplicate-id", bundle: withWorkspace(value => { value.pages.push({ ...value.pages[0], title: "TOP_SECRET_CANARY" }); }) },
+      { name: "schema-corruption", bundle: withWorkspace(value => { value.schemaVersion = 999; value.name = "TOP_SECRET_CANARY"; }) },
+      { name: "oversized-metadata", bundle: { manifest: { ...bundle.manifest, createdAt: "x".repeat(4097) }, files: bundle.files } }
+    ];
+    for (const input of hostileInputs) {
+      const beforeHash = await integrityHash(path, files);
+      await assert.rejects(service.executeAsync({ type: "backup.restore-new", bundle: input.bundle as any, newWorkspaceId: `must-not-exist-${input.name}` }), (error: unknown) => error instanceof MotionAppError && error.code === "VALIDATION_FAILED" && /invalid, oversized, or unsafe/i.test(error.message) && !error.message.includes("TOP_SECRET_CANARY"));
+      assert.equal(store.load(`must-not-exist-${input.name}`), undefined);
+      assert.deepEqual(store.load(created.workspace.id), originalBefore, `${input.name} modified the live workspace`);
+      assert.equal(await integrityHash(path, files), beforeHash, `${input.name} changed database or attachment bytes`);
+    }
     assert.equal(first.revision, created.revision + 1);
+    store.close();
+  } finally { await Promise.all([removeDatabase(path), rm(files, { recursive: true, force: true })]); }
+});
+
+test("restore database interruption discards staging and preserves the original store", async () => {
+  const path = databasePath("restore-db-interruption"); const files = `${path}.attachments`;
+  class InterruptedStore extends SqliteWorkspaceStore {
+    override saveUnitOfWork(write: import("@motion/storage").WorkspaceWrite): number {
+      if (write.workspaceId === "interrupted-restore") throw new Error("injected restore database interruption");
+      return super.saveUnitOfWork(write);
+    }
+  }
+  try {
+    const store = new InterruptedStore(path); const service = new MotionAppService(store, new ContentAddressedAttachmentStore(files));
+    const original = service.execute({ type: "workspace.create", name: "Original remains" });
+    const bytes = new TextEncoder().encode("restore payload");
+    const attached = await service.executeAsync({ type: "attachment.put", workspaceId: original.workspace.id, expectedRevision: original.revision, fileName: "restore.txt", mediaType: "text/plain", sha256: hash(bytes), bytes });
+    const bundle = await service.queryAsync({ type: "backup.create", workspaceId: original.workspace.id });
+    const before = structuredClone(store.load(original.workspace.id));
+    const bytesBefore = await integrityHash(path, files);
+    await assert.rejects(service.executeAsync({ type: "backup.restore-new", bundle, newWorkspaceId: "interrupted-restore" }), /staged content was discarded/i);
+    assert.equal(store.load("interrupted-restore"), undefined);
+    assert.deepEqual(store.load(original.workspace.id), before);
+    assert.equal(await integrityHash(path, files), bytesBefore, "interrupted import changed database or attachment bytes");
+    const staging = await readdir(`${files}/.staging`);
+    assert.deepEqual(staging, []);
+    assert.equal(attached.workspace.attachments.length, 1);
+    store.close();
+  } finally { await Promise.all([removeDatabase(path), rm(files, { recursive: true, force: true })]); }
+});
+
+test("interrupted restore promotion is recovered without changing the original workspace", async () => {
+  const path = databasePath("restore-promotion-interruption"); const files = `${path}.attachments`;
+  class FailingPromotionStore extends ContentAddressedAttachmentStore {
+    fail = false;
+    override async promote(staged: import("@motion/storage").StagedAttachment) { if (this.fail) { this.fail = false; throw new Error("injected restore promotion interruption"); } return super.promote(staged); }
+  }
+  try {
+    const store = new SqliteWorkspaceStore(path); const attachments = new FailingPromotionStore(files); const service = new MotionAppService(store, attachments);
+    const original = service.execute({ type: "workspace.create", name: "Original" });
+    const bytes = new TextEncoder().encode("recoverable restore payload");
+    const attached = await service.executeAsync({ type: "attachment.put", workspaceId: original.workspace.id, expectedRevision: original.revision, fileName: "recover.txt", mediaType: "text/plain", sha256: hash(bytes), bytes });
+    const bundle = await service.queryAsync({ type: "backup.create", workspaceId: original.workspace.id });
+    const originalBefore = structuredClone(store.load(original.workspace.id));
+    attachments.fail = true;
+    await assert.rejects(service.executeAsync({ type: "backup.restore-new", bundle, newWorkspaceId: "recoverable-restore" }), /metadata commit.*retry content promotion/i);
+    assert.deepEqual(store.load(original.workspace.id), originalBefore);
+    assert.ok(store.load("recoverable-restore"), "restore metadata was not committed atomically");
+    const restoredId = (store.load("recoverable-restore")!.document as import("@motion/core").Workspace).attachments[0]!.id;
+    const restored = await service.queryAsync({ type: "attachment.read", workspaceId: "recoverable-restore", attachmentId: restoredId });
+    assert.deepEqual(restored.bytes, bytes);
+    const rootMode = (await stat(files)).mode & 0o777;
+    const bucketMode = (await stat(`${files}/${hash(bytes).slice(0, 2)}`)).mode & 0o777;
+    const fileMode = (await stat(`${files}/${hash(bytes).slice(0, 2)}/${hash(bytes)}`)).mode & 0o777;
+    assert.deepEqual({ rootMode, bucketMode, fileMode }, { rootMode: 0o700, bucketMode: 0o700, fileMode: 0o600 });
     store.close();
   } finally { await Promise.all([removeDatabase(path), rm(files, { recursive: true, force: true })]); }
 });
@@ -193,7 +291,7 @@ test("attachment promotion failure is recovered from committed metadata on the n
     await assert.rejects(service.executeAsync({ type: "attachment.put", workspaceId: created.workspace.id,
       expectedRevision: created.revision, id: "recover-me", fileName: "recover.txt", mediaType: "text/plain",
       sha256: hash(bytes), bytes }), (error: unknown) => error instanceof MotionAppError && error.code === "STORAGE_FAILURE"
-        && error.details?.metadataCommitted === true && /will be promoted/.test(error.message));
+        && error.details?.metadataCommitted === true && /retry content promotion/.test(error.message));
     assert.equal(service.query({ type: "workspace.get", workspaceId: created.workspace.id }).workspace.attachments[0]?.id, "recover-me");
     const recovered = await service.queryAsync({ type: "attachment.read", workspaceId: created.workspace.id, attachmentId: "recover-me" });
     assert.deepEqual(recovered.bytes, bytes);

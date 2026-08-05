@@ -49,8 +49,8 @@ test("native adapter sends versioned typed IPC envelopes", async () => {
   assert.equal((await adapter.search("match"))[0].entityId, "page-1");
   assert.equal((await adapter.exportWorkspace()).schemaVersion, 1);
   assert.deepEqual(calls, [
-    { command: "motion_ui_load", payload: { schemaVersion: 1 } },
-    { command: "motion_ui_save", payload: { document: workspace, schemaVersion: 1 } },
+    { command: "motion_ui_load", payload: { request: { schemaVersion: 1 } } },
+    { command: "motion_ui_save", payload: { request: { document: workspace, schemaVersion: 1 } } },
     { command: "app_dispatch", payload: { request: { protocolVersion: 1, lane: "query", payload: { type: "workspace.list" } } } },
     { command: "app_dispatch", payload: { request: { protocolVersion: 1, lane: "query", payload: { type: "workspace.search", workspaceId: "workspace-1", query: "match", limit: 50 } } } },
     { command: "app_dispatch", payload: { request: { protocolVersion: 1, lane: "query", payload: { type: "workspace.export", workspaceId: "workspace-1" } } } }

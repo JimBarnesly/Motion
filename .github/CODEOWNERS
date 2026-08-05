@@ -1,0 +1,10 @@
+# Dependency security control-plane changes require Operations & Security review.
+/.github/CODEOWNERS @JimBarnesly
+/.github/workflows/** @JimBarnesly
+/dependency-policy*.json @JimBarnesly
+/vulnerability-policy.json @JimBarnesly
+/docs/dependency-inventory.json @JimBarnesly
+/scripts/dependency-inventory* @JimBarnesly
+/scripts/dependency-policy-change-gate* @JimBarnesly
+/scripts/vulnerability-gate* @JimBarnesly
+/scripts/test/fixtures/dependency-* @JimBarnesly

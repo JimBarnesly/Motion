@@ -146,7 +146,7 @@ export class MotionAppService {
       if (!(command.bytes instanceof Uint8Array)) throw new MotionAppError("INVALID_INPUT", "bytes must be a Uint8Array");
       const document = clone(loaded.document);
       const id = command.id ? requiredText(command.id, "id") : crypto.randomUUID();
-      if (document.attachments.some(item => item.id === id)) throw new MotionAppError("ALREADY_EXISTS", `Attachment already exists: ${id}`);
+      if (document.attachments.some(item => item.id === id)) throw new MotionAppError("ALREADY_EXISTS", "Attachment already exists");
       const staged = await this.attachmentStore().stage(command.bytes);
       if (staged.sha256 !== sha256) {
         await this.attachmentStore().discard(staged);
@@ -165,22 +165,27 @@ export class MotionAppService {
           .some(attachment => attachment.id === id && attachment.sha256 === sha256));
         if (!committed) await this.attachmentStore().discard(staged);
         throw new MotionAppError(error instanceof Error && error.message.startsWith("Revision conflict") ? "REVISION_CONFLICT" : "STORAGE_FAILURE", committed
-          ? `${error instanceof Error ? error.message : error}. Metadata committed; staged content will be promoted by attachment recovery.`
-          : `${error instanceof Error ? error.message : error}. Metadata was not committed and staged content was discarded.`, { stagedAttachmentSha256: sha256, metadataCommitted: committed });
+          ? "Attachment storage failed after metadata commit; recovery will retry content promotion."
+          : "Attachment storage failed before metadata commit; staged content was discarded.", { metadataCommitted: committed });
       }
     }
 
-    const restored = restoreIntoNewWorkspace(command.bundle, command.newWorkspaceId);
-    assertWorkspaceValue(restored.workspace);
-    if (this.store.load(restored.workspace.id)) throw new MotionAppError("ALREADY_EXISTS", `Workspace already exists: ${restored.workspace.id}`);
+    let restored: ReturnType<typeof restoreIntoNewWorkspace>;
+    try {
+      restored = restoreIntoNewWorkspace(command.bundle, command.newWorkspaceId);
+      assertWorkspaceValue(restored.workspace);
+    } catch {
+      throw new MotionAppError("VALIDATION_FAILED", "Backup import rejected: invalid, oversized, or unsafe workspace content");
+    }
+    if (this.store.load(restored.workspace.id)) throw new MotionAppError("ALREADY_EXISTS", "Workspace already exists");
     const document = clone(restored.workspace);
     const stagedAttachments: StagedAttachment[] = [];
     try {
       for (const attachment of document.attachments) {
         const bytes = restored.attachments.get(attachment.id);
-        if (!bytes) throw new MotionAppError("VALIDATION_FAILED", `Missing restored attachment: ${attachment.id}`);
+        if (!bytes) throw new MotionAppError("VALIDATION_FAILED", "Backup import rejected: restored attachment payload is missing");
         const staged = await this.attachmentStore().stage(bytes); stagedAttachments.push(staged);
-        if (staged.sha256 !== attachment.sha256 || staged.byteLength !== attachment.byteLength) throw new MotionAppError("VALIDATION_FAILED", `Restored attachment metadata mismatch: ${attachment.id}`);
+        if (staged.sha256 !== attachment.sha256 || staged.byteLength !== attachment.byteLength) throw new MotionAppError("VALIDATION_FAILED", "Backup import rejected: restored attachment metadata does not match its payload");
         attachment.path = staged.path; // Never trust the archived source path.
       }
     } catch (error) {
@@ -196,8 +201,8 @@ export class MotionAppService {
       const committed = Boolean(this.store.load(document.id));
       if (!committed) await Promise.all(stagedAttachments.map(staged => this.attachmentStore().discard(staged)));
       throw new MotionAppError("STORAGE_FAILURE", committed
-        ? `${error instanceof Error ? error.message : error}. Restore metadata committed; staged content will be promoted by attachment recovery.`
-        : `${error instanceof Error ? error.message : error}. Restore metadata was not committed and staged content was discarded.`);
+        ? "Backup restore storage failed after metadata commit; recovery will retry content promotion."
+        : "Backup restore storage failed before metadata commit; staged content was discarded.", { metadataCommitted: committed });
     }
   }
 
@@ -208,9 +213,9 @@ export class MotionAppService {
     if (query.type === "attachment.read") {
       const id = requiredText(query.attachmentId, "attachmentId");
       const attachment = loaded.document.attachments.find(item => item.id === id);
-      if (!attachment) throw new MotionAppError("NOT_FOUND", `Attachment not found: ${id}`);
+      if (!attachment) throw new MotionAppError("NOT_FOUND", "Attachment not found");
       const bytes = await this.attachmentStore().get(validSha256(attachment.sha256));
-      if (bytes.byteLength !== attachment.byteLength) throw new MotionAppError("VALIDATION_FAILED", `Attachment size mismatch: ${id}`);
+      if (bytes.byteLength !== attachment.byteLength) throw new MotionAppError("VALIDATION_FAILED", "Attachment content does not match its stored metadata");
       return immutable({ attachment, bytes });
     }
     const inputs = await Promise.all(loaded.document.attachments.map(async attachment => ({ id: attachment.id, fileName: attachment.fileName, mediaType: attachment.mediaType, bytes: await this.attachmentStore().get(validSha256(attachment.sha256)) })));
@@ -230,7 +235,7 @@ export class MotionAppService {
         workspaceName: command.workspaceName,
         migratedAt: command.migratedAt ?? new Date().toISOString()
       });
-      if (this.store.load(migrated.workspace.id)) throw new MotionAppError("ALREADY_EXISTS", `Workspace already exists: ${migrated.workspace.id}`);
+      if (this.store.load(migrated.workspace.id)) throw new MotionAppError("ALREADY_EXISTS", "Workspace already exists");
       const savedRevision = this.store.saveUnitOfWork({ workspaceId: migrated.workspace.id, schemaVersion: migrated.workspace.schemaVersion, document: migrated.workspace, expectedRevision: 0 });
       return immutable({ workspace: migrated.workspace, revision: savedRevision, saved: true as const, activePageId: migrated.uiState.activePageId }) as ImportDto;
     }
@@ -282,7 +287,7 @@ export class MotionAppService {
   private required(workspaceId: string): StoredWorkspace & { document: Workspace } {
     requiredText(workspaceId, "workspaceId");
     const loaded = this.store.load(workspaceId);
-    if (!loaded) throw new MotionAppError("NOT_FOUND", `Workspace not found: ${workspaceId}`);
+    if (!loaded) throw new MotionAppError("NOT_FOUND", "Workspace not found");
     assertWorkspaceValue(loaded.document);
     return loaded as StoredWorkspace & { document: Workspace };
   }
@@ -295,15 +300,17 @@ function validSha256(value: unknown): string {
 
 function requiredPage(document: WorkspaceDocument, pageId: string): Page {
   requiredText(pageId, "pageId"); const page = document.page(pageId);
-  if (!page) throw new MotionAppError("NOT_FOUND", `Page not found: ${pageId}`);
+  if (!page) throw new MotionAppError("NOT_FOUND", "Page not found");
   return page;
 }
-function mapError(error: unknown): MotionAppError {
+export function toAppError(error: unknown): MotionAppError {
   if (error instanceof MotionAppError) return error;
   const message = error instanceof Error ? error.message : "Unknown application error";
-  if (message.startsWith("Revision conflict")) return new MotionAppError("REVISION_CONFLICT", message);
-  if (/not found/i.test(message)) return new MotionAppError("NOT_FOUND", message);
-  if (/Invalid workspace|Invalid web v1|Unsupported workspace|cycle/i.test(message)) return new MotionAppError("VALIDATION_FAILED", message);
-  if (/SQLITE|database/i.test(message)) return new MotionAppError("STORAGE_FAILURE", message);
-  return new MotionAppError("INTERNAL_ERROR", message);
+  if (message.startsWith("Revision conflict")) return new MotionAppError("REVISION_CONFLICT", "Workspace changed since it was loaded; reload and retry");
+  if (/not found/i.test(message)) return new MotionAppError("NOT_FOUND", "Requested local resource was not found");
+  if (/Invalid workspace|Invalid web v1|Unsupported workspace|cycle|Backup verification|JSON|duplicate ID|exceeds .*limit|schemaVersion/i.test(message)) return new MotionAppError("VALIDATION_FAILED", "Workspace data failed validation");
+  if (/SQLITE|database|Private (?:file|directory) path/i.test(message)) return new MotionAppError("STORAGE_FAILURE", "Local database operation failed");
+  return new MotionAppError("INTERNAL_ERROR", "Unexpected local application failure");
 }
+
+const mapError = toAppError;

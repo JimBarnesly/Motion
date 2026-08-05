@@ -1,6 +1,7 @@
 {
   "name": "@motion/desktop",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "scripts": {
@@ -16,6 +17,7 @@
   },
   "dependencies": {
     "@motion/app-service": "0.1.0",
+    "@motion/backup": "0.1.0",
     "@motion/storage": "0.1.0",
     "@tauri-apps/api": "^2.8.0"
   },

@@ -1,0 +1,35 @@
+title = "Motion secret scanning policy"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "motion-api-token"
+description = "API access token"
+regex = '''(?i)(?:gh[pousr]_[A-Za-z0-9]{30,}|(?:api[_-]?key|access[_-]?token)\s*[:=]\s*["']?[A-Za-z0-9_-]{24,}["']?)'''
+entropy = 3.0
+
+[[rules]]
+id = "motion-private-key"
+description = "Private key material"
+regex = '''-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'''
+
+[[rules]]
+id = "motion-credential-url"
+description = "Credential embedded in URL"
+regex = '''(?i)https?://[^\s/:@]+:[^\s/@]+@[^\s/]+'''
+keywords = ["http://", "https://"]
+
+[[rules]]
+id = "motion-assigned-high-entropy-secret"
+description = "Assigned high-entropy secret"
+regex = '''(?i)(?:secret|token|password|api[_-]?key)\s*[:=]\s*["']?[A-Za-z0-9+/=_-]{24,}["']?'''
+entropy = 3.5
+
+[[rules]]
+id = "motion-governed-test-canary"
+description = "Governed test-suppression canary detected in every textual context"
+regex = '''MOTION_TEST_CANARY_NOT_A_SECRET_2026'''
+
+# Suppression is applied only by the post-scan governed path-and-literal filter.
+# Any Gitleaks-native allowlist here makes the scan fail closed.

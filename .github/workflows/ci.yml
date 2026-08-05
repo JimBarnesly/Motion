@@ -4,6 +4,11 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      comparison_base:
+        description: Full trusted commit SHA used as the dependency-governance comparison base
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -17,20 +22,95 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          node-version: 22
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.22.0
           cache: npm
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: 1.97.1
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
       - run: npm ci --ignore-scripts
+      - name: Prime locked Cargo dependency cache
+        run: cargo fetch --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - name: Enforce offline dependency policy and canonical inventory
+        env:
+          CARGO_NET_OFFLINE: "true"
+        run: npm run inventory:dependencies:check
+      - name: Require independent dependency-policy change record
+        run: >-
+          node scripts/dependency-policy-change-gate.mjs
+          --event-name "${{ github.event_name }}"
+          --event-path "${{ github.event_path }}"
+          --head-sha "${{ github.sha }}"
+          --manual-base "${{ inputs.comparison_base }}"
+      - name: Test dependency policy enforcement
+        env:
+          CARGO_NET_OFFLINE: "true"
+        run: npm run test:dependency-inventory
+      - name: Test dependency-policy change governance
+        run: npm run test:dependency-policy-change
+      - name: Install pinned vulnerability scanners
+        run: |
+          npx --yes npm@11.6.2 --version
+          cargo install cargo-audit --version 0.22.2 --locked
+      - name: Scan locked production dependencies
+        run: |
+          mkdir -p artifacts/vulnerability
+          node scripts/vulnerability-collector.mjs --ecosystem npm --expected-version 11.6.2 \
+            --scanner-command '["npx","--yes","npm@11.6.2"]' --lockfile package-lock.json \
+            --output artifacts/vulnerability/npm-envelope.json
+          node scripts/vulnerability-collector.mjs --ecosystem cargo --expected-version 0.22.2 \
+            --scanner-command '["cargo","audit"]' --lockfile apps/desktop/src-tauri/Cargo.lock \
+            --output artifacts/vulnerability/cargo-envelope.json
+          node scripts/vulnerability-gate.mjs \
+            --policy vulnerability-policy.json \
+            --npm-report artifacts/vulnerability/npm-envelope.json \
+            --cargo-report artifacts/vulnerability/cargo-envelope.json \
+            --npm-lockfile package-lock.json \
+            --cargo-lockfile apps/desktop/src-tauri/Cargo.lock
+      - name: Test vulnerability gate enforcement
+        run: npm run test:vulnerability-gate
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: dependency-vulnerability-reports
+          path: artifacts/vulnerability/*-envelope.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Run pinned first-party source security rules
+        run: |
+          mkdir -p artifacts/static-analysis
+          npm run static-analysis
+      - name: Test static-analysis enforcement
+        run: npm run test:static-analysis
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: static-analysis-reports
+          path: artifacts/static-analysis/*.json
+          if-no-files-found: error
+          retention-days: 14
+      - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - name: Enforce end-to-end diagnostic leakage gate
+        run: npm run test:diagnostic-leakage
+      - name: Test signed release provenance enforcement
+        run: npm run test:release-provenance
       - run: npm run build
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
       - name: Run browser end-to-end test
         run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
+      - name: Enforce destructive-action accessibility release regressions
+        run: npm run test:destructive-accessibility
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:
           name: playwright-report
@@ -39,11 +119,36 @@ jobs:
           retention-days: 14
       - name: Verify local-only application sources
         run: node scripts/check-offline-assets.mjs
-      - name: Scan tracked files for common secret formats
-        run: node scripts/secret-scan.mjs
+      - name: Install pinned fail-closed secret scanner
+        run: scripts/install-gitleaks.sh .tools/gitleaks
+      - name: Test repository and packaged-resource secret gate
+        env:
+          GITLEAKS_BIN: ${{ github.workspace }}/.tools/gitleaks
+        run: npm run test:secret-scan
+      - name: Scan tracked source and configuration
+        env:
+          GITLEAKS_BIN: ${{ github.workspace }}/.tools/gitleaks
+        run: npm run scan:secrets -- --report artifacts/secret-scan/findings.json
+      - name: Test unsafe production-default audit
+        run: npm run test:unsafe-defaults
+      - name: Audit tracked repository production defaults
+        run: npm run scan:unsafe-defaults -- --report artifacts/secret-scan/unsafe-defaults.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: secret-scan-findings
+          path: |
+            artifacts/secret-scan/findings.json
+            artifacts/secret-scan/unsafe-defaults.json
+          if-no-files-found: error
+          retention-days: 14
       - name: Run benchmark smoke fixture
         run: node scripts/benchmark-smoke.mjs
-      - uses: actions/upload-artifact@v4
+      - name: Verify representative search benchmark release policy
+        run: npm run benchmark
+      - name: Test benchmark threshold enforcement
+        run: npm run test:benchmark
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: benchmark-smoke
@@ -64,7 +169,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install Tauri Linux build dependencies
         run: |
           sudo apt-get update
@@ -77,19 +182,30 @@ jobs:
             libssl-dev \
             libwebkit2gtk-4.1-dev \
             libxdo-dev
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 24
+          node-version: 24.18.0
           cache: npm
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
         with:
           toolchain: 1.97.1
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           workspaces: apps/desktop/src-tauri -> target
       - run: npm ci --ignore-scripts
+      - name: Run pinned Rust Clippy security/compiler gate
+        run: |
+          mkdir -p artifacts/static-analysis
+          cargo clippy --locked --all-targets --manifest-path apps/desktop/src-tauri/Cargo.toml --message-format=json -- -D warnings > artifacts/static-analysis/clippy.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: static-analysis-rust-${{ matrix.arch }}
+          path: artifacts/static-analysis/clippy.json
+          if-no-files-found: error
+          retention-days: 14
       - name: Cache pinned Node desktop runtime archive
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .cache/node-runtime
           key: motion-node-runtime-24.18.0-${{ matrix.arch }}
@@ -107,7 +223,7 @@ jobs:
         run: npm run tauri:build --workspace @motion/desktop -- --bundles deb,appimage
       - name: Smoke-test packaged runtime offline across restart
         run: node scripts/smoke-packaged-app.mjs apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: motion-linux-${{ matrix.arch }}
           path: |

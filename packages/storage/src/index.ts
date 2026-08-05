@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { closeSync, constants, fchmodSync, lstatSync, mkdirSync, openSync } from "node:fs";
+import { readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { platform } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 
 export interface StoredWorkspace {
@@ -83,18 +85,49 @@ const requireSha256 = (value: string): void => {
   if (!/^[0-9a-f]{64}$/.test(value)) throw new Error("Attachment hash must be 64 lowercase hexadecimal characters");
 };
 
+type PrivatePathKind = "file" | "directory";
+function hardenPrivatePath(path: string, kind: PrivatePathKind): void {
+  if (platform() === "win32") return;
+  let metadata: ReturnType<typeof lstatSync>;
+  try { metadata = lstatSync(path); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
+  if (metadata.isSymbolicLink()) throw new Error(`Private ${kind} path must not be a symbolic link`);
+  if (kind === "file" ? !metadata.isFile() : !metadata.isDirectory()) throw new Error(`Private ${kind} path has an unexpected type`);
+  const flags = constants.O_RDONLY | constants.O_NOFOLLOW | (kind === "directory" ? constants.O_DIRECTORY : 0);
+  const descriptor = openSync(path, flags);
+  try { fchmodSync(descriptor, kind === "directory" ? 0o700 : 0o600); }
+  finally { closeSync(descriptor); }
+}
+
+export function ensurePrivateDirectory(path: string): void {
+  mkdirSync(path, { recursive: true, mode: 0o700 });
+  hardenPrivatePath(path, "directory");
+}
+
+export function hardenPrivateFile(path: string): void { hardenPrivatePath(path, "file"); }
+
 /** Durable local repository. UI/domain entities cross this boundary as versioned JSON, never SQLite rows. */
 export class SqliteWorkspaceStore {
   readonly database: DatabaseSync;
+  private readonly databasePath: string;
 
   constructor(databasePath: string) {
+    this.databasePath = databasePath;
+    this.hardenDatabaseFiles();
     this.database = new DatabaseSync(databasePath);
-    this.database.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL;");
-    this.migrate();
-    this.runPendingReindexJobs();
+    try {
+      this.database.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL;");
+      this.migrate();
+      this.runPendingReindexJobs();
+      this.hardenDatabaseFiles();
+    } catch (error) { this.database.close(); throw error; }
   }
 
-  close(): void { this.database.close(); }
+  close(): void { this.hardenDatabaseFiles(); this.database.close(); this.hardenDatabaseFiles(); }
+
+  private hardenDatabaseFiles(): void {
+    for (const path of [this.databasePath, `${this.databasePath}-wal`, `${this.databasePath}-shm`]) hardenPrivateFile(path);
+  }
 
   save(workspaceId: string, schemaVersion: number, document: unknown, expectedRevision?: number): number {
     return this.saveUnitOfWork({ workspaceId, schemaVersion, document, expectedRevision });
@@ -121,9 +154,11 @@ export class SqliteWorkspaceStore {
       this.database.prepare("UPDATE reindex_jobs SET status='complete', completed_at=? WHERE workspace_id=? AND workspace_revision=?")
         .run(now, write.workspaceId, revision);
       this.database.exec("COMMIT");
+      this.hardenDatabaseFiles();
       return revision;
     } catch (error) {
       this.database.exec("ROLLBACK");
+      this.hardenDatabaseFiles();
       throw error;
     }
   }
@@ -246,13 +281,14 @@ export class AsyncSqliteWorkspaceStore<T extends { id: string; name: string; upd
 
 /** Files are immutable and addressed by content hash; metadata remains in the workspace database. */
 export class ContentAddressedAttachmentStore {
-  constructor(private readonly root: string) {}
+  constructor(private readonly root: string) { ensurePrivateDirectory(root); }
 
   async stage(bytes: Uint8Array): Promise<StagedAttachment> {
     const sha256 = digest(bytes);
     const finalPath = join(this.root, sha256.slice(0, 2), sha256);
     const stagingRoot = join(this.root, ".staging");
-    await mkdir(stagingRoot, { recursive: true, mode: 0o700 });
+    ensurePrivateDirectory(this.root);
+    ensurePrivateDirectory(stagingRoot);
     const stagingPath = join(stagingRoot, `${sha256}.${crypto.randomUUID()}.staging`);
     await writeFile(stagingPath, bytes, { flag: "wx", mode: 0o600 });
     return { sha256, byteLength: bytes.byteLength, path: finalPath, stagingPath };
@@ -264,8 +300,10 @@ export class ContentAddressedAttachmentStore {
     if (bytes.byteLength !== staged.byteLength || digest(bytes) !== staged.sha256) {
       throw new Error(`Staged attachment integrity check failed: ${staged.sha256}`);
     }
-    await mkdir(dirname(staged.path), { recursive: true });
+    hardenPrivateFile(staged.stagingPath);
+    ensurePrivateDirectory(dirname(staged.path));
     try {
+      hardenPrivateFile(staged.path);
       const current = await readFile(staged.path);
       if (current.byteLength !== staged.byteLength || digest(current) !== staged.sha256) throw new Error(`Attachment hash collision at ${staged.path}`);
       await this.discard(staged);
@@ -285,6 +323,8 @@ export class ContentAddressedAttachmentStore {
    * Final unreferenced blobs are reported, not deleted: retention/GC policy is separate.
    */
   async recover(referencedHashes: Iterable<string>): Promise<AttachmentRecoveryReport> {
+    ensurePrivateDirectory(this.root);
+    ensurePrivateDirectory(join(this.root, ".staging"));
     const referenced = new Set(referencedHashes);
     for (const sha256 of referenced) requireSha256(sha256);
     const report: AttachmentRecoveryReport = { promoted: [], removedStaging: [], missingReferenced: [], unreferencedBlobs: [] };
@@ -329,7 +369,12 @@ export class ContentAddressedAttachmentStore {
 
   async get(sha256: string): Promise<Uint8Array> {
     requireSha256(sha256);
-    const bytes = await readFile(join(this.root, sha256.slice(0, 2), sha256));
+    ensurePrivateDirectory(this.root);
+    const bucket = join(this.root, sha256.slice(0, 2));
+    ensurePrivateDirectory(bucket);
+    const path = join(bucket, sha256);
+    hardenPrivateFile(path);
+    const bytes = await readFile(path);
     if (digest(bytes) !== sha256) throw new Error(`Attachment integrity check failed: ${sha256}`);
     return bytes;
   }

@@ -141,7 +141,8 @@ export function restoreIntoNewWorkspace(bundle: BackupBundle, newWorkspaceId: st
   const remap = (value: JsonValue, key?: string): JsonValue => {
     if (typeof value === "string" && key && (key === "id" || key.endsWith("Id") || key.endsWith("Ids")) && idMap.has(value)) return idMap.get(value)!;
     if (Array.isArray(value)) return value.map(item => remap(item, key));
-    if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([childKey, child]) => [childKey, remap(child, childKey)]));
+    if (value && typeof value === "object") return Object.fromEntries(Object.entries(value)
+      .map(([childKey, child]) => [idMap.get(childKey) ?? childKey, remap(child, childKey)]));
     return value;
   };
   const workspace = remap(source as unknown as JsonValue) as WorkspaceSnapshot;

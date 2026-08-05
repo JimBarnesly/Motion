@@ -34,6 +34,8 @@ export interface AttachmentRecoveryReport {
 export interface SearchHit {
   workspaceId: string;
   entityId: string;
+  entityType: "page" | "block" | "row" | "entity";
+  ownerEntityId?: string;
   title: string;
   snippet: string;
 }
@@ -78,6 +80,20 @@ const migrations = [
     FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id) ON DELETE CASCADE
   );
   CREATE INDEX IF NOT EXISTS reindex_jobs_status_idx ON reindex_jobs(status, job_id);`
+  ,
+  `DROP TABLE workspace_search;
+  CREATE VIRTUAL TABLE workspace_search USING fts5(
+    workspace_id UNINDEXED,
+    entity_id UNINDEXED,
+    entity_type UNINDEXED,
+    owner_entity_id UNINDEXED,
+    title,
+    body,
+    tokenize = 'unicode61'
+  );
+  INSERT INTO reindex_jobs(workspace_id, workspace_revision, status, created_at)
+    SELECT workspace_id, revision, 'pending', updated_at FROM workspaces WHERE true
+    ON CONFLICT(workspace_id, workspace_revision) DO UPDATE SET status='pending', completed_at=NULL;`
 ];
 
 const digest = (input: string | Uint8Array) => createHash("sha256").update(input).digest("hex");
@@ -195,12 +211,15 @@ export class SqliteWorkspaceStore {
     if (!match) return [];
     const boundedLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
     const sql = workspaceId
-      ? "SELECT workspace_id, entity_id, title, snippet(workspace_search, 3, '[', ']', '…', 12) snippet FROM workspace_search WHERE workspace_search MATCH ? AND workspace_id = ? ORDER BY rank LIMIT ?"
-      : "SELECT workspace_id, entity_id, title, snippet(workspace_search, 3, '[', ']', '…', 12) snippet FROM workspace_search WHERE workspace_search MATCH ? ORDER BY rank LIMIT ?";
+      ? "SELECT workspace_id, entity_id, entity_type, owner_entity_id, title, snippet(workspace_search, 5, '[', ']', '…', 12) snippet FROM workspace_search WHERE workspace_search MATCH ? AND workspace_id = ? ORDER BY rank, entity_id LIMIT ?"
+      : "SELECT workspace_id, entity_id, entity_type, owner_entity_id, title, snippet(workspace_search, 5, '[', ']', '…', 12) snippet FROM workspace_search WHERE workspace_search MATCH ? ORDER BY rank, workspace_id, entity_id LIMIT ?";
     const rows = (workspaceId
       ? this.database.prepare(sql).all(match, workspaceId, boundedLimit)
       : this.database.prepare(sql).all(match, boundedLimit)) as Record<string, unknown>[];
-    return rows.map((row) => ({ workspaceId: String(row.workspace_id), entityId: String(row.entity_id), title: String(row.title), snippet: String(row.snippet) }));
+    return rows.map((row) => ({ workspaceId: String(row.workspace_id), entityId: String(row.entity_id),
+      entityType: String(row.entity_type) as SearchHit["entityType"],
+      ...(row.owner_entity_id === null ? {} : { ownerEntityId: String(row.owner_entity_id) }),
+      title: String(row.title), snippet: String(row.snippet) }));
   }
 
   runPendingReindexJobs(): number {
@@ -220,8 +239,8 @@ export class SqliteWorkspaceStore {
 
   private reindexWorkspace(workspaceId: string, document: unknown): void {
     this.database.prepare("DELETE FROM workspace_search WHERE workspace_id = ?").run(workspaceId);
-    const insert = this.database.prepare("INSERT INTO workspace_search(workspace_id, entity_id, title, body) VALUES (?, ?, ?, ?)");
-    for (const entry of extractSearchEntries(document, workspaceId)) insert.run(workspaceId, entry.entityId, entry.title, entry.body);
+    const insert = this.database.prepare("INSERT INTO workspace_search(workspace_id, entity_id, entity_type, owner_entity_id, title, body) VALUES (?, ?, ?, ?, ?, ?)");
+    for (const entry of extractSearchEntries(document, workspaceId)) insert.run(workspaceId, entry.entityId, entry.entityType, entry.ownerEntityId ?? null, entry.title, entry.body);
   }
 
   private migrate(): void {
@@ -251,20 +270,36 @@ export function toFtsQuery(input: string): string {
   return tokens.slice(0, 32).map((token) => `"${token.replaceAll('"', '""')}"`).join(" AND ");
 }
 
-function extractSearchEntries(document: unknown, fallbackId: string): { entityId: string; title: string; body: string }[] {
-  const result: { entityId: string; title: string; body: string }[] = [];
-  const visit = (value: unknown, path: string): void => {
-    if (Array.isArray(value)) { value.forEach((child, index) => visit(child, `${path}.${index}`)); return; }
+type SearchEntry = { entityId: string; entityType: SearchHit["entityType"]; ownerEntityId?: string; title: string; body: string };
+
+function extractSearchEntries(document: unknown, fallbackId: string): SearchEntry[] {
+  const result: SearchEntry[] = [];
+  const scalarText = (value: unknown): string[] => {
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return [String(value)];
+    if (Array.isArray(value)) return value.flatMap(scalarText);
+    if (value && typeof value === "object") return Object.values(value as Record<string, unknown>).flatMap(scalarText);
+    return [];
+  };
+  const visit = (value: unknown, path: string, contextTitle = "", ownerEntityId?: string, hint?: "page" | "block" | "row"): void => {
+    if (Array.isArray(value)) { value.forEach((child, index) => visit(child, `${path}.${index}`, contextTitle, ownerEntityId, hint)); return; }
     if (!value || typeof value !== "object") return;
     const record = value as Record<string, unknown>;
     const id = typeof record.id === "string" ? record.id : path;
-    const title = typeof record.title === "string" ? record.title : typeof record.name === "string" ? record.name : "";
-    const text = [record.text, record.content, record.label].filter((part): part is string => typeof part === "string").join(" ");
-    if (title || text) result.push({ entityId: id, title, body: text });
-    for (const [key, child] of Object.entries(record)) if (typeof child === "object" && child !== null) visit(child, `${path}.${key}`);
+    const title = typeof record.title === "string" ? record.title : typeof record.name === "string" ? record.name : contextTitle;
+    const isRow = hint === "row" || (record.values && typeof record.values === "object" && !Array.isArray(record.values));
+    const entityType: SearchEntry["entityType"] = isRow ? "row" : hint ?? (Array.isArray(record.blocks) ? "page" : "entity");
+    const text = [record.text, record.content, record.label, ...scalarText(record.values)].filter((part): part is string => typeof part === "string").join(" ");
+    if (title || text) result.push({ entityId: id, entityType, ...(ownerEntityId ? { ownerEntityId } : {}), title, body: text });
+    for (const [key, child] of Object.entries(record)) {
+      if (typeof child !== "object" || child === null || key === "values") continue;
+      if (key === "pages" && Array.isArray(child)) child.forEach((page, index) => visit(page, `${path}.${key}.${index}`, "", undefined, "page"));
+      else if (key === "blocks") visit(child, `${path}.${key}`, title, id, "block");
+      else if (key === "rows") visit(child, `${path}.${key}`, title, typeof record.pageId === "string" ? record.pageId : id, "row");
+      else visit(child, `${path}.${key}`, title, ownerEntityId);
+    }
   };
   visit(document, fallbackId);
-  if (result.length === 0) result.push({ entityId: fallbackId, title: "", body: JSON.stringify(document) });
+  if (result.length === 0) result.push({ entityId: fallbackId, entityType: "entity", title: "", body: JSON.stringify(document) });
   return result;
 }
 

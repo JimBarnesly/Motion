@@ -113,8 +113,8 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:bcff3c1eb2376ff056bb64fc104ee3ffb23eca99944346e4e7578bd972886fe3",
-      "evidence": "apps/web/test/web.test.mjs hostile-XSS and hostile-ID boundary tests",
+      "fingerprint": "sha256:89bd01f1dddadded8ee0d9d8ad32f174fac36d5b40b1826c32a94db7b0fd0f41",
+      "evidence": "e2e/table-cell-search.spec.ts accessible guidance and hostile-query rendering tests",
       "owner": "Operations & Security Director",
       "rationale": "This exact renderer sink is covered by escaping and hostile-content boundary tests.",
       "expires": "2026-11-05"
@@ -122,8 +122,8 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:6f2ede1adc850df3bf1afeee2d0d442c796b90620b281ae16543d6e6d9c29091",
-      "evidence": "apps/web/test/web.test.mjs hostile-XSS and hostile-ID boundary tests",
+      "fingerprint": "sha256:4234a424911107bdcdcf61e07e73836933fabfc4e7eafcc36f2489a5b039eebf",
+      "evidence": "e2e/table-cell-search.spec.ts accessible loading and hostile-query rendering tests",
       "owner": "Operations & Security Director",
       "rationale": "This exact renderer sink is covered by escaping and hostile-content boundary tests.",
       "expires": "2026-11-05"
@@ -131,8 +131,8 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:7779e825a714a218b223a795dd6513c7cdfc0b5231e5eee36949084be623cccb",
-      "evidence": "apps/web/test/web.test.mjs hostile-XSS and hostile-ID boundary tests",
+      "fingerprint": "sha256:a7fc5038480d9b350dcc4d051f3b1658d786696146eb1db46316b7c90fd2bc57",
+      "evidence": "e2e/table-cell-search.spec.ts genuine-empty status and hostile-query rendering tests",
       "owner": "Operations & Security Director",
       "rationale": "This exact renderer sink is covered by escaping and hostile-content boundary tests.",
       "expires": "2026-11-05"
@@ -140,7 +140,25 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:77d13b6ef76cc62943786ed755b58db346e2db3ea69c7aef88ed0f156be0b7c4",
+      "fingerprint": "sha256:af045bd150d6ded1e776734533507d82aaa35e40b4c2727a01e5c45ce0488c81",
+      "evidence": "e2e/table-cell-search.spec.ts native-error canary redaction and keyboard retry test",
+      "owner": "Operations & Security Director",
+      "rationale": "This exact renderer sink is covered by escaping and hostile-content boundary tests.",
+      "expires": "2026-11-05"
+    },
+    {
+      "rule": "js-no-html-sink",
+      "file": "apps/web/app.js",
+      "fingerprint": "sha256:aff8ff6ffbd52a7d817a0bdaf75e68448b00169a673a5c2c66d4a89c616889c6",
+      "evidence": "e2e/table-cell-search.spec.ts escaped result content and stable row routing tests",
+      "owner": "Operations & Security Director",
+      "rationale": "This exact renderer sink is covered by escaping and hostile-content boundary tests.",
+      "expires": "2026-11-05"
+    },
+    {
+      "rule": "js-no-html-sink",
+      "file": "apps/web/app.js",
+      "fingerprint": "sha256:d65a7af788dd4c374bfbc0afa3938b97059b0b31c06071916d13bd56691a3eca",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "This exact renderer sink is covered by escaping and hostile-content boundary tests.",

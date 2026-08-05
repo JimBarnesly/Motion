@@ -39,14 +39,14 @@ test("native adapter sends versioned typed IPC envelopes", async () => {
     calls.push({ command, payload });
     if (command === "motion_ui_load") return workspace;
     if (command === "app_dispatch" && payload.request.payload.type === "workspace.list") return [{ id: "workspace-1", revision: 3 }];
-    if (command === "app_dispatch" && payload.request.payload.type === "workspace.search") return [{ workspaceId: "workspace-1", entityId: "page-1", title: "Page", snippet: "match" }];
+    if (command === "app_dispatch" && payload.request.payload.type === "workspace.search") return [{ workspaceId: "workspace-1", entityId: "row-1", entityType: "row", ownerEntityId: "page-1", title: "Page", snippet: "Reading: match" }];
     if (command === "app_dispatch" && payload.request.payload.type === "workspace.export") return { schemaVersion: 1, files: {}, attachments: [] };
     return undefined;
   } } } });
   assert.equal(adapter.kind, "tauri");
   assert.deepEqual(await adapter.load(), workspace);
   await adapter.save(workspace);
-  assert.equal((await adapter.search("match"))[0].entityId, "page-1");
+  assert.deepEqual(await adapter.search("match"), [{ workspaceId: "workspace-1", entityId: "row-1", entityType: "row", ownerEntityId: "page-1", title: "Page", snippet: "Reading: match" }]);
   assert.equal((await adapter.exportWorkspace()).schemaVersion, 1);
   assert.deepEqual(calls, [
     { command: "motion_ui_load", payload: { request: { schemaVersion: 1 } } },
@@ -64,7 +64,15 @@ test("search and export use canonical native queries with honest browser fallbac
   assert.match(adapter, /type: "workspace\.export"/);
   assert.match(source, /workspaceStore\.kind === "tauri"/);
   assert.match(source, /motion-browser-development/);
-  assert.match(source, /seenPages\.has\(page\.id\)/);
+  assert.match(source, /hit\.entityType === "row"/);
+  assert.match(source, /hit\.ownerEntityId/);
+  assert.match(source, /openSearchResult\(el\.dataset\.searchPage, el\.dataset\.searchRow\)/);
+  assert.match(source, /escapeHtml\(snippet/);
+  assert.match(source, /renderSearchState\("loading", query\)/);
+  assert.match(source, /renderSearchState\("empty", query\)/);
+  assert.match(source, /renderSearchState\("error", query\)/);
+  assert.match(source, /data-search-retry/);
+  assert.doesNotMatch(source, /error instanceof Error \? error\.message : "Search failed"/);
 });
 
 test("native attachment and verified backup operations use revisioned typed lanes", async () => {
@@ -78,17 +86,19 @@ test("native attachment and verified backup operations use revisioned typed lane
     if (payload?.request?.payload?.type === "backup.verify") return { valid: true, errors: [] };
     if (payload?.request?.payload?.type === "backup.preview") return { valid: true, pages: 1, attachments: 1, totalBytes: 3 };
     if (payload?.request?.payload?.type === "backup.restore-new") return { revision: 1, saved: true };
+    if (command === "motion_backup_save") return { saved: true, cancelled: false };
   };
   const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke } } });
   const bundle = await adapter.createBackup();
   await adapter.putAttachment({ fileName: "proof.txt", mediaType: "text/plain", sha256: "a".repeat(64), bytes: Uint8Array.from([1, 2, 3]) });
-  await adapter.verifyBackup(bundle); await adapter.previewBackup(bundle); await adapter.restoreBackup(bundle);
+  await adapter.verifyBackup(bundle); await adapter.previewBackup(bundle); await adapter.restoreBackup(bundle); await adapter.saveBackup(bundle);
   const requests = calls.filter(call => call.command === "app_dispatch").map(call => call.payload.request);
   assert.ok(requests.some(request => request.lane === "async-command" && request.payload.type === "attachment.put" && request.payload.expectedRevision === 7 && request.payload.bytes.$motionBytes.join(",") === "1,2,3"));
   assert.ok(requests.some(request => request.lane === "async-query" && request.payload.type === "backup.create"));
   assert.ok(requests.some(request => request.lane === "async-query" && request.payload.type === "backup.verify"));
   assert.ok(requests.some(request => request.lane === "async-query" && request.payload.type === "backup.preview"));
   assert.ok(requests.some(request => request.lane === "async-command" && request.payload.type === "backup.restore-new"));
+  assert.ok(calls.some(call => call.command === "motion_backup_save" && call.payload.request.schemaVersion === 1 && call.payload.request.bundle === bundle));
 });
 
 test("native files are hashed and browser mode cannot fake attachments or verified backups", async () => {
@@ -97,6 +107,8 @@ test("native files are hashed and browser mode cannot fake attachments or verifi
   assert.match(source, /crypto\.subtle\.digest\("SHA-256"/);
   assert.match(source, /Native service did not confirm the attachment metadata/);
   assert.match(source, /if \(!confirm\(summary\)\) return/);
+  assert.match(source, /workspaceStore\.saveBackup\(bundle\)/);
+  assert.doesNotMatch(source, /downloadJson\(bundle/);
   assert.match(adapter, /Attachments and verified backups require the native Motion application/);
 });
 
@@ -108,7 +120,8 @@ test("hostile restores are closed-shape normalised before rendering", async () =
   assert.equal(normalized.pages[0].blocks[0].text, "<script>alert('xss')</script>");
   assert.equal("unexpectedHtml" in normalized.pages[0], false);
   const source = await readFile(resolve(root, "app.js"), "utf8");
-  assert.match(source, /state = normalizeWorkspaceV1\(candidate\)/);
+  assert.match(source, /const replacement = normalizeWorkspaceV1\(candidate\)/);
+  assert.match(source, /state = replacement/);
   assert.match(source, /escapeHtml\(page\.title/);
   assert.match(source, /escapeHtml\(block\.text/);
 });

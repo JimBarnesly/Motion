@@ -141,6 +141,34 @@ test("web v1 import is deterministic and preserves unsupported blocks", async ()
   } finally { await Promise.all(paths.map(removeDatabase)); }
 });
 
+test("native table-row search survives restart and a clean authenticated restore", async () => {
+  const sourcePath = databasePath("row-search-source"); const targetPath = databasePath("row-search-target");
+  try {
+    const document = { schemaVersion: 1, activePageId: "table-page", pages: [{ id: "table-page", parentId: null, order: 0,
+      type: "database", title: "Commissioning register", columns: [{ id: "reading", name: "Reading", type: "text" }],
+      rows: [{ id: "stable-row", values: { reading: "Flow <10 & stable\nsecond line" } }] }] };
+    let source = new SqliteWorkspaceStore(sourcePath); let service = new MotionAppService(source);
+    const imported = service.execute({ type: "workspace.import-web-v1", document, workspaceId: "row-search-source", migratedAt: "2026-08-06T00:00:00.000Z" });
+    source.close();
+    source = new SqliteWorkspaceStore(sourcePath); service = new MotionAppService(source);
+    assert.deepEqual(service.query({ type: "workspace.search", workspaceId: imported.workspace.id, query: "stable second" }).map(hit =>
+      ({ entityId: hit.entityId, entityType: hit.entityType, ownerEntityId: hit.ownerEntityId })),
+      [{ entityId: "stable-row", entityType: "row", ownerEntityId: "table-page" }]);
+    const bundle = await service.queryAsync({ type: "backup.create", workspaceId: imported.workspace.id, createdAt: "2026-08-06T00:00:00.000Z" });
+    source.close();
+
+    let target = new SqliteWorkspaceStore(targetPath); let restoredService = new MotionAppService(target);
+    await restoredService.executeAsync({ type: "backup.restore-new", bundle, newWorkspaceId: "row-search-restored" });
+    target.close();
+    target = new SqliteWorkspaceStore(targetPath); restoredService = new MotionAppService(target);
+    const hit = restoredService.query({ type: "workspace.search", workspaceId: "row-search-restored", query: "stable second" })[0];
+    assert.deepEqual({ entityId: hit?.entityId, entityType: hit?.entityType, ownerEntityId: hit?.ownerEntityId },
+      { entityId: "row-search-restored:stable-row", entityType: "row", ownerEntityId: "row-search-restored:table-page" });
+    assert.match(hit?.snippet ?? "", /\[stable\].*\[second\]/s);
+    target.close();
+  } finally { await Promise.all([removeDatabase(sourcePath), removeDatabase(targetPath)]); }
+});
+
 test("attachments and canonical backup survive restart and restore without trusting archived paths", async () => {
   const sourcePath = databasePath("backup-source");
   const targetPath = databasePath("backup-target");

@@ -18,7 +18,11 @@
         </header>
         <button class="search-button" id="openSearch" type="button"><span aria-hidden="true">⌕</span> Search <kbd>Ctrl K</kbd></button>
         <nav aria-label="Workspace pages">
-          <div class="nav-heading"><span>Pages</span><button class="icon-button" id="addRootPage" type="button" aria-label="Add page">+</button></div>
+          <div class="nav-heading"><span>Pages</span></div>
+          <div class="root-create-actions" aria-label="Create at workspace root">
+            <button id="addRootPage" type="button">Add page</button>
+            <button id="addRootTable" type="button">New table</button>
+          </div>
           <div id="pageTree" class="page-tree"></div>
         </nav>
         <nav aria-label="Trash">
@@ -59,8 +63,8 @@
 
     <dialog id="searchDialog" class="search-dialog">
       <form method="dialog" class="dialog-card">
-        <div class="search-input-row"><span aria-hidden="true">⌕</span><input id="searchInput" type="search" autocomplete="off" placeholder="Search pages and blocks…" aria-label="Search workspace" /><button value="cancel" class="key-button" aria-label="Close search">Esc</button></div>
-        <div id="searchResults" class="search-results"></div>
+        <div class="search-input-row"><span aria-hidden="true">⌕</span><input id="searchInput" type="search" autocomplete="off" placeholder="Search pages, blocks, and table cells…" aria-label="Search workspace" /><button value="cancel" class="key-button" aria-label="Close search">Esc</button></div>
+        <div id="searchResults" class="search-results" role="status" aria-live="polite" aria-atomic="true"></div>
       </form>
     </dialog>
     <script type="module" src="./app.js"></script>

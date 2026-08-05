@@ -20,14 +20,14 @@ future protocol-compatible services rather than dependencies of local mode.
 ## Install the Linux desktop release
 
 Release packages are staged in `artifacts/release/`. Choose the package matching
-your CPU architecture (`arm64` or `amd64`). Motion needs no account, cloud
+your CPU architecture. Motion needs no account, cloud
 service, database server, or internet connection at runtime.
 
 For the AppImage:
 
 ```sh
-chmod +x artifacts/release/Motion_0.1.0_arm64.AppImage
-./artifacts/release/Motion_0.1.0_arm64.AppImage
+chmod +x artifacts/release/Motion_0.1.0_aarch64.AppImage
+./artifacts/release/Motion_0.1.0_aarch64.AppImage
 ```
 
 For the Debian package:

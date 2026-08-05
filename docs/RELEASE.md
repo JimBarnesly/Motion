@@ -10,11 +10,11 @@ are build outputs; CI and GitHub Releases are the durable distribution path.
 The AppImage is the least invasive option:
 
 ```sh
-chmod +x artifacts/release/Motion_0.1.0_arm64.AppImage
-./artifacts/release/Motion_0.1.0_arm64.AppImage
+chmod +x artifacts/release/Motion_0.1.0_aarch64.AppImage
+./artifacts/release/Motion_0.1.0_aarch64.AppImage
 ```
 
-Replace `arm64` with `amd64` on an x86-64 system.
+Use the artifact whose architecture suffix matches the target system.
 
 Install the Debian package with its local dependencies:
 

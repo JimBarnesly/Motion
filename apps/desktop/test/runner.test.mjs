@@ -28,6 +28,15 @@ test("one service process handles errors and multiple durable requests", async (
     send({ lane: "ui-load", payload: { schemaVersion: 1 } });
     const loaded = await waitFor(3);
     assert.equal(loaded.value.pages[0].blocks[0].text, "same process");
+    send({ lane: "async-query", payload: { type: "backup.create", workspaceId: "web-workspace-v1" } });
+    const backup = (await waitFor(4)).value;
+    send({ lane: "ui-save", payload: { schemaVersion: 1, document: { schemaVersion: 1, pages: [{ id: "page-1", parentId: null, order: 0, type: "document", title: "Changed", blocks: [{ id: "block-1", type: "paragraph", text: "changed after backup" }] }], activePageId: "page-1" } } });
+    assert.equal((await waitFor(5)).value.saved, true);
+    send({ lane: "async-command", payload: { type: "backup.restore-new", bundle: backup, newWorkspaceId: "restored-workspace" } });
+    assert.equal((await waitFor(6)).value.workspace.id, "restored-workspace");
+    send({ lane: "ui-load", payload: { schemaVersion: 1 } });
+    const restored = await waitFor(7);
+    assert.equal(restored.value.pages[0].blocks[0].text, "same process");
     assert.equal(child.pid, pid);
     assert.equal(child.exitCode, null);
   } finally {

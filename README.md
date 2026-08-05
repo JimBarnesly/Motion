@@ -17,6 +17,31 @@ link indexing, unknown-block preservation, and schema migration. Local storage i
 encryption, and AI integrations are optional layers and are documented as
 future protocol-compatible services rather than dependencies of local mode.
 
+## Install the Linux desktop release
+
+Release packages are staged in `artifacts/release/`. Choose the package matching
+your CPU architecture (`arm64` or `amd64`). Motion needs no account, cloud
+service, database server, or internet connection at runtime.
+
+For the AppImage:
+
+```sh
+chmod +x artifacts/release/Motion_0.1.0_arm64.AppImage
+./artifacts/release/Motion_0.1.0_arm64.AppImage
+```
+
+For the Debian package:
+
+```sh
+sudo apt install ./artifacts/release/Motion_0.1.0_arm64.deb
+motion-desktop
+```
+
+Use the left sidebar to create and organise pages, `Ctrl+K` to search, and the
+top-bar export/restore controls for portable JSON or a verified native backup.
+Workspace data stays in the current user's local application-data directory.
+See [the release guide](docs/RELEASE.md) for verification and uninstall details.
+
 ## Development
 
 ```sh
@@ -52,10 +77,9 @@ formats and compatibility rules are documented in `docs/`.
 
 ## Status
 
-Motion is early-stage software. The local vertical slice is intended to be a
+Motion 0.1.0 is an early Linux desktop release. The local vertical slice is a
 real foundation, not a compatibility clone or a hosted-service mock-up. Native
-Linux package CI is configured for x86-64 and ARM64. The shell bundles a pinned,
-checksum-verified Node 24 runtime and keeps one service process alive, but
-successful packaged artifacts and packaged-UI E2E evidence are still pending.
+Linux package CI builds x86-64 and ARM64 packages. The shell bundles a pinned,
+checksum-verified Node 24 runtime and keeps one local service process alive.
 The current UI remains a vanilla Web-v1 compatibility layer rather than the
 required React and Tiptap/ProseMirror implementation.

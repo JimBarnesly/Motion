@@ -33,6 +33,7 @@ npm run test --workspace @motion/desktop
 cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
 npm run runtime:prepare --workspace @motion/desktop
 npm run tauri:build --workspace @motion/desktop -- --bundles deb,appimage
+node scripts/smoke-packaged-app.mjs apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
 ```
 
 CI runs those checks and builds `.deb` and AppImage packages natively on both

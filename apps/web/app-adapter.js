@@ -88,7 +88,7 @@ function tauriAdapter(invoke) {
     async previewBackup(bundle) { return dispatch("async-query", { type: "backup.preview", bundle }); },
     async restoreBackup(bundle) {
       const result = await dispatch("async-command", { type: "backup.restore-new", bundle });
-      workspaceSummary = undefined;
+      workspaceSummary = result?.workspace?.id ? { id: result.workspace.id, revision: result.revision } : undefined;
       return result;
     }
   };

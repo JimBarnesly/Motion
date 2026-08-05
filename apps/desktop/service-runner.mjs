@@ -27,21 +27,36 @@ const encode = value => value instanceof Uint8Array ? { $motionBytes: Array.from
 mkdirSync(dataRoot, { recursive: true });
 const store = new SqliteWorkspaceStore(join(dataRoot, "motion.sqlite3"));
 const service = new MotionAppService(store, new ContentAddressedAttachmentStore(join(dataRoot, "attachments")));
+const uiStatePath = join(dataRoot, "ui-state.json");
+const readUiState = () => { try { return JSON.parse(readFileSync(uiStatePath, "utf8")); } catch { return {}; } };
+const writeUiState = state => {
+  const temporary = `${uiStatePath}.tmp`;
+  writeFileSync(temporary, JSON.stringify({ schemaVersion: 1, workspaceId: state.workspaceId, activePageId: state.activePageId ?? null }), { mode: 0o600 });
+  renameSync(temporary, uiStatePath);
+};
 async function dispatch(rawRequest) {
   const request = revive(rawRequest);
   let result;
   switch (request.lane) {
     case "command": result = service.execute(request.payload); break;
     case "query": result = service.query(request.payload); break;
-    case "async-command": result = await service.executeAsync(request.payload); break;
+    case "async-command": {
+      result = await service.executeAsync(request.payload);
+      if (request.payload?.type === "backup.restore-new") {
+        const workspace = result.workspace;
+        writeUiState({ workspaceId: workspace.id, activePageId: workspace.pages.find(page => !page.deletedAt)?.id ?? null });
+      }
+      break;
+    }
     case "async-query": result = await service.queryAsync(request.payload); break;
     case "ui-load": {
       const summaries = service.query({ type: "workspace.list" });
       if (!summaries.length) { result = { schemaVersion: 1, pages: [], activePageId: null }; break; }
-      const loaded = service.query({ type: "workspace.get", workspaceId: summaries[0].id }).workspace;
+      const uiState = readUiState();
+      const selected = summaries.find(summary => summary.id === uiState.workspaceId) ?? summaries[0];
+      const loaded = service.query({ type: "workspace.get", workspaceId: selected.id }).workspace;
       const databases = new Map(loaded.databases.map(database => [database.pageId, database]));
-      let activePageId = null;
-      try { activePageId = JSON.parse(readFileSync(join(dataRoot, "ui-state.json"), "utf8")).activePageId ?? null; } catch {}
+      const activePageId = uiState.activePageId ?? null;
       result = { schemaVersion: 1, activePageId: loaded.pages.some(page => page.id === activePageId && !page.deletedAt) ? activePageId : loaded.pages.find(page => !page.deletedAt)?.id ?? null,
         pages: loaded.pages.map((page, order) => {
           const database = databases.get(page.id);
@@ -54,12 +69,12 @@ async function dispatch(rawRequest) {
     case "ui-save": {
       const candidate = request.payload?.document;
       const summaries = service.query({ type: "workspace.list" });
-      const existing = summaries[0];
+      const uiState = readUiState();
+      const existing = summaries.find(summary => summary.id === uiState.workspaceId) ?? summaries[0];
       const migrated = migrateWebWorkspaceV1(candidate, { workspaceId: existing?.id, workspaceName: existing?.name, migratedAt: new Date().toISOString() });
       if (existing) store.saveUnitOfWork({ workspaceId: existing.id, schemaVersion: migrated.workspace.schemaVersion, document: migrated.workspace, expectedRevision: existing.revision });
       else service.execute({ type: "workspace.import-web-v1", document: candidate, workspaceId: migrated.workspace.id, migratedAt: migrated.workspace.updatedAt });
-      const statePath = join(dataRoot, "ui-state.json"), temporary = `${statePath}.tmp`;
-      writeFileSync(temporary, JSON.stringify({ schemaVersion: 1, activePageId: migrated.uiState.activePageId }), { mode: 0o600 }); renameSync(temporary, statePath);
+      writeUiState({ workspaceId: migrated.workspace.id, activePageId: migrated.uiState.activePageId });
       result = { saved: true };
       break;
     }

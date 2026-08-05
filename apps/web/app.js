@@ -3,8 +3,11 @@ import { normalizeWorkspaceV1 } from "./workspace-v1.js";
 
 const workspaceStore = createMotionUiAdapter();
 let state = await workspaceStore.load();
+let confirmedState = structuredClone(state);
 if (state.pages.find(page => page.id === state.activePageId)?.deleted) state.activePageId = state.pages.find(page => !page.deleted)?.id ?? null;
 let saveQueue = Promise.resolve();
+let pendingEdit = null;
+let editVersion = 0;
 let confirmedAttachments = [];
 let undoStack = [], redoStack = [], editStartedFor = null;
 const $ = (selector) => document.querySelector(selector);
@@ -21,28 +24,145 @@ function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); res
 function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restoreSnapshot(redoStack.pop()); }
 
 async function persist() {
+  if (pendingEdit) { showPendingResolution("Resolve the unsaved edit before making another change."); return false; }
   $("#saveState").textContent = "Saving…";
   try {
     const candidate = structuredClone(state);
     saveQueue = saveQueue.catch(() => undefined).then(() => workspaceStore.save(candidate));
     await saveQueue;
+    confirmedState = candidate;
     $("#saveState").textContent = workspaceStore.kind === "tauri" ? "Saved to Motion" : "Saved in browser (development mode)";
     return true;
-  } catch (error) {
-    console.error("Workspace save failed", error);
+  } catch {
     $("#saveState").textContent = "Save failed";
     return false;
   }
 }
 
+function editTarget(descriptor) {
+  if (!descriptor) return null;
+  if (descriptor.kind === "title") return $("#pageTitle");
+  if (descriptor.kind === "block") return document.querySelector(`[data-block="${CSS.escape(descriptor.blockId)}"]`);
+  if (descriptor.kind === "block-type") return document.querySelector(`[data-block-type="${CSS.escape(descriptor.blockId)}"]`);
+  if (descriptor.kind === "task") return document.querySelector(`[data-task="${CSS.escape(descriptor.blockId)}"]`);
+  if (descriptor.kind === "column") return document.querySelector(`[data-column-name="${CSS.escape(descriptor.columnId)}"]`);
+  if (descriptor.kind === "cell") return document.querySelector(`[data-cell="${CSS.escape(`${descriptor.rowId}:${descriptor.columnId}`)}"]`);
+  return null;
+}
+
+function markPendingField() {
+  document.querySelectorAll('[data-unsaved="true"]').forEach(element => {
+    element.removeAttribute("data-unsaved"); element.removeAttribute("aria-invalid"); element.removeAttribute("aria-describedby");
+  });
+  const target = editTarget(pendingEdit?.descriptor);
+  if (target) {
+    target.dataset.unsaved = "true"; target.setAttribute("aria-describedby", pendingEdit.status === "failed" ? "editRecoveryMessage" : "saveState");
+    if (pendingEdit.status === "failed") target.setAttribute("aria-invalid", "true"); else target.removeAttribute("aria-invalid");
+  }
+}
+
+function showPendingResolution(message) {
+  if (!pendingEdit) return false;
+  const recovery = $("#editRecovery");
+  recovery.hidden = false;
+  $("#editRecoveryMessage").textContent = message || `${pendingEdit.label} could not be saved.`;
+  const saveState = $("#saveState"); saveState.className = "save-state unsaved"; saveState.textContent = "Unsaved change — action required";
+  markPendingField();
+  requestAnimationFrame(() => editTarget(pendingEdit.descriptor)?.focus());
+  return true;
+}
+
+function hidePendingResolution() {
+  $("#editRecovery").hidden = true;
+  $("#saveState").className = "save-state";
+  markPendingField();
+}
+
+function scheduleEditSave() {
+  clearTimeout(pendingEdit?.timer);
+  if (!pendingEdit || pendingEdit.status === "failed" || pendingEdit.inFlight) return;
+  pendingEdit.timer = setTimeout(() => void commitPendingEdit(), 120);
+}
+
+function queueEdit({ key, label, descriptor, apply }) {
+  if (pendingEdit && pendingEdit.key !== key) { render(); showPendingResolution("Resolve the unsaved edit before editing other content."); return false; }
+  const wasFailed = pendingEdit?.status === "failed";
+  const saveInFlight = pendingEdit?.inFlight;
+  if (!pendingEdit) pendingEdit = { key, label, descriptor, status: "editing", candidate: null, version: 0, timer: null, inFlight: false };
+  apply();
+  pendingEdit.candidate = structuredClone(state);
+  pendingEdit.version = ++editVersion;
+  pendingEdit.status = wasFailed ? "failed" : saveInFlight ? "saving" : "editing";
+  const saveState = $("#saveState"); saveState.className = "save-state saving"; saveState.textContent = `${label} has unsaved changes. Saving…`;
+  markPendingField();
+  if (wasFailed) showPendingResolution(`${label} could not be saved. The updated attempt is still unsaved.`); else if (!saveInFlight) scheduleEditSave();
+  return true;
+}
+
+async function commitPendingEdit() {
+  if (!pendingEdit || pendingEdit.inFlight) return false;
+  const record = pendingEdit, candidate = structuredClone(record.candidate), version = record.version;
+  record.status = "saving"; record.inFlight = true;
+  $("#retryEdit").disabled = $("#discardEdit").disabled = true;
+  try {
+    saveQueue = saveQueue.catch(() => undefined).then(() => workspaceStore.save(candidate));
+    await saveQueue;
+    confirmedState = candidate;
+    if (pendingEdit !== record) return true;
+    if (record.version !== version) { record.inFlight = false; record.status = "editing"; scheduleEditSave(); return true; }
+    const descriptor = record.descriptor, label = record.label;
+    pendingEdit = null; hidePendingResolution();
+    $("#saveState").textContent = `${label} saved. ${workspaceStore.kind === "tauri" ? "Saved to Motion" : "Saved in browser (development mode)"}.`;
+    requestAnimationFrame(() => editTarget(descriptor)?.focus());
+    return true;
+  } catch {
+    if (pendingEdit !== record) return false;
+    record.inFlight = false; record.status = "failed";
+    showPendingResolution(`${record.label} could not be saved.`);
+    return false;
+  } finally {
+    $("#retryEdit").disabled = $("#discardEdit").disabled = false;
+  }
+}
+
+async function retryPendingEdit() {
+  if (!pendingEdit || pendingEdit.inFlight) return false;
+  pendingEdit.status = "editing";
+  $("#saveState").className = "save-state saving"; $("#saveState").textContent = `Retrying ${pendingEdit.label.toLowerCase()}…`;
+  return commitPendingEdit();
+}
+
+function discardPendingEdit() {
+  if (!pendingEdit || pendingEdit.inFlight) return false;
+  const descriptor = pendingEdit.descriptor, label = pendingEdit.label;
+  clearTimeout(pendingEdit.timer);
+  state = structuredClone(confirmedState); pendingEdit = null; hidePendingResolution(); render();
+  $("#saveState").textContent = `${label} unsaved changes discarded.`;
+  requestAnimationFrame(() => editTarget(descriptor)?.focus());
+  return true;
+}
+
+function requireResolvedEdit(action) {
+  if (!pendingEdit) return true;
+  showPendingResolution(`Retry or discard the unsaved edit before ${action}.`);
+  $("#retryEdit").focus();
+  return false;
+}
+
+window.addEventListener("beforeunload", event => {
+  if (!pendingEdit) return;
+  event.preventDefault(); event.returnValue = "";
+});
+
 async function exportWorkspace() {
+  if (!requireResolvedEdit("exporting")) return false;
   let payload, fileName;
   if (workspaceStore.kind === "tauri") {
     const exported = await workspaceStore.exportWorkspace();
     payload = JSON.stringify(exported, null, 2);
     fileName = `motion-canonical-export-${new Date().toISOString().slice(0, 10)}.json`;
   } else {
-    payload = JSON.stringify({ exportVersion: "motion.workspace/1.0", exportedAt: new Date().toISOString(), workspace: state }, null, 2);
+    payload = JSON.stringify({ exportVersion: "motion.workspace/1.0", exportedAt: new Date().toISOString(), workspace: confirmedState }, null, 2);
     fileName = `motion-browser-development-${new Date().toISOString().slice(0, 10)}.json`;
   }
   const blob = new Blob([payload], { type: "application/json" });
@@ -70,6 +190,7 @@ async function attachNativeFile(file) {
 }
 
 async function createVerifiedBackup() {
+  if (!requireResolvedEdit("creating a backup")) return false;
   const bundle = await workspaceStore.createBackup();
   const verification = await workspaceStore.verifyBackup(bundle);
   if (!verification.valid) throw new Error(`Backup verification failed: ${(verification.errors || []).join("; ")}`);
@@ -81,6 +202,7 @@ async function createVerifiedBackup() {
 }
 
 async function restoreVerifiedBackup(file) {
+  if (!requireResolvedEdit("restoring")) return false;
   const bundle = JSON.parse(await file.text());
   const verification = await workspaceStore.verifyBackup(bundle);
   if (!verification.valid) throw new Error(`Backup verification failed: ${(verification.errors || []).join("; ")}`);
@@ -88,17 +210,19 @@ async function restoreVerifiedBackup(file) {
   const summary = `${preview.workspaceName || "Workspace"}: ${preview.pages} pages, ${preview.attachments} attachments, ${preview.totalBytes} bytes. Restore as a new workspace?`;
   if (!confirm(summary)) return;
   await workspaceStore.restoreBackup(bundle);
-  state = await workspaceStore.load(); confirmedAttachments = []; render();
+  state = await workspaceStore.load(); confirmedState = structuredClone(state); confirmedAttachments = []; render();
 }
 
 async function restoreWorkspace(file, trigger = $("#restoreWorkspace")) {
+  if (!requireResolvedEdit("restoring")) return false;
   const parsed = JSON.parse(await file.text());
   const candidate = parsed?.exportVersion === "motion.workspace/1.0" ? parsed.workspace : parsed;
   if (candidate?.schemaVersion !== 1 || !Array.isArray(candidate.pages)) throw new Error("Unsupported or invalid Motion workspace backup");
   const replacement = normalizeWorkspaceV1(candidate); if (!confirm("Replace the current workspace with this restored workspace? The current workspace will no longer be active.")) { announce("Restore cancelled. Current workspace kept."); trigger?.focus(); return false; }
   state = replacement;
   if (!state.pages.some((page) => page.id === state.activePageId && !page.deleted)) state.activePageId = state.pages.find(page => !page.deleted)?.id ?? null;
-  await persist(); render(); announce("Workspace restored."); requestAnimationFrame(() => $("#pageTitle")?.focus()); return true;
+  if (!await persist()) { state = structuredClone(confirmedState); render(); announce("Workspace restore failed. Previous saved content kept."); requestAnimationFrame(() => trigger?.focus()); return false; }
+  render(); announce("Workspace restored."); requestAnimationFrame(() => $("#pageTitle")?.focus()); return true;
 }
 
 function addPage(parentId = null, type = "document") {
@@ -110,6 +234,7 @@ function addPage(parentId = null, type = "document") {
 }
 
 async function trashPage(pageId) {
+  if (!requireResolvedEdit("moving content to Trash")) return false;
   checkpoint();
   const doomed = new Set([pageId]);
   let changed = true;
@@ -172,7 +297,7 @@ function renderDocument(page) {
   page.blocks ||= [];
   const blocks = page.blocks.map((block, index) => {
     const known = BLOCK_TYPES.includes(block.type), type = known ? block.type : "unknown";
-    const input = block.type === "divider" ? `<hr aria-label="Divider">` : `<div class="block-input ${type}" contenteditable="true" role="textbox" data-block="${block.id}" data-placeholder="Type text, or [[Page name]]" aria-keyshortcuts="Alt+BracketLeft Alt+BracketRight" title="Indent with Alt+], outdent with Alt+[">${escapeHtml(block.text || "")}</div>`;
+    const input = block.type === "divider" ? `<hr aria-label="Divider">` : `<textarea class="block-input ${type}" rows="1" data-block="${block.id}" placeholder="Type text, or [[Page name]]" aria-keyshortcuts="Alt+BracketLeft Alt+BracketRight" title="Indent with Alt+], outdent with Alt+[">${escapeHtml(block.text || "")}</textarea>`;
     return `<div class="block-row ${type}" data-block-id="${block.id}" style="--indent:${block.indent || 0}"><div class="block-tools"><button type="button" data-move-block="${block.id}:-1" aria-label="Move block up" ${index ? "" : "disabled"}>↑</button><button type="button" data-move-block="${block.id}:1" aria-label="Move block down" ${index < page.blocks.length - 1 ? "" : "disabled"}>↓</button></div><select data-block-type="${block.id}" aria-label="Block type: ${escapeHtml(blockLabel(block.type))}"><option value="${escapeHtml(block.type)}">${escapeHtml(blockLabel(block.type))}</option>${BLOCK_TYPES.filter(t => t !== block.type).map(t => `<option value="${t}">${blockLabel(t)}</option>`).join("")}</select>${block.type === "task" ? `<input class="task-check" type="checkbox" data-task="${block.id}" ${block.checked ? "checked" : ""} aria-label="Mark task complete">` : ""}<span class="block-handle" aria-hidden="true">⋮⋮</span>${input}<button class="delete-block" type="button" data-delete-block="${block.id}" aria-label="Delete block">×</button></div>`;
   }).join("");
   $("#content").innerHTML = `<article class="page"><div class="page-kicker"><span>Document</span><button class="danger-text" data-delete-page="${page.id}" type="button">Delete</button></div><input id="pageTitle" class="page-title" value="${escapeHtml(page.title)}" aria-label="Page title" placeholder="Untitled page" />
@@ -181,7 +306,7 @@ function renderDocument(page) {
 
 function renderDatabase(page) {
   const headers = page.columns.map((c) => `<th><input value="${escapeHtml(c.name)}" data-column-name="${c.id}" aria-label="Column name" /></th>`).join("");
-  const rows = page.rows.map((row) => `<tr data-row-id="${row.id}">${page.columns.map((c) => `<td><input value="${escapeHtml(row.values[c.id] ?? "")}" data-cell="${row.id}:${c.id}" aria-label="${escapeHtml(c.name)}" /></td>`).join("")}<td class="row-tools"><button data-delete-row="${row.id}" type="button" aria-label="Delete row">×</button></td></tr>`).join("");
+  const rows = page.rows.map((row) => `<tr data-row-id="${row.id}">${page.columns.map((c) => `<td><textarea rows="1" data-cell="${row.id}:${c.id}" aria-label="${escapeHtml(c.name)}">${escapeHtml(row.values[c.id] ?? "")}</textarea></td>`).join("")}<td class="row-tools"><button data-delete-row="${row.id}" type="button" aria-label="Delete row">×</button></td></tr>`).join("");
   $("#content").innerHTML = `<article class="page database-page"><div class="page-kicker"><span>Table</span><button class="danger-text" data-delete-page="${page.id}" type="button">Delete</button></div><input id="pageTitle" class="page-title" value="${escapeHtml(page.title)}" aria-label="Database title" placeholder="Untitled database" />
     <div class="table-toolbar"><span>${page.rows.length} ${page.rows.length === 1 ? "row" : "rows"}</span><button id="addColumn" type="button">+ Property</button></div><div class="table-wrap"><table><thead><tr>${headers}<th class="row-tools"></th></tr></thead><tbody>${rows}</tbody></table>${page.rows.length ? "" : `<div class="table-empty">No rows yet. Add the first item when you’re ready.</div>`}</div><button class="add-row" id="addRow" type="button">+ New row</button></article>`;
 }
@@ -258,6 +383,9 @@ async function renderSearch(query) {
 
 document.addEventListener("click", async (event) => {
   const el = event.target.closest("button"); if (!el) return;
+  if (el.id === "retryEdit") { await retryPendingEdit(); return; }
+  if (el.id === "discardEdit") { discardPendingEdit(); return; }
+  if (pendingEdit && el.id !== "openSearch" && !el.closest("#searchDialog")) { requireResolvedEdit("continuing"); return; }
   const openId = el.dataset.openPage; if (openId) { state.activePageId = openId; persist(); render(); $("#sidebar").classList.remove("open"); }
   if (el.dataset.addChild) addPage(el.dataset.addChild);
   if (el.dataset.movePage) { checkpoint(); const [id, deltaText] = el.dataset.movePage.split(":"); const page = state.pages.find(p => p.id === id), siblings = childrenOf(page.parentId), at = siblings.findIndex(p => p.id === id), to = at + Number(deltaText); if (to >= 0 && to < siblings.length) { const other = siblings[to]; [page.order, other.order] = [other.order, page.order]; persist(); render(); } }
@@ -315,10 +443,31 @@ document.addEventListener("input", (event) => {
     return;
   }
   const page = activePage(); if (!page) return;
-  if (event.target.id === "pageTitle") { const old = page.title; page.title = event.target.value; state.pages.forEach(p => (p.blocks || []).forEach(b => { if ((b.links || []).some(l => l.pageId === page.id)) { b.text = (b.text || "").replaceAll(`[[${old}]]`, `[[${page.title}]]`); (b.links || []).filter(l => l.pageId === page.id).forEach(l => l.title = page.title); } })); persist(); $("#pageTree").innerHTML = renderTree(); renderContext(page); }
-  if (event.target.dataset.block) { const block = page.blocks.find((b) => b.id === event.target.dataset.block); block.text = event.target.textContent; refreshBlockLinks(block); persist(); renderContext(page); }
-  if (event.target.dataset.columnName) { page.columns.find((c) => c.id === event.target.dataset.columnName).name = event.target.value; persist(); }
-  if (event.target.dataset.cell) { const [rowId, colId] = event.target.dataset.cell.split(":"); page.rows.find((r) => r.id === rowId).values[colId] = event.target.value; persist(); }
+  if (event.target.id === "pageTitle") {
+    const value = event.target.value;
+    queueEdit({ key: `title:${page.id}`, label: page.type === "database" ? "Table title" : "Page title", descriptor: { kind: "title", pageId: page.id }, apply: () => {
+      const old = page.title; page.title = value;
+      state.pages.forEach(p => (p.blocks || []).forEach(b => { if ((b.links || []).some(l => l.pageId === page.id)) { b.text = (b.text || "").replaceAll(`[[${old}]]`, `[[${page.title}]]`); (b.links || []).filter(l => l.pageId === page.id).forEach(l => l.title = page.title); } }));
+      $("#pageTree").innerHTML = renderTree(); renderContext(page);
+    } });
+  }
+  if (event.target.dataset.block) {
+    const blockId = event.target.dataset.block, value = event.target.value;
+    queueEdit({ key: `block-text:${page.id}:${blockId}`, label: `${blockLabel(page.blocks.find(block => block.id === blockId)?.type)} text`, descriptor: { kind: "block", pageId: page.id, blockId }, apply: () => {
+      const block = page.blocks.find(candidate => candidate.id === blockId); block.text = value; refreshBlockLinks(block); renderContext(page);
+    } });
+  }
+  if (event.target.dataset.columnName) {
+    const columnId = event.target.dataset.columnName, value = event.target.value;
+    queueEdit({ key: `column:${page.id}:${columnId}`, label: "Table column name", descriptor: { kind: "column", pageId: page.id, columnId }, apply: () => {
+      page.columns.find(column => column.id === columnId).name = value;
+      document.querySelectorAll("[data-cell]").forEach(cell => { if (cell.dataset.cell.split(":")[1] === columnId) cell.setAttribute("aria-label", value); });
+    } });
+  }
+  if (event.target.dataset.cell) {
+    const [rowId, columnId] = event.target.dataset.cell.split(":"), value = event.target.value;
+    queueEdit({ key: `cell:${page.id}:${rowId}:${columnId}`, label: "Table cell", descriptor: { kind: "cell", pageId: page.id, rowId, columnId }, apply: () => { page.rows.find(row => row.id === rowId).values[columnId] = value; } });
+  }
 });
 
 document.addEventListener("focusin", event => {
@@ -329,8 +478,16 @@ document.addEventListener("focusout", event => { if (event.target.id === "pageTi
 
 document.addEventListener("change", event => {
   const page = activePage(); if (!page) return;
-  if (event.target.dataset.blockType) { checkpoint(); const block = page.blocks.find(b => b.id === event.target.dataset.blockType); block.type = event.target.value; if (block.type === "task") block.checked ||= false; persist(); render(); requestAnimationFrame(() => document.querySelector(`[data-block="${block.id}"]`)?.focus()); }
-  if (event.target.dataset.task) { checkpoint(); page.blocks.find(b => b.id === event.target.dataset.task).checked = event.target.checked; persist(); }
+  if (event.target.dataset.blockType) {
+    const blockId = event.target.dataset.blockType, value = event.target.value;
+    queueEdit({ key: `block-type:${page.id}:${blockId}`, label: "Block type", descriptor: { kind: "block-type", pageId: page.id, blockId }, apply: () => {
+      checkpoint(); const block = page.blocks.find(candidate => candidate.id === blockId); block.type = value; if (block.type === "task") block.checked ||= false; render();
+    } });
+  }
+  if (event.target.dataset.task) {
+    const blockId = event.target.dataset.task, checked = event.target.checked;
+    queueEdit({ key: `task:${page.id}:${blockId}`, label: "Checklist state", descriptor: { kind: "task", pageId: page.id, blockId }, apply: () => { checkpoint(); page.blocks.find(block => block.id === blockId).checked = checked; } });
+  }
 });
 
 document.addEventListener("keydown", (event) => {
@@ -362,7 +519,7 @@ function browserSearchHits(query) {
   if (!terms.length) return [];
   const matches = text => terms.every(term => text.includes(term));
   const hits = [];
-  for (const page of state.pages.filter(candidate => !candidate.deleted)) {
+  for (const page of confirmedState.pages.filter(candidate => !candidate.deleted)) {
     const pageText = searchablePageText(page);
     if (matches(pageText)) hits.push({ page, snippet: page.type === "database" ? `${page.rows.length} rows` : "Browser development search", native: false });
     for (const row of page.rows ?? []) {
@@ -427,7 +584,7 @@ async function deleteBlock(blockId, trigger) {
   checkpoint(); page.blocks.splice(at, 1);
   await persist(); render(); announce("Block deleted.");
   requestAnimationFrame(() => {
-    const surviving = document.querySelectorAll('[contenteditable="true"][data-block]');
+    const surviving = document.querySelectorAll('[data-block]');
     surviving[Math.min(at, surviving.length - 1)]?.focus();
     if (!surviving.length) $("#addBlock")?.focus();
   });

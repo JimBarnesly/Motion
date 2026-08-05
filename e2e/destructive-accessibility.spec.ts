@@ -91,7 +91,7 @@ for (const layout of layouts) {
 
     test("Tab leaves the editor and can reach footer restore controls", async ({ page }) => {
       await seed(page);
-      const editor = page.locator('[contenteditable="true"][data-block]').first();
+      const editor = page.locator('[data-block]').first();
       const restore = page.getByRole("button", { name: "Restore", exact: true });
       await editor.focus();
       let reached = false;
@@ -130,7 +130,7 @@ for (const layout of layouts) {
       await deleteBlock.focus();
       page.once("dialog", dialog => dialog.accept());
       await page.keyboard.press("Enter");
-      await regressionExpect(page.locator('[contenteditable="true"][data-block]').first(), "focus must recover to a surviving block").toBeFocused();
+      await regressionExpect(page.locator('[data-block]').first(), "focus must recover to a surviving block").toBeFocused();
       await regressionExpect(page.getByRole("status")).toContainText(/block deleted/i);
     });
 

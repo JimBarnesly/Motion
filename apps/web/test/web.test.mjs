@@ -31,6 +31,22 @@ test("workspace persistence uses an explicit async native/browser adapter", asyn
   assert.match(adapter, /schemaVersion:\s*1/);
 });
 
+test("editable fields share a recoverable confirmed-state commit boundary", async () => {
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  const html = await readFile(resolve(root, "index.html"), "utf8");
+  assert.match(source, /let confirmedState = structuredClone\(state\)/);
+  assert.match(source, /function queueEdit/);
+  assert.match(source, /async function retryPendingEdit/);
+  assert.match(source, /function discardPendingEdit/);
+  assert.match(source, /window\.addEventListener\("beforeunload"/);
+  assert.match(source, /for \(const page of confirmedState\.pages/);
+  assert.match(source, /workspace: confirmedState/);
+  assert.doesNotMatch(source, /Workspace save failed", error/);
+  assert.match(html, /id="retryEdit"/);
+  assert.match(html, /id="discardEdit"/);
+  assert.match(html, /role="alert"/);
+});
+
 test("native adapter sends versioned typed IPC envelopes", async () => {
   const calls = [];
   const { createMotionUiAdapter } = await import("../app-adapter.js");

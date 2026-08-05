@@ -15,6 +15,7 @@
     "inventory:dependencies:check": "node scripts/dependency-inventory.mjs --check docs/dependency-inventory.json",
     "lint": "node scripts/lint.mjs",
     "test:e2e": "playwright test e2e/web.spec.ts",
+    "test:recoverable-edits": "playwright test e2e/recoverable-edits.spec.ts",
     "test:destructive-accessibility": "playwright test e2e/destructive-accessibility.spec.ts",
     "test:dependency-inventory": "node --test scripts/dependency-inventory.test.mjs",
     "test:dependency-policy-change": "node --test scripts/dependency-policy-change-gate.test.mjs",

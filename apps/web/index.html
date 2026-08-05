@@ -50,6 +50,13 @@
           <div id="breadcrumbs" class="breadcrumbs" aria-label="Breadcrumb"></div>
           <span class="save-state" id="saveState" role="status">Saved locally</span>
         </header>
+        <section id="editRecovery" class="edit-recovery" role="alert" aria-live="assertive" aria-atomic="true" hidden>
+          <div><strong id="editRecoveryMessage">An edit could not be saved.</strong><span>The exact edit is still shown but is not saved.</span></div>
+          <div class="edit-recovery-actions">
+            <button id="retryEdit" type="button">Retry save</button>
+            <button id="discardEdit" type="button">Discard unsaved changes</button>
+          </div>
+        </section>
         <section class="content" id="content" aria-live="polite"></section>
       </main>
 

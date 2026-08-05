@@ -21,7 +21,8 @@ test("local Web workspace persists, searches and exports without external networ
   await page.getByRole("button", { name: "New page" }).click();
   const title = page.getByRole("textbox", { name: "Page title" });
   await title.fill("Pump commissioning notes");
-  const body = page.locator('[contenteditable="true"][data-block]').first();
+  await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
+  const body = page.locator('[data-block]').first();
   await body.fill("Verified local pressure and flow before startup.");
   await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
   await expect.poll(() => page.evaluate(async () => (await indexedDB.databases()).map(database => database.name)))
@@ -29,7 +30,7 @@ test("local Web workspace persists, searches and exports without external networ
 
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Page title" })).toHaveValue("Pump commissioning notes");
-  await expect(page.locator('[contenteditable="true"][data-block]').first()).toHaveText("Verified local pressure and flow before startup.");
+  await expect(page.locator('[data-block]').first()).toHaveValue("Verified local pressure and flow before startup.");
 
   await page.getByRole("button", { name: /Search/ }).click();
   await page.getByRole("searchbox", { name: "Search workspace" }).fill("pressure");
@@ -90,7 +91,7 @@ test("local Web workspace persists, searches and exports without external networ
   await expect(page.getByRole("textbox", { name: "Page title" })).toHaveValue("Pump commissioning notes");
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Page title" })).toHaveValue("Pump commissioning notes");
-  await expect(page.locator('[contenteditable="true"][data-block]').first()).toHaveText("Verified local pressure and flow before startup.");
+  await expect(page.locator('[data-block]').first()).toHaveValue("Verified local pressure and flow before startup.");
   await expect(trashNavigation.getByRole("button", { name: "Restore Pump commissioning notes" })).toHaveCount(0);
 
   expect(externalRequests, `unexpected external HTTP(S) requests: ${externalRequests.join(", ")}`).toEqual([]);

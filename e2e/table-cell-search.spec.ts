@@ -130,7 +130,7 @@ for (const layout of layouts) {
 
       await expect(page.getByRole("textbox", { name: "Database title" })).toHaveValue("Commissioning register");
       await expect(page.locator('[data-row-id="stable-row-a"] [data-cell]').first()).toBeFocused();
-      await expect(page.locator('[data-row-id="stable-row-a"] [data-cell]').first()).toHaveValue(/Flow <10 & stable.*second line/);
+      await expect(page.locator('[data-row-id="stable-row-a"] [data-cell]').first()).toHaveValue("Flow <10 & stable\nsecond line");
       expect(await storedWorkspace(page)).toEqual(before);
 
       await page.reload();

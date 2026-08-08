@@ -43,6 +43,20 @@ test("backup verifies and restores an equivalent isolated workspace", () => {
   assert.deepEqual(undoIds(restored.workspace), workspace);
 });
 
+test("restoring a table remaps property IDs and row value keys together", () => {
+  const source = structuredClone(workspace) as any;
+  source.attachments = [];
+  delete source.pages[0].blocks[0].attachmentId;
+  source.databases = [{ id: "database-1", pageId: "page-root", name: "Readings",
+    properties: [{ id: "property-1", name: "Reading", type: "plain-text" }],
+    rows: [{ id: "row-1", values: { "property-1": "stable cell" }, createdAt: source.createdAt, updatedAt: source.updatedAt }], views: [] }];
+  const restored = restoreIntoNewWorkspace(createBackup(source, [], "2026-01-01T00:00:00.000Z"), "restored").workspace;
+  const propertyId = (restored.databases[0]?.properties[0] as any)?.id;
+  assert.equal(propertyId, "restored:property-1");
+  assert.equal((restored.databases[0]?.rows[0] as any)?.values[propertyId!], "stable cell");
+  assert.equal("property-1" in ((restored.databases[0]?.rows[0] as any)?.values ?? {}), false);
+});
+
 test("tampering and traversal paths are rejected", () => {
   const backup = createBackup(workspace, [{ id: "attachment-1", fileName: "note.txt", bytes }]);
   const corrupted = { ...backup, files: { ...backup.files, "workspace.json": new TextEncoder().encode("{}") } };

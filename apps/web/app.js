@@ -1,327 +1,175 @@
 import { createMotionUiAdapter } from "./app-adapter.js";
 import { normalizeWorkspaceV1 } from "./workspace-v1.js";
 
-const workspaceStore = createMotionUiAdapter();
-let state = await workspaceStore.load();
-if (state.pages.find(page => page.id === state.activePageId)?.deleted) state.activePageId = state.pages.find(page => !page.deleted)?.id ?? null;
-let saveQueue = Promise.resolve();
-let confirmedAttachments = [];
-let undoStack = [], redoStack = [], editStartedFor = null;
-const $ = (selector) => document.querySelector(selector);
+const adapter = createMotionUiAdapter();
+const $ = selector => document.querySelector(selector);
 const uid = () => crypto.randomUUID();
-const activePage = () => state.pages.find((page) => page.id === state.activePageId);
-const childrenOf = (parentId) => state.pages.filter((page) => !page.deleted && page.parentId === parentId).sort((a, b) => a.order - b.order);
-const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);
-const BLOCK_TYPES = ["paragraph", "heading1", "heading2", "heading3", "bullet", "number", "task", "toggle", "quote", "code", "divider"];
-const blockLabel = (type) => ({ paragraph:"Text", heading1:"Heading 1", heading2:"Heading 2", heading3:"Heading 3", bullet:"Bulleted list", number:"Numbered list", task:"Task", toggle:"Toggle", quote:"Quote", code:"Code", divider:"Divider" }[type] || `Unsupported: ${type}`);
+const now = () => new Date().toISOString();
+const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, char => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char]);
+const PROPERTY_TYPES = ["text","number","checkbox","select","multi-select","status","date","url","email","phone"];
+const PROPERTY_LABELS = { title:"Title", text:"Text", "plain-text":"Text", number:"Number", checkbox:"Checkbox", select:"Select", "multi-select":"Multi-select", status:"Status", date:"Date", url:"URL", email:"Email", phone:"Phone" };
+const BLOCK_TYPES = ["paragraph","heading-1","heading-2","heading-3","bulleted-list","numbered-list","task","quote","code","divider"];
+const BLOCK_LABELS = { paragraph:"Text", "heading-1":"Heading 1", "heading-2":"Heading 2", "heading-3":"Heading 3", "bulleted-list":"Bulleted list", "numbered-list":"Numbered list", task:"Task", quote:"Quote", code:"Code", divider:"Divider" };
+const EMPTY = { schemaVersion:2, workspace:null, revision:0, activePageId:null, expandedPageIds:[] };
+let state = migrateLoaded(await adapter.load());
+let history = [], future = [], navigation = [], saveQueue = Promise.resolve(), editing = null;
+
+function migrateLoaded(value) {
+  if (value?.schemaVersion === 2) return { ...EMPTY, ...value, expandedPageIds:value.expandedPageIds ?? [] };
+  const legacy = normalizeWorkspaceV1(value), stamp = now(), databases = [], pages = [];
+  for (const source of legacy.pages) {
+    const page = { id:source.id, parentId:source.parentId, title:source.title, blocks:(source.blocks ?? []).map(block => ({ id:block.id, type:({ heading1:"heading-1",heading2:"heading-2",heading3:"heading-3",bullet:"bulleted-list",number:"numbered-list" })[block.type] ?? block.type, text:block.text, children:[], checked:block.checked, references:(block.links ?? []).filter(link => link.pageId).map(link => ({ pageId:link.pageId })) })), createdAt:stamp, updatedAt:stamp, deletedAt:source.deleted ? stamp : undefined, favourite:false };
+    pages.push(page);
+    if (source.type === "database") {
+      const databaseId = uid(), properties = source.columns.map((column,index) => ({ id:column.id, name:column.name, type:index === 0 ? "title" : "text" }));
+      const recordPageIds = source.rows.map(row => { const record = { id:row.id, parentId:source.id, title:String(row.values[properties[0]?.id] ?? "Untitled"), blocks:[], createdAt:stamp, updatedAt:stamp, collectionId:databaseId, properties:{ ...row.values } }; delete record.properties[properties[0]?.id]; pages.push(record); return record.id; });
+      databases.push({ id:databaseId, pageId:source.id, name:source.title, properties, rows:[], recordPageIds, views:[{ id:uid(), collectionId:databaseId, name:"Table", type:"table", visiblePropertyIds:properties.map(p=>p.id), propertyOrder:properties.map(p=>p.id), columnWidths:{} }] });
+    }
+  }
+  return { schemaVersion:2, workspace:{ schemaVersion:2,id:uid(),name:"Motion Workspace",pages,databases,attachments:[],linkIndex:[],createdAt:stamp,updatedAt:stamp },revision:1,activePageId:legacy.activePageId,expandedPageIds:[] };
+}
+const workspace = () => state.workspace;
+const pageById = id => workspace()?.pages.find(page => page.id === id);
+const activePage = () => pageById(state.activePageId);
+const databaseForPage = page => workspace()?.databases.find(database => database.pageId === page?.id || database.id === page?.collectionId);
+const visiblePages = () => workspace()?.pages.filter(page => !page.deletedAt) ?? [];
+const childrenOf = parentId => visiblePages().filter(page => page.parentId === parentId && !page.collectionId);
 const snapshot = () => JSON.stringify(state);
-function checkpoint() { undoStack.push(snapshot()); if (undoStack.length > 80) undoStack.shift(); redoStack = []; }
-function restoreSnapshot(raw) { state = JSON.parse(raw); void persist(); render(); }
-function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restoreSnapshot(undoStack.pop()); }
-function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restoreSnapshot(redoStack.pop()); }
-
-async function persist() {
-  $("#saveState").textContent = "Saving…";
+function checkpoint() { history.push(snapshot()); if (history.length > 80) history.shift(); future=[]; }
+async function saveLocal() { if (adapter.kind !== "browser-development") return; saveQueue=saveQueue.catch(()=>{}).then(()=>adapter.save(structuredClone(state))); await saveQueue; }
+async function saveUi() { await adapter.saveUi({ workspaceId:workspace()?.id, activePageId:state.activePageId, expandedPageIds:state.expandedPageIds }); if (adapter.kind === "browser-development") await saveLocal(); }
+async function commit(type,payload,localMutation) {
+  $("#saveState").textContent="Saving…";
   try {
-    const candidate = structuredClone(state);
-    saveQueue = saveQueue.catch(() => undefined).then(() => workspaceStore.save(candidate));
-    await saveQueue;
-    $("#saveState").textContent = workspaceStore.kind === "tauri" ? "Saved to Motion" : "Saved in browser (development mode)";
-  } catch (error) {
-    console.error("Workspace save failed", error);
-    $("#saveState").textContent = "Save failed";
-  }
+    if (adapter.kind === "tauri") { const result=await adapter.execute(type,payload); state.workspace=result.workspace; state.revision=result.revision; }
+    else { localMutation(); state.workspace.updatedAt=now(); state.revision++; await saveLocal(); }
+    $("#saveState").textContent=adapter.kind === "tauri" ? "Saved to Motion" : "Saved in browser (development mode)";
+  } catch (error) { $("#saveState").textContent="Save failed"; alert(error instanceof Error ? error.message : "Save failed"); throw error; }
 }
-
-async function exportWorkspace() {
-  let payload, fileName;
-  if (workspaceStore.kind === "tauri") {
-    const exported = await workspaceStore.exportWorkspace();
-    payload = JSON.stringify(exported, null, 2);
-    fileName = `motion-canonical-export-${new Date().toISOString().slice(0, 10)}.json`;
-  } else {
-    payload = JSON.stringify({ exportVersion: "motion.workspace/1.0", exportedAt: new Date().toISOString(), workspace: state }, null, 2);
-    fileName = `motion-browser-development-${new Date().toISOString().slice(0, 10)}.json`;
-  }
-  const blob = new Blob([payload], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.click();
-  URL.revokeObjectURL(url);
+async function ensureWorkspace() {
+  if (workspace()) return;
+  if (adapter.kind === "tauri") { const result=await adapter.execute("workspace.create",{name:"Motion Workspace"}); state.workspace=result.workspace; state.revision=result.revision; }
+  else { const stamp=now(); state.workspace={schemaVersion:2,id:uid(),name:"Motion Workspace",pages:[],databases:[],attachments:[],linkIndex:[],createdAt:stamp,updatedAt:stamp}; state.revision=1; }
 }
+function downloadJson(value,fileName){const blob=new Blob([JSON.stringify(value,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;link.download=fileName;link.click();URL.revokeObjectURL(url);}
+async function exportWorkspace(){const date=new Date().toISOString().slice(0,10);if(adapter.kind==="tauri")downloadJson(await adapter.exportWorkspace(),`motion-canonical-export-${date}.json`);else downloadJson({exportVersion:"motion.workspace/2.0",exportedAt:now(),workspace:state.workspace},`motion-browser-development-${date}.json`);}
+async function sha256(bytes){const digest=await crypto.subtle.digest("SHA-256",bytes);return [...new Uint8Array(digest)].map(byte=>byte.toString(16).padStart(2,"0")).join("");}
+async function attachNativeFile(file){const bytes=new Uint8Array(await file.arrayBuffer()),digest=await sha256(bytes),result=await adapter.putAttachment({fileName:file.name,mediaType:file.type||"application/octet-stream",sha256:digest,bytes});state.workspace=result.workspace;state.revision=result.revision;renderContext(activePage());}
+async function createVerifiedBackup(){const bundle=await adapter.createBackup(),verification=await adapter.verifyBackup(bundle);if(!verification.valid)throw new Error(verification.errors.join("; "));downloadJson(bundle,`motion-verified-backup-${new Date().toISOString().slice(0,10)}.json`);}
+async function restoreVerifiedBackup(file){const bundle=JSON.parse(await file.text()),verification=await adapter.verifyBackup(bundle);if(!verification.valid)throw new Error(verification.errors.join("; "));const preview=await adapter.previewBackup(bundle);if(!confirm(`Restore ${preview.workspaceName??"workspace"} with ${preview.pages} pages as a new workspace?`))return;await adapter.restoreBackup(bundle);state=migrateLoaded(await adapter.load());render();}
+async function restoreWorkspace(file){const parsed=JSON.parse(await file.text()),candidate=parsed?.workspace??parsed;if(candidate?.schemaVersion===2&&Array.isArray(candidate.pages)&&Array.isArray(candidate.databases)){if(adapter.kind==="tauri")throw new Error("Use a verified native backup to restore a canonical workspace.");state={...EMPTY,workspace:structuredClone(candidate),revision:1,activePageId:candidate.pages.find(page=>!page.deletedAt)?.id??null};await saveLocal();render();return;}state=migrateLoaded(normalizeWorkspaceV1(candidate));await saveLocal();render();}
+function openPage(id,push=true) { if (push && state.activePageId && state.activePageId !== id) navigation.push(state.activePageId); state.activePageId=id; void saveUi(); render(); $("#sidebar").classList.remove("open"); }
+function ancestors(page) { const path=[]; for(let current=page;current;current=pageById(current.parentId)) path.unshift(current); return path; }
+function descendants(id) { const result=[]; for(const child of visiblePages().filter(page=>page.parentId===id)){ result.push(child,...descendants(child.id)); } return result; }
+function rebuildLinks() { if (!workspace()) return; const links=[]; for(const page of workspace().pages) for(const block of page.blocks ?? []) { const targets=new Set((block.references ?? []).map(ref=>ref.pageId)); for(const match of block.text.matchAll(/\[\[([^\]]+)\]\]/g)){ const target=workspace().pages.find(candidate=>candidate.title.toLowerCase()===match[1].trim().toLowerCase()); if(target) targets.add(target.id); } for(const targetPageId of targets) links.push({sourcePageId:page.id,targetPageId,blockId:block.id}); } workspace().linkIndex=links; }
 
-function downloadJson(value, fileName) {
-  const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob), link = document.createElement("a");
-  link.href = url; link.download = fileName; link.click(); URL.revokeObjectURL(url);
+async function createPage(parentId=null,database=false) {
+  checkpoint(); await ensureWorkspace(); const title=database ? "Untitled database" : "Untitled page";
+  await commit(database?"database.create":"page.create",{title,parentId},()=>{ const stamp=now(),page={id:uid(),parentId,title,blocks:database?[]:[{id:uid(),type:"paragraph",text:"",children:[]}],createdAt:stamp,updatedAt:stamp,favourite:false}; workspace().pages.push(page); if(database){const dbId=uid(),propertyId=uid(); workspace().databases.push({id:dbId,pageId:page.id,name:title,properties:[{id:propertyId,name:"Name",type:"title"}],rows:[],recordPageIds:[],views:[{id:uid(),collectionId:dbId,name:"Table",type:"table",visiblePropertyIds:[propertyId],propertyOrder:[propertyId],columnWidths:{[propertyId]:280},sorts:[]}]});}});
+  const created=[...visiblePages()].reverse().find(page=>page.title===title && page.parentId===parentId); if(created){ state.expandedPageIds=[...new Set([...state.expandedPageIds,...ancestors(created).map(page=>page.id)])]; openPage(created.id); requestAnimationFrame(()=>$("#pageTitle")?.select()); }
 }
+async function renamePage(page,title) { const old=page.title; await commit("page.rename",{pageId:page.id,title},()=>{page.title=title;page.updatedAt=now();}); const db=databaseForPage(page);if(db&&db.pageId===page.id)db.name=title; if(old!==title) renderNavigation(); }
+async function movePage(pageId,parentId) { const page=pageById(pageId); if(parentId===pageId||descendants(pageId).some(child=>child.id===parentId)) return alert("A page cannot be moved into itself or one of its children."); checkpoint(); await commit("page.move",{pageId,parentId},()=>{page.parentId=parentId;page.updatedAt=now();}); render(); }
+async function reorderPage(pageId,delta) { const page=pageById(pageId), siblings=childrenOf(page.parentId),at=siblings.findIndex(item=>item.id===pageId),to=at+delta;if(to<0||to>=siblings.length)return; const before=delta<0?siblings[to].id:(siblings[to+1]?.id??null); checkpoint(); await commit("page.reorder",{pageId,beforePageId:before},()=>{const all=workspace().pages,from=all.indexOf(page),target=before?all.indexOf(pageById(before)):all.length;all.splice(from,1);all.splice(target>from?target-1:target,0,page);});renderNavigation(); }
+async function setFavourite(page,value){await commit("page.set-favourite",{pageId:page.id,favourite:value},()=>{page.favourite=value;});renderNavigation();}
+async function trash(page){checkpoint();await commit("page.trash",{pageId:page.id},()=>{const stamp=now();for(const target of [page,...descendants(page.id)])target.deletedAt=stamp;});if(state.activePageId===page.id)state.activePageId=visiblePages()[0]?.id??null;render();}
+async function restore(page){checkpoint();await commit("page.restore",{pageId:page.id},()=>{const targets=new Set([page]);let changed=true;while(changed){changed=false;for(const candidate of workspace().pages)if(candidate.parentId&&[...targets].some(target=>target.id===candidate.parentId)&&!targets.has(candidate)){targets.add(candidate);changed=true;}}for(let parent=page.parentId?pageById(page.parentId):null;parent;parent=parent.parentId?pageById(parent.parentId):null)targets.add(parent);for(const target of targets)delete target.deletedAt;});openPage(page.id);}
 
-async function sha256(bytes) {
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("");
+function renderNavigation(){
+  const expanded=new Set(state.expandedPageIds), branch=(parentId,depth=0)=>childrenOf(parentId).map(page=>{const kids=childrenOf(page.id),open=expanded.has(page.id);return `<div class="tree-branch"><div class="tree-row ${page.id===state.activePageId?"active":""}" style="--depth:${depth}"><button class="disclosure" data-toggle="${page.id}" aria-label="${open?"Collapse":"Expand"} ${escapeHtml(page.title)}">${kids.length?(open?"⌄":"›"):""}</button><button class="page-link" data-open-page="${page.id}"><span>${databaseForPage(page)?.pageId===page.id?"▦":"□"}</span><span>${escapeHtml(page.title||"Untitled")}</span></button><button class="row-action" data-favourite="${page.id}" aria-label="${page.favourite?"Remove from favourites":"Add to favourites"}">★</button><button class="row-action" data-page-menu="${page.id}" aria-label="Page actions">•••</button></div>${open?`<div>${branch(page.id,depth+1)}</div>`:""}</div>`;}).join("");
+  $("#pageTree").innerHTML=childrenOf(null).length?branch(null):`<div class="empty-nav">No pages yet</div>`;
+  const favourites=visiblePages().filter(page=>page.favourite&&!page.collectionId);$("#favouritesNav").hidden=!favourites.length;$("#favouritesList").innerHTML=favourites.map(page=>`<button class="favourite-link" data-open-page="${page.id}">★ <span>${escapeHtml(page.title||"Untitled")}</span></button>`).join("");
+  const trashed=workspace()?.pages.filter(page=>page.deletedAt)??[];$("#trashList").innerHTML=trashed.length?trashed.map(page=>`<div class="tree-row"><span class="page-link">${escapeHtml(page.title||"Untitled")}</span><button class="row-action always" data-restore-page="${page.id}" aria-label="Restore ${escapeHtml(page.title||"Untitled")}">Restore</button></div>`).join(""):`<div class="empty-nav">Trash is empty</div>`;
 }
-
-async function attachNativeFile(file) {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const digest = await sha256(bytes);
-  const result = await workspaceStore.putAttachment({ fileName: file.name, mediaType: file.type || "application/octet-stream", sha256: digest, bytes });
-  const attachment = result.workspace?.attachments?.filter(item => item.fileName === file.name && item.byteLength === bytes.byteLength && item.sha256 === digest).at(-1);
-  if (!attachment) throw new Error("Native service did not confirm the attachment metadata");
-  confirmedAttachments = [...confirmedAttachments.filter(item => item.id !== attachment.id), attachment];
-  renderContext(activePage());
+function render(){
+  renderNavigation();const page=activePage();if(!page){$("#breadcrumbs").textContent="Workspace";$("#content").innerHTML=`<div class="empty-state"><div class="empty-icon">◇</div><h1>Your workspace is ready</h1><p>Create a page or table. Everything stays on this device.</p><div class="empty-actions"><button class="primary" data-create="page">New page</button><button data-create="database">New table</button></div></div>`;renderContext(null);return;}
+  $("#breadcrumbs").innerHTML=`${navigation.length?`<button data-back aria-label="Go back">←</button>`:""}${ancestors(page).map(item=>`<button data-open-page="${item.id}">${escapeHtml(item.title||"Untitled")}</button>`).join("<span>/</span>")}`;
+  const database=databaseForPage(page); if(database?.pageId===page.id)renderDatabase(page,database);else renderDocument(page,database);renderContext(page);
 }
-
-async function createVerifiedBackup() {
-  const bundle = await workspaceStore.createBackup();
-  const verification = await workspaceStore.verifyBackup(bundle);
-  if (!verification.valid) throw new Error(`Backup verification failed: ${(verification.errors || []).join("; ")}`);
-  downloadJson(bundle, `motion-verified-backup-${new Date().toISOString().slice(0, 10)}.json`);
+function pageHeader(page,label){return `<div class="page-kicker"><span>${label}</span><span><button class="quiet" data-favourite="${page.id}">${page.favourite?"★ Favourited":"☆ Favourite"}</button><button class="danger-text" data-trash-page="${page.id}">Trash</button></span></div><input id="pageTitle" class="page-title" value="${escapeHtml(page.title)}" aria-label="Page title" placeholder="Untitled" />`;}
+function propertyInput(property,value,attrs=""){
+  const common=`data-property="${property.id}" ${attrs} aria-label="${escapeHtml(property.name)}"`;
+  if(property.type==="checkbox")return `<input type="checkbox" ${common} ${value?"checked":""}>`;
+  if(property.type==="number")return `<input type="number" step="any" value="${value??""}" ${common}>`;
+  if(property.type==="date")return `<input type="date" value="${escapeHtml(typeof value==="string"?value.slice(0,10):value?.start?.slice(0,10)??"")}" ${common}>`;
+  if(["select","status"].includes(property.type))return `<select ${common}><option value="">—</option>${(property.options??[]).map(option=>`<option value="${option.id}" ${value===option.id?"selected":""}>${escapeHtml(option.name)}</option>`).join("")}</select>`;
+  if(property.type==="multi-select")return `<select multiple ${common}>${(property.options??[]).map(option=>`<option value="${option.id}" ${Array.isArray(value)&&value.includes(option.id)?"selected":""}>${escapeHtml(option.name)}</option>`).join("")}</select>`;
+  const inputType=property.type==="email"?"email":property.type==="url"?"url":property.type==="phone"?"tel":"text";return `<input type="${inputType}" value="${escapeHtml(value??"")}" ${common}>`;
 }
+function renderBlocks(page){return (page.blocks??[]).map((block,index)=>{const type=BLOCK_TYPES.includes(block.type)?block.type:"unsupported";return `<div class="block-row ${type}" data-block-id="${block.id}"><div class="block-tools"><button data-move-block="${block.id}:-1" ${index?"":"disabled"}>↑</button><button data-move-block="${block.id}:1" ${index<page.blocks.length-1?"":"disabled"}>↓</button></div><select data-block-type="${block.id}" aria-label="Block type"><option value="${block.type}">${BLOCK_LABELS[block.type]??"Unsupported"}</option>${BLOCK_TYPES.filter(item=>item!==block.type).map(item=>`<option value="${item}">${BLOCK_LABELS[item]}</option>`).join("")}</select>${block.type==="task"?`<input class="task-check" type="checkbox" data-task="${block.id}" ${block.checked?"checked":""}>`:""}${block.type==="divider"?`<hr>`:`<div class="block-input ${type}" contenteditable="true" data-block="${block.id}" data-placeholder="Type text, or [[Page name]]">${escapeHtml(block.text)}</div>`}<button class="delete-block" data-delete-block="${block.id}">×</button></div>`;}).join("");}
+function renderDocument(page,database){const properties=database?database.properties.filter(property=>property.type!=="title").map(property=>`<label class="record-property"><span>${escapeHtml(property.name)}</span>${propertyInput(property,page.properties?.[property.id])}</label>`).join(""):"";$("#content").innerHTML=`<article class="page">${pageHeader(page,database?`Record in ${database.name}`:"Page")}${database?`<section class="record-properties">${properties||'<p class="muted">No properties yet.</p>'}</section><hr class="record-divider">`:""}<div class="blocks">${renderBlocks(page)}</div><button class="add-block" id="addBlock">+ Add block</button></article>`;}
+function compareValues(a,b){if(a==null&&b==null)return 0;if(a==null)return 1;if(b==null)return-1;return typeof a==="string"&&typeof b==="string"?a.localeCompare(b):a<b?-1:a>b?1:0;}
+function matches(condition,page){if(!condition)return true;if(condition.kind==="and")return condition.children.every(item=>matches(item,page));if(condition.kind==="or")return condition.children.some(item=>matches(item,page));if(condition.kind==="not")return !matches(condition.child,page);const actual=page.properties?.[condition.propertyId],expected=condition.value,empty=actual==null||actual===""||(Array.isArray(actual)&&!actual.length);return ({equals:()=>JSON.stringify(actual)===JSON.stringify(expected),"not-equals":()=>JSON.stringify(actual)!==JSON.stringify(expected),contains:()=>Array.isArray(actual)?actual.includes(expected):String(actual??"").includes(String(expected??"")),"not-contains":()=>!(Array.isArray(actual)?actual.includes(expected):String(actual??"").includes(String(expected??""))),gt:()=>actual>expected,gte:()=>actual>=expected,lt:()=>actual<expected,lte:()=>actual<=expected,before:()=>actual<expected,after:()=>actual>expected,"is-empty":()=>empty,"is-not-empty":()=>!empty}[condition.operator]??(()=>true))();}
+function records(database,view){let records=(database.recordPageIds??[]).map(pageById).filter(page=>page&&!page.deletedAt);if(view.filters)records=records.filter(page=>matches(view.filters,page));return records.map((page,index)=>({page,index})).sort((a,b)=>{for(const sort of view.sorts??[]){const result=compareValues(sort.propertyId===database.properties[0].id?a.page.title:a.page.properties?.[sort.propertyId],sort.propertyId===database.properties[0].id?b.page.title:b.page.properties?.[sort.propertyId]);if(result)return sort.direction==="asc"?result:-result;}return a.index-b.index;}).map(item=>item.page);}
+function renderDatabase(page,database){const view=database.views[0],order=(view.propertyOrder??database.properties.map(property=>property.id)).filter(id=>view.visiblePropertyIds.includes(id)),properties=order.map(id=>database.properties.find(property=>property.id===id)).filter(Boolean),items=records(database,view);const headers=properties.map((property,index)=>`<th style="width:${view.columnWidths?.[property.id]??(property.type==="title"?280:170)}px"><div class="column-head"><button data-property-menu="${property.id}">${escapeHtml(property.name)} <small>${PROPERTY_LABELS[property.type]}</small></button><span><button data-column-move="${property.id}:-1" ${index?"":"disabled"}>←</button><button data-column-move="${property.id}:1" ${index<properties.length-1?"":"disabled"}>→</button></span></div><input class="column-resize" type="range" min="90" max="480" value="${view.columnWidths?.[property.id]??(property.type==="title"?280:170)}" data-column-width="${property.id}" aria-label="Width of ${escapeHtml(property.name)}"></th>`).join("");const rows=items.slice(0,500).map(record=>`<tr>${properties.map(property=>`<td>${property.type==="title"?`<button class="record-link" data-open-page="${record.id}">${escapeHtml(record.title||"Untitled")}</button>`:propertyInput(property,record.properties?.[property.id],`data-record="${record.id}"`)}</td>`).join("")}<td class="row-tools"><button data-trash-page="${record.id}" aria-label="Trash record">×</button></td></tr>`).join("");$("#content").innerHTML=`<article class="page database-page">${pageHeader(page,"Table")}<div class="table-toolbar"><span>${items.length} of ${database.recordPageIds?.length??0} records${items.length>500?" · showing first 500":""}</span><span><button id="filterButton">Filter</button><button id="sortButton">Sort</button><button id="addProperty">+ Property</button></span></div><div id="viewControls"></div><div class="table-wrap"><table><thead><tr>${headers}<th class="row-tools"></th></tr></thead><tbody>${rows}</tbody></table>${rows?"":'<div class="table-empty">No records match this view.</div>'}</div><button class="add-row" id="addRecord">+ New record</button></article>`;}
+function renderContext(page){if(!page){$("#outgoingLinks").innerHTML=$("#backlinks").innerHTML='<p class="muted">Open a page to see connections.</p>';return;}rebuildLinks();const outgoing=workspace().linkIndex.filter(link=>link.sourcePageId===page.id).map(link=>pageById(link.targetPageId)).filter(Boolean),incoming=workspace().linkIndex.filter(link=>link.targetPageId===page.id).map(link=>pageById(link.sourcePageId)).filter(Boolean);const html=(items,empty)=>items.length?[...new Map(items.map(item=>[item.id,item])).values()].map(item=>`<button class="context-link" data-open-page="${item.id}">↗ ${escapeHtml(item.title)}</button>`).join(""):`<p class="muted">${empty}</p>`;$("#outgoingLinks").innerHTML=html(outgoing,"No links from this page.");$("#backlinks").innerHTML=html(incoming,"No backlinks yet.");$("#attachments").innerHTML='<p class="muted">Attachments remain available through native backup/export.</p>';}
 
-async function restoreVerifiedBackup(file) {
-  const bundle = JSON.parse(await file.text());
-  const verification = await workspaceStore.verifyBackup(bundle);
-  if (!verification.valid) throw new Error(`Backup verification failed: ${(verification.errors || []).join("; ")}`);
-  const preview = await workspaceStore.previewBackup(bundle);
-  const summary = `${preview.workspaceName || "Workspace"}: ${preview.pages} pages, ${preview.attachments} attachments, ${preview.totalBytes} bytes. Restore as a new workspace?`;
-  if (!confirm(summary)) return;
-  await workspaceStore.restoreBackup(bundle);
-  state = await workspaceStore.load(); confirmedAttachments = []; render();
-}
+async function updateRecord(record,property,value){const database=databaseForPage(record);await commit("database.record-update",{pageId:record.id,values:{[property.id]:value}},()=>{record.properties??={};if(value===undefined)delete record.properties[property.id];else record.properties[property.id]=value;});}
+function readProperty(target,property){if(property.type==="checkbox")return target.checked;if(property.type==="number")return target.value===""?undefined:Number(target.value);if(property.type==="multi-select")return [...target.selectedOptions].map(option=>option.value);return target.value||undefined;}
+async function replaceBlocks(page){rebuildLinks();await commit("page.replace-blocks",{pageId:page.id,blocks:page.blocks},()=>{});}
+function showPageMenu(page){const choices=visiblePages().filter(candidate=>candidate.id!==page.id&&!descendants(page.id).some(child=>child.id===candidate.id));const menu=`<div class="inline-panel"><strong>Page actions</strong><label>Move inside<select id="moveParent"><option value="">Workspace root</option>${choices.map(item=>`<option value="${item.id}" ${page.parentId===item.id?"selected":""}>${escapeHtml(item.title)}</option>`).join("")}</select></label><button data-confirm-move="${page.id}">Move page</button><button data-move-page="${page.id}:-1" aria-label="Move ${escapeHtml(page.title)} up">↑ Up</button><button data-move-page="${page.id}:1" aria-label="Move ${escapeHtml(page.title)} down">↓ Down</button><button data-add-child="${page.id}">Add child page</button><button data-add-database="${page.id}">Add table</button></div>`;$("#content").insertAdjacentHTML("afterbegin",menu);}
+function showPropertyMenu(database,property){const options=(property.options??[]).map(option=>option.name).join(", "),visible=database.views[0].visiblePropertyIds.includes(property.id);$("#viewControls").innerHTML=`<div class="inline-panel property-panel"><label>Name<input id="propertyName" value="${escapeHtml(property.name)}"></label>${property.type==="title"?"":`<label>Type<select id="propertyType">${PROPERTY_TYPES.map(type=>`<option value="${type}" ${type===property.type?"selected":""}>${PROPERTY_LABELS[type]}</option>`).join("")}</select></label>`}<label class="option-definition" ${["select","multi-select","status"].includes(property.type)?"":"hidden"}>Options (comma separated)<input id="propertyOptions" value="${escapeHtml(options)}"></label><label>Visible in table<input id="propertyVisible" type="checkbox" ${visible?"checked":""}></label><button data-save-property="${property.id}">Save</button>${property.type==="title"?"":`<button class="danger-text" data-delete-property="${property.id}">Delete property</button>`}</div>`;}
+const FILTER_OPERATORS=["equals","not-equals","contains","not-contains","gt","gte","lt","lte","before","after","is-empty","is-not-empty"];
+function filterRow(database,condition,index){return `<div class="filter-clause" data-filter-index="${index}"><select id="${index?"": "filterProperty"}" data-filter-property>${database.properties.map(property=>`<option value="${property.id}" ${condition?.propertyId===property.id?"selected":""}>${escapeHtml(property.name)}</option>`).join("")}</select><select id="${index?"":"filterOperator"}" data-filter-operator>${FILTER_OPERATORS.map(operator=>`<option value="${operator}" ${condition?.operator===operator?"selected":""}>${operator.replaceAll("-"," ")}</option>`).join("")}</select><input id="${index?"":"filterValue"}" data-filter-value value="${escapeHtml(condition?.value??"")}" placeholder="Value"><button data-remove-filter="${index}" aria-label="Remove filter">×</button></div>`;}
+function showFilter(database){const view=database.views[0],negated=view.filters?.kind==="not",root=negated?view.filters.child:view.filters,kind=root?.kind==="or"?"or":"and",conditions=root?.kind==="and"||root?.kind==="or"?root.children:root?.kind==="condition"?[root]:[];$("#viewControls").innerHTML=`<div class="inline-panel"><label>Match<select id="filterKind"><option value="and" ${kind==="and"?"selected":""}>all (AND)</option><option value="or" ${kind==="or"?"selected":""}>any (OR)</option></select></label><label>Negate group<input id="filterNot" type="checkbox" ${negated?"checked":""}></label><div id="filterClauses">${(conditions.length?conditions:[null]).map((condition,index)=>filterRow(database,condition,index)).join("")}</div><button id="addFilterClause">+ Condition</button><button id="applyFilter">Apply</button><button id="clearFilter">Clear</button></div>`;}
+function showSort(database){const view=database.views[0],sorts=view.sorts??[];$("#viewControls").innerHTML=`<div class="inline-panel"><strong>Sort clauses</strong><div id="sortClauses">${sorts.map((sort,index)=>sortRow(database,sort,index)).join("")||sortRow(database,{propertyId:database.properties[0].id,direction:"asc"},0)}</div><button id="addSortClause">+ Clause</button><button id="applySort">Apply sorts</button><button id="clearSort">Clear</button></div>`;}
+function sortRow(database,sort,index){return `<div class="sort-clause" data-sort-index="${index}"><select data-sort-property>${database.properties.map(property=>`<option value="${property.id}" ${property.id===sort.propertyId?"selected":""}>${escapeHtml(property.name)}</option>`).join("")}</select><select data-sort-direction><option value="asc" ${sort.direction==="asc"?"selected":""}>Ascending</option><option value="desc" ${sort.direction==="desc"?"selected":""}>Descending</option></select><button data-remove-sort="${index}">×</button></div>`;}
+async function updateView(database,patch){await commit("database.view-update",{databaseId:database.id,viewId:database.views[0].id,patch},()=>Object.assign(database.views[0],patch));render();}
 
-async function restoreWorkspace(file) {
-  const parsed = JSON.parse(await file.text());
-  const candidate = parsed?.exportVersion === "motion.workspace/1.0" ? parsed.workspace : parsed;
-  if (candidate?.schemaVersion !== 1 || !Array.isArray(candidate.pages)) throw new Error("Unsupported or invalid Motion workspace backup");
-  state = normalizeWorkspaceV1(candidate);
-  if (!state.pages.some((page) => page.id === state.activePageId && !page.deleted)) state.activePageId = state.pages.find(page => !page.deleted)?.id ?? null;
-  await persist();
-  render();
-}
+document.addEventListener("click",async event=>{const button=event.target.closest("button");if(!button)return;try{
+  if(button.dataset.openPage)return openPage(button.dataset.openPage);
+  if(button.hasAttribute("data-back"))return openPage(navigation.pop(),false);
+  if(button.dataset.create)return createPage(null,button.dataset.create==="database");
+  if(button.id==="addRootPage")return createPage();
+  if(button.id==="addRootDatabase")return createPage(null,true);
+  if(button.dataset.toggle){const set=new Set(state.expandedPageIds);set.has(button.dataset.toggle)?set.delete(button.dataset.toggle):set.add(button.dataset.toggle);state.expandedPageIds=[...set];await saveUi();return renderNavigation();}
+  if(button.dataset.favourite)return setFavourite(pageById(button.dataset.favourite),!pageById(button.dataset.favourite).favourite);
+  if(button.dataset.pageMenu)return showPageMenu(pageById(button.dataset.pageMenu));
+  if(button.dataset.confirmMove)return movePage(button.dataset.confirmMove,$("#moveParent").value||null);
+  if(button.dataset.addChild)return createPage(button.dataset.addChild);
+  if(button.dataset.addDatabase)return createPage(button.dataset.addDatabase,true);
+  if(button.dataset.restorePage)return restore(pageById(button.dataset.restorePage));
+  if(button.dataset.trashPage&&confirm("Move this page to Trash?"))return trash(pageById(button.dataset.trashPage));
+  if(button.dataset.movePage){const[id,delta]=button.dataset.movePage.split(":");return reorderPage(id,Number(delta));}
+  const page=activePage(),database=databaseForPage(page);
+  if(button.id==="addBlock"){checkpoint();page.blocks.push({id:uid(),type:"paragraph",text:"",children:[]});await replaceBlocks(page);return render();}
+  if(button.dataset.deleteBlock){checkpoint();page.blocks=page.blocks.filter(block=>block.id!==button.dataset.deleteBlock);await replaceBlocks(page);return render();}
+  if(button.dataset.moveBlock){checkpoint();const[id,delta]=button.dataset.moveBlock.split(":"),at=page.blocks.findIndex(block=>block.id===id),to=at+Number(delta);if(to>=0&&to<page.blocks.length)[page.blocks[at],page.blocks[to]]=[page.blocks[to],page.blocks[at]];await replaceBlocks(page);return render();}
+  if(button.id==="addRecord"){await commit("database.record-create",{databaseId:database.id,title:"Untitled",values:{}},()=>{const record={id:uid(),parentId:database.pageId,title:"Untitled",blocks:[],createdAt:now(),updatedAt:now(),collectionId:database.id,properties:{}};workspace().pages.push(record);database.recordPageIds.push(record.id);});return render();}
+  if(button.id==="addProperty"){const name=prompt("Property name","Property");if(!name)return;await commit("database.property-add",{databaseId:database.id,property:{name,type:"text"}},()=>{const property={id:uid(),name,type:"text"};database.properties.push(property);database.views[0].visiblePropertyIds.push(property.id);database.views[0].propertyOrder.push(property.id);});return render();}
+  if(button.dataset.propertyMenu)return showPropertyMenu(database,database.properties.find(property=>property.id===button.dataset.propertyMenu));
+  if(button.dataset.saveProperty){const property=database.properties.find(item=>item.id===button.dataset.saveProperty),type=$("#propertyType")?.value??"title",names=($("#propertyOptions")?.value??"").split(",").map(name=>name.trim()).filter(Boolean),options=names.map(name=>property.options?.find(option=>option.name===name)??{id:uid(),name}),visible=$("#propertyVisible").checked;await commit("database.property-update",{databaseId:database.id,propertyId:property.id,patch:{name:$("#propertyName").value,type,options:["select","multi-select","status"].includes(type)?options:undefined}},()=>Object.assign(property,{name:$("#propertyName").value,type,options:["select","multi-select","status"].includes(type)?options:undefined}));const ids=new Set(database.views[0].visiblePropertyIds);visible?ids.add(property.id):ids.delete(property.id);await updateView(database,{visiblePropertyIds:[...ids]});return;}
+  if(button.dataset.deleteProperty&&confirm("Delete this property and its values?")){await commit("database.property-delete",{databaseId:database.id,propertyId:button.dataset.deleteProperty},()=>{database.properties=database.properties.filter(property=>property.id!==button.dataset.deleteProperty);for(const record of database.recordPageIds.map(pageById))delete record.properties?.[button.dataset.deleteProperty];});return render();}
+  if(button.dataset.columnMove){const[id,delta]=button.dataset.columnMove.split(":"),order=[...database.views[0].propertyOrder],at=order.indexOf(id),to=at+Number(delta);if(to>=0&&to<order.length)[order[at],order[to]]=[order[to],order[at]];return updateView(database,{propertyOrder:order});}
+  if(button.id==="filterButton")return showFilter(database);if(button.id==="sortButton")return showSort(database);
+  if(button.id==="addFilterClause"){$("#filterClauses").insertAdjacentHTML("beforeend",filterRow(database,null,$("#filterClauses").children.length));return;}
+  if(button.dataset.removeFilter!==undefined){button.closest(".filter-clause").remove();return;}
+  if(button.id==="applyFilter"){const conditions=[...document.querySelectorAll(".filter-clause")].map(row=>{const property=database.properties.find(item=>item.id===row.querySelector("[data-filter-property]").value),operator=row.querySelector("[data-filter-operator]").value,raw=row.querySelector("[data-filter-value]").value,value=property.type==="number"?Number(raw):property.type==="checkbox"?raw==="true":raw;return{kind:"condition",propertyId:property.id,operator,...(!["is-empty","is-not-empty"].includes(operator)?{value}:{})};}),group=conditions.length===1?conditions[0]:{kind:$("#filterKind").value,children:conditions},filters=$("#filterNot").checked?{kind:"not",child:group}:group;return updateView(database,{filters});}
+  if(button.id==="clearFilter")return updateView(database,{filters:undefined});
+  if(button.id==="addSortClause"){$("#sortClauses").insertAdjacentHTML("beforeend",sortRow(database,{propertyId:database.properties[0].id,direction:"asc"},$("#sortClauses").children.length));return;}
+  if(button.dataset.removeSort!==undefined){button.closest(".sort-clause").remove();return;}
+  if(button.id==="applySort"){const sorts=[...document.querySelectorAll(".sort-clause")].map(row=>({propertyId:row.querySelector("[data-sort-property]").value,direction:row.querySelector("[data-sort-direction]").value}));return updateView(database,{sorts});}
+  if(button.id==="clearSort")return updateView(database,{sorts:[]});
+  if(button.id==="openSearch"){$("#searchDialog").showModal();$("#searchInput").value="";$("#searchInput").focus();return;}
+  if(button.id==="exportWorkspace")return exportWorkspace();
+  if(button.id==="restoreWorkspace")return $("#restoreFile").click();
+  if(button.id==="attachFile")return $("#attachmentFile").click();
+  if(button.id==="createVerifiedBackup")return createVerifiedBackup();
+  if(button.id==="restoreVerifiedBackup")return $("#verifiedBackupFile").click();
+  if(button.id==="openSidebar")return $("#sidebar").classList.add("open");if(button.id==="closeSidebar")return $("#sidebar").classList.remove("open");
+}catch(error){console.error(error);}});
 
-function addPage(parentId = null, type = "document") {
-  checkpoint();
-  const siblings = childrenOf(parentId);
-  const page = { id: uid(), parentId, order: siblings.length, type, title: type === "database" ? "Untitled database" : "Untitled page", blocks: type === "document" ? [{ id: uid(), type: "paragraph", text: "" }] : [], columns: type === "database" ? [{ id: uid(), name: "Name", type: "text" }] : [], rows: [] };
-  state.pages.push(page); state.activePageId = page.id; persist(); render();
-  requestAnimationFrame(() => $("#pageTitle")?.select());
-}
+$("#restoreFile").addEventListener("change",async event=>{const[file]=event.target.files;event.target.value="";if(file)try{await restoreWorkspace(file);}catch(error){alert(error.message);}});
+$("#attachmentFile").addEventListener("change",async event=>{const[file]=event.target.files;event.target.value="";if(file)try{await attachNativeFile(file);}catch(error){alert(error.message);}});
+$("#verifiedBackupFile").addEventListener("change",async event=>{const[file]=event.target.files;event.target.value="";if(file)try{await restoreVerifiedBackup(file);}catch(error){alert(error.message);}});
 
-function trashPage(pageId) {
-  checkpoint();
-  const doomed = new Set([pageId]);
-  let changed = true;
-  while (changed) { changed = false; state.pages.forEach((p) => { if (p.parentId && doomed.has(p.parentId) && !doomed.has(p.id)) { doomed.add(p.id); changed = true; } }); }
-  state.pages.forEach(page => { if (doomed.has(page.id)) page.deleted = true; });
-  if (doomed.has(state.activePageId)) state.activePageId = state.pages.find(page => !page.deleted)?.id ?? null;
-  persist(); render();
-}
+document.addEventListener("input",event=>{const target=event.target,page=activePage();if(target.id==="searchInput"){void renderSearch(target.value);return;}if(!page)return;if(target.id==="pageTitle"){void renamePage(page,target.value);return;}if(target.dataset.block){const block=page.blocks.find(item=>item.id===target.dataset.block);block.text=target.textContent;clearTimeout(editing);if(adapter.kind==="browser-development")void saveLocal();else editing=setTimeout(()=>void replaceBlocks(page),250);}if(target.dataset.columnWidth){const database=databaseForPage(page),widths={...database.views[0].columnWidths,[target.dataset.columnWidth]:Number(target.value)};clearTimeout(editing);editing=setTimeout(()=>void updateView(database,{columnWidths:widths}),250);}});
+document.addEventListener("change",event=>{const target=event.target,page=activePage();if(!page)return;const database=databaseForPage(page);if(target.dataset.property){const record=target.dataset.record?pageById(target.dataset.record):page,property=database.properties.find(item=>item.id===target.dataset.property);void updateRecord(record,property,readProperty(target,property)).then(render);}if(target.dataset.blockType){const block=page.blocks.find(item=>item.id===target.dataset.blockType);block.type=target.value;if(block.type==="task")block.checked??=false;void replaceBlocks(page).then(render);}if(target.dataset.task){page.blocks.find(item=>item.id===target.dataset.task).checked=target.checked;void replaceBlocks(page);}});
+document.addEventListener("focusin",event=>{if(event.target.id==="pageTitle"||event.target.dataset?.block)checkpoint();});
+document.addEventListener("focusout",event=>{if(event.target.dataset?.block){clearTimeout(editing);editing=null;void replaceBlocks(activePage());}});
+document.addEventListener("keydown",event=>{const mod=event.ctrlKey||event.metaKey;if(mod&&event.key.toLowerCase()==="k"){event.preventDefault();$("#openSearch").click();return;}if(mod&&event.key.toLowerCase()==="z"){event.preventDefault();const stack=event.shiftKey?future:history,other=event.shiftKey?history:future;if(stack.length){other.push(snapshot());state=JSON.parse(stack.pop());void saveLocal();render();}return;}const input=event.target.closest?.("[data-block]");if(!input)return;const page=activePage(),at=page.blocks.findIndex(block=>block.id===input.dataset.block),block=page.blocks[at];if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();checkpoint();const next={id:uid(),type:block.type==="divider"?"paragraph":block.type,text:"",children:[]};page.blocks.splice(at+1,0,next);void replaceBlocks(page).then(()=>{render();requestAnimationFrame(()=>document.querySelector(`[data-block="${next.id}"]`)?.focus());});}if(mod&&event.key.toLowerCase()==="d"){event.preventDefault();checkpoint();const copy=structuredClone(block);copy.id=uid();page.blocks.splice(at+1,0,copy);void replaceBlocks(page).then(render);}if(event.altKey&&["ArrowUp","ArrowDown"].includes(event.key)){event.preventDefault();document.querySelector(`[data-move-block="${block.id}:${event.key==="ArrowUp"?-1:1}"]`)?.click();}});
+async function renderSearch(query){const term=query.trim();if(!term){$("#searchResults").innerHTML='<div class="search-hint">Search page titles and content.</div>';return;}let pages;if(adapter.kind==="tauri"){const hits=await adapter.search(term,50),ids=new Set(hits.map(hit=>hit.entityId));pages=visiblePages().filter(page=>ids.has(page.id)||page.blocks.some(block=>ids.has(block.id)));}else pages=visiblePages().filter(page=>page.title.toLowerCase().includes(term.toLowerCase())||page.blocks.some(block=>block.text.toLowerCase().includes(term.toLowerCase())));$("#searchResults").innerHTML=pages.length?pages.map(page=>`<button data-open-page="${page.id}" onclick="this.closest('dialog').close()"><span>□</span><strong>${escapeHtml(page.title)}</strong></button>`).join(""):`<div class="search-hint">No results for “${escapeHtml(term)}”.</div>`;}
 
-function restorePage(pageId) {
-  checkpoint();
-  const restored = new Set([pageId]);
-  let changed = true;
-  while (changed) { changed = false; state.pages.forEach(page => { if (page.parentId && restored.has(page.parentId) && !restored.has(page.id)) { restored.add(page.id); changed = true; } }); }
-  let current = state.pages.find(page => page.id === pageId);
-  while (current) { restored.add(current.id); current = state.pages.find(page => page.id === current.parentId); }
-  state.pages.forEach(page => { if (restored.has(page.id)) page.deleted = false; });
-  state.activePageId = pageId; persist(); render();
-}
-
-function renderTrash() {
-  const roots = state.pages.filter(page => page.deleted && (!page.parentId || !state.pages.find(parent => parent.id === page.parentId)?.deleted));
-  $("#trashList").innerHTML = roots.length ? roots.map(page => `<div class="tree-row"><span class="disclosure" aria-hidden="true">×</span><span class="page-link">${escapeHtml(page.title || "Untitled")}</span><button class="row-action" data-restore-page="${page.id}" type="button" aria-label="Restore ${escapeHtml(page.title || "Untitled")}">Restore</button></div>`).join("") : `<div class="empty-nav">Trash is empty</div>`;
-}
-
-function renderTree(parentId = null, depth = 0) {
-  return childrenOf(parentId).map((page) => {
-    const kids = childrenOf(page.id);
-    return `<div class="tree-branch"><div class="tree-row ${page.id === state.activePageId ? "active" : ""}" style="--depth:${depth}">
-      <span class="disclosure" aria-hidden="true">${kids.length ? "⌄" : ""}</span>
-      <button class="page-link" data-open-page="${page.id}" type="button"><span aria-hidden="true">${page.type === "database" ? "▦" : "□"}</span><span>${escapeHtml(page.title || "Untitled")}</span></button>
-      <button class="row-action" data-move-page="${page.id}:-1" type="button" aria-label="Move ${escapeHtml(page.title)} up">↑</button><button class="row-action" data-move-page="${page.id}:1" type="button" aria-label="Move ${escapeHtml(page.title)} down">↓</button><button class="row-action" data-add-child="${page.id}" type="button" aria-label="Add page inside ${escapeHtml(page.title)}">+</button>
-    </div>${kids.length ? `<div>${renderTree(page.id, depth + 1)}</div>` : ""}</div>`;
-  }).join("");
-}
-
-function ancestors(page) {
-  const path = []; let current = page;
-  while (current) { path.unshift(current); current = state.pages.find((p) => p.id === current.parentId); }
-  return path;
-}
-
-function render() {
-  $("#pageTree").innerHTML = state.pages.length ? renderTree() : `<div class="empty-nav">No pages yet</div>`;
-  renderTrash();
-  const page = activePage();
-  if (!page) { renderEmptyWorkspace(); renderContext(null); return; }
-  $("#breadcrumbs").innerHTML = ancestors(page).map((item) => `<button type="button" data-open-page="${item.id}">${escapeHtml(item.title || "Untitled")}</button>`).join(`<span aria-hidden="true">/</span>`);
-  if (page.type === "database") renderDatabase(page); else renderDocument(page);
-  renderContext(page);
-}
-
-function renderEmptyWorkspace() {
-  $("#breadcrumbs").innerHTML = "Workspace";
-  const storageCopy = workspaceStore.kind === "tauri" ? "Stored through Motion's native service." : "Browser development mode uses IndexedDB, not the native SQLite service.";
-  $("#content").innerHTML = `<div class="empty-state"><div class="empty-icon" aria-hidden="true">◇</div><h1>Your workspace is ready</h1><p>${storageCopy}</p><div class="empty-actions"><button class="primary" data-create="document" type="button">New page</button><button data-create="database" type="button">New table</button></div></div>`;
-}
-
-function renderDocument(page) {
-  page.blocks ||= [];
-  const blocks = page.blocks.map((block, index) => {
-    const known = BLOCK_TYPES.includes(block.type), type = known ? block.type : "unknown";
-    const input = block.type === "divider" ? `<hr aria-label="Divider">` : `<div class="block-input ${type}" contenteditable="true" role="textbox" data-block="${block.id}" data-placeholder="Type text, or [[Page name]]">${escapeHtml(block.text || "")}</div>`;
-    return `<div class="block-row ${type}" data-block-id="${block.id}" style="--indent:${block.indent || 0}"><div class="block-tools"><button type="button" data-move-block="${block.id}:-1" aria-label="Move block up" ${index ? "" : "disabled"}>↑</button><button type="button" data-move-block="${block.id}:1" aria-label="Move block down" ${index < page.blocks.length - 1 ? "" : "disabled"}>↓</button></div><select data-block-type="${block.id}" aria-label="Block type"><option value="${escapeHtml(block.type)}">${escapeHtml(blockLabel(block.type))}</option>${BLOCK_TYPES.filter(t => t !== block.type).map(t => `<option value="${t}">${blockLabel(t)}</option>`).join("")}</select>${block.type === "task" ? `<input class="task-check" type="checkbox" data-task="${block.id}" ${block.checked ? "checked" : ""} aria-label="Mark task complete">` : ""}<span class="block-handle" aria-hidden="true">⋮⋮</span>${input}<button class="delete-block" type="button" data-delete-block="${block.id}" aria-label="Delete block">×</button></div>`;
-  }).join("");
-  $("#content").innerHTML = `<article class="page"><div class="page-kicker"><span>Document</span><button class="danger-text" data-delete-page="${page.id}" type="button">Delete</button></div><input id="pageTitle" class="page-title" value="${escapeHtml(page.title)}" aria-label="Page title" placeholder="Untitled page" />
-    <div class="blocks">${blocks}</div><button class="add-block" id="addBlock" type="button">+ Add block</button></article>`;
-}
-
-function renderDatabase(page) {
-  const headers = page.columns.map((c) => `<th><input value="${escapeHtml(c.name)}" data-column-name="${c.id}" aria-label="Column name" /></th>`).join("");
-  const rows = page.rows.map((row) => `<tr>${page.columns.map((c) => `<td><input value="${escapeHtml(row.values[c.id] ?? "")}" data-cell="${row.id}:${c.id}" aria-label="${escapeHtml(c.name)}" /></td>`).join("")}<td class="row-tools"><button data-delete-row="${row.id}" type="button" aria-label="Delete row">×</button></td></tr>`).join("");
-  $("#content").innerHTML = `<article class="page database-page"><div class="page-kicker"><span>Table</span><button class="danger-text" data-delete-page="${page.id}" type="button">Delete</button></div><input id="pageTitle" class="page-title" value="${escapeHtml(page.title)}" aria-label="Database title" placeholder="Untitled database" />
-    <div class="table-toolbar"><span>${page.rows.length} ${page.rows.length === 1 ? "row" : "rows"}</span><button id="addColumn" type="button">+ Property</button></div><div class="table-wrap"><table><thead><tr>${headers}<th class="row-tools"></th></tr></thead><tbody>${rows}</tbody></table>${page.rows.length ? "" : `<div class="table-empty">No rows yet. Add the first item when you’re ready.</div>`}</div><button class="add-row" id="addRow" type="button">+ New row</button></article>`;
-}
-
-function linkedTitles(page) {
-  const text = page.blocks?.map((b) => b.text).join("\n") ?? "";
-  return [...text.matchAll(/\[\[([^\]]+)\]\]/g)].map((match) => match[1].trim().toLowerCase());
-}
-
-function refreshBlockLinks(block) {
-  const titles = [...(block.text || "").matchAll(/\[\[([^\]]+)\]\]/g)].map(match => match[1].trim());
-  block.links = titles.map(title => ({ pageId: state.pages.find(p => p.title.toLowerCase() === title.toLowerCase())?.id || null, title }));
-}
-
-function pageLinks(page) { return (page.blocks || []).flatMap(block => block.links || []); }
-
-function renderContext(page) {
-  $("#attachments").innerHTML = confirmedAttachments.length ? confirmedAttachments.map(item => `<div class="context-link"><span>↗</span>${escapeHtml(item.fileName)} (${Number(item.byteLength)} bytes, ${escapeHtml(item.sha256.slice(0, 12))}…)</div>`).join("") : `<p class="muted">No attachments confirmed this session.</p>`;
-  if (!page) { $("#outgoingLinks").innerHTML = $("#backlinks").innerHTML = `<p class="muted">Open a page to see connections.</p>`; return; }
-  (page.blocks || []).forEach(block => { if (!block.links) refreshBlockLinks(block); });
-  const outgoing = [...new Set(pageLinks(page).map(link => link.pageId))].map(id => state.pages.find(p => p.id === id)).filter(Boolean);
-  const broken = pageLinks(page).filter(link => !link.pageId);
-  const incoming = state.pages.filter((p) => p.id !== page.id && pageLinks(p).some(link => link.pageId === page.id));
-  const linksHtml = (items, empty) => items.length ? items.map((p) => `<button class="context-link ${p.archived ? "archived" : ""}" data-open-page="${p.id}" type="button"><span>↗</span>${escapeHtml(p.title)}${p.archived ? " (archived)" : ""}</button>`).join("") : `<p class="muted">${empty}</p>`;
-  $("#outgoingLinks").innerHTML = linksHtml(outgoing, "No page links yet. Type [[Page title]] in a block.") + broken.map(link => `<div class="broken-link" title="No page with this title">⚠ ${escapeHtml(link.title)}</div>`).join("");
-  $("#backlinks").innerHTML = linksHtml(incoming, "No pages link here yet.");
-}
-
-function openSearch() { $("#searchDialog").showModal(); $("#searchInput").value = ""; renderSearch(""); $("#searchInput").focus(); }
-let searchRequest = 0;
-async function renderSearch(query) {
-  const request = ++searchRequest;
-  const term = query.trim().toLowerCase();
-  if (!term) { $("#searchResults").innerHTML = `<div class="search-hint">Start typing to search page titles and document text.</div>`; return; }
-  let hits;
-  if (workspaceStore.kind === "tauri") {
-    const nativeHits = await workspaceStore.search(query, 50);
-    if (request !== searchRequest) return;
-    const seenPages = new Set();
-    hits = nativeHits.map(hit => {
-      const page = state.pages.find(candidate => candidate.id === hit.entityId || candidate.blocks?.some(block => block.id === hit.entityId));
-      if (!page || page.deleted || seenPages.has(page.id)) return null;
-      seenPages.add(page.id);
-      return { page, snippet: hit.snippet, native: true };
-    }).filter(Boolean);
-  } else {
-    hits = state.pages.filter((p) => !p.deleted && (p.title.toLowerCase().includes(term) || p.blocks?.some((b) => b.text.toLowerCase().includes(term)))).map(page => ({ page, snippet: page.type === "database" ? `${page.rows.length} rows` : "Browser development search", native: false }));
-  }
-  $("#searchResults").innerHTML = hits.length ? hits.map(({ page, snippet, native }) => `<button type="button" data-search-page="${page.id}"><span class="result-icon">${page.type === "database" ? "▦" : "□"}</span><span><strong>${escapeHtml(page.title)}</strong><small>${escapeHtml(snippet || (native ? "Indexed result" : "Document"))}</small></span></button>`).join("") : `<div class="search-hint">No results for “${escapeHtml(query)}”.</div>`;
-}
-
-document.addEventListener("click", (event) => {
-  const el = event.target.closest("button"); if (!el) return;
-  const openId = el.dataset.openPage; if (openId) { state.activePageId = openId; persist(); render(); $("#sidebar").classList.remove("open"); }
-  if (el.dataset.addChild) addPage(el.dataset.addChild);
-  if (el.dataset.movePage) { checkpoint(); const [id, deltaText] = el.dataset.movePage.split(":"); const page = state.pages.find(p => p.id === id), siblings = childrenOf(page.parentId), at = siblings.findIndex(p => p.id === id), to = at + Number(deltaText); if (to >= 0 && to < siblings.length) { const other = siblings[to]; [page.order, other.order] = [other.order, page.order]; persist(); render(); } }
-  if (el.dataset.create) addPage(null, el.dataset.create);
-  if (el.dataset.deletePage && confirm("Move this page and any pages inside it to Trash?")) trashPage(el.dataset.deletePage);
-  if (el.dataset.restorePage) restorePage(el.dataset.restorePage);
-  if (el.dataset.deleteBlock) { checkpoint(); const page = activePage(); page.blocks = page.blocks.filter((b) => b.id !== el.dataset.deleteBlock); persist(); render(); }
-  if (el.dataset.moveBlock) { checkpoint(); const [id, deltaText] = el.dataset.moveBlock.split(":"); const blocks = activePage().blocks, at = blocks.findIndex(b => b.id === id), to = at + Number(deltaText); if (at >= 0 && to >= 0 && to < blocks.length) [blocks[at], blocks[to]] = [blocks[to], blocks[at]]; persist(); render(); }
-  if (el.dataset.deleteRow) { const page = activePage(); page.rows = page.rows.filter((r) => r.id !== el.dataset.deleteRow); persist(); render(); }
-  if (el.dataset.searchPage) { state.activePageId = el.dataset.searchPage; persist(); $("#searchDialog").close(); render(); }
-  if (el.id === "addRootPage") addPage();
-  if (el.id === "addBlock") { checkpoint(); activePage().blocks.push({ id: uid(), type: "paragraph", text: "", indent:0, links:[] }); persist(); render(); requestAnimationFrame(() => [...document.querySelectorAll("[data-block]")].at(-1)?.focus()); }
-  if (el.id === "addColumn") { const page = activePage(), id = uid(); page.columns.push({ id, name: "Property", type: "text" }); persist(); render(); }
-  if (el.id === "addRow") { const page = activePage(); page.rows.push({ id: uid(), values: Object.fromEntries(page.columns.map((c) => [c.id, ""])) }); persist(); render(); }
-  if (el.id === "openSearch") openSearch();
-  if (el.id === "openSidebar") $("#sidebar").classList.add("open");
-  if (el.id === "closeSidebar") $("#sidebar").classList.remove("open");
-  if (el.id === "exportWorkspace") exportWorkspace().catch(error => alert(error instanceof Error ? error.message : "Export failed"));
-  if (el.id === "restoreWorkspace") $("#restoreFile").click();
-  if (el.id === "attachFile") $("#attachmentFile").click();
-  if (el.id === "createVerifiedBackup") createVerifiedBackup().catch(error => alert(error instanceof Error ? error.message : "Backup failed"));
-  if (el.id === "restoreVerifiedBackup") $("#verifiedBackupFile").click();
-  if (el.id === "homeButton" && !state.pages.length) renderEmptyWorkspace();
-});
-
-$("#attachmentFile").addEventListener("change", async event => {
-  const [file] = event.target.files; event.target.value = ""; if (!file) return;
-  try { await attachNativeFile(file); } catch (error) { alert(error instanceof Error ? error.message : "Attachment failed"); }
-});
-
-$("#verifiedBackupFile").addEventListener("change", async event => {
-  const [file] = event.target.files; event.target.value = ""; if (!file) return;
-  try { await restoreVerifiedBackup(file); } catch (error) { alert(error instanceof Error ? error.message : "Restore failed"); }
-});
-
-$("#restoreFile").addEventListener("change", async (event) => {
-  const [file] = event.target.files;
-  if (!file) return;
-  try {
-    await restoreWorkspace(file);
-  } catch (error) {
-    alert(error instanceof Error ? error.message : "Could not restore this backup");
-  } finally {
-    event.target.value = "";
-  }
-});
-
-document.addEventListener("input", (event) => {
-  if (event.target.id === "searchInput") {
-    renderSearch(event.target.value).catch(error => { $("#searchResults").innerHTML = `<div class="search-hint">${escapeHtml(error instanceof Error ? error.message : "Search failed")}</div>`; });
-    return;
-  }
-  const page = activePage(); if (!page) return;
-  if (event.target.id === "pageTitle") { const old = page.title; page.title = event.target.value; state.pages.forEach(p => (p.blocks || []).forEach(b => { if ((b.links || []).some(l => l.pageId === page.id)) { b.text = (b.text || "").replaceAll(`[[${old}]]`, `[[${page.title}]]`); (b.links || []).filter(l => l.pageId === page.id).forEach(l => l.title = page.title); } })); persist(); $("#pageTree").innerHTML = renderTree(); renderContext(page); }
-  if (event.target.dataset.block) { const block = page.blocks.find((b) => b.id === event.target.dataset.block); block.text = event.target.textContent; refreshBlockLinks(block); persist(); renderContext(page); }
-  if (event.target.dataset.columnName) { page.columns.find((c) => c.id === event.target.dataset.columnName).name = event.target.value; persist(); }
-  if (event.target.dataset.cell) { const [rowId, colId] = event.target.dataset.cell.split(":"); page.rows.find((r) => r.id === rowId).values[colId] = event.target.value; persist(); }
-});
-
-document.addEventListener("focusin", event => {
-  const key = event.target.id === "pageTitle" ? "title" : event.target.dataset?.block ? `block:${event.target.dataset.block}` : null;
-  if (key && editStartedFor !== key) { checkpoint(); editStartedFor = key; }
-});
-document.addEventListener("focusout", event => { if (event.target.id === "pageTitle" || event.target.dataset?.block) editStartedFor = null; });
-
-document.addEventListener("change", event => {
-  const page = activePage(); if (!page) return;
-  if (event.target.dataset.blockType) { checkpoint(); const block = page.blocks.find(b => b.id === event.target.dataset.blockType); block.type = event.target.value; if (block.type === "task") block.checked ||= false; persist(); render(); requestAnimationFrame(() => document.querySelector(`[data-block="${block.id}"]`)?.focus()); }
-  if (event.target.dataset.task) { checkpoint(); page.blocks.find(b => b.id === event.target.dataset.task).checked = event.target.checked; persist(); }
-});
-
-document.addEventListener("keydown", (event) => {
-  const mod = event.ctrlKey || event.metaKey;
-  if (mod && event.key.toLowerCase() === "k") { event.preventDefault(); openSearch(); return; }
-  if (mod && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? redo() : undo(); return; }
-  if (mod && event.key.toLowerCase() === "y") { event.preventDefault(); redo(); return; }
-  const input = event.target.closest?.("[data-block]"); if (!input) return;
-  const page = activePage(), id = input.dataset.block, at = page.blocks.findIndex(b => b.id === id), block = page.blocks[at];
-  if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); checkpoint(); const next = { id:uid(), type:block.type === "divider" ? "paragraph" : block.type, text:"", indent:block.indent || 0, links:[] }; page.blocks.splice(at + 1, 0, next); persist(); render(); requestAnimationFrame(() => document.querySelector(`[data-block="${next.id}"]`)?.focus()); }
-  if (event.key === "Tab") { event.preventDefault(); checkpoint(); block.indent = Math.max(0, Math.min(4, (block.indent || 0) + (event.shiftKey ? -1 : 1))); persist(); render(); requestAnimationFrame(() => document.querySelector(`[data-block="${id}"]`)?.focus()); }
-  if (mod && event.key.toLowerCase() === "d") { event.preventDefault(); checkpoint(); const copy = structuredClone(block); copy.id = uid(); page.blocks.splice(at + 1, 0, copy); persist(); render(); }
-  if (mod && event.key === "Backspace") { event.preventDefault(); checkpoint(); page.blocks.splice(at, 1); persist(); render(); requestAnimationFrame(() => document.querySelectorAll("[data-block]")[Math.max(0, at - 1)]?.focus()); }
-  if (event.altKey && ["ArrowUp","ArrowDown"].includes(event.key)) { event.preventDefault(); const to = at + (event.key === "ArrowUp" ? -1 : 1); if (to >= 0 && to < page.blocks.length) { checkpoint(); [page.blocks[at], page.blocks[to]] = [page.blocks[to], page.blocks[at]]; persist(); render(); requestAnimationFrame(() => document.querySelector(`[data-block="${id}"]`)?.focus()); } }
-});
-$("#saveState").textContent = workspaceStore.kind === "tauri" ? "Connected to Motion" : "Browser development mode";
-for (const id of ["attachFile", "createVerifiedBackup", "restoreVerifiedBackup"]) {
-  const button = $(`#${id}`); button.disabled = workspaceStore.kind !== "tauri";
-  if (button.disabled) button.title = "Available in the native Motion application";
-}
+$("#saveState").textContent=adapter.kind==="tauri"?"Connected to Motion":"Browser development mode";
+for(const id of ["attachFile","createVerifiedBackup","restoreVerifiedBackup"]){const button=$(`#${id}`);button.disabled=adapter.kind!=="tauri";if(button.disabled)button.title="Available in the native Motion application";}
 render();

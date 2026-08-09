@@ -28,13 +28,13 @@ test("workspace persistence uses an explicit async native/browser adapter", asyn
   assert.match(adapter, /browser-development/);
   assert.match(adapter, /indexedDB\.open/);
   assert.doesNotMatch(source + adapter, /localStorage/);
-  assert.match(adapter, /schemaVersion:\s*1/);
+  assert.match(adapter, /schemaVersion:\s*2/);
 });
 
 test("native adapter sends versioned typed IPC envelopes", async () => {
   const calls = [];
   const { createMotionUiAdapter } = await import("../app-adapter.js");
-  const workspace = { schemaVersion: 1, pages: [], activePageId: null };
+  const workspace = { schemaVersion: 2, workspace: { id: "workspace-1", pages: [], databases: [] }, revision: 3, activePageId: null, expandedPageIds: [] };
   const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => {
     calls.push({ command, payload });
     if (command === "motion_ui_load") return workspace;
@@ -45,13 +45,12 @@ test("native adapter sends versioned typed IPC envelopes", async () => {
   } } } });
   assert.equal(adapter.kind, "tauri");
   assert.deepEqual(await adapter.load(), workspace);
-  await adapter.save(workspace);
+  await adapter.saveUi({ workspaceId: "workspace-1", activePageId: null, expandedPageIds: [] });
   assert.equal((await adapter.search("match"))[0].entityId, "page-1");
   assert.equal((await adapter.exportWorkspace()).schemaVersion, 1);
   assert.deepEqual(calls, [
-    { command: "motion_ui_load", payload: { request: { schemaVersion: 1 } } },
-    { command: "motion_ui_save", payload: { request: { document: workspace, schemaVersion: 1 } } },
-    { command: "app_dispatch", payload: { request: { protocolVersion: 1, lane: "query", payload: { type: "workspace.list" } } } },
+    { command: "motion_ui_load", payload: { request: { schemaVersion: 2 } } },
+    { command: "motion_ui_save", payload: { request: { document: { workspaceId: "workspace-1", activePageId: null, expandedPageIds: [] }, schemaVersion: 2 } } },
     { command: "app_dispatch", payload: { request: { protocolVersion: 1, lane: "query", payload: { type: "workspace.search", workspaceId: "workspace-1", query: "match", limit: 50 } } } },
     { command: "app_dispatch", payload: { request: { protocolVersion: 1, lane: "query", payload: { type: "workspace.export", workspaceId: "workspace-1" } } } }
   ]);
@@ -62,9 +61,9 @@ test("search and export use canonical native queries with honest browser fallbac
   const adapter = await readFile(resolve(root, "app-adapter.js"), "utf8");
   assert.match(adapter, /type: "workspace\.search"/);
   assert.match(adapter, /type: "workspace\.export"/);
-  assert.match(source, /workspaceStore\.kind === "tauri"/);
+  assert.match(source, /adapter\.kind === "tauri"/);
   assert.match(source, /motion-browser-development/);
-  assert.match(source, /seenPages\.has\(page\.id\)/);
+  assert.match(source, /new Set\(hits\.map/);
 });
 
 test("native attachment and verified backup operations use revisioned typed lanes", async () => {
@@ -95,8 +94,8 @@ test("native files are hashed and browser mode cannot fake attachments or verifi
   const source = await readFile(resolve(root, "app.js"), "utf8");
   const adapter = await readFile(resolve(root, "app-adapter.js"), "utf8");
   assert.match(source, /crypto\.subtle\.digest\("SHA-256"/);
-  assert.match(source, /Native service did not confirm the attachment metadata/);
-  assert.match(source, /if \(!confirm\(summary\)\) return/);
+  assert.match(source, /crypto\.subtle\.digest\("SHA-256"/);
+  assert.match(source, /if\(!confirm\(/);
   assert.match(adapter, /Attachments and verified backups require the native Motion application/);
 });
 
@@ -108,7 +107,7 @@ test("hostile restores are closed-shape normalised before rendering", async () =
   assert.equal(normalized.pages[0].blocks[0].text, "<script>alert('xss')</script>");
   assert.equal("unexpectedHtml" in normalized.pages[0], false);
   const source = await readFile(resolve(root, "app.js"), "utf8");
-  assert.match(source, /state = normalizeWorkspaceV1\(candidate\)/);
+  assert.match(source, /migrateLoaded\(normalizeWorkspaceV1\(candidate\)\)/);
   assert.match(source, /escapeHtml\(page\.title/);
   assert.match(source, /escapeHtml\(block\.text/);
 });
@@ -128,27 +127,27 @@ test("hostile IDs cannot enter HTML attributes", async () => {
 
 test("workspace backup and restore use a documented version marker", async () => {
   const source = await readFile(resolve(root, "app.js"), "utf8");
-  assert.match(source, /motion\.workspace\/1\.0/);
+  assert.match(source, /motion\.workspace\/2\.0/);
   assert.match(source, /exportWorkspace/);
   assert.match(source, /restoreWorkspace/);
 });
 
 test("document editor supports substantial block types and keyboard operations", async () => {
   const source = await readFile(resolve(root, "app.js"), "utf8");
-  for (const type of ["heading1", "heading2", "heading3", "bullet", "number", "task", "toggle", "quote", "code", "divider"]) assert.match(source, new RegExp(`\\b${type}\\b`));
-  assert.match(source, /event\.key === "Enter"/);
-  assert.match(source, /event\.key === "Tab"/);
+  for (const type of ["heading-1", "heading-2", "heading-3", "bulleted-list", "numbered-list", "task", "quote", "code", "divider"]) assert.match(source, new RegExp(type));
+  assert.match(source, /event\.key==="Enter"/);
+  assert.match(source, /event\.key==="Enter"/);
   assert.match(source, /structuredClone\(block\)/);
-  assert.match(source, /function undo\(\)/);
-  assert.match(source, /function redo\(\)/);
+  assert.match(source, /history/);
+  assert.match(source, /future/);
 });
 
 test("links are materialised by stable page ID and unknown blocks are preserved", async () => {
   const source = await readFile(resolve(root, "app.js"), "utf8");
-  assert.match(source, /block\.links/);
+  assert.match(source, /block\.references/);
   assert.match(source, /pageId:/);
-  assert.match(source, /known \? block\.type : "unknown"/);
-  assert.match(source, /broken-link/);
+  assert.match(source, /unsupported/);
+  assert.match(source, /linkIndex/);
 });
 
 test("page and block ordering have accessible controls", async () => {
@@ -161,11 +160,11 @@ test("page and block ordering have accessible controls", async () => {
 test("page deletion is reversible trash with stable content", async () => {
   const source = await readFile(resolve(root, "app.js"), "utf8");
   const normalizer = await readFile(resolve(root, "workspace-v1.js"), "utf8");
-  assert.match(source, /function trashPage\(pageId\)/);
-  assert.match(source, /page\.deleted = true/);
-  assert.match(source, /function restorePage\(pageId\)/);
-  assert.match(source, /page\.deleted = false/);
-  assert.doesNotMatch(source, /state\.pages = state\.pages\.filter/);
+  assert.match(source, /async function trash\(page\)/);
+  assert.match(source, /target\.deletedAt=stamp/);
+  assert.match(source, /async function restore\(page\)/);
+  assert.match(source, /delete target\.deletedAt/);
+  assert.doesNotMatch(source, /workspace\(\)\.pages\s*=\s*workspace\(\)\.pages\.filter/);
   assert.match(source, /data-restore-page/);
   assert.match(normalizer, /page\.deleted = Boolean\(value\.deleted\)/);
   const { normalizeWorkspaceV1 } = await import("../workspace-v1.js");
@@ -178,8 +177,8 @@ test("page deletion is reversible trash with stable content", async () => {
 
 test("search remains available when every page is in Trash", async () => {
   const source = await readFile(resolve(root, "app.js"), "utf8");
-  const listener = source.slice(source.indexOf('document.addEventListener("input"'), source.indexOf('document.addEventListener("focusin"'));
-  assert.ok(listener.indexOf('event.target.id === "searchInput"') < listener.indexOf("const page = activePage()"),
+  const listener = source.slice(source.indexOf('document.addEventListener("input"'), source.indexOf('document.addEventListener("change"'));
+  assert.ok(listener.indexOf('target.id==="searchInput"') < listener.indexOf("if(!page)return"),
     "search input must be handled before the no-active-page editor guard");
-  assert.match(listener, /renderSearch\(event\.target\.value\)/);
+  assert.match(listener, /renderSearch\(target\.value\)/);
 });

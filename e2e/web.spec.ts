@@ -51,7 +51,7 @@ test("local Web workspace persists, searches and exports without external networ
   });
 
   page.once("dialog", dialog => dialog.accept());
-  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByRole("button", { name: "Trash", exact: true }).click();
   const pageNavigation = page.getByRole("navigation", { name: "Workspace pages" });
   const trashNavigation = page.getByRole("navigation", { name: "Trash" });
   await expect(pageNavigation.getByRole("button", { name: "Pump commissioning notes", exact: true })).toHaveCount(0);
@@ -78,11 +78,11 @@ test("local Web workspace persists, searches and exports without external networ
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
       });
-      return workspace.pages.find((candidate: any) => candidate.title === "Pump commissioning notes");
+      return workspace.workspace.pages.find((candidate: any) => candidate.title === "Pump commissioning notes");
     } finally { database.close(); }
   });
   expect(trashedPage).toMatchObject({
-    deleted: true,
+    deletedAt: expect.any(String),
     blocks: [expect.objectContaining({ text: "Verified local pressure and flow before startup." })]
   });
 
@@ -95,4 +95,62 @@ test("local Web workspace persists, searches and exports without external networ
 
   expect(externalRequests, `unexpected external HTTP(S) requests: ${externalRequests.join(", ")}`).toEqual([]);
   expect(externalSockets, `unexpected external WebSockets: ${externalSockets.join(", ")}`).toEqual([]);
+});
+
+test("typed table records open as pages and retain view state", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "New table" }).click();
+  await page.getByRole("textbox", { name: "Page title" }).fill("Jobs");
+
+  page.once("dialog", dialog => dialog.accept("Status"));
+  await page.getByRole("button", { name: "+ Property" }).click();
+  await page.locator('[data-property-menu]').filter({ hasText: "Status" }).click();
+  await page.locator("#propertyType").selectOption("status");
+  await page.locator("#propertyOptions").fill("To do, In progress, Done");
+  await page.getByRole("button", { name: "Save" }).click();
+
+  page.once("dialog", dialog => dialog.accept("Cost"));
+  await page.getByRole("button", { name: "+ Property" }).click();
+  await page.locator('[data-property-menu]').filter({ hasText: "Cost" }).click();
+  await page.locator("#propertyType").selectOption("number");
+  await page.getByRole("button", { name: "Save" }).click();
+
+  await page.getByRole("button", { name: "+ New record" }).click();
+  await page.getByRole("button", { name: "Untitled", exact: true }).click();
+  await page.getByRole("textbox", { name: "Page title" }).fill("Replace heat pump");
+  await page.getByLabel("Status").selectOption({ label: "In progress" });
+  await page.getByLabel("Cost").fill("4200");
+  await page.getByRole("button", { name: "+ Add block" }).click();
+  await page.locator('[contenteditable="true"][data-block]').last().fill("Need quotes from three suppliers.");
+
+  await page.getByRole("button", { name: "Jobs", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Replace heat pump" })).toBeVisible();
+  await expect(page.getByLabel("Status", { exact: true })).toHaveValue(/.+/);
+  await expect(page.getByLabel("Cost", { exact: true })).toHaveValue("4200");
+
+  await page.getByRole("button", { name: "Sort" }).click();
+  await page.locator("[data-sort-property]").first().selectOption({ label: "Status" });
+  await page.getByRole("button", { name: "+ Clause" }).click();
+  await page.locator("[data-sort-property]").nth(1).selectOption({ label: "Cost" });
+  await page.locator("[data-sort-direction]").nth(1).selectOption("desc");
+  await page.getByRole("button", { name: "Apply sorts" }).click();
+
+  await page.getByRole("button", { name: "Filter" }).click();
+  await page.locator("#filterProperty").selectOption({ label: "Status" });
+  await page.locator("#filterOperator").selectOption("not-equals");
+  const statusValue = await page.getByLabel("Status", { exact: true }).inputValue();
+  await page.locator("#filterValue").fill(statusValue);
+  await page.getByRole("button", { name: "Apply" }).click();
+  await expect(page.getByRole("button", { name: "Replace heat pump" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Filter" }).click();
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect(page.getByRole("button", { name: "Replace heat pump" })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Page title" })).toHaveValue("Jobs");
+  await expect(page.getByRole("button", { name: "Replace heat pump" })).toBeVisible();
+  await page.getByRole("button", { name: "Replace heat pump" }).click();
+  await expect(page.getByLabel("Status", { exact: true })).not.toHaveValue("");
+  await expect(page.getByLabel("Cost", { exact: true })).toHaveValue("4200");
+  await expect(page.locator('[contenteditable="true"][data-block]').last()).toHaveText("Need quotes from three suppliers.");
 });

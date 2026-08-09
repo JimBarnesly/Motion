@@ -32,7 +32,7 @@ const uiStatePath = join(dataRoot, "ui-state.json");
 const readUiState = () => { try { hardenPrivateFile(uiStatePath); return JSON.parse(readFileSync(uiStatePath, "utf8")); } catch (error) { if (error?.code === "ENOENT") return {}; throw error; } };
 const writeUiState = state => {
   const temporary = `${uiStatePath}.${randomUUID()}.tmp`;
-  writeFileSync(temporary, JSON.stringify({ schemaVersion: 1, workspaceId: state.workspaceId, activePageId: state.activePageId ?? null }), { flag: "wx", mode: 0o600 });
+  writeFileSync(temporary, JSON.stringify({ schemaVersion: 1, workspaceId: state.workspaceId, activePageId: state.activePageId ?? null, expandedPageIds: Array.isArray(state.expandedPageIds) ? state.expandedPageIds : [] }), { flag: "wx", mode: 0o600 });
   renameSync(temporary, uiStatePath);
   hardenPrivateFile(uiStatePath);
 };
@@ -53,6 +53,14 @@ async function dispatch(rawRequest) {
     case "async-query": result = await service.queryAsync(request.payload); break;
     case "ui-load": {
       const summaries = service.query({ type: "workspace.list" });
+      if (request.payload?.schemaVersion === 2) {
+        if (!summaries.length) { result = { schemaVersion: 2, workspace: null, revision: 0, activePageId: null }; break; }
+        const uiState = readUiState();
+        const selected = summaries.find(summary => summary.id === uiState.workspaceId) ?? summaries[0];
+        const loaded = service.query({ type: "workspace.get", workspaceId: selected.id });
+        result = { schemaVersion: 2, ...loaded, activePageId: loaded.workspace.pages.some(page => page.id === uiState.activePageId && !page.deletedAt) ? uiState.activePageId : loaded.workspace.pages.find(page => !page.deletedAt)?.id ?? null, expandedPageIds: Array.isArray(uiState.expandedPageIds) ? uiState.expandedPageIds : [] };
+        break;
+      }
       if (!summaries.length) { result = { schemaVersion: 1, pages: [], activePageId: null }; break; }
       const uiState = readUiState();
       const selected = summaries.find(summary => summary.id === uiState.workspaceId) ?? summaries[0];
@@ -70,6 +78,11 @@ async function dispatch(rawRequest) {
     }
     case "ui-save": {
       const candidate = request.payload?.document;
+      if (request.payload?.schemaVersion === 2) {
+        const summaries = service.query({ type: "workspace.list" }); const current = summaries.find(summary => summary.id === candidate?.workspaceId) ?? summaries[0];
+        if (current) writeUiState({ workspaceId: current.id, activePageId: candidate?.activePageId ?? null, expandedPageIds: candidate?.expandedPageIds });
+        result = { saved: true }; break;
+      }
       const summaries = service.query({ type: "workspace.list" });
       const uiState = readUiState();
       const existing = summaries.find(summary => summary.id === uiState.workspaceId) ?? summaries[0];

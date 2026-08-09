@@ -266,16 +266,19 @@ export class MotionAppService {
     switch (command.type) {
       case "page.create": document.addPage(requiredText(command.title, "title", true), command.parentId ?? null); break;
       case "page.rename": {
-        const page = requiredPage(document, command.pageId); page.title = requiredText(command.title, "title", true); page.updatedAt = new Date().toISOString(); document.data.updatedAt = page.updatedAt; break;
+        const page = requiredPage(document, command.pageId); page.title = requiredText(command.title, "title", true); const database = document.data.databases.find(candidate => candidate.pageId === page.id); if (database) database.name = page.title; page.updatedAt = new Date().toISOString(); document.data.updatedAt = page.updatedAt; break;
       }
       case "page.move": document.movePage(requiredText(command.pageId, "pageId"), command.parentId); break;
       case "page.reorder": document.reorderPage(requiredText(command.pageId, "pageId"), command.beforePageId); break;
       case "page.set-favourite": { const page = requiredPage(document, command.pageId); page.favourite = Boolean(command.favourite); page.updatedAt = new Date().toISOString(); document.data.updatedAt = page.updatedAt; break; }
       case "page.trash": {
-        const page = requiredPage(document, command.pageId); page.deletedAt = new Date().toISOString(); page.updatedAt = page.deletedAt; document.data.updatedAt = page.deletedAt; break;
+        const page = requiredPage(document, command.pageId); const timestamp = new Date().toISOString(); for (const target of [page, ...document.descendants(page.id)]) { target.deletedAt = timestamp; target.updatedAt = timestamp; } document.data.updatedAt = timestamp; break;
       }
       case "page.restore": {
-        const page = requiredPage(document, command.pageId); delete page.deletedAt; page.updatedAt = new Date().toISOString(); document.data.updatedAt = page.updatedAt; break;
+        const page = requiredPage(document, command.pageId); const timestamp = new Date().toISOString(); const targets = new Set([page]); let changed = true;
+        while (changed) { changed = false; for (const candidate of document.data.pages) if (candidate.parentId && [...targets].some(target => target.id === candidate.parentId) && !targets.has(candidate)) { targets.add(candidate); changed = true; } }
+        for (const target of [...targets]) { for (let parent = target.parentId ? document.page(target.parentId) : undefined; parent; parent = parent.parentId ? document.page(parent.parentId) : undefined) targets.add(parent); }
+        for (const target of targets) { delete target.deletedAt; target.updatedAt = timestamp; } document.data.updatedAt = timestamp; break;
       }
       case "page.replace-blocks": {
         const page = requiredPage(document, command.pageId); page.blocks = clone(command.blocks) as Block[]; page.updatedAt = new Date().toISOString(); document.data.updatedAt = page.updatedAt;

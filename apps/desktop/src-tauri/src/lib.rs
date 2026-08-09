@@ -64,11 +64,26 @@ fn validate_dispatch_request(request: &IpcRequest) -> Result<(), IpcError> {
         .and_then(Value::as_str)
         .ok_or_else(|| reject("INVALID_INPUT", "IPC payload requires an operation type"))?;
     // Keep this list aligned with production callers in apps/web/app-adapter.js.
-    // Page/workspace mutations use the separately validated motion_ui_save command.
     let allowed: &[&str] = match (request.lane.as_str(), operation) {
         ("query", "workspace.list") => &["type"],
+        ("query", "workspace.get") => &["type", "workspaceId"],
         ("query", "workspace.export") => &["type", "workspaceId"],
         ("query", "workspace.search") => &["type", "workspaceId", "query", "limit"],
+        ("command", "workspace.create") => &["type", "name"],
+        ("command", "page.create") => &["type", "workspaceId", "expectedRevision", "title", "parentId"],
+        ("command", "page.rename") => &["type", "workspaceId", "expectedRevision", "pageId", "title"],
+        ("command", "page.move") => &["type", "workspaceId", "expectedRevision", "pageId", "parentId"],
+        ("command", "page.reorder") => &["type", "workspaceId", "expectedRevision", "pageId", "beforePageId"],
+        ("command", "page.set-favourite") => &["type", "workspaceId", "expectedRevision", "pageId", "favourite"],
+        ("command", "page.trash" | "page.restore") => &["type", "workspaceId", "expectedRevision", "pageId"],
+        ("command", "page.replace-blocks") => &["type", "workspaceId", "expectedRevision", "pageId", "blocks"],
+        ("command", "database.create") => &["type", "workspaceId", "expectedRevision", "title", "parentId"],
+        ("command", "database.property-add") => &["type", "workspaceId", "expectedRevision", "databaseId", "property"],
+        ("command", "database.property-update") => &["type", "workspaceId", "expectedRevision", "databaseId", "propertyId", "patch"],
+        ("command", "database.property-delete") => &["type", "workspaceId", "expectedRevision", "databaseId", "propertyId"],
+        ("command", "database.record-create") => &["type", "workspaceId", "expectedRevision", "databaseId", "title", "values"],
+        ("command", "database.record-update") => &["type", "workspaceId", "expectedRevision", "pageId", "title", "values"],
+        ("command", "database.view-update") => &["type", "workspaceId", "expectedRevision", "databaseId", "viewId", "patch"],
         ("async-command", "attachment.put") => &[
             "type",
             "workspaceId",
@@ -193,22 +208,22 @@ async fn app_dispatch(app: tauri::AppHandle, request: IpcRequest) -> Result<Valu
 
 #[tauri::command]
 async fn motion_ui_load(app: tauri::AppHandle, request: UiLoadRequest) -> Result<Value, IpcError> {
-    if request.schema_version != 1 {
+    if request.schema_version != 1 && request.schema_version != 2 {
         return Err(reject("INVALID_INPUT", "Unsupported UI schema version"));
     }
     run_service(
         app,
-        serde_json::json!({ "lane": "ui-load", "payload": { "schemaVersion": 1 } }),
+        serde_json::json!({ "lane": "ui-load", "payload": { "schemaVersion": request.schema_version } }),
     )
     .await
 }
 
 #[tauri::command]
 async fn motion_ui_save(app: tauri::AppHandle, request: UiSaveRequest) -> Result<Value, IpcError> {
-    if request.schema_version != 1 {
+    if request.schema_version != 1 && request.schema_version != 2 {
         return Err(reject("INVALID_INPUT", "Unsupported UI schema version"));
     }
-    run_service(app, serde_json::json!({ "lane": "ui-save", "payload": { "schemaVersion": 1, "document": request.document } })).await
+    run_service(app, serde_json::json!({ "lane": "ui-save", "payload": { "schemaVersion": request.schema_version, "document": request.document } })).await
 }
 
 async fn run_service(app: tauri::AppHandle, envelope: Value) -> Result<Value, IpcError> {

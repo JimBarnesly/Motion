@@ -10,7 +10,11 @@ const DB_NAME = "motion-web-development";
 const STORE_NAME = "workspace";
 const WORKSPACE_KEY = "default";
 
-function validWorkspace(value) { return value === undefined ? structuredClone(EMPTY_WORKSPACE) : normalizeWorkspaceV1(value); }
+function validWorkspace(value) {
+  if (value === undefined) return structuredClone(EMPTY_WORKSPACE);
+  if (value?.schemaVersion === 2 && (value.workspace === null || (value.workspace && Array.isArray(value.workspace.pages) && Array.isArray(value.workspace.databases)))) return structuredClone(value);
+  return normalizeWorkspaceV1(value);
+}
 
 function openDevelopmentDatabase() {
   return new Promise((resolve, reject) => {
@@ -41,6 +45,7 @@ function browserDevelopmentAdapter() {
     durable: true,
     async load() { return validWorkspace(await transact("readonly", store => store.get(WORKSPACE_KEY))); },
     async save(workspace) { await transact("readwrite", store => store.put(validWorkspace(workspace), WORKSPACE_KEY)); },
+    async saveUi() {},
     async search() { return null; },
     async exportWorkspace() { return null; },
     putAttachment: nativeOnly,
@@ -65,7 +70,24 @@ function tauriAdapter(invoke) {
     kind: "tauri",
     durable: true,
     async load() {
-      return validWorkspace(await invoke("motion_ui_load", { request: { schemaVersion: 1 } }));
+      const loaded = await invoke("motion_ui_load", { request: { schemaVersion: 2 } });
+      if (loaded?.schemaVersion !== 2) throw new Error("Native Motion returned an unsupported UI document");
+      workspaceSummary = loaded.workspace ? { id: loaded.workspace.id, revision: loaded.revision } : undefined;
+      return loaded;
+    },
+    async execute(type, payload = {}) {
+      if (type === "workspace.create") {
+        const result = await dispatch("command", { type, ...payload });
+        workspaceSummary = { id: result.workspace.id, revision: result.revision };
+        return result;
+      }
+      const current = await requiredWorkspace();
+      const result = await dispatch("command", { type, workspaceId: current.id, expectedRevision: current.revision, ...payload });
+      workspaceSummary = { id: current.id, revision: result.revision };
+      return result;
+    },
+    async saveUi(uiState) {
+      await invoke("motion_ui_save", { request: { document: uiState, schemaVersion: 2 } });
     },
     async save(workspace) {
       await invoke("motion_ui_save", { request: { document: validWorkspace(workspace), schemaVersion: 1 } });

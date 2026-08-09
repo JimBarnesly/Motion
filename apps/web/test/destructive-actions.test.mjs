@@ -5,11 +5,14 @@ import { resolve } from "node:path";
 
 const appPath = resolve(import.meta.dirname, "../app.js");
 
-test("table-row deletion requires confirmation and creates an undo checkpoint", async () => {
+test("table records use confirmed, undo-checkpointed trash instead of permanent row deletion", async () => {
   const source = await readFile(appPath, "utf8");
-  const handler = source.match(/if \(el\.dataset\.deleteRow[\s\S]*?\n/)?.[0] ?? "";
+  const rowRenderer = source.match(/const rows=items[\s\S]*?\$\("#content"\)/)?.[0] ?? "";
+  const handler = source.match(/if\(button\.dataset\.trashPage[\s\S]*?\n/)?.[0] ?? "";
+  const trash = source.match(/async function trash\(page\)[\s\S]*?\n/)?.[0] ?? "";
 
-  assert.match(handler, /confirm\("Permanently delete this table row\? This cannot be undone\."\)/);
-  assert.match(handler, /checkpoint\(\)/);
-  assert.match(handler, /page\.rows = page\.rows\.filter/);
+  assert.match(rowRenderer, /data-trash-page="\$\{record\.id\}"/);
+  assert.match(handler, /confirm\("Move this page to Trash\?"\)/);
+  assert.match(trash, /checkpoint\(\)/);
+  assert.match(trash, /"page\.trash"/);
 });

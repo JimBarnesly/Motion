@@ -34,6 +34,7 @@
     "benchmark:pages-tables": "npm run build --workspace @motion/core --workspace @motion/storage && node scripts/pages-tables-fixture.mjs",
     "test:pages-tables-benchmark": "npm run build --workspace @motion/core --workspace @motion/storage && node --test scripts/pages-tables-benchmark.test.mjs",
     "test:offline": "npm run build --workspace @motion/app-service && node --test --test-name-pattern='offline across separate process' packages/app-service/dist/test/app-service.test.js && node scripts/check-offline-assets.mjs",
+    "validate:isolated-rust-tauri": "docker build --pull --tag motion-rust-tauri-validation:arm64 --file tooling/rust-tauri/Dockerfile . && node scripts/isolated-rust-tauri.mjs --root . --policy tooling/rust-tauri/policy.json --candidate-fingerprint \"$(node scripts/isolated-rust-tauri.mjs --root . --print-fingerprint)\" --report artifacts/rust-tauri/validation.json",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },

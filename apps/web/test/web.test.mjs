@@ -145,6 +145,7 @@ test("document editor supports substantial block types and keyboard operations",
 test("links are materialised by stable page ID and unknown blocks are preserved", async () => {
   const source = await readFile(resolve(root, "app.js"), "utf8");
   assert.match(source, /block\.references/);
+  assert.match(source, /function refreshReferences\(block\)/);
   assert.match(source, /pageId:/);
   assert.match(source, /unsupported/);
   assert.match(source, /linkIndex/);

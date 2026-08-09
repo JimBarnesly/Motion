@@ -298,3 +298,50 @@ test("attachment promotion failure is recovered from committed metadata on the n
     store.close();
   } finally { await Promise.all([removeDatabase(path), rm(files, { recursive: true, force: true })]); }
 });
+
+test("page hierarchy and typed record commands persist through SQLite restart", async () => {
+  const path = databasePath("pages-tables");
+  try {
+    let store = new SqliteWorkspaceStore(path); let service = new MotionAppService(store);
+    let state = service.execute({ type: "workspace.create", name: "Daily workspace" });
+    const workspaceId = state.workspace.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "House" });
+    const houseId = state.workspace.pages.find(page => page.title === "House")!.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Notes", parentId: houseId });
+    const notesId = state.workspace.pages.find(page => page.title === "Notes")!.id;
+    state = service.execute({ type: "page.set-favourite", workspaceId, expectedRevision: state.revision, pageId: notesId, favourite: true });
+    state = service.execute({ type: "database.create", workspaceId, expectedRevision: state.revision, title: "Jobs", parentId: houseId });
+    const database = state.workspace.databases[0]!;
+    state = service.execute({ type: "database.property-add", workspaceId, expectedRevision: state.revision, databaseId: database.id,
+      property: { name: "Status", type: "status", options: [{ id: "todo", name: "To do" }, { id: "doing", name: "In progress" }] } });
+    const statusId = state.workspace.databases[0]!.properties.find(property => property.name === "Status")!.id;
+    state = service.execute({ type: "database.property-add", workspaceId, expectedRevision: state.revision, databaseId: database.id,
+      property: { name: "Cost", type: "number" } });
+    const costId = state.workspace.databases[0]!.properties.find(property => property.name === "Cost")!.id;
+    state = service.execute({ type: "database.record-create", workspaceId, expectedRevision: state.revision, databaseId: database.id,
+      title: "Replace heat pump", values: { [statusId]: "doing", [costId]: 4200 } });
+    const record = state.workspace.pages.find(page => page.title === "Replace heat pump")!;
+    state = service.execute({ type: "page.replace-blocks", workspaceId, expectedRevision: state.revision, pageId: record.id,
+      blocks: [{ id: "quote-note", type: "paragraph", text: "Need three supplier quotes.", children: [] }] });
+    const view = state.workspace.databases[0]!.views[0]!;
+    state = service.execute({ type: "database.view-update", workspaceId, expectedRevision: state.revision, databaseId: database.id, viewId: view.id,
+      patch: { columnWidths: { [database.properties[0]!.id]: 360, [statusId]: 160, [costId]: 120 },
+        propertyOrder: [database.properties[0]!.id, statusId, costId], visiblePropertyIds: [database.properties[0]!.id, statusId, costId],
+        filters: { kind: "condition", propertyId: statusId, operator: "not-equals", value: "todo" },
+        sorts: [{ propertyId: statusId, direction: "asc" }, { propertyId: costId, direction: "desc" }] } });
+    state = service.execute({ type: "page.reorder", workspaceId, expectedRevision: state.revision, pageId: state.workspace.databases[0]!.pageId, beforePageId: notesId });
+    store.close();
+
+    store = new SqliteWorkspaceStore(path); service = new MotionAppService(store);
+    const reopened = service.query({ type: "workspace.get", workspaceId }).workspace;
+    const reopenedDatabase = reopened.databases[0]!;
+    assert.deepEqual(reopened.pages.filter(page => page.parentId === houseId).map(page => page.title), ["Jobs", "Notes"]);
+    assert.equal(reopened.pages.find(page => page.id === notesId)?.favourite, true);
+    assert.equal(reopened.pages.find(page => page.id === record.id)?.properties?.[costId], 4200);
+    assert.equal(reopened.pages.find(page => page.id === record.id)?.blocks[0]?.text, "Need three supplier quotes.");
+    assert.deepEqual(reopenedDatabase.views[0]!.sorts?.map(sort => sort.propertyId), [statusId, costId]);
+    assert.equal(reopenedDatabase.views[0]!.filters?.kind, "condition");
+    assert.equal(reopenedDatabase.recordPageIds?.[0], record.id);
+    store.close();
+  } finally { await removeDatabase(path); }
+});

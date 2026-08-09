@@ -8,6 +8,9 @@ import {
   type Block,
   type Attachment,
   type FullExport,
+  type DatabaseProperty,
+  type DatabaseView,
+  type PropertyValue,
   type Page,
   type PageLink,
   type Workspace
@@ -37,9 +40,18 @@ export type AppCommand =
   | { type: "page.create"; workspaceId: string; expectedRevision: number; title: string; parentId?: string | null }
   | { type: "page.rename"; workspaceId: string; expectedRevision: number; pageId: string; title: string }
   | { type: "page.move"; workspaceId: string; expectedRevision: number; pageId: string; parentId: string | null }
+  | { type: "page.reorder"; workspaceId: string; expectedRevision: number; pageId: string; beforePageId: string | null }
+  | { type: "page.set-favourite"; workspaceId: string; expectedRevision: number; pageId: string; favourite: boolean }
   | { type: "page.trash"; workspaceId: string; expectedRevision: number; pageId: string }
   | { type: "page.restore"; workspaceId: string; expectedRevision: number; pageId: string }
-  | { type: "page.replace-blocks"; workspaceId: string; expectedRevision: number; pageId: string; blocks: readonly Block[] };
+  | { type: "page.replace-blocks"; workspaceId: string; expectedRevision: number; pageId: string; blocks: readonly Block[] }
+  | { type: "database.create"; workspaceId: string; expectedRevision: number; title: string; parentId?: string | null }
+  | { type: "database.property-add"; workspaceId: string; expectedRevision: number; databaseId: string; property: Omit<DatabaseProperty, "id"> }
+  | { type: "database.property-update"; workspaceId: string; expectedRevision: number; databaseId: string; propertyId: string; patch: Partial<Omit<DatabaseProperty, "id">> }
+  | { type: "database.property-delete"; workspaceId: string; expectedRevision: number; databaseId: string; propertyId: string }
+  | { type: "database.record-create"; workspaceId: string; expectedRevision: number; databaseId: string; title: string; values?: Record<string, PropertyValue> }
+  | { type: "database.record-update"; workspaceId: string; expectedRevision: number; pageId: string; title?: string; values: Record<string, PropertyValue | undefined> }
+  | { type: "database.view-update"; workspaceId: string; expectedRevision: number; databaseId: string; viewId: string; patch: Partial<Omit<DatabaseView, "id" | "collectionId" | "type">> };
 
 export type AsyncAppCommand =
   | { type: "attachment.put"; workspaceId: string; expectedRevision: number; id?: string; fileName: string; mediaType: string; sha256: string; bytes: Uint8Array }
@@ -64,9 +76,18 @@ export interface CommandResults {
   "page.create": MutationDto;
   "page.rename": MutationDto;
   "page.move": MutationDto;
+  "page.reorder": MutationDto;
+  "page.set-favourite": MutationDto;
   "page.trash": MutationDto;
   "page.restore": MutationDto;
   "page.replace-blocks": MutationDto;
+  "database.create": MutationDto;
+  "database.property-add": MutationDto;
+  "database.property-update": MutationDto;
+  "database.property-delete": MutationDto;
+  "database.record-create": MutationDto;
+  "database.record-update": MutationDto;
+  "database.view-update": MutationDto;
 }
 export interface QueryResults {
   "workspace.list": readonly WorkspaceSummaryDto[];
@@ -248,6 +269,8 @@ export class MotionAppService {
         const page = requiredPage(document, command.pageId); page.title = requiredText(command.title, "title", true); page.updatedAt = new Date().toISOString(); document.data.updatedAt = page.updatedAt; break;
       }
       case "page.move": document.movePage(requiredText(command.pageId, "pageId"), command.parentId); break;
+      case "page.reorder": document.reorderPage(requiredText(command.pageId, "pageId"), command.beforePageId); break;
+      case "page.set-favourite": { const page = requiredPage(document, command.pageId); page.favourite = Boolean(command.favourite); page.updatedAt = new Date().toISOString(); document.data.updatedAt = page.updatedAt; break; }
       case "page.trash": {
         const page = requiredPage(document, command.pageId); page.deletedAt = new Date().toISOString(); page.updatedAt = page.deletedAt; document.data.updatedAt = page.deletedAt; break;
       }
@@ -259,6 +282,18 @@ export class MotionAppService {
         // Validate the candidate tree before any traversal-derived indexes are rebuilt.
         assertWorkspaceValue(document.data); document.rebuildLinkIndex(); break;
       }
+      case "database.create": {
+        const page = document.addPage(requiredText(command.title, "title", true), command.parentId ?? null);
+        const titleId = crypto.randomUUID(); const databaseId = crypto.randomUUID();
+        document.addDatabase({ id: databaseId, pageId: page.id, name: page.title, properties: [{ id: titleId, name: "Name", type: "title" }], rows: [], recordPageIds: [], views: [{ id: crypto.randomUUID(), collectionId: databaseId, name: "Table", type: "table", visiblePropertyIds: [titleId], propertyOrder: [titleId], columnWidths: { [titleId]: 280 }, sorts: [] }] });
+        break;
+      }
+      case "database.property-add": document.addProperty(requiredText(command.databaseId, "databaseId"), clone(command.property)); break;
+      case "database.property-update": document.updateProperty(requiredText(command.databaseId, "databaseId"), requiredText(command.propertyId, "propertyId"), clone(command.patch)); break;
+      case "database.property-delete": document.deleteProperty(requiredText(command.databaseId, "databaseId"), requiredText(command.propertyId, "propertyId")); break;
+      case "database.record-create": document.addRecord(requiredText(command.databaseId, "databaseId"), requiredText(command.title, "title", true), clone(command.values ?? {})); break;
+      case "database.record-update": document.updateRecord(requiredText(command.pageId, "pageId"), command.title === undefined ? undefined : requiredText(command.title, "title", true), clone(command.values)); break;
+      case "database.view-update": document.updateView(requiredText(command.databaseId, "databaseId"), requiredText(command.viewId, "viewId"), clone(command.patch)); break;
     }
     assertWorkspaceValue(document.data);
     const savedRevision = this.store.saveUnitOfWork({ workspaceId: document.data.id, schemaVersion: WORKSPACE_SCHEMA_VERSION, document: document.data, expectedRevision });

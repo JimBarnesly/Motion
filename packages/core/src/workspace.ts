@@ -1,4 +1,4 @@
-import { WORKSPACE_SCHEMA_VERSION, assertWorkspace, migrateWorkspace, type Block, type Database, type DatabaseRow, type FilterExpression, type ID, type Page, type PageLink, type PropertyValue, type SortClause, type Workspace } from "./model.js";
+import { WORKSPACE_SCHEMA_VERSION, assertWorkspace, migrateWorkspace, type Block, type Database, type DatabaseProperty, type DatabaseRow, type DatabaseView, type FilterExpression, type ID, type Page, type PageLink, type PropertyValue, type SortClause, type Workspace } from "./model.js";
 const now = () => new Date().toISOString();
 const id = () => globalThis.crypto.randomUUID();
 const walk = (blocks: Block[], fn: (block: Block) => void) => blocks.forEach(b => { fn(b); walk(b.children, fn); });
@@ -15,11 +15,23 @@ export class WorkspaceDocument {
   page(pageId: ID) { return this.data.pages.find(p => p.id === pageId); }
   children(parentId: ID | null) { return this.data.pages.filter(p => p.parentId === parentId && !p.deletedAt); }
   movePage(pageId: ID, parentId: ID | null) { const page = this.requiredPage(pageId); if (parentId === pageId || (parentId && this.descendants(pageId).some(p => p.id === parentId))) throw new Error("Page hierarchy cannot contain cycles"); if (parentId) this.requiredPage(parentId); page.parentId = parentId; this.touchPage(page); }
+  reorderPage(pageId: ID, beforePageId: ID | null) {
+    const page = this.requiredPage(pageId); const siblings = this.children(page.parentId).filter(candidate => candidate.id !== pageId);
+    if (beforePageId !== null && !siblings.some(candidate => candidate.id === beforePageId)) throw new Error("Reorder target must be a sibling page");
+    const ordered = beforePageId === null ? [...siblings, page] : siblings.flatMap(candidate => candidate.id === beforePageId ? [page, candidate] : [candidate]);
+    const siblingIds = new Set(ordered.map(candidate => candidate.id)); const first = this.data.pages.findIndex(candidate => siblingIds.has(candidate.id));
+    this.data.pages = this.data.pages.filter(candidate => !siblingIds.has(candidate.id)); this.data.pages.splice(first < 0 ? this.data.pages.length : first, 0, ...ordered); this.touchPage(page);
+  }
   descendants(pageId: ID): Page[] { const direct = this.children(pageId); return direct.flatMap(p => [p, ...this.descendants(p.id)]); }
   addBlock(pageId: ID, block: Omit<Block, "id" | "children"> & { id?: ID; children?: Block[] }): Block { const result: Block = { ...block, id: block.id ?? id(), children: block.children ?? [] }; const page = this.requiredPage(pageId); page.blocks.push(result); this.touchPage(page); this.indexPage(page); return result; }
   updateBlock(pageId: ID, blockId: ID, patch: Partial<Block>) { const page = this.requiredPage(pageId); let found: Block | undefined; walk(page.blocks, b => { if (b.id === blockId) found = b; }); if (!found) throw new Error(`Block not found: ${blockId}`); Object.assign(found, patch, { id: blockId }); this.touchPage(page); this.indexPage(page); return found; }
   addDatabase(database: Omit<Database, "id"> & { id?: ID }): Database { this.requiredPage(database.pageId); const result = { ...database, id: database.id ?? id(), recordPageIds: database.recordPageIds ?? [] }; this.data.databases.push(result); this.touch(); return result; }
   addRecord(databaseId: ID, title: string, values: Record<ID, PropertyValue> = {}): Page { const db = this.requiredDatabase(databaseId); const page = this.addPage(title, db.pageId, { collectionId: db.id, properties: values }); db.recordPageIds ??= []; db.recordPageIds.push(page.id); return page; }
+  updateRecord(pageId: ID, title: string | undefined, values: Record<ID, PropertyValue | undefined>) { const page = this.requiredPage(pageId); const db = this.requiredDatabase(page.collectionId ?? ""); if (title !== undefined) page.title = title; page.properties ??= {}; for (const [propertyId, value] of Object.entries(values)) { if (!db.properties.some(property => property.id === propertyId)) throw new Error(`Database property not found: ${propertyId}`); if (value === undefined) delete page.properties[propertyId]; else page.properties[propertyId] = value; } this.touchPage(page); return page; }
+  addProperty(databaseId: ID, property: Omit<DatabaseProperty, "id"> & { id?: ID }) { const db = this.requiredDatabase(databaseId); const result = { ...property, id: property.id ?? id() }; db.properties.push(result); for (const view of db.views) { view.visiblePropertyIds.push(result.id); view.propertyOrder = [...(view.propertyOrder ?? view.visiblePropertyIds.filter(propertyId => propertyId !== result.id)), result.id]; } this.touch(); return result; }
+  updateProperty(databaseId: ID, propertyId: ID, patch: Partial<Omit<DatabaseProperty, "id">>) { const db = this.requiredDatabase(databaseId); const property = db.properties.find(candidate => candidate.id === propertyId); if (!property) throw new Error(`Database property not found: ${propertyId}`); Object.assign(property, patch, { id: propertyId }); this.touch(); return property; }
+  deleteProperty(databaseId: ID, propertyId: ID) { const db = this.requiredDatabase(databaseId); if (db.properties.find(candidate => candidate.id === propertyId)?.type === "title") throw new Error("The title property cannot be deleted"); db.properties = db.properties.filter(candidate => candidate.id !== propertyId); for (const page of this.records(databaseId)) delete page.properties?.[propertyId]; for (const view of db.views) { view.visiblePropertyIds = view.visiblePropertyIds.filter(id => id !== propertyId); view.propertyOrder = view.propertyOrder?.filter(id => id !== propertyId); if (view.columnWidths) delete view.columnWidths[propertyId]; view.sorts = view.sorts?.filter(sort => sort.propertyId !== propertyId); if (view.filters && filterReferences(view.filters, propertyId)) delete view.filters; } this.touch(); }
+  updateView(databaseId: ID, viewId: ID, patch: Partial<Omit<DatabaseView, "id" | "collectionId" | "type">>) { const db = this.requiredDatabase(databaseId); const view = db.views.find(candidate => candidate.id === viewId); if (!view) throw new Error(`Database view not found: ${viewId}`); Object.assign(view, patch, { id: viewId, collectionId: db.id, type: "table" as const }); this.touch(); return view; }
   links(): PageLink[] { return [...this.data.linkIndex]; }
   backlinks(pageId: ID) { this.requiredPage(pageId); return this.data.linkIndex.filter(link => link.targetPageId === pageId); }
   outgoingLinks(pageId: ID) { this.requiredPage(pageId); return this.data.linkIndex.filter(link => link.sourcePageId === pageId); }
@@ -34,6 +46,8 @@ export class WorkspaceDocument {
   private touchPage(page: Page) { page.updatedAt = now(); this.touch(); }
   private touch() { this.data.updatedAt = now(); }
 }
+
+function filterReferences(filter: FilterExpression, propertyId: ID): boolean { if (filter.kind === "condition") return filter.propertyId === propertyId; if (filter.kind === "not") return filterReferences(filter.child, propertyId); return filter.children.some(child => filterReferences(child, propertyId)); }
 
 function evaluateFilter(node: FilterExpression, values: Record<ID, PropertyValue>): boolean {
   if ("children" in node && node.kind === "and") return node.children.every(n => evaluateFilter(n, values));

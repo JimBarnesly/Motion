@@ -31,6 +31,8 @@
     "verify:release": "node scripts/verify-release.mjs",
     "verify:release:structure": "node scripts/verify-release-structure.mjs",
     "test:benchmark": "npm run build --workspace @motion/search && node --test scripts/benchmark.test.mjs",
+    "benchmark:pages-tables": "npm run build --workspace @motion/core --workspace @motion/storage && node scripts/pages-tables-fixture.mjs",
+    "test:pages-tables-benchmark": "npm run build --workspace @motion/core --workspace @motion/storage && node --test scripts/pages-tables-benchmark.test.mjs",
     "test:offline": "npm run build --workspace @motion/app-service && node --test --test-name-pattern='offline across separate process' packages/app-service/dist/test/app-service.test.js && node scripts/check-offline-assets.mjs",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present"

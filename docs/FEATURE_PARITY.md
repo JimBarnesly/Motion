@@ -26,15 +26,15 @@ Statuses:
 
 | Capability area | Motion status | Repository evidence | Product gap / next decision |
 | --- | --- | --- | --- |
-| Nested pages and navigation | Partial | `PAGE-001`–`PAGE-004`; Web vertical slice in `STATUS.md` | Complete reorder, move, archive/delete UX and packaged persistence acceptance. |
+| Nested pages and navigation | Partial | Canonical create/move/reorder/favourite/trash/restore commands; Web sidebar and SQLite restart test | Add robust drag-and-drop and packaged desktop interaction acceptance. |
 | Rich block editor | Partial | `BLOCK-001`–`BLOCK-009`; editor ADR 0006 | Replace the Web-v1 compatibility editor with React + Tiptap/ProseMirror and complete the initial block set, selection, clipboard, drag, IME, and accessibility. |
 | Links, mentions, backlinks, deep links | Partial | `LINK-001`–`LINK-007`; canonical link-index service | Finish mention entry, broken/archived states, previews, and block deep-link UX. |
 | Search | Partial | `SEARCH-001`–`SEARCH-004`; SQLite FTS package | Add full filters, snippets/highlighting, recent-search controls, and packaged performance evidence. |
 | Files and media | Partial | `BLOCK-003`, `BLOCK-009`; content-addressed attachment storage | Stream large files, enforce limits, and implement media/PDF blocks and interruption UX. |
-| Databases and records-as-pages | Partial | `COLL-001`–`COLL-005`; table slice | Complete property types, record-page UX, schema editing, ordering, and deletion semantics. |
+| Databases and records-as-pages | Partial | Ten typed property editors, canonical record-page UX, schema/order/width editing, SQLite restart coverage | Add populated type-change conversion preview and packaged desktop acceptance. |
 | Table, list, board, calendar, gallery, timeline views | Partial | `VIEW-001`–`VIEW-004`; milestones M3–M4 | Table is partial; list/board/calendar/gallery/timeline require complete saved-view UI and tests. |
 | Chart, form, and dashboard views | Specified | `VIEW-002`; milestones M4–M5 cover chart/form contracts | Add dashboard view to requirements; decide priority after core views. Current Notion documentation treats dashboards as a view composed of widgets. |
-| Filters, sorts, groups, formulas | Partial | `FILTER-001`–`FILTER-002`, `SORT-001`, `FORM-001`–`FORM-004`; formula package | Connect the typed engines to complete view UX; add formula-result filters and grouping acceptance. |
+| Filters, sorts, groups, formulas | Partial | Saved AND/OR/NOT filter UI, comparison operators, deterministic multi-sort; formula package | Add deeper visual filter nesting and formula-result filters; formulas remain outside the table usability scope. |
 | Relations and rollups | Specified | `REL-001`–`REL-007`; milestone M5 | Implement after collection/view foundations; preserve deterministic local semantics. |
 | Templates and reusable page/database structures | Untracked | Template origin exists in `PAGE-002`, but no complete template workflow requirement | Product requirement needed for creation, application, editing, and export of templates. |
 | Comments, discussions, history, and presence | Specified | Roadmap stage 4; milestones M6–M7 | Define local comments/history before optional live collaboration; presence remains remote-only. |

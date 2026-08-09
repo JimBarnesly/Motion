@@ -50,6 +50,12 @@ collaboration, AI writing, synced blocks, equations, and third-party embeds.
 
 ### 2. Complete page organisation
 
+**Implementation status (2026-08-09):** Substantially implemented on the
+canonical native boundary: create, rename, nest/move, sibling reorder,
+expand/collapse, favourites, trash/restore, breadcrumbs and keyboard-accessible
+buttons. Robust pointer drag-and-drop and packaged desktop interaction
+acceptance remain.
+
 **User outcome:** I can keep a growing workspace navigable by arranging pages
 quickly and returning to important content.
 
@@ -72,6 +78,13 @@ published sites, and permanent-delete policy.
   selected page where it still exists.
 
 ### 3. Useful collection table
+
+**Implementation status (2026-08-09):** Substantially implemented for the ten
+scoped property types, editable select/status options, records-as-pages,
+property editing, visibility/order/widths, AND/OR/NOT filters, multi-sort, and
+saved canonical view state. A 5,000-record fixture is bounded to 500 DOM rows
+and has recorded timings. Populated type-change preview/conversion, full
+virtual scrolling, and packaged desktop interaction acceptance remain.
 
 **User outcome:** I can manage a small structured dataset, not merely edit a
 grid of untyped text.

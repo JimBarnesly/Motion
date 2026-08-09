@@ -1,6 +1,29 @@
 # Status
 
-Updated: 2026-08-04
+Updated: 2026-08-09
+
+## Pages and tables usability increment
+
+- The native Web UI now loads canonical schema-v2 workspaces and sends
+  fine-grained, revisioned page/database commands instead of round-tripping
+  normal edits through the Web-v1 compatibility document.
+- Sidebar navigation supports root/child creation, table creation, rename,
+  move, sibling reorder, expand/collapse, favourites, trash/restore, persisted
+  expansion state, breadcrumbs, and back navigation. Stable page IDs and
+  descendants are retained.
+- Tables support title, text, number, checkbox, select, multi-select, status,
+  date, URL, email, and phone properties. Property names, types, option
+  definitions, visibility, order, and widths are editable and saved in the
+  canonical table view.
+- Records are canonical pages. Clicking a title opens the same page used by the
+  table, with editable properties and normal stable-ID block content.
+- Saved views support nested one-level AND/OR/NOT filter groups, the full
+  initial comparison operator set, and deterministic multi-column sorts.
+- SQLite restart coverage exercises hierarchy, favourites, typed properties,
+  record content, filters, sorts, column configuration, and links. Browser E2E
+  covers a typed table-to-record-page workflow and reload.
+- The 5,000-record table path bounds DOM output to 500 rows. The reproducible
+  fixture/benchmark is available through `npm run benchmark:pages-tables -- 5000`.
 
 ## Working foundation
 
@@ -47,15 +70,22 @@ Updated: 2026-08-04
   Installed-package launch, restart, and offline smoke tests remain outstanding;
   this host still lacks the GTK/WebKit development packages required for local
   native compilation and launch.
-- The UI remains vanilla JavaScript and a Web-v1 compatibility document adapter,
-  not the required React plus Tiptap/ProseMirror editor. Not every UI mutation
-  is expressed as a fine-grained typed domain command.
+- The UI remains vanilla JavaScript rather than the accepted React plus
+  Tiptap/ProseMirror editor. Page/table mutations now use fine-grained typed
+  commands in native mode; browser development retains its IndexedDB adapter.
 - The canonical SQLite service has a separate-process offline restart test, but
   packaged desktop restart/crash durability and packaged native UI E2E remain
   unverified. Browser Playwright E2E does not close this gate.
 - Attachments are currently read and transported as complete in-memory byte
   arrays; streaming and large-file limits are not implemented.
-- Required block behaviours, collection views, relations/rollups, full import/export UX, and complete restore workflow remain partial.
+- List indent/outdent, multi-block selection, clipboard/IME hardening, drag and
+  drop, and full Tiptap/ProseMirror editing remain incomplete.
+- Table rendering is bounded rather than virtualised and currently shows the
+  first 500 matching records. Full windowed scrolling is still required.
+- Property type changes clear incompatible existing values. A preview/conversion
+  flow would be better for large populated properties.
+- Native packaged UI E2E is still required; current native restart evidence is
+  at the SQLite service boundary and browser Playwright covers the interaction.
 - Sync server, multi-user collaboration, permissions, encryption, AI, and MCP are designed/deferred, not shipped.
 - Full E2E, accessibility, security, failure-injection, migration, and representative performance evidence is incomplete.
 

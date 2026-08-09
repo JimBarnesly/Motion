@@ -1,4 +1,4 @@
-export type SearchEntityType = "page" | "collection" | "attachment";
+export type SearchEntityType = "page" | "collection" | "attachment" | "row";
 
 export interface SearchDocument {
   id: string;
@@ -10,6 +10,7 @@ export interface SearchDocument {
   blocks?: readonly string[];
   collectionId?: string;
   collectionName?: string;
+  ownerEntityId?: string;
   propertyNames?: readonly string[];
   propertyValues?: Readonly<Record<string, string | readonly string[]>>;
   selectValues?: readonly string[];
@@ -38,6 +39,7 @@ export interface SearchHit {
   snippet: string;
   highlights: HighlightRange[];
   matchedFields: string[];
+  ownerEntityId?: string;
 }
 
 export interface SearchOptions {

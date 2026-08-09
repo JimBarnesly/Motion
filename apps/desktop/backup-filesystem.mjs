@@ -1,1 +1,1 @@
-export { link, lstat, open, readFile, readdir, rm, stat } from "node:fs/promises";
+export { link, lstat, open, readFile, readdir, rename, rm, stat } from "node:fs/promises";

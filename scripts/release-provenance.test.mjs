@@ -11,6 +11,7 @@ const generator = new URL("./release-manifest.mjs", import.meta.url).pathname;
 const preVerifier = new URL("./verify-release-structure.mjs", import.meta.url).pathname;
 const verifier = new URL("./verify-release.mjs", import.meta.url).pathname;
 const commit = "a".repeat(40); const version = "0.1.0";
+const writePackage = async (path, content) => { const mode = path.endsWith(".AppImage") ? 0o755 : 0o644; await writeFile(path, content, { mode }); await chmod(path, mode); };
 const run = (script, args) => spawnSync(node, [script, ...args], { encoding: "utf8" });
 const structureArgs = (directory, expectedVersion = version, expectedCommit = commit) => ["--directory", directory, "--version", expectedVersion, "--commit", expectedCommit, "--repository", "owner/repo"];
 const verifyArgs = (directory, tool) => [...structureArgs(directory), "--certificate-identity-regexp", "^https://github.example/workflow$", "--cosign", tool, "--gh", tool];
@@ -19,12 +20,12 @@ test("pre-sign verifier rejects metadata and every package-set tamper before sig
   const root = await mkdtemp(join(tmpdir(), "motion-pre-sign-test-")); const source = join(root, "source");
   try {
     await import("node:fs/promises").then(({ mkdir }) => mkdir(source));
-    for (const architecture of ["x86_64", "aarch64"]) for (const extension of ["AppImage", "deb"]) await writeFile(join(source, `Motion_${version}_${architecture}.${extension}`), `${architecture}:${extension}`);
+    for (const architecture of ["x86_64", "aarch64"]) for (const extension of ["AppImage", "deb"]) await writePackage(join(source, `Motion_${version}_${architecture}.${extension}`), `${architecture}:${extension}`);
     assert.equal(run(generator, ["--directory", source, "--output", join(source, "release-manifest.json"), "--version", version, "--commit", commit, "--repository", "owner/repo"]).status, 0);
     assert.equal(run(preVerifier, structureArgs(source)).status, 0);
     const fixture = async name => { const directory = join(root, name); await import("node:fs/promises").then(({ mkdir }) => mkdir(directory)); for (const file of await import("node:fs/promises").then(({ readdir }) => readdir(source))) await copyFile(join(source, file), join(directory, file)); return directory; };
     const wrongVersion = join(root, "self-consistent-wrong-version"); await import("node:fs/promises").then(({ mkdir }) => mkdir(wrongVersion));
-    for (const architecture of ["x86_64", "aarch64"]) for (const extension of ["AppImage", "deb"]) await writeFile(join(wrongVersion, `Motion_9.9.9_${architecture}.${extension}`), `${architecture}:${extension}`);
+    for (const architecture of ["x86_64", "aarch64"]) for (const extension of ["AppImage", "deb"]) await writePackage(join(wrongVersion, `Motion_9.9.9_${architecture}.${extension}`), `${architecture}:${extension}`);
     assert.equal(run(generator, ["--directory", wrongVersion, "--output", join(wrongVersion, "release-manifest.json"), "--version", "9.9.9", "--commit", commit, "--repository", "owner/repo"]).status, 0);
     assert.notEqual(run(preVerifier, structureArgs(wrongVersion)).status, 0);
     const wrongCommit = join(root, "self-consistent-wrong-commit"); await import("node:fs/promises").then(({ mkdir }) => mkdir(wrongCommit));
@@ -53,7 +54,7 @@ test("release verifier binds version, commit, artifacts, signature, provenance, 
   try {
     await writeFile(tool, "#!/bin/sh\nexit 0\n"); await chmod(tool, 0o700);
     await import("node:fs/promises").then(({ mkdir }) => mkdir(source));
-    for (const architecture of ["x86_64", "aarch64"]) for (const extension of ["AppImage", "deb"]) await writeFile(join(source, `Motion_${version}_${architecture}.${extension}`), `${architecture}:${extension}`);
+    for (const architecture of ["x86_64", "aarch64"]) for (const extension of ["AppImage", "deb"]) await writePackage(join(source, `Motion_${version}_${architecture}.${extension}`), `${architecture}:${extension}`);
     const manifest = join(source, "release-manifest.json");
     assert.equal(run(generator, ["--directory", source, "--output", manifest, "--version", version, "--commit", commit, "--repository", "owner/repo"]).status, 0);
     const repeatedManifest = join(source, "release-manifest-repeated.json");
@@ -67,7 +68,7 @@ test("release verifier binds version, commit, artifacts, signature, provenance, 
 
     const fixture = async name => { const directory = join(root, name); await import("node:fs/promises").then(({ mkdir }) => mkdir(directory)); for (const file of await import("node:fs/promises").then(({ readdir }) => readdir(source))) await copyFile(join(source, file), join(directory, file)); return directory; };
     const wrongVersion = join(root, "wrong-version"); await import("node:fs/promises").then(({ mkdir }) => mkdir(wrongVersion));
-    for (const architecture of ["x86_64", "aarch64"]) for (const extension of ["AppImage", "deb"]) await writeFile(join(wrongVersion, `Motion_9.9.9_${architecture}.${extension}`), `${architecture}:${extension}`);
+    for (const architecture of ["x86_64", "aarch64"]) for (const extension of ["AppImage", "deb"]) await writePackage(join(wrongVersion, `Motion_9.9.9_${architecture}.${extension}`), `${architecture}:${extension}`);
     assert.equal(run(generator, ["--directory", wrongVersion, "--output", join(wrongVersion, "release-manifest.json"), "--version", "9.9.9", "--commit", commit, "--repository", "owner/repo"]).status, 0);
     await writeFile(join(wrongVersion, "release-manifest.sigstore.json"), "signed"); await writeFile(join(wrongVersion, "release-provenance.jsonl"), "provenance");
     assert.notEqual(run(verifier, verifyArgs(wrongVersion, tool)).status, 0);
@@ -86,7 +87,7 @@ test("release control files reject links and non-regular types before trust tool
   const valid = join(root, "valid"); const tool = join(root, "trust-tool"); const marker = join(root, "trust-invoked");
   try {
     await mkdir(valid);
-    for (const architecture of ["x86_64", "aarch64"]) for (const extension of ["AppImage", "deb"]) await writeFile(join(valid, `Motion_${version}_${architecture}.${extension}`), `${architecture}:${extension}`);
+    for (const architecture of ["x86_64", "aarch64"]) for (const extension of ["AppImage", "deb"]) await writePackage(join(valid, `Motion_${version}_${architecture}.${extension}`), `${architecture}:${extension}`);
     assert.equal(run(generator, ["--directory", valid, "--output", join(valid, "release-manifest.json"), "--version", version, "--commit", commit, "--repository", "owner/repo"]).status, 0);
     await writeFile(join(valid, "release-manifest.sigstore.json"), "signed"); await writeFile(join(valid, "release-provenance.jsonl"), "provenance");
     await writeFile(tool, `#!/bin/sh\nfor argument in "$@"; do case "$argument" in /proc/self/fd/*) test -r "$argument" || exit 4;; esac; done\nprintf invoked >> "${marker}"\n`); await chmod(tool, 0o700);
@@ -116,7 +117,7 @@ test("release control-file replacements fail identity checks before trust tools 
   const tool = join(root, "trust-tool"); const marker = join(root, "trust-invoked");
   try {
     await mkdir(valid);
-    for (const architecture of ["x86_64", "aarch64"]) for (const extension of ["AppImage", "deb"]) await writeFile(join(valid, `Motion_${version}_${architecture}.${extension}`), `${architecture}:${extension}`);
+    for (const architecture of ["x86_64", "aarch64"]) for (const extension of ["AppImage", "deb"]) await writePackage(join(valid, `Motion_${version}_${architecture}.${extension}`), `${architecture}:${extension}`);
     assert.equal(run(generator, ["--directory", valid, "--output", join(valid, "release-manifest.json"), "--version", version, "--commit", commit, "--repository", "owner/repo"]).status, 0);
     await writeFile(join(valid, "release-manifest.sigstore.json"), "signed"); await writeFile(join(valid, "release-provenance.jsonl"), "provenance");
     await writeFile(tool, `#!/bin/sh\nprintf invoked >> "${marker}"\n`); await chmod(tool, 0o700);

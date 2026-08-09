@@ -50,6 +50,7 @@ function browserDevelopmentAdapter() {
     async exportWorkspace() { return null; },
     putAttachment: nativeOnly,
     createBackup: nativeOnly,
+    saveBackup: nativeOnly,
     verifyBackup: nativeOnly,
     previewBackup: nativeOnly,
     restoreBackup: nativeOnly
@@ -106,6 +107,7 @@ function tauriAdapter(invoke) {
       return result;
     },
     async createBackup() { return dispatch("async-query", { type: "backup.create", workspaceId: (await requiredWorkspace()).id }); },
+    async saveBackup(bundle) { return invoke("motion_backup_save", { request: { schemaVersion: 1, bundle } }); },
     async verifyBackup(bundle) { return dispatch("async-query", { type: "backup.verify", bundle }); },
     async previewBackup(bundle) { return dispatch("async-query", { type: "backup.preview", bundle }); },
     async restoreBackup(bundle) {

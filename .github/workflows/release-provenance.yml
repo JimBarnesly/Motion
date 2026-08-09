@@ -78,8 +78,15 @@ jobs:
           workspaces: apps/desktop/src-tauri -> target
       - run: npm ci --ignore-scripts
       - name: Build AppImage and Debian package
-        run: npm run tauri:build --workspace @motion/desktop -- --bundles deb,appimage
-      - name: Install pinned fail-closed secret scanner
+        run: npm run tauri:build --workspace @motion/desktop -- --locked --bundles deb,appimage
+      - name: Restore checksum-pinned secret scanner bundle
+        id: gitleaks-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .tools
+          key: gitleaks-8.28.0-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('secret-scanner-tool.json') }}
+      - name: Provision pinned fail-closed secret scanner bundle
+        if: steps.gitleaks-cache.outputs.cache-hit != 'true'
         run: scripts/install-gitleaks.sh .tools/gitleaks
       - name: Scan packaged text resources
         env:
@@ -108,15 +115,109 @@ jobs:
             "artifacts/release/Motion_${{ needs.plan.outputs.version }}_${{ matrix.architecture }}.AppImage"
           cp apps/desktop/src-tauri/target/release/bundle/deb/*.deb \
             "artifacts/release/Motion_${{ needs.plan.outputs.version }}_${{ matrix.architecture }}.deb"
+          mkdir -p artifacts/release-build-metadata
+          sha256sum apps/desktop/dist/node-runtime | cut -d' ' -f1 \
+            > "artifacts/release-build-metadata/runtime-${{ matrix.architecture }}.sha256"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-${{ matrix.architecture }}-${{ needs.plan.outputs.commit }}
           path: artifacts/release/*
           if-no-files-found: error
           retention-days: 14
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: build-metadata-${{ matrix.architecture }}-${{ needs.plan.outputs.commit }}
+          path: artifacts/release-build-metadata/runtime-${{ matrix.architecture }}.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  preflight:
+    needs: [plan, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.plan.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: release-*-${{ needs.plan.outputs.commit }}
+          path: artifacts/release
+          merge-multiple: true
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: build-metadata-*-${{ needs.plan.outputs.commit }}
+          path: artifacts/release-build-metadata
+          merge-multiple: true
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.18.0
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Build local verifier dependencies
+        run: npm run build --workspace @motion/desktop --workspace @motion/observability
+      - name: Generate deterministic release manifest
+        shell: bash
+        run: |
+          SOURCE_FINGERPRINT="$(git ls-tree -r --full-tree HEAD | sha256sum | cut -d' ' -f1)"
+          SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
+          RECIPE_SHA256="$(sha256sum package-lock.json apps/desktop/src-tauri/Cargo.lock apps/desktop/src-tauri/tauri.conf.json .github/workflows/release-provenance.yml | sha256sum | cut -d' ' -f1)"
+          RUNTIME_X86_64_SHA256="$(tr -d '\n' < artifacts/release-build-metadata/runtime-x86_64.sha256)"
+          RUNTIME_AARCH64_SHA256="$(tr -d '\n' < artifacts/release-build-metadata/runtime-aarch64.sha256)"
+          node scripts/release-manifest.mjs \
+            --directory artifacts/release \
+            --output artifacts/release/release-manifest.json \
+            --version "${{ needs.plan.outputs.version }}" \
+            --commit "${{ needs.plan.outputs.commit }}" \
+            --repository "${{ github.repository }}" \
+            --source-fingerprint "$SOURCE_FINGERPRINT" \
+            --source-date-epoch "$SOURCE_DATE_EPOCH" \
+            --recipe-sha256 "$RECIPE_SHA256" \
+            --runtime-x86_64-sha256 "$RUNTIME_X86_64_SHA256" \
+            --runtime-aarch64-sha256 "$RUNTIME_AARCH64_SHA256"
+      - name: Restore checksum-pinned secret scanner bundle
+        id: gitleaks-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .tools
+          key: gitleaks-8.28.0-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('secret-scanner-tool.json') }}
+      - name: Provision pinned fail-closed secret scanner bundle
+        if: steps.gitleaks-cache.outputs.cache-hit != 'true'
+        run: scripts/install-gitleaks.sh .tools/gitleaks
+      - name: Run mandatory local release security preflight / Verify unsigned release structure before signing
+        shell: bash
+        run: |
+          SOURCE_FINGERPRINT="$(git ls-tree -r --full-tree HEAD | sha256sum | cut -d' ' -f1)"
+          RUNTIME_X86_64_SHA256="$(tr -d '\n' < artifacts/release-build-metadata/runtime-x86_64.sha256)"
+          RUNTIME_AARCH64_SHA256="$(tr -d '\n' < artifacts/release-build-metadata/runtime-aarch64.sha256)"
+          node scripts/release-security-preflight.mjs \
+            --directory artifacts/release \
+            --version "${{ needs.plan.outputs.version }}" \
+            --commit "${{ needs.plan.outputs.commit }}" \
+            --repository "${{ github.repository }}" \
+            --source-fingerprint "$SOURCE_FINGERPRINT" \
+            --runtime-x86_64-sha256 "$RUNTIME_X86_64_SHA256" \
+            --runtime-aarch64-sha256 "$RUNTIME_AARCH64_SHA256" \
+            --scanner "${{ github.workspace }}/.tools/gitleaks" \
+            --evidence artifacts/release-security/preflight.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: release-security-preflight-${{ needs.plan.outputs.commit }}
+          path: artifacts/release-security/*.json
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: verified-unsigned-release-${{ needs.plan.outputs.commit }}
+          path: artifacts/release/*
+          if-no-files-found: error
+          retention-days: 14
 
   provenance:
-    needs: [plan, build]
+    needs: [plan, preflight]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -129,45 +230,8 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          pattern: release-*-${{ needs.plan.outputs.commit }}
+          name: verified-unsigned-release-${{ needs.plan.outputs.commit }}
           path: artifacts/release
-          merge-multiple: true
-      - name: Generate deterministic release manifest
-        run: |
-          node scripts/release-manifest.mjs \
-            --directory artifacts/release \
-            --output artifacts/release/release-manifest.json \
-            --version "${{ needs.plan.outputs.version }}" \
-            --commit "${{ needs.plan.outputs.commit }}" \
-            --repository "${{ github.repository }}"
-      - name: Install pinned fail-closed secret scanner
-        run: scripts/install-gitleaks.sh .tools/gitleaks
-      - name: Scan release manifests and packaged text resources before signing
-        env:
-          GITLEAKS_BIN: ${{ github.workspace }}/.tools/gitleaks
-        run: |
-          node scripts/secret-scan.mjs \
-            --staging artifacts/release \
-            --report artifacts/secret-scan/findings.json
-          node scripts/unsafe-default-scan.mjs \
-            --staging artifacts/release \
-            --report artifacts/secret-scan/unsafe-defaults.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
-        with:
-          name: release-secret-scan-${{ needs.plan.outputs.commit }}
-          path: |
-            artifacts/secret-scan/findings.json
-            artifacts/secret-scan/unsafe-defaults.json
-          if-no-files-found: error
-          retention-days: 14
-      - name: Verify unsigned release structure before signing
-        run: |
-          node scripts/verify-release-structure.mjs \
-            --directory artifacts/release \
-            --version "${{ needs.plan.outputs.version }}" \
-            --commit "${{ needs.plan.outputs.commit }}" \
-            --repository "${{ github.repository }}"
       - uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
       - name: Sign manifest with GitHub OIDC identity
         run: cosign sign-blob --yes --bundle artifacts/release/release-manifest.sigstore.json artifacts/release/release-manifest.json

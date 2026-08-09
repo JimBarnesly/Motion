@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1.0.0",
+  "image": {
+    "reference": "motion-rust-tauri-validation:arm64",
+    "baseDigest": "sha256:5711a0d445a1af54af9589066c646df387d1831a608226f4cd694fc59e745059",
+    "rustBaseDigest": "sha256:1e1a513eb893a8638b62724043a1903475ae09fd92b67eb2dfe31996c5ae120d",
+    "os": "linux",
+    "architecture": "arm64",
+    "packageInventorySha256": "b0688c9fd001227bf2f166933af39adadd24e677be964a08e332cff06dcc349b"
+  },
+  "rust": {
+    "version": "1.97.1",
+    "rustcSha256": "a3d4dfcd867ddc1e7dca25f13f7236c72229a56f68aa511437c5bb72eb2dfe78",
+    "cargoSha256": "c5dcff701935f50505c9c5df7ee941a9de4f29d84ab91627c396848accef1808"
+  },
+  "inputs": {
+    "cargoLockSha256": "febfb116bd39e5aa86d640b046f9965f8ebc0e3f207a546621cb019377be017f",
+    "packageLockSha256": "ef17814cd2784badfaac4267ada1d4ce1199fd8a6a2ef9ed8691c3ba7b2c6267"
+  }
+}

@@ -14,10 +14,17 @@ if (canaryIndex < 0 || !args[canaryIndex + 1]) {
     process.exitCode = 2;
   } else {
     const leaked = [];
+    let unreadable = 0;
     for (const file of files) {
-      const content = await readFile(file, "utf8");
-      if (content.includes(canary)) leaked.push(file);
+      try {
+        const content = await readFile(file, "utf8");
+        if (content.includes(canary)) leaked.push(file);
+      } catch { unreadable += 1; }
     }
+    if (unreadable) {
+      process.stderr.write(`Diagnostic leakage gate failed closed: ${unreadable} scoped artifact(s) could not be scanned.\n`);
+      process.exitCode = 1;
+    } else
     if (leaked.length) {
       process.stderr.write(`Diagnostic leakage gate failed: canary found in ${leaked.length} scoped artifact(s).\n`);
       process.exitCode = 1;

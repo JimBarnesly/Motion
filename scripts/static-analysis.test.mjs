@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { analyse } from "./static-analysis.mjs";
 
 const EMPTY_POLICY = { schemaVersion: 2, rulesetVersion: "1.2.0", suppressions: [] };
+const repositoryRoot = process.cwd();
+const script = join(repositoryRoot, "scripts/static-analysis.mjs");
+const policyPath = join(repositoryRoot, "static-analysis-policy.json");
 const metadata = finding => ({
   rule: finding.ruleId,
   file: finding.file,
@@ -90,7 +93,7 @@ test("governance rejects expired, missing-evidence, stale, broadened, and duplic
   finally { await rm(duplicate.directory, { recursive: true, force: true }); }
 });
 
-test("an untracked first-party source file fails the inventory closed", async () => {
+test("an untracked first-party source file is included and its violation fails closed", async () => {
   const directory = await mkdtemp(join(tmpdir(), "motion-static-root-"));
   try {
     for (const root of ["apps", "packages", "scripts"]) await mkdir(join(directory, root), { recursive: true });
@@ -99,7 +102,7 @@ test("an untracked first-party source file fails the inventory closed", async ()
     await writeFile(join(directory, "apps", "untracked.ts"), "export const hidden = eval(input);\n");
     const policyPath = join(directory, "policy.json"); await writeFile(policyPath, JSON.stringify(EMPTY_POLICY));
     const result = spawnSync(process.execPath, ["scripts/static-analysis.mjs", "--root", directory, "--policy", policyPath], { encoding: "utf8" });
-    assert.equal(result.status, 1); assert.match(result.stderr, /untracked first-party source/);
+    assert.equal(result.status, 1); assert.match(result.stderr, /apps\/untracked\.ts:1 js-no-eval/);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
@@ -116,4 +119,16 @@ test("sensitive source content is never retained or echoed by a failing finding"
     }
     assert.equal((await import("node:fs/promises").then(({ stat }) => stat(run.report))).mode & 0o777, 0o600);
   } finally { await rm(run.directory, { recursive: true, force: true }); }
+});
+
+test("CLI creates a private output directory and report from a clean path", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-static-output-"));
+  try {
+    const output = join(root, "private", "nested", "report.json");
+    const result = spawnSync(process.execPath, [script, "--policy", policyPath, "--output", output], { cwd: repositoryRoot, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal((await stat(dirname(output))).mode & 0o777, 0o700);
+    assert.equal((await stat(output)).mode & 0o777, 0o600);
+    assert.deepEqual(JSON.parse(await readFile(output, "utf8")).findings, []);
+  } finally { await rm(root, { recursive: true, force: true }); }
 });

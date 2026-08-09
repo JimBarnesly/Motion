@@ -113,7 +113,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:bcff3c1eb2376ff056bb64fc104ee3ffb23eca99944346e4e7578bd972886fe3",
+      "fingerprint": "sha256:b47a92caf4733655f7cfd6b8d0da56e4c18e7f77a40213ee0a54d3df35394666",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "This exact renderer sink is covered by escaping and hostile-content boundary tests.",
@@ -122,7 +122,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:6f2ede1adc850df3bf1afeee2d0d442c796b90620b281ae16543d6e6d9c29091",
+      "fingerprint": "sha256:ab35e09f83e63fa1ab9db65c4a7a74b01b719ba928484b1227e55815076d141c",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "This exact renderer sink is covered by escaping and hostile-content boundary tests.",
@@ -131,7 +131,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:7779e825a714a218b223a795dd6513c7cdfc0b5231e5eee36949084be623cccb",
+      "fingerprint": "sha256:1e288efe7a73117c1d841312321077e11d47b3a293487b34e80dba2cb4925fe2",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "This exact renderer sink is covered by escaping and hostile-content boundary tests.",
@@ -140,7 +140,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:77d13b6ef76cc62943786ed755b58db346e2db3ea69c7aef88ed0f156be0b7c4",
+      "fingerprint": "sha256:ee8fd2a4cd5ab32b45faa70f358e8aa02a35ecded2c0771e105977be353e12a8",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "This exact renderer sink is covered by escaping and hostile-content boundary tests.",

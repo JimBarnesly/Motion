@@ -11,4 +11,4 @@ CI must run formatting/type checks, unit/integration tests, production builds, l
 
 Tests use real temporary stores and deterministic fixtures; product UI must not rely on fake content. Failures and skipped suites remain visible.
 
-Current packages contain focused tests for core, web, storage, search, formula, backup, and observability. Full desktop E2E, Playwright, property-based convergence, failure injection, accessibility, and release matrices are not complete.
+Current packages contain focused tests for core, web, storage, search, formula, backup, and observability. Playwright covers the local Web create/edit/reload/search/export path with external requests blocked. Full packaged-desktop UI E2E, property-based sync convergence, broader failure injection, accessibility, and release matrices are not complete.

@@ -52,7 +52,10 @@ try {
   const store = new FaultStore(databasePath);
   const attachments = new FaultAttachments(attachmentRoot);
   const service = new MotionAppService(store, attachments);
-  const created = service.execute({ type: "workspace.create", name: `metadata-${canary}` });
+  let created = service.execute({ type: "workspace.create", name: `metadata-${canary}` });
+  created = service.execute({ type: "page.create", workspaceId: created.workspace.id, expectedRevision: created.revision, title: `operator-${canary}` });
+  created = service.execute({ type: "page.replace-blocks", workspaceId: created.workspace.id, expectedRevision: created.revision,
+    pageId: created.workspace.pages[0].id, blocks: [{ id: "sensitive-body", type: "paragraph", text: `intentional-${canary}`, children: [], references: [] }] });
   const bytes = new TextEncoder().encode(`content-${canary}`);
 
   await expectFailure("import", () => service.execute({ type: "workspace.import-web-v1", document: { schemaVersion: 999, metadata: boundaryCanary("import"), pages: [] }, workspaceId: `import-${canary}` }), "VALIDATION_FAILED");
@@ -70,6 +73,7 @@ try {
   await expectFailure("backup.create", () => service.queryAsync({ type: "backup.create", workspaceId: created.workspace.id }), "INTERNAL_ERROR");
   attachments.failRead = false;
   const bundle = await service.queryAsync({ type: "backup.create", workspaceId: created.workspace.id });
+  const search = service.query({ type: "workspace.search", workspaceId: created.workspace.id, query: canary, limit: 10 });
   store.failCommit = true; store.overrideMessage = `restore ${boundaryCanary("backup.restore")} ${databasePath}`;
   await expectFailure("backup.restore", () => service.executeAsync({ type: "backup.restore-new", bundle, newWorkspaceId: `restore-${canary}` }), "STORAGE_FAILURE");
   store.failCommit = false;
@@ -77,6 +81,7 @@ try {
   attachments.failureCanary = boundaryCanary("startup.recovery");
   await expectFailure("startup.recovery", () => service.queryAsync({ type: "backup.verify", bundle }), "INTERNAL_ERROR");
   attachments.failRecovery = false;
+  const intentionalUserContent = { workspace: service.query({ type: "workspace.get", workspaceId: created.workspace.id }), search, backup: bundle };
   store.close();
 
   const invalidOpenPath = join(root, `open-${canary}`);
@@ -92,6 +97,9 @@ try {
   await writeFile(join(outputDirectory, "returned-errors.json"), JSON.stringify(failures, null, 2), { mode: 0o600 });
   await writeFile(join(outputDirectory, "structured-logs.json"), JSON.stringify(logger.list(), null, 2), { mode: 0o600 });
   await writeFile(join(outputDirectory, "generated-diagnostics.json"), JSON.stringify(support, null, 2), { mode: 0o600 });
+  await writeFile(join(outputDirectory, "intentional-user-content.json"), JSON.stringify({
+    ...intentionalUserContent
+  }), { mode: 0o600 });
   process.stdout.write(`Diagnostic fixture completed: ${failures.length} redacted failures captured.\n`);
   process.stderr.write("Representative failure channels captured with stable error codes.\n");
   if (mode === "leak") process.stdout.write(`UNREDACTED_FIXTURE=${canary}\n`);

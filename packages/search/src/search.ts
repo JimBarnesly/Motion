@@ -88,7 +88,8 @@ export class LocalSearch {
       }
       if (score) {
         const display = makeSnippet(document, queryTerms);
-        hits.push({ id: document.id, type: document.type, title: document.title, score, ...display, matchedFields });
+        hits.push({ id: document.id, type: document.type, title: document.title, score, ...display, matchedFields,
+          ...(document.ownerEntityId ? { ownerEntityId: document.ownerEntityId } : {}) });
       }
     }
     return hits.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title) || a.id.localeCompare(b.id)).slice(0, options.limit ?? 50);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { chmod, mkdtemp, readdir, rename, rm, stat } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
@@ -74,6 +74,24 @@ try {
 
   const backup = (await serviceExchange(node, runner, [{ lane: "async-query", payload: { type: "backup.create", workspaceId: "web-workspace-v1" } }]))[0]?.value;
   assert.equal(backup?.manifest?.format, "motion-workspace-backup");
+  const backupPath = join(root, "selected.motion-backup.json"); const neighbour = join(root, "unrelated.txt");
+  await writeFile(neighbour, "preserve", { mode: 0o640 });
+  const savedBackup = await serviceExchange(node, runner, [{ lane: "native-backup-save", payload: { destination: backupPath, replaceConfirmed: false, bundle: backup } }]);
+  assert.equal(savedBackup[0]?.value?.path, backupPath);
+  assert.equal((await stat(backupPath)).mode & 0o777, 0o600);
+  const inspectedBackup = await serviceExchange(node, runner, [{ lane: "native-backup-inspect", payload: { destination: backupPath } }]);
+  assert.deepEqual(inspectedBackup[0]?.value, { exists: true, replacement: true });
+  const replacedBackup = await serviceExchange(node, runner, [{ lane: "native-backup-save", payload: { destination: backupPath, replaceConfirmed: true, bundle: backup } }]);
+  assert.equal(replacedBackup[0]?.value?.path, backupPath);
+  assert.equal(await readFile(neighbour, "utf8"), "preserve");
+  const malformedPath = join(root, "malformed.json"); await writeFile(malformedPath, "{", { mode: 0o600 });
+  const malformed = await serviceExchange(node, runner, [{ lane: "native-backup-inspect", payload: { destination: malformedPath } }]);
+  assert.deepEqual(malformed[0]?.error, { code: "VALIDATION_FAILED", message: "Selected target is not a valid private Motion backup" });
+  assert.equal(await readFile(malformedPath, "utf8"), "{");
+  const unwritable = join(root, "unwritable"); await mkdir(unwritable, { mode: 0o500 }); await chmod(unwritable, 0o500);
+  const denied = await serviceExchange(node, runner, [{ lane: "native-backup-save", payload: { destination: join(unwritable, "denied.json"), replaceConfirmed: false, bundle: backup } }]);
+  assert.deepEqual(denied[0]?.error, { code: "STORAGE_FAILURE", message: "Backup could not be written safely; existing data was preserved" });
+  assert.equal(await readFile(neighbour, "utf8"), "preserve");
   const changed = structuredClone(document);
   changed.pages[0].blocks[0].text = "Changed after backup";
   assert.equal((await serviceExchange(node, runner, [{ lane: "ui-save", payload: { schemaVersion: 1, document: changed } }]))[0]?.value?.saved, true);

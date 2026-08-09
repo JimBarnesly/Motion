@@ -6,11 +6,11 @@ import { basename, extname, join, relative, resolve, sep } from "node:path";
 const TEXT_EXTENSIONS = new Set([".cjs", ".conf", ".css", ".env", ".html", ".ini", ".js", ".json", ".md", ".mjs", ".properties", ".rs", ".toml", ".ts", ".tsx", ".txt", ".xml", ".yaml", ".yml"]);
 const TEXT_NAMES = new Set(["Dockerfile"]);
 const RULES = [
-  ["permissive-bind", /(?:\b(?:host|hostname|bind|listen(?:_address)?)\b\s*[:=]\s*["']?0\.0\.0\.0\b|--host(?:=|\s+)0\.0\.0\.0\b)/i],
-  ["disabled-authentication", /(?:\b(?:disable|skip|bypass)[_-]?auth(?:entication)?\b\s*[:=]\s*(?:true|1)|\bauth(?:entication)?\b\s*[:=]\s*["']?(?:false|none|off|disabled)\b)/i],
+  ["permissive-bind", /(?:\b(?:host|hostname|bind|listen(?:_address)?)\b["']?\s*[:=]\s*["']?0\.0\.0\.0\b|--host(?:=|\s+)0\.0\.0\.0\b)/i],
+  ["disabled-authentication", /(?:\b(?:disable|skip|bypass)[_-]?auth(?:entication)?\b["']?\s*[:=]\s*(?:true|1)|\bauth(?:entication)?\b["']?\s*[:=]\s*["']?(?:false|none|off|disabled)\b)/i],
   ["unsafe-cors", /(?:access-control-allow-origin\s*[:=]\s*["']?\*|\bcors\b[^\r\n]{0,40}\borigin\b\s*[:=]\s*["']?\*)/i],
   ["unsafe-csp", /(?:content-security-policy|\bcsp\b)\s*[:=][^\r\n]*(?:unsafe-inline|unsafe-eval|\b(?:false|null|disabled)\b)/i],
-  ["production-debug-default", /\b(?:debug|diagnostics?|test[_-]?mode|mock[_-]?mode)\b\s*[:=]\s*(?:true|1)\b/i],
+  ["production-debug-default", /\b(?:debug|diagnostics?|test[_-]?mode|mock[_-]?mode)\b["']?\s*[:=]\s*(?:true|1)\b/i],
 ];
 const SENSITIVE_NAME = /^(?:credentials?|secrets?|private[_-]?key|id_(?:rsa|dsa|ecdsa|ed25519)|\.env)(?:\.[a-z0-9_-]+)?$/i;
 
@@ -37,8 +37,8 @@ try {
   const files = [];
   if (fixture) await walk(resolve(fixture), resolve(fixture), "fixture/", files);
   else {
-    const tracked = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" }).split("\0").filter(Boolean);
-    for (const logical of tracked) { const path = resolve(root, logical); const metadata = await lstat(path); if (metadata.isFile()) files.push({ path, logical: `repository/${logical}`, mode: metadata.mode & 0o777 }); }
+    const candidateFiles = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], { cwd: root, encoding: "utf8" }).split("\0").filter(Boolean);
+    for (const logical of candidateFiles) { const path = resolve(root, logical); const metadata = await lstat(path); if (metadata.isFile()) files.push({ path, logical: `repository/${logical}`, mode: metadata.mode & 0o777 }); }
     for (const [index, path] of staging.entries()) { const metadata = await lstat(path); if (!metadata.isDirectory() || metadata.isSymbolicLink()) throw new Error("release staging input must be a real directory"); await walk(path, path, `release-${index + 1}/`, files); }
   }
   const findings = [];
@@ -53,6 +53,6 @@ try {
   await mkdir(resolve(report, ".."), { recursive: true, mode: 0o700 });
   await writeFile(report, `${JSON.stringify({ schemaVersion: 1, findings }, null, 2)}\n`, { mode: 0o600 }); await chmod(report, 0o600);
   if (findings.length) { console.error(`Unsafe-default audit rejected ${findings.length} finding(s). Values are redacted; inspect the private JSON report.`); process.exitCode = 1; }
-  else console.log(`Unsafe-default audit passed ${files.length} tracked and release-input files.`);
+  else console.log(`Unsafe-default audit passed ${files.length} tracked, non-ignored untracked, and release-input files.`);
 } catch (error) { console.error(`Unsafe-default audit failed closed: ${error.message}`); process.exitCode = 2; }
 finally { await rm(work, { recursive: true, force: true }); }

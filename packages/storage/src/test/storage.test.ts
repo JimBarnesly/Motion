@@ -124,6 +124,27 @@ test("FTS survives restart and follows rename and deletion", async () => {
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test("FTS indexes persisted table row values by stable row ID", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-table-search-"));
+  const path = join(root, "motion.sqlite3");
+  let store = new SqliteWorkspaceStore(path);
+  const table = (reading: string) => ({ databases: [{ id: "table-1", name: "Commissioning register",
+    pageId: "table-page-1", properties: [{ id: "reading", name: "Reading" }],
+    rows: [{ id: "row-1", values: { reading, passed: true } }] }] });
+  try {
+    store.save("ws", 2, table("persisted-cell-417 <safe> & line\ntwo"), 0);
+    store.close();
+    store = new SqliteWorkspaceStore(path);
+    assert.deepEqual(store.search("persisted-cell-417", "ws").map(hit => ({ id: hit.entityId, type: hit.entityType, owner: hit.ownerEntityId, title: hit.title })),
+      [{ id: "row-1", type: "row", owner: "table-page-1", title: "Commissioning register" }]);
+    assert.match(store.search("safe line", "ws")[0]?.snippet ?? "", /\[safe\].*\[line\]/s);
+    assert.equal(store.search("true", "ws")[0]?.entityId, "row-1");
+    store.save("ws", 2, table("replacement-cell-918"), 1);
+    assert.equal(store.search("persisted-cell-417", "ws").length, 0);
+    assert.equal(store.search("replacement-cell-918", "ws")[0]?.entityId, "row-1");
+  } finally { store.close(); await rm(root, { recursive: true, force: true }); }
+});
+
 test("hostile FTS syntax is tokenized and migrations are idempotent", async () => {
   const root = await mkdtemp(join(tmpdir(), "motion-migrations-"));
   const path = join(root, "motion.sqlite3");
@@ -134,7 +155,7 @@ test("hostile FTS syntax is tokenized and migrations are idempotent", async () =
     first.close();
     const second = new SqliteWorkspaceStore(path);
     const migrations = second.database.prepare("SELECT version FROM motion_migrations ORDER BY version").all() as { version: number }[];
-    assert.deepEqual(migrations.map(({ version }) => version), [1, 2]);
+    assert.deepEqual(migrations.map(({ version }) => version), [1, 2, 3]);
     assert.throws(() => second.save("ws", 1, { id: "p", title: "stale" }, 0), /Revision conflict/);
     second.close();
   } finally { await rm(root, { recursive: true, force: true }); }

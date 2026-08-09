@@ -5,6 +5,7 @@ import { createInterface } from "node:readline";
 import { MotionAppService, MotionAppError } from "@motion/app-service";
 import { SqliteWorkspaceStore, ContentAddressedAttachmentStore, ensurePrivateDirectory, hardenPrivateFile } from "@motion/storage";
 import { migrateWebWorkspaceV1 } from "@motion/core";
+import { createAtomicBackupFile, inspectAtomicBackupDestination } from "./backup-file.mjs";
 
 const [dataRoot] = process.argv.slice(2);
 if (!dataRoot) throw new Error("Usage: service-runner <data-root>");
@@ -40,6 +41,23 @@ async function dispatch(rawRequest) {
   const request = revive(rawRequest);
   let result;
   switch (request.lane) {
+    case "native-backup-inspect": {
+      if (typeof request.payload?.destination !== "string" || Object.keys(request.payload).some(key => key !== "destination")) throw new MotionAppError("INVALID_INPUT", "Invalid native backup inspection request");
+      try { result = await inspectAtomicBackupDestination(request.payload.destination); }
+      catch { throw new MotionAppError("VALIDATION_FAILED", "Selected target is not a valid private Motion backup"); }
+      break;
+    }
+    case "native-backup-save": {
+      if (typeof request.payload?.destination !== "string" || typeof request.payload?.replaceConfirmed !== "boolean"
+          || !request.payload?.bundle || Object.keys(request.payload).some(key => !["destination", "replaceConfirmed", "bundle"].includes(key))) {
+        throw new MotionAppError("INVALID_INPUT", "Invalid native backup save request");
+      }
+      try {
+        result = await createAtomicBackupFile(request.payload.destination, request.payload.bundle,
+          request.payload.replaceConfirmed ? { confirmReplace: async () => true } : {});
+      } catch { throw new MotionAppError("STORAGE_FAILURE", "Backup could not be written safely; existing data was preserved"); }
+      break;
+    }
     case "command": result = service.execute(request.payload); break;
     case "query": result = service.query(request.payload); break;
     case "async-command": {

@@ -22,6 +22,68 @@ test("complete flushed canonical backup is atomically published and verifies", (
   const destination = join(root, "workspace.motion-backup.json");
   await createAtomicBackupFile(destination, bundle);
   assert.deepEqual(await readAndVerifyBackupFile(destination), { valid: true, errors: [] });
+  assert.equal((await stat(destination)).mode & 0o777, 0o600);
+}));
+
+test("replacement requires confirmation and publishes only a fully verified private backup", () => withRoot(async root => {
+  const destination = join(root, "workspace.motion-backup.json");
+  await createAtomicBackupFile(destination, bundle);
+  const original = await fileEvidence(destination);
+  const replacementBundle = createBackup({ ...workspace, name: "Replacement" }, [], "2026-01-02T00:00:00Z");
+
+  assert.deepEqual(await createAtomicBackupFile(destination, replacementBundle, { confirmReplace: async () => false }),
+    { cancelled: true, path: destination });
+  assert.deepEqual(await fileEvidence(destination), original);
+
+  let confirmation;
+  await createAtomicBackupFile(destination, replacementBundle, { confirmReplace: async evidence => { confirmation = evidence; return true; } });
+  assert.deepEqual(confirmation, { path: destination });
+  assert.deepEqual(await readAndVerifyBackupFile(destination), { valid: true, errors: [] });
+  assert.equal((await stat(destination)).mode & 0o777, 0o600);
+  assert.notDeepEqual((await fileEvidence(destination)).bytes, original.bytes);
+}));
+
+test("normal verification and replacement tighten an existing owner-controlled backup", (context) => {
+  if (process.platform === "win32") { context.skip("POSIX modes are not enforceable on Windows"); return; }
+  return withRoot(async root => {
+    const destination = join(root, "permissive.motion-backup.json");
+    await createAtomicBackupFile(destination, bundle);
+    await chmod(destination, 0o644);
+    assert.deepEqual(await readAndVerifyBackupFile(destination), { valid: true, errors: [] });
+    assert.equal((await stat(destination)).mode & 0o777, 0o600);
+    await chmod(destination, 0o666);
+    const replacement = createBackup({ ...workspace, name: "Tight replacement" }, [], "2026-01-03T00:00:00Z");
+    await createAtomicBackupFile(destination, replacement, { confirmReplace: async () => true });
+    assert.equal((await stat(destination)).mode & 0o777, 0o600);
+    assert.deepEqual(await readAndVerifyBackupFile(destination), { valid: true, errors: [] });
+  });
+});
+
+test("replacement failures preserve the last valid backup and unrelated files", () => withRoot(async root => {
+  const destination = join(root, "workspace.motion-backup.json"); const neighbour = join(root, "unrelated.txt");
+  await createAtomicBackupFile(destination, bundle); await writeFile(neighbour, "preserve", { mode: 0o640 });
+  const original = await fileEvidence(destination); const unrelated = await fileEvidence(neighbour);
+  const replacementBundle = createBackup({ ...workspace, name: "Replacement" }, [], "2026-01-02T00:00:00Z");
+  for (const [name, options] of [
+    ["disk full", { confirmReplace: async () => true, write: async () => { throw new Error("disk full"); } }],
+    ["flush", { confirmReplace: async () => true, flush: async () => { throw new Error("flush failed"); } }],
+    ["verification", { confirmReplace: async () => true, verify: async () => ({ valid: false, errors: ["injected"] }) }],
+    ["race", { confirmReplace: async () => true, beforePublish: async () => { await utimes(destination, new Date(), new Date(Date.now() + 1000)); } }],
+  ]) {
+    await assert.rejects(createAtomicBackupFile(destination, replacementBundle, options), undefined, name);
+    assert.deepEqual((await fileEvidence(destination)).bytes, original.bytes);
+    assert.deepEqual(await fileEvidence(neighbour), unrelated);
+    await chmod(destination, 0o600);
+  }
+}));
+
+test("invalid existing backups are never replacement candidates", () => withRoot(async root => {
+  for (const [name, bytes, mode] of [["malformed", "{", 0o600]]) {
+    const destination = join(root, `${name}.json`); await writeFile(destination, bytes, { mode }); await chmod(destination, mode);
+    const before = await fileEvidence(destination); let confirmed = false;
+    await assert.rejects(createAtomicBackupFile(destination, bundle, { confirmReplace: async () => { confirmed = true; return true; } }), /not valid|not an authenticated private/);
+    assert.equal(confirmed, false); assert.deepEqual(await fileEvidence(destination), before);
+  }
 }));
 
 test("truncation, forged metadata, digest mismatch, symlink and hard-link inputs fail without mutation", () => withRoot(async root => {
@@ -60,7 +122,7 @@ test("collision and symlink destination preserve existing targets", () => withRo
 test("destination created immediately before publication is never overwritten", () => withRoot(async root => {
   const destination = join(root, "late-collision.json");
   const original = Buffer.from("created-by-another-writer");
-  await assert.rejects(createAtomicBackupFile(destination, bundle, { beforePublish: async () => writeFile(destination, original) }), error => error?.code === "EEXIST");
+  await assert.rejects(createAtomicBackupFile(destination, bundle, { beforePublish: async () => writeFile(destination, original) }), /already exists/);
   assert.deepEqual(await readFile(destination), original);
 }));
 

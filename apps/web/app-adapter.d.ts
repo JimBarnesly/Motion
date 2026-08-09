@@ -16,9 +16,17 @@ export interface MotionUiAdapter {
   verifyBackup(bundle: unknown): Promise<Record<string, unknown>>;
   previewBackup(bundle: unknown): Promise<Record<string, unknown>>;
   restoreBackup(bundle: unknown): Promise<Record<string, unknown>>;
+  saveBackup(bundle: unknown): Promise<{saved: boolean; cancelled: boolean; replaced?: boolean; byteLength?: number}>;
 }
 
-export interface NativeSearchHit { workspaceId: string; entityId: string; title: string; snippet: string }
+export interface NativeSearchHit {
+  workspaceId: string;
+  entityId: string;
+  entityType: "page" | "block" | "row" | "entity";
+  ownerEntityId?: string;
+  title: string;
+  snippet: string;
+}
 export interface NativeFullExport { schemaVersion: 1; files: Record<string, string>; attachments: Array<{ archivePath: string; sourcePath: string; sha256: string; byteLength: number }> }
 
 export interface MotionUiRuntime {

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { link, lstat, open, readFile, readdir, rm, stat } from "./backup-filesystem.mjs";
+import { link, lstat, open, readFile, readdir, rename, rm, stat } from "./backup-filesystem.mjs";
 import { basename, dirname, join } from "node:path";
 import { canonicalJson, verifyBackup } from "@motion/backup";
 
@@ -24,6 +24,37 @@ async function rejectDestination(destination) {
   if (!existing) return;
   if (existing.isSymbolicLink()) throw new Error("Backup destination must not be a symbolic link");
   throw new Error("Backup destination already exists");
+}
+
+async function authenticateReplacement(destination) {
+  let metadata = await lstat(destination);
+  const expectedUid = typeof process.getuid === "function" ? process.getuid() : metadata.uid;
+  if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.nlink !== 1 || metadata.uid !== expectedUid) {
+    throw new Error("Existing backup is not an authenticated private regular file");
+  }
+  const verification = await readAndVerifyBackupFile(destination);
+  if (!verification.valid) throw new Error("Existing backup is not valid and will not be replaced");
+  metadata = await lstat(destination);
+  if (process.platform !== "win32" && (metadata.mode & 0o777) !== 0o600) throw new Error("Existing backup could not be made owner-private");
+  return metadata;
+}
+
+export async function inspectAtomicBackupDestination(destination) {
+  const existing = await pathState(destination);
+  if (!existing) return { exists: false, replacement: false };
+  if (existing.isSymbolicLink()) throw new Error("Backup destination must not be a symbolic link");
+  await authenticateReplacement(destination);
+  return { exists: true, replacement: true };
+}
+
+async function confirmUnchangedReplacement(destination, authenticated) {
+  const current = await lstat(destination);
+  if (!current.isFile() || current.isSymbolicLink() || current.nlink !== 1
+      || current.dev !== authenticated.dev || current.ino !== authenticated.ino
+      || current.size !== authenticated.size || current.mtimeMs !== authenticated.mtimeMs
+      || current.ctimeMs !== authenticated.ctimeMs) {
+    throw new Error("Existing backup changed before replacement; nothing was replaced");
+  }
 }
 
 async function processIdentity(pid) {
@@ -155,7 +186,14 @@ export async function createAtomicBackupFile(destination, bundle, options = {}) 
   const directory = dirname(destination);
   const directoryState = await pathState(directory);
   if (!directoryState?.isDirectory() || directoryState.isSymbolicLink()) throw new Error("Backup destination directory is unavailable");
-  await rejectDestination(destination);
+  const existing = await pathState(destination);
+  let replacement;
+  if (existing) {
+    if (existing.isSymbolicLink()) throw new Error("Backup destination must not be a symbolic link");
+    if (typeof options.confirmReplace !== "function") throw new Error("Backup destination already exists");
+    replacement = await authenticateReplacement(destination);
+    if (await options.confirmReplace({ path: destination }) !== true) return { cancelled: true, path: destination };
+  }
   const nonce = randomUUID();
   const temporary = join(directory, `.${basename(destination)}.motion-backup-${process.pid}-${nonce}.tmp`);
   let lock;
@@ -171,7 +209,8 @@ export async function createAtomicBackupFile(destination, bundle, options = {}) 
       throw new Error("Backup temporary file could not be authenticated");
     }
     lock = await acquireLock(destination, temporary, temporaryMetadata, nonce, options);
-    await rejectDestination(destination);
+    if (replacement) await confirmUnchangedReplacement(destination, replacement);
+    else await rejectDestination(destination);
     const bytes = serializeBackup(bundle);
     let offset = 0;
     while (offset < bytes.byteLength) {
@@ -186,11 +225,23 @@ export async function createAtomicBackupFile(destination, bundle, options = {}) 
     if (!persisted.equals(bytes)) throw new Error("Backup write did not persist the complete canonical payload");
     const verification = options.verify ? await options.verify(persisted) : verifySerializedBackup(persisted);
     if (!verification.valid) throw new Error("Persisted backup failed canonical verification");
-    await rejectDestination(destination);
+    if (replacement) await confirmUnchangedReplacement(destination, replacement);
+    else await rejectDestination(destination);
     if (options.beforePublish) await options.beforePublish(temporary);
-    await (options.publish ? options.publish(temporary, destination) : link(temporary, destination));
+    if (replacement) await confirmUnchangedReplacement(destination, replacement);
+    else await rejectDestination(destination);
+    if (options.publish) await options.publish(temporary, destination, { replacing: Boolean(replacement) });
+    else if (replacement) await rename(temporary, destination);
+    else await link(temporary, destination);
     published = true;
-    await rm(temporary);
+    if (!replacement) await rm(temporary);
+    const publishedHandle = await open(destination, constants.O_RDONLY | constants.O_NOFOLLOW);
+    try {
+      const publishedMetadata = await publishedHandle.stat();
+      const expectedUid = typeof process.getuid === "function" ? process.getuid() : publishedMetadata.uid;
+      if (!publishedMetadata.isFile() || publishedMetadata.nlink !== 1 || publishedMetadata.uid !== expectedUid) throw new Error("Published backup could not be authenticated");
+      if (process.platform !== "win32") await publishedHandle.chmod(0o600);
+    } finally { await publishedHandle.close(); }
     const directoryHandle = await open(directory, constants.O_RDONLY | constants.O_DIRECTORY);
     try { await directoryHandle.sync(); } finally { await directoryHandle.close(); }
     return { path: destination, byteLength: bytes.byteLength };
@@ -207,14 +258,16 @@ export async function readAndVerifyBackupFile(path) {
     const metadata = await lstat(path);
     if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.nlink !== 1) return { valid: false, errors: ["Backup path is not an authenticated single-link regular file"] };
     handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
-    const opened = await handle.stat();
-    if (!opened.isFile() || opened.nlink !== 1 || opened.dev !== metadata.dev || opened.ino !== metadata.ino) {
+    let opened = await handle.stat();
+    const expectedUid = typeof process.getuid === "function" ? process.getuid() : opened.uid;
+    if (!opened.isFile() || opened.nlink !== 1 || opened.uid !== expectedUid || opened.dev !== metadata.dev || opened.ino !== metadata.ino) {
       return { valid: false, errors: ["Backup changed while being authenticated"] };
     }
+    if (process.platform !== "win32") { await handle.chmod(0o600); opened = await handle.stat(); }
     const bytes = await handle.readFile();
     const completed = await handle.stat();
     if (completed.dev !== opened.dev || completed.ino !== opened.ino || completed.size !== opened.size
-        || completed.mtimeNs !== opened.mtimeNs || completed.ctimeNs !== opened.ctimeNs) {
+        || completed.mtimeMs !== opened.mtimeMs || completed.ctimeMs !== opened.ctimeMs) {
       return { valid: false, errors: ["Backup changed while being read"] };
     }
     return verifySerializedBackup(bytes);

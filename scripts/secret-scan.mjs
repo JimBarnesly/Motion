@@ -2,6 +2,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { chmod, cp, lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, join, relative, resolve, sep } from "node:path";
+import { verifySecretScanner } from "./verify-secret-scanner.mjs";
 
 const EXPECTED_VERSION = "8.28.0";
 const TEXT_EXTENSIONS = new Set([
@@ -20,9 +21,11 @@ function argValues(name) {
 function argValue(name, fallback) { return argValues(name).at(-1) ?? fallback; }
 
 const scanner = argValue("--scanner", process.env.GITLEAKS_BIN ?? "gitleaks");
+const repositoryRoot = resolve(argValue("--root", "."));
 const reportPath = resolve(argValue("--report", "artifacts/secret-scan/findings.json"));
 const baseConfigPath = resolve(argValue("--config", "gitleaks.toml"));
 const policyPath = resolve(argValue("--policy", "secret-scan-policy.json"));
+const toolPolicyPath = resolve(argValue("--tool-policy", "secret-scanner-tool.json"));
 const stagingRoots = argValues("--staging").map(value => resolve(value));
 const work = await mkdtemp(join(tmpdir(), "motion-secret-scan-"));
 const scanRoot = join(work, "input");
@@ -108,19 +111,17 @@ try {
   const policy = JSON.parse(await readFile(policyPath, "utf8"));
   const baseConfig = await readFile(baseConfigPath, "utf8");
   const governedSuppressions = validatePolicy(policy, baseConfig);
-  const version = spawnSync(scanner, ["version"], { encoding: "utf8" });
-  if (version.status !== 0 || version.stdout.trim() !== EXPECTED_VERSION) {
-    throw new Error(`gitleaks ${EXPECTED_VERSION} is required; refusing to scan with an absent or different scanner`);
-  }
+  const verifiedScanner = await verifySecretScanner({ scanner, policyPath: toolPolicyPath });
 
   await mkdir(scanRoot, { recursive: true, mode: 0o700 });
-  const tracked = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8" }).split("\0").filter(Boolean);
-  for (const file of tracked) {
-    const metadata = await lstat(file);
+  const candidateFiles = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], { cwd: repositoryRoot, encoding: "utf8" }).split("\0").filter(Boolean);
+  for (const file of candidateFiles) {
+    const source = join(repositoryRoot, file);
+    const metadata = await lstat(source);
     if (!metadata.isFile()) continue;
     const target = join(scanRoot, "repository", file);
     await mkdir(resolve(target, ".."), { recursive: true, mode: 0o700 });
-    await cp(file, target);
+    await cp(source, target);
   }
   for (const [index, staging] of stagingRoots.entries()) {
     const metadata = await lstat(staging);
@@ -128,7 +129,7 @@ try {
     await copyTextTree(staging, join(scanRoot, `package-${index + 1}`));
   }
 
-  const result = spawnSync(scanner, [
+  const result = spawnSync(verifiedScanner.scannerPath, [
     "dir", scanRoot, "--config", baseConfigPath, "--no-banner",
     "--report-format", "json", "--report-path", rawReport, "--exit-code", "17"
   ], { encoding: "utf8" });
@@ -157,7 +158,7 @@ try {
     console.error(`Secret scan rejected ${findings.length} finding(s). Values are redacted; inspect the private JSON report.`);
     process.exitCode = 1;
   } else {
-    console.log(`Secret scan passed ${tracked.length} tracked files and ${stagingRoots.length} package staging tree(s).`);
+    console.log(`Secret scan passed ${candidateFiles.length} tracked and non-ignored untracked files and ${stagingRoots.length} package staging tree(s).`);
   }
 } catch (error) {
   console.error(`Secret scan failed closed: ${error.message}`);

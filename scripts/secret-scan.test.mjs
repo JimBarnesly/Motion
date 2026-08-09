@@ -2,11 +2,38 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import test from "node:test";
+import { verifySecretScanner } from "./verify-secret-scanner.mjs";
 
 const scanner = process.env.GITLEAKS_BIN ?? resolve(".tools/gitleaks");
 const decodeFixture = value => Buffer.from(value, "base64").toString("utf8");
+
+test("pinned offline scanner verifies the correct tool and rejects integrity/platform tampering", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-secret-tool-"));
+  const binary = await readFile(scanner);
+  const digest = (await import("node:crypto")).createHash("sha256").update(binary).digest("hex");
+  const platformKey = `${process.platform}-${process.arch}`;
+  const basePolicy = { schemaVersion: "1.0.0", tool: "gitleaks", version: "8.28.0", platforms: {
+    [platformKey]: { archive: "gitleaks_8.28.0_linux_arm64.tar.gz", archiveSha256: "0".repeat(64), executableSha256: digest }
+  } };
+  try {
+    const tool = join(root, "gitleaks"); await writeFile(tool, binary, { mode: 0o755 });
+    const policy = join(root, "tool.json"); await writeFile(policy, JSON.stringify(basePolicy));
+    const verified = await verifySecretScanner({ scanner: tool, policyPath: policy });
+    assert.equal(verified.sha256, digest);
+
+    await assert.rejects(verifySecretScanner({ scanner: join(root, "missing"), policyPath: policy }), /pinned offline/);
+    const wrongHash = structuredClone(basePolicy); wrongHash.platforms[platformKey].executableSha256 = "f".repeat(64);
+    const wrongHashPolicy = join(root, "wrong-hash.json"); await writeFile(wrongHashPolicy, JSON.stringify(wrongHash));
+    await assert.rejects(verifySecretScanner({ scanner: tool, policyPath: wrongHashPolicy }), /pinned offline/);
+    await assert.rejects(verifySecretScanner({ scanner: tool, policyPath: policy, architecture: "mips64" }), /pinned offline/);
+    const wrongVersionRunner = (command, args, options) => args[0] === "version"
+      ? { status: 0, stdout: "8.27.0\n", stderr: "" }
+      : spawnSync(command, args, options);
+    await assert.rejects(verifySecretScanner({ scanner: tool, policyPath: policy, runner: wrongVersionRunner }), /pinned offline/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
 
 function run(staging, report) {
   return spawnSync(process.execPath, ["scripts/secret-scan.mjs", "--scanner", scanner, "--staging", staging, "--report", report], { encoding: "utf8" });
@@ -15,6 +42,22 @@ function run(staging, report) {
 function runGoverned(staging, report, config, policy) {
   return spawnSync(process.execPath, ["scripts/secret-scan.mjs", "--scanner", scanner, "--staging", staging, "--report", report, "--config", config, "--policy", policy], { encoding: "utf8" });
 }
+
+test("repository scan includes non-ignored untracked candidate files", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-secret-untracked-"));
+  const seeded = decodeFixture("YWNjZXNzX3Rva2VuID0gJ210bl83THEyVng5S3A0TmM4UnQ2V3kzRmg1SmQxQnMwJw==");
+  try {
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    await writeFile(join(root, "ordinary.txt"), "ordinary tracked source\n");
+    execFileSync("git", ["add", "ordinary.txt"], { cwd: root });
+    await writeFile(join(root, "candidate.env"), `${seeded}\n`);
+    const report = join(root, "findings.json");
+    const result = spawnSync(process.execPath, ["scripts/secret-scan.mjs", "--root", root, "--scanner", scanner,
+      "--config", resolve("gitleaks.toml"), "--policy", resolve("secret-scan-policy.json"), "--report", report], { encoding: "utf8" });
+    assert.notEqual(result.status, 0);
+    assert.equal(`${result.stdout}${result.stderr}${await readFile(report, "utf8")}`.includes(seeded), false);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
 
 test("repository and representative package resources pass with a private report", async () => {
   const root = await mkdtemp(join(tmpdir(), "motion-secret-pass-"));

@@ -1,0 +1,11 @@
+.git
+.project-office
+artifacts
+node_modules
+**/node_modules
+**/target
+**/dist
+.tools
+.cache
+playwright-report
+test-results

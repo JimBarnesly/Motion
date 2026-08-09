@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import test from "node:test";
 
 async function executeAudit(files) {
@@ -34,4 +34,18 @@ test("local fail-closed production defaults pass", async () => {
   const audit = await executeAudit([["config/production.json", JSON.stringify({ host: "127.0.0.1", authentication: "required", diagnostics: false })]]);
   try { assert.equal(audit.result.status, 0, audit.result.stderr); assert.deepEqual(JSON.parse(await readFile(audit.report, "utf8")).findings, []); }
   finally { await rm(audit.root, { recursive: true, force: true }); }
+});
+
+test("repository audit includes non-ignored untracked candidate files", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-unsafe-untracked-"));
+  try {
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    await writeFile(join(root, "safe.json"), JSON.stringify({ host: "127.0.0.1" }));
+    execFileSync("git", ["add", "safe.json"], { cwd: root });
+    await writeFile(join(root, "candidate.json"), JSON.stringify({ host: "0.0.0.0" }));
+    const report = join(root, "private", "report.json");
+    const result = spawnSync(process.execPath, ["scripts/unsafe-default-scan.mjs", "--root", root, "--report", report], { encoding: "utf8" });
+    assert.equal(result.status, 1);
+    assert.match(await readFile(report, "utf8"), /repository\/candidate\.json/);
+  } finally { await rm(root, { recursive: true, force: true }); }
 });

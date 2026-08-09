@@ -1,6 +1,6 @@
 # Motion desktop shell
 
-This package defines the Tauri 2 boundary for the canonical Motion application service. The UI can only call the allowlisted `motion_ui_load`, `motion_ui_save`, and typed `app_dispatch` commands; it has no SQL or arbitrary filesystem API.
+This package defines the Tauri 2 boundary for the canonical Motion application service. The UI can only call the allowlisted `motion_ui_load`, `motion_ui_save`, `motion_backup_save`, and typed `app_dispatch` commands; it has no SQL or arbitrary filesystem API.
 
 ## IPC capability map
 
@@ -8,24 +8,26 @@ This package defines the Tauri 2 boundary for the canonical Motion application s
 | --- | --- | --- |
 | `motion_ui_load` | `app-adapter.js` `load()` | Closed request object; schema version 1 only |
 | `motion_ui_save` | `app-adapter.js` `save()` | Closed request object; schema version 1; workspace normalization plus 16 MiB envelope limit |
+| `motion_backup_save` | `app-adapter.js` `saveBackup()` | Closed request object; native-owned save dialog; no caller path; verified private target and explicit native replacement confirmation |
 | `app_dispatch` | `app-adapter.js` search, export, attachment-write, backup and restore methods | Protocol version 1; fixed lane-to-operation allowlist; closed top-level fields; app-service domain validation |
 
 Attachments cross IPC only as a checked byte envelope and are stored beneath the
 application-owned local data directory by content hash. Backups and restores
-cross as structured bundle data, never caller-selected filesystem paths. Browser
-downloads use an in-memory Blob and do not grant native file access.
+cross as structured bundle data, never caller-selected filesystem paths.
 
-Trusted desktop code can use `backup-file.mjs` after obtaining a destination
-through a native user-selection flow. It writes a canonical verified bundle to
+The dedicated native backup command uses `backup-file.mjs` after obtaining a
+destination through its native save dialog. It writes a canonical verified bundle to
 an owner-private exclusive temporary file, flushes it, verifies the persisted
-bytes, and atomically publishes it with a same-filesystem no-replace link. Its
+bytes, and atomically publishes a new file with a same-filesystem no-replace
+link. Replacement requires an owned, single-link, verified Motion backup plus
+explicit confirmation, safely tightens an overly permissive owner-controlled
+file to mode `0600`, and uses a same-directory atomic rename. Its
 lock records PID, process-start identity, timestamp, nonce, and the owned
 temporary's exact name, device, and inode. Recovery authenticates the private
 regular lock and temporary together—including UID, mode and link count—before
 removing either. Missing, malformed, mismatched, or symbolic evidence remains
-untouched for manual inspection. This helper is
-not exposed to WebView IPC, so browser-controlled downloads retain their normal
-ownership and overwrite semantics.
+untouched for manual inspection. The WebView cannot supply or receive the path
+and has no generic filesystem or dialog command.
 
 The `main-window` capability intentionally grants no Tauri plugins. Motion does
 not include shell, filesystem, dialog, opener, or HTTP plugins and cannot open a

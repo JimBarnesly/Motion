@@ -16,4 +16,5 @@ curl --fail --silent --show-error --location \
 printf '%s  %s\n' "$digest" "$temporary/$archive" | sha256sum --check --status
 tar -xzf "$temporary/$archive" -C "$temporary" gitleaks
 install -D -m 0755 "$temporary/gitleaks" "$destination"
+install -D -m 0644 "$temporary/$archive" "$(dirname "$destination")/cache/$archive"
 "$destination" version | grep -Fx "$version" >/dev/null

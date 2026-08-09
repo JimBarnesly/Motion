@@ -20,6 +20,7 @@ test("desktop shell declares the UI compatibility commands used by the web clien
   const source = await (await import("node:fs/promises")).readFile(new URL("../src-tauri/src/lib.rs", import.meta.url), "utf8");
   assert.match(source, /motion_ui_load/);
   assert.match(source, /motion_ui_save/);
+  assert.match(source, /motion_backup_save/);
 });
 
 test("desktop capability and CSP expose no generic local or remote capability", async () => {
@@ -31,6 +32,7 @@ test("desktop capability and CSP expose no generic local or remote capability", 
   assert.deepEqual(config.app.security.capabilities, ["main-window"]);
   assert.match(config.app.security.csp, /connect-src 'none'/);
   assert.doesNotMatch(JSON.stringify({ capability, config }), /(?:shell|filesystem|dialog|opener|http):(?:allow|default)|https?:\/\/\*/i);
+  assert.match(capability.description, /no plugin filesystem, shell, dialog/);
 });
 
 test("native boundary rejects unauthorized command and path fields before service dispatch", async () => {
@@ -39,4 +41,6 @@ test("native boundary rejects unauthorized command and path fields before servic
   assert.match(source, /IPC payload contains an unsupported field/);
   assert.match(source, /"shell\.execute"/);
   assert.match(source, /"path": "\/etc\/passwd"/);
+  assert.match(source, /backup_save_request_cannot_supply_a_path_or_confirmation/);
+  assert.match(source, /FileDialog::new\(\)/);
 });

@@ -1,3 +1,4 @@
+use rfd::{FileDialog, MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -29,6 +30,13 @@ struct UiLoadRequest {
 struct UiSaveRequest {
     schema_version: u8,
     document: Value,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct BackupSaveRequest {
+    schema_version: u8,
+    bundle: Value,
 }
 
 #[derive(Deserialize)]
@@ -226,6 +234,69 @@ async fn motion_ui_save(app: tauri::AppHandle, request: UiSaveRequest) -> Result
     run_service(app, serde_json::json!({ "lane": "ui-save", "payload": { "schemaVersion": request.schema_version, "document": request.document } })).await
 }
 
+#[tauri::command]
+async fn motion_backup_save(
+    app: tauri::AppHandle,
+    request: BackupSaveRequest,
+) -> Result<Value, IpcError> {
+    if request.schema_version != 1 {
+        return Err(reject(
+            "INVALID_INPUT",
+            "Unsupported backup command version",
+        ));
+    }
+    let destination = tauri::async_runtime::spawn_blocking(|| {
+        FileDialog::new()
+            .set_title("Save verified Motion backup")
+            .set_file_name("motion-verified-backup.json")
+            .add_filter("Motion backup", &["json"])
+            .save_file()
+    })
+    .await
+    .map_err(|_| reject("INTERNAL_ERROR", "Backup dialog failed"))?;
+    let Some(destination) = destination else {
+        return Ok(serde_json::json!({ "saved": false, "cancelled": true }));
+    };
+    let destination_text = destination
+        .to_str()
+        .ok_or_else(|| reject("INVALID_INPUT", "Selected backup path is not supported"))?
+        .to_owned();
+    let inspected = run_service(
+        app.clone(),
+        serde_json::json!({
+            "lane": "native-backup-inspect", "payload": { "destination": destination_text }
+        }),
+    )
+    .await?;
+    let replacement = inspected
+        .get("replacement")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if replacement {
+        let confirmed = tauri::async_runtime::spawn_blocking(|| {
+            MessageDialog::new()
+                .set_level(MessageLevel::Warning)
+                .set_title("Replace verified Motion backup?")
+                .set_description("The selected file is a valid private Motion backup. Replace it only after the new backup has been completely written and verified?")
+                .set_buttons(MessageButtons::YesNo)
+                .show()
+        }).await.map_err(|_| reject("INTERNAL_ERROR", "Backup confirmation failed"))?;
+        if confirmed != MessageDialogResult::Yes {
+            return Ok(serde_json::json!({ "saved": false, "cancelled": true }));
+        }
+    }
+    let saved = run_service(app, serde_json::json!({
+        "lane": "native-backup-save",
+        "payload": { "destination": destination_text, "replaceConfirmed": replacement, "bundle": request.bundle }
+    })).await?;
+    Ok(serde_json::json!({
+        "saved": true,
+        "cancelled": false,
+        "replaced": replacement,
+        "byteLength": saved.get("byteLength").and_then(Value::as_u64)
+    }))
+}
+
 async fn run_service(app: tauri::AppHandle, envelope: Value) -> Result<Value, IpcError> {
     let encoded =
         serde_json::to_string(&envelope).map_err(|e| reject("INVALID_INPUT", e.to_string()))?;
@@ -291,6 +362,7 @@ pub fn run() {
         .manage(ServiceState::default())
         .invoke_handler(tauri::generate_handler![
             app_dispatch,
+            motion_backup_save,
             motion_ui_load,
             motion_ui_save
         ])
@@ -300,7 +372,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{select_node_binary, validate_dispatch_request, IpcRequest};
+    use super::{select_node_binary, validate_dispatch_request, BackupSaveRequest, IpcRequest};
     use serde_json::json;
     use std::{ffi::OsString, fs, path::PathBuf};
 
@@ -374,5 +446,16 @@ mod tests {
             }),
         };
         assert!(validate_dispatch_request(&request).is_ok());
+    }
+
+    #[test]
+    fn backup_save_request_cannot_supply_a_path_or_confirmation() {
+        let injected = json!({
+            "schemaVersion": 1,
+            "bundle": {},
+            "destination": "/tmp/browser-chosen",
+            "replaceConfirmed": true
+        });
+        assert!(serde_json::from_value::<BackupSaveRequest>(injected).is_err());
     }
 }

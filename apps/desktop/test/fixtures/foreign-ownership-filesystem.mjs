@@ -20,4 +20,4 @@ export const open = async (path, ...args) => {
     const value = Reflect.get(object, property, object); return typeof value === "function" ? value.bind(object) : value;
   } });
 };
-export const { link, readFile, readdir, rm, stat } = filesystem;
+export const { link, readFile, readdir, rename, rm, stat } = filesystem;

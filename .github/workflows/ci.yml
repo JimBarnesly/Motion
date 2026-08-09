@@ -53,27 +53,23 @@ jobs:
         env:
           CARGO_NET_OFFLINE: "true"
         run: npm run test:dependency-inventory
+      - name: Test candidate-bound dependency release enforcement
+        run: npm run test:dependency-release-gate
       - name: Test dependency-policy change governance
         run: npm run test:dependency-policy-change
-      - name: Install pinned vulnerability scanners
-        run: |
-          npx --yes npm@11.6.2 --version
-          cargo install cargo-audit --version 0.22.2 --locked
-      - name: Scan locked production dependencies
-        run: |
-          mkdir -p artifacts/vulnerability
-          node scripts/vulnerability-collector.mjs --ecosystem npm --expected-version 11.6.2 \
-            --scanner-command '["npx","--yes","npm@11.6.2"]' --lockfile package-lock.json \
-            --output artifacts/vulnerability/npm-envelope.json
-          node scripts/vulnerability-collector.mjs --ecosystem cargo --expected-version 0.22.2 \
-            --scanner-command '["cargo","audit"]' --lockfile apps/desktop/src-tauri/Cargo.lock \
-            --output artifacts/vulnerability/cargo-envelope.json
-          node scripts/vulnerability-gate.mjs \
-            --policy vulnerability-policy.json \
-            --npm-report artifacts/vulnerability/npm-envelope.json \
-            --cargo-report artifacts/vulnerability/cargo-envelope.json \
-            --npm-lockfile package-lock.json \
-            --cargo-lockfile apps/desktop/src-tauri/Cargo.lock
+      - name: Install pinned Rust vulnerability scanner
+        run: cargo install cargo-audit --version 0.22.2 --locked
+      - name: Checkout pinned RustSec advisory database
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          repository: RustSec/advisory-db
+          ref: 6d7aef354b4144c1ede046034adfd00246d3b0c0
+          path: .tools/advisory-db
+          persist-credentials: false
+      - name: Scan locked production dependencies offline
+        env:
+          MOTION_RUSTSEC_DB: .tools/advisory-db
+        run: npm run validate:dependencies:offline
       - name: Test vulnerability gate enforcement
         run: npm run test:vulnerability-gate
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -99,8 +95,18 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+        env:
+          MOTION_RUSTSEC_DB: .tools/advisory-db
       - name: Enforce end-to-end diagnostic leakage gate
         run: npm run test:diagnostic-leakage
+      - name: Enforce runtime confinement gate
+        run: npm run test:runtime-confinement
+      - name: Enforce backup integrity gate
+        run: npm run test:backup-integrity
+      - name: Test mandatory release security preflight orchestration
+        run: npm run test:release-security-preflight
+      - name: Test tamper-evident local release manifest
+        run: npm run test:release-manifest
       - name: Test signed release provenance enforcement
         run: npm run test:release-provenance
       - run: npm run build
@@ -119,7 +125,14 @@ jobs:
           retention-days: 14
       - name: Verify local-only application sources
         run: node scripts/check-offline-assets.mjs
-      - name: Install pinned fail-closed secret scanner
+      - name: Restore checksum-pinned secret scanner bundle
+        id: gitleaks-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .tools
+          key: gitleaks-8.28.0-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('secret-scanner-tool.json') }}
+      - name: Provision pinned fail-closed secret scanner bundle
+        if: steps.gitleaks-cache.outputs.cache-hit != 'true'
         run: scripts/install-gitleaks.sh .tools/gitleaks
       - name: Test repository and packaged-resource secret gate
         env:
@@ -193,6 +206,9 @@ jobs:
         with:
           workspaces: apps/desktop/src-tauri -> target
       - run: npm ci --ignore-scripts
+      - name: Run repository-owned isolated Rust/Tauri validation
+        if: matrix.arch == 'aarch64'
+        run: npm run validate:isolated-rust-tauri
       - name: Run pinned Rust Clippy security/compiler gate
         run: |
           mkdir -p artifacts/static-analysis
@@ -220,7 +236,7 @@ jobs:
       - name: Test native shell
         run: cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
       - name: Build native Linux packages
-        run: npm run tauri:build --workspace @motion/desktop -- --bundles deb,appimage
+        run: npm run tauri:build --workspace @motion/desktop -- --locked --bundles deb,appimage
       - name: Smoke-test packaged runtime offline across restart
         run: node scripts/smoke-packaged-app.mjs apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

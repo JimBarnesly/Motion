@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { chmod, lstat, readFile, readdir, writeFile } from "node:fs/promises";
-import { extname, posix, relative, resolve, sep } from "node:path";
+import { chmod, lstat, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { dirname, extname, posix, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const ROOT_PATH = resolve(new URL("../", import.meta.url).pathname);
@@ -127,9 +127,7 @@ async function sourceInventory(rootPath = ROOT_PATH) {
     await walk(absolute, candidates, rootPath);
   }
   candidates.sort();
-  const tracked = new Set(execFileSync("git", ["ls-files", "-z", "--", ...SOURCE_ROOTS], { cwd: rootPath, encoding: "utf8" }).split("\0").filter(Boolean));
-  const untracked = candidates.filter(file => !tracked.has(file));
-  if (untracked.length) throw new Error(`untracked first-party source is outside the candidate: ${untracked.join(", ")}`);
+  const tracked = new Set(execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ...SOURCE_ROOTS], { cwd: rootPath, encoding: "utf8" }).split("\0").filter(Boolean));
   const inventory = new Set(candidates);
   const omitted = [...tracked].filter(file => isCandidatePath(file) && !inventory.has(file)).sort();
   if (omitted.length) throw new Error(`tracked first-party source is omitted from the scan inventory: ${omitted.join(", ")}`);
@@ -145,6 +143,9 @@ async function main() {
     const findings = analyse(files, policy);
     const report = { schemaVersion: 3, rulesetVersion: RULESET_VERSION, inventory: files.map(({ file }) => file), findings };
     if (output) {
+      const outputDirectory = dirname(resolve(output));
+      await mkdir(outputDirectory, { recursive: true, mode: 0o700 });
+      await chmod(outputDirectory, 0o700);
       await writeFile(output, `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });
       await chmod(output, 0o600);
     }

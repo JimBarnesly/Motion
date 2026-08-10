@@ -48,13 +48,14 @@
         <header class="topbar">
           <button class="icon-button mobile-only" id="openSidebar" type="button" aria-label="Open navigation">☰</button>
           <div id="breadcrumbs" class="breadcrumbs" aria-label="Breadcrumb"></div>
+          <button class="icon-button context-toggle" id="openContext" aria-controls="contextPanel" aria-expanded="false" type="button">Page context</button>
           <span class="save-state" id="saveState" role="status">Saved locally</span>
         </header>
         <section class="content" id="content" aria-live="polite"></section>
       </main>
 
       <aside class="context-panel" id="contextPanel" aria-label="Page context">
-        <h2>Page context</h2>
+        <div class="context-heading"><h2 id="contextPanelTitle" tabindex="-1">Page context</h2><button class="icon-button context-close" id="closeContext" type="button" aria-label="Close page context">×</button></div>
         <section><h3>Linked pages</h3><div id="outgoingLinks"></div></section>
         <section><h3>Backlinks</h3><div id="backlinks"></div></section>
         <section><h3>Confirmed attachments</h3><div id="attachments"></div></section>

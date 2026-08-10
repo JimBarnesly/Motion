@@ -28,7 +28,7 @@ Statuses:
 | --- | --- | --- | --- |
 | Nested pages and navigation | Partial | Canonical create/move/reorder/favourite/trash/restore commands; Web sidebar and SQLite restart test | Add robust drag-and-drop and packaged desktop interaction acceptance. |
 | Rich block editor | Partial | `BLOCK-001`–`BLOCK-009`; editor ADR 0006 | Replace the Web-v1 compatibility editor with React + Tiptap/ProseMirror and complete the initial block set, selection, clipboard, drag, IME, and accessibility. |
-| Links, mentions, backlinks, deep links | Partial | `LINK-001`–`LINK-007`; canonical link-index service | Finish mention entry, broken/archived states, previews, and block deep-link UX. |
+| Links, mentions, backlinks, deep links | Partial | `LINK-001`–`LINK-007`; canonical link-index service; Web live/Trash/missing target states and backlink block focus | Finish mention entry, previews, packaged lifecycle/recovery evidence, and general block deep-link UX. |
 | Search | Partial | `SEARCH-001`–`SEARCH-004`; SQLite FTS package | Add full filters, snippets/highlighting, recent-search controls, and packaged performance evidence. |
 | Files and media | Partial | `BLOCK-003`, `BLOCK-009`; content-addressed attachment storage | Stream large files, enforce limits, and implement media/PDF blocks and interruption UX. |
 | Databases and records-as-pages | Partial | Ten typed property editors, canonical record-page UX, schema/order/width editing, SQLite restart coverage | Add populated type-change conversion preview and packaged desktop acceptance. |

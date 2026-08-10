@@ -3,6 +3,25 @@
 Owner: Product Director  
 Reviewed: 2026-08-05
 
+## Implementation update — 2026-08-10
+
+The Web compatibility UI now classifies stable link targets as live, in Trash, or
+missing without rewriting the stored reference. Live backlinks retain their
+source block ID and focus that block after navigation. Trashed targets are
+labelled **In Trash**, cannot open as ordinary editable pages, and provide a
+keyboard-operable recovery path that moves focus to the existing Restore
+control. Genuinely missing targets are labelled **Missing** and remain
+non-interactive. At narrow or zoom-constrained viewports, Page Context is
+available through a labelled top-bar control with managed open/close focus and
+Escape dismissal; trashed-target recovery also opens the mobile navigation
+before focusing Restore. The new renderer builds DOM nodes with `textContent`
+rather than adding another raw HTML sink.
+
+Focused unit/integration tests, the complete Web test suite, the Web production
+build, the offline-asset scan, and repository lint pass. Installed-package,
+200%-zoom, restart, cancellation, and clean-profile backup/restore interaction
+evidence remain required before this review can be closed completely.
+
 ## Outcome
 
 Motion preserves internal-link identity through rename, restart, restore, and

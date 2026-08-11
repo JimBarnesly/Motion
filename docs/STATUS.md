@@ -1,7 +1,7 @@
 # Status
 
 Updated: 2026-08-11
-Provisional evidence baseline: `3a16a36` (`agent/phase0-docs`)
+Provisional evidence baseline: `8b7cc13` (`feat/v1-phase-0-green-baseline`)
 
 The baseline is provisional because the Phase 0 documentation and remaining
 integration work will advance the commit before merge. It is not an immutable
@@ -28,24 +28,24 @@ Integrated at the provisional baseline:
   runs that contract test, so the contract is self-gated.
 - Changed the release-gated `test:e2e` command from one named spec to complete
   Playwright discovery and added a test that rejects omitted tracked E2E specs.
-- Repaired the first-party static-analysis policy and scanner baseline. The
-  scanner and its fail-closed governance tests pass locally, but integrated
-  security review is still in progress; this is not final security acceptance.
+- Repaired the first-party static-analysis policy and reviewed final renderer
+  sinks. The scanner and fail-closed governance tests pass locally; this is not
+  final release-security acceptance.
 - Integrated honest live/trashed/missing link lifecycle states, backlink source
-  focus, and recoverable failed canonical edits with retry/discard behavior.
-- Accessible search behavior is being integrated on a separate branch and is
-  not evidence at `3a16a36`.
+  focus, accessible canonical search, and race-hardened failed-edit recovery.
+- Every tracked Playwright spec inherits fail-closed HTTP(S)/WebSocket denial;
+  service workers and unprotected extra browser contexts are prohibited.
 
 ## Evidence verified locally on 2026-08-11
 
 These checks are zero-dependency/source checks that ran on the audit host. They
 do not substitute for the Node 22+ complete suite or immutable CI:
 
-| Check | Result at `3a16a36` |
+| Check | Result at `8b7cc13` |
 | --- | --- |
-| Workflow script contract plus complete-E2E-selection gates | 3 passed, 0 failed |
-| Focused Web failed-edit and source-boundary tests | 22 passed, 0 failed |
-| First-party static-analysis scan | Passed; 73 files, 8 rules |
+| Workflow, complete-E2E-selection, and network-denial contracts | 9 passed, 0 failed |
+| Complete Web unit/source-boundary suite | 45 passed, 0 failed |
+| First-party static-analysis scan | Passed; 77 files, 8 rules |
 | Static-analysis governance tests | 16 passed, 0 failed |
 | Web workspace build | Passed (`apps/web/dist`) |
 

@@ -3,7 +3,7 @@
 Owner: Product Director
 Decision authority: Managing Director
 Last reviewed: 2026-08-11
-Provisional evidence baseline: `3a16a36` (`agent/phase0-docs`)
+Provisional evidence baseline: `8b7cc13` (`feat/v1-phase-0-green-baseline`)
 
 ## Purpose and evidence rule
 
@@ -27,12 +27,12 @@ package acceptance for this baseline.
 
 ## V1 current register
 
-| Capability area | Status | Implemented evidence at `3a16a36` | Missing V1 evidence/outcome |
+| Capability area | Status | Implemented evidence at `8b7cc13` | Missing V1 evidence/outcome |
 | --- | --- | --- | --- |
 | Pages and navigation | Partial | Canonical create/move/reorder/favourite/trash/restore paths, nested Web navigation, restart-focused tests | Permanent deletion, robust pointer drag/drop plus equivalent keyboard commands, complete restart state, and installed-package acceptance |
 | Daily-writing editor | Partial | Web compatibility editor handles several block types, stable IDs, ordering controls, unknown-block preservation, and recoverable canonical save failure | Authoritative React + Tiptap/ProseMirror path; complete V1 block set; selection/clipboard/IME/undo/redo/cross-page operations; 10,000-word and packaged evidence |
 | Links, mentions, backlinks, deep links | Partial | Stable page-ID links, outgoing links/backlinks, live/trashed/missing states, backlink source-block focus, and focused Web tests | Accessible `[[`/`@` chooser, previews, general block deep-link UX, lifecycle through export/backup restore, restart and packaged evidence |
-| Search | Partial | Core ranked search and SQLite FTS paths exist; title/content/table search has focused prior tests | Accessible search integration is not in this baseline; snippets, safe highlighting, complete keyboard navigation, filters, attachment filenames, deterministic packaged performance evidence |
+| Search | Partial | Accessible canonical search covers titles, blocks, record values and attachment filenames with safe DOM rendering, deterministic ordering, recovery states and stable result focus | Highlighting, filters, complete native/package execution and deterministic packaged performance evidence |
 | Files and media | Partial | Content-addressed attachment primitives and canonical service/backup paths | Streaming/limits, image/media/PDF block UX, interruption handling, filename search, complete backup/restore and installed-package evidence |
 | Typed database properties and records-as-pages | Partial | Canonical records-as-pages, multiple typed property editors, table editing, schema/order/width paths, restart-focused tests | Complete V1 property set, populated type-conversion preview, deletion consequences, large/edge-state evidence, packaged acceptance |
 | Saved filters, sorts, groups, and view lifecycle | Partial | Saved filter and deterministic multi-sort slices exist in table-oriented UI | Complete nested filter/group behavior and canonical create/update/reorder/delete lifecycle for all views |
@@ -48,7 +48,7 @@ package acceptance for this baseline.
 | Structured export, backup, and restore | Partial | JSON/Markdown/CSV export primitives and verified backup service paths with prior focused tests | Complete offline user flows, attachment-complete reconstruction of all V1 entities, hostile-input/rollback evidence and installed-package drills |
 | Markdown and CSV import | Missing | Requirements/design only | Bounded staged preflight, compatibility report, cancellation, deterministic conflicts and transactional rollback |
 | Offline Linux desktop | Partial | Tauri shell, canonical SQLite service, bundled-runtime/package pipeline, and historical extracted-service smoke | Exact-baseline x86-64/ARM64 AppImage/Debian installed-window acceptance with networking disabled |
-| Accessibility | Partial | Some labeled controls and keyboard-focused source tests | Accessible search is pending integration; WCAG 2.2 AA automation and recorded keyboard, 200% zoom and Orca acceptance are missing |
+| Accessibility | Partial | Labeled controls, keyboard-focused source tests, accessible search states, and normal/200%-equivalent E2E specifications exist | WCAG 2.2 AA execution and recorded keyboard, 200% zoom and Orca installed-package acceptance are missing |
 | Release provenance and security | Partial | Release/security gate implementations, repaired workflow contracts, source scanner and fail-closed governance tests | Full integrated security review, Node 22+ complete chain, Rust/Tauri, `gitleaks`, advisory DB, immutable CI, checksums/signatures/attestations and approvals |
 | Performance and failure recovery | Partial | Smoke benchmarks, transaction/recovery tests, and failed-edit retry/discard slice | Reviewed representative source/package budgets plus crash-boundary, disk-full, corrupt-index and duplicate-writer evidence on candidate artifacts |
 

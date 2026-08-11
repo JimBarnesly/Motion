@@ -110,12 +110,12 @@ jobs:
       - name: Test signed release provenance enforcement
         run: npm run test:release-provenance
       - run: npm run build
+      - name: Verify browser end-to-end release coverage
+        run: npm run test:e2e-release-gate
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
-      - name: Run browser end-to-end test
+      - name: Run complete browser end-to-end test suite
         run: npm run test:e2e
-      - name: Enforce destructive-action accessibility release regressions
-        run: npm run test:destructive-accessibility
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:

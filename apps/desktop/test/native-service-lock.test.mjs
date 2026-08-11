@@ -55,6 +55,19 @@ test("one native service owns a data root and rejects a second before mutation",
   }
 });
 
+test("failed lock initialization removes only its own partial evidence and permits retry", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-service-init-failure-"));
+  const lockPath = join(root, ".motion-service.lock");
+  try {
+    assert.throws(() => acquireNativeServiceLock(root, { afterCreate() { throw new Error("simulated initialization failure"); } }),
+      error => error?.code === "MOTION_DATA_ROOT_BUSY");
+    await assert.rejects(lstat(lockPath), error => error?.code === "ENOENT");
+    const successor = acquireNativeServiceLock(root);
+    successor.release();
+    await assert.rejects(lstat(lockPath), error => error?.code === "ENOENT");
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test("malformed and non-private lock evidence fails closed without deletion", async () => {
   const root = await mkdtemp(join(tmpdir(), "motion-service-hostile-lock-"));
   const lockPath = join(root, ".motion-service.lock");

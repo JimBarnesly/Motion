@@ -11,7 +11,7 @@ test("table records use confirmed, undo-checkpointed trash instead of permanent 
   const handler = source.match(/if\(button\.dataset\.trashPage&&confirm\("Move this page to Trash\?"\)\)[^\n]*/)?.[0] ?? "";
   const trash = source.match(/async function trash\(page\)[\s\S]*?\n/)?.[0] ?? "";
 
-  assert.match(rowRenderer, /data-trash-page="\$\{record\.id\}"/);
+  assert.match(rowRenderer, /data-trash-page="\$\{escapeAttribute\(record\.id\)\}"/);
   assert.match(handler, /confirm\("Move this page to Trash\?"\)/);
   assert.match(trash, /checkpoint\(\)/);
   assert.match(trash, /"page\.trash"/);

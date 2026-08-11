@@ -138,6 +138,34 @@ test("validation strictly checks collection properties, rows, views and globally
   reject(w => { w.databases[0].properties[1].id = "title"; }, /duplicate ID title/);
 });
 
+test("canonical schema-v2 rejects every hostile ID class and reference without leaking content", () => {
+  const fixture = JSON.parse(readFileSync(new URL("../../../../apps/web/test/fixtures/canonical-schema-v2-hostile-ids.json", import.meta.url), "utf8"));
+  const valid: any = structuredClone(fixture.workspace);
+  valid.id = "550e8400-e29b-41d4-a716-446655440000:restored.v2";
+  assertWorkspaceValue(valid);
+  assert.equal(valid.pages[0].blocks[0].type, "future-plugin-widget");
+  assert.equal(valid.pages[0].blocks[0].unknownData.markup, "<opaque>");
+  for (const attack of fixture.attacks) {
+    const candidate: any = structuredClone(fixture.workspace);
+    let target: any = candidate;
+    for (const segment of attack.path) target = target[segment];
+    if (attack.key !== undefined) {
+      target[attack.value] = target[attack.key];
+      delete target[attack.key];
+    } else {
+      let parent: any = candidate;
+      for (const segment of attack.path.slice(0, -1)) parent = parent[segment];
+      parent[attack.path.at(-1)] = attack.value;
+    }
+    let error: unknown;
+    try { assertWorkspaceValue(candidate); } catch (caught) { error = caught; }
+    assert.ok(error instanceof Error, `${attack.label} was accepted`);
+    assert.match(error.message, /safe canonical ID/);
+    assert.equal(error.message.includes(attack.value), false, `${attack.label} leaked hostile content`);
+    if (attack.label.startsWith("workspace ID")) assert.throws(() => migrateWorkspace(candidate), /safe canonical ID/);
+  }
+});
+
 test("web v1 migration is deterministic, separates UI state, preserves unknown blocks and rebuilds links", () => {
   const fixture = JSON.parse(readFileSync(new URL("../../../../fixtures/web-workspace-v1.json", import.meta.url), "utf8"));
   const first = migrateWebWorkspaceV1(fixture); const second = migrateWebWorkspaceV1(structuredClone(fixture));

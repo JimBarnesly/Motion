@@ -57,11 +57,13 @@ export function migrateWorkspace(input: unknown): Workspace {
       block.type = aliases[block.type] ?? block.type;
     }
     for (const db of raw.databases ?? []) db.recordPageIds ??= (db.rows ?? []).map((r: DatabaseRow) => r.pageId).filter(Boolean);
+    assertWorkspaceValue(raw);
     return raw as Workspace;
   }
   const raw = input as Record<string, any>;
   if (raw.schemaVersion !== 2) throw new Error(`Unsupported workspace schema: ${String(raw.schemaVersion)}`);
   raw.linkIndex ??= [];
+  assertWorkspaceValue(raw);
   return raw as Workspace;
 }
 function flatten(blocks: Block[]): Block[] { return blocks.flatMap(block => [block, ...flatten(block.children ?? [])]); }

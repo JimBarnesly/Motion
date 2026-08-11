@@ -114,7 +114,7 @@ test("native workspace transitions reject malformed authoritative summaries", as
   const { createMotionUiAdapter } = await import("../app-adapter.js");
   const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (_command, payload) => {
     if (payload?.request?.payload?.type === "workspace.import-web-v1") {
-      return { workspace: { id: "imported", pages: [], databases: [] }, saved: true };
+      return { workspace: { id: 123, pages: [], databases: [] }, revision: 1, saved: true };
     }
     throw new Error("Unexpected native call");
   } } } });
@@ -125,25 +125,31 @@ test("native workspace transitions reject malformed authoritative summaries", as
   );
 });
 
-test("failed workspace transitions invalidate the cached workspace before later commands", async () => {
+test("failed workspace transitions reload the persisted selection before later commands", async () => {
   const calls = [];
+  let loadCount = 0;
   const { createMotionUiAdapter } = await import("../app-adapter.js");
   const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => {
     const operation = payload?.request?.payload;
-    calls.push(operation);
-    if (command === "motion_ui_load") return { schemaVersion: 2, workspace: { id: "workspace-old", pages: [], databases: [] }, revision: 4 };
+    calls.push(operation?.type ?? command);
+    if (command === "motion_ui_load") {
+      loadCount += 1;
+      return { schemaVersion: 2, workspace: { id: "workspace-A", pages: [], databases: [] }, revision: 4 };
+    }
     if (operation?.type === "workspace.import-web-v1") throw new Error("response lost after transition");
-    if (operation?.type === "workspace.list") return [{ id: "workspace-new", revision: 1 }];
-    if (operation?.type === "page.rename") return { workspace: { id: "workspace-new", pages: [], databases: [] }, revision: 2, saved: true };
+    if (operation?.type === "workspace.list") return [{ id: "workspace-B", revision: 9 }, { id: "workspace-A", revision: 4 }];
+    if (operation?.type === "page.rename") return { workspace: { id: "workspace-A", pages: [], databases: [] }, revision: 5, saved: true };
     throw new Error(`Unexpected native call: ${operation?.type ?? command}`);
   } } } });
 
   await adapter.load();
   await assert.rejects(adapter.importWebV1({ schemaVersion: 1, pages: [], activePageId: null }), /response lost/);
-  await adapter.execute("page.rename", { pageId: "page-new", title: "Recovered" });
-  const rename = calls.find(call => call?.type === "page.rename");
-  assert.equal(rename.workspaceId, "workspace-new");
-  assert.equal(rename.expectedRevision, 1);
+  await adapter.execute("page.rename", { pageId: "page-A", title: "Recovered" });
+  const rename = calls.includes("page.rename");
+  assert.equal(rename, true);
+  const dispatched = calls.filter(call => call === "workspace.list");
+  assert.equal(dispatched.length, 0);
+  assert.equal(loadCount, 2);
 });
 
 test("native commands cannot start while a workspace transition is in flight", async () => {
@@ -282,6 +288,49 @@ test("search results from the prior workspace are rejected after import", async 
   releaseSearch([{ workspaceId: "workspace-old", entityId: "secret-old", title: "Old", snippet: "Old" }]);
 
   await assert.rejects(pendingSearch, /workspace changed while the operation was running/);
+});
+
+test("native mutation responses must advance the selected workspace revision", async () => {
+  const { createMotionUiAdapter } = await import("../app-adapter.js");
+  const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => {
+    const operation = payload?.request?.payload;
+    if (command === "motion_ui_load") return { schemaVersion: 2, workspace: { id: "workspace-A", pages: [], databases: [] }, revision: 4 };
+    if (operation?.type === "page.rename") return { workspace: { id: "workspace-A", pages: [], databases: [] }, revision: 4, saved: true };
+    throw new Error(`Unexpected native call: ${operation?.type ?? command}`);
+  } } } });
+
+  await adapter.load();
+  await assert.rejects(adapter.execute("page.rename", { pageId: "page-A", title: "Stale" }), /non-monotonic workspace revision/);
+});
+
+test("workspace transitions and UI selection writes are mutually exclusive", async () => {
+  let releaseUiSave;
+  let releaseImport;
+  const uiSaveResponse = new Promise(resolve => { releaseUiSave = resolve; });
+  const importResponse = new Promise(resolve => { releaseImport = resolve; });
+  const calls = [];
+  const { createMotionUiAdapter } = await import("../app-adapter.js");
+  const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => {
+    const operation = payload?.request?.payload;
+    calls.push(operation?.type ?? command);
+    if (command === "motion_ui_load") return { schemaVersion: 2, workspace: { id: "workspace-A", pages: [], databases: [] }, revision: 4 };
+    if (command === "motion_ui_save") return uiSaveResponse;
+    if (operation?.type === "workspace.import-web-v1") return importResponse;
+    throw new Error(`Unexpected native call: ${operation?.type ?? command}`);
+  } } } });
+
+  await adapter.load();
+  const pendingUiSave = adapter.saveUi({ workspaceId: "workspace-A", activePageId: null, expandedPageIds: [] });
+  await assert.rejects(adapter.importWebV1({ schemaVersion: 1, pages: [], activePageId: null }), /workspace selection update is running/);
+  assert.equal(calls.includes("workspace.import-web-v1"), false);
+  releaseUiSave();
+  await pendingUiSave;
+
+  const pendingImport = adapter.importWebV1({ schemaVersion: 1, pages: [], activePageId: null });
+  await assert.rejects(adapter.saveUi({ workspaceId: "workspace-A", activePageId: null, expandedPageIds: [] }), /workspace changed while the operation was running/);
+  assert.equal(calls.filter(call => call === "motion_ui_save").length, 1);
+  releaseImport({ workspace: { id: "workspace-B", pages: [], databases: [] }, revision: 1, saved: true });
+  await pendingImport;
 });
 
 test("native UI-state save rejects canonical snapshots and bounds its exact ephemeral allowlist", async () => {

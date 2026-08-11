@@ -84,25 +84,36 @@ function tauriAdapter(invoke) {
   let workspaceSummary;
   let workspaceEpoch = 0;
   let activeTransitionEpoch = null;
+  let selectionRecoveryRequired = false;
+  let pendingUiSaves = 0;
+  let uiSaveTail = Promise.resolve();
   const workspaceChanged = () => new Error("Native workspace changed while the operation was running");
   const assertCurrentWorkspace = (epoch, id) => {
     if (epoch !== workspaceEpoch || workspaceSummary?.id !== id) throw workspaceChanged();
   };
-  const advanceWorkspaceSummary = result => {
-    if (result?.workspace?.id && Number.isSafeInteger(result.revision)
-        && (!workspaceSummary || workspaceSummary.id !== result.workspace.id || result.revision > workspaceSummary.revision)) {
-      workspaceSummary = { id: result.workspace.id, revision: result.revision };
+  const assertCurrentSelection = (epoch, id) => {
+    if (epoch !== workspaceEpoch || (workspaceSummary?.id ?? null) !== id || activeTransitionEpoch !== null) throw workspaceChanged();
+  };
+  const advanceWorkspaceSummary = (result, current) => {
+    if (result?.workspace?.id !== current.id || !Number.isSafeInteger(result.revision)
+        || result.revision <= Math.max(current.revision, workspaceSummary?.revision ?? -1)) {
+      throw new Error("Native mutation returned a non-monotonic workspace revision");
     }
+    workspaceSummary = { id: current.id, revision: result.revision };
   };
   const dispatch = (lane, payload) => invoke("app_dispatch", { request: { protocolVersion: 1, lane, payload } });
+  const validSummary = summary => typeof summary?.id === "string" && UI_STATE_ID.test(summary.id)
+    && Number.isSafeInteger(summary.revision) && summary.revision >= 0;
   const transitionSummary = (result, allowEmpty) => {
-    if (allowEmpty && result?.workspace === null && Number.isSafeInteger(result.revision)) return undefined;
-    if (!result?.workspace || !UI_STATE_ID.test(result.workspace.id) || !Number.isSafeInteger(result.revision)) {
+    if (allowEmpty && result?.workspace === null && Number.isSafeInteger(result.revision) && result.revision >= 0) return undefined;
+    const summary = { id: result?.workspace?.id, revision: result?.revision };
+    if (!validSummary(summary)) {
       throw new Error("Native transition returned an invalid workspace summary");
     }
-    return { id: result.workspace.id, revision: result.revision };
+    return summary;
   };
   const transitionWorkspace = async (operation, allowEmpty = false) => {
+    if (pendingUiSaves > 0) throw new Error("Native workspace selection update is running");
     const transitionEpoch = ++workspaceEpoch;
     activeTransitionEpoch = transitionEpoch;
     workspaceSummary = undefined;
@@ -110,11 +121,13 @@ function tauriAdapter(invoke) {
       const result = await operation();
       if (transitionEpoch !== workspaceEpoch || activeTransitionEpoch !== transitionEpoch) throw workspaceChanged();
       workspaceSummary = transitionSummary(result, allowEmpty);
+      selectionRecoveryRequired = false;
       activeTransitionEpoch = null;
       return result;
     } catch (error) {
       if (activeTransitionEpoch === transitionEpoch) {
         workspaceSummary = undefined;
+        selectionRecoveryRequired = true;
         activeTransitionEpoch = null;
       }
       throw error;
@@ -124,10 +137,19 @@ function tauriAdapter(invoke) {
     if (activeTransitionEpoch !== null) throw workspaceChanged();
     if (workspaceSummary) return workspaceSummary;
     const discoveryEpoch = workspaceEpoch;
+    if (selectionRecoveryRequired) {
+      const loaded = await invoke("motion_ui_load", { request: { schemaVersion: 2 } });
+      if (discoveryEpoch !== workspaceEpoch || activeTransitionEpoch !== null) throw workspaceChanged();
+      if (loaded?.schemaVersion !== 2) throw new Error("Native Motion returned an unsupported UI document");
+      workspaceSummary = transitionSummary(loaded, true);
+      selectionRecoveryRequired = false;
+      if (!workspaceSummary) throw new Error("Create a workspace before using this native operation");
+      return workspaceSummary;
+    }
     const workspaces = await dispatch("query", { type: "workspace.list" });
     if (discoveryEpoch !== workspaceEpoch) return requiredWorkspace();
     workspaceSummary = workspaces?.[0];
-    if (!workspaceSummary?.id || !Number.isSafeInteger(workspaceSummary.revision)) throw new Error("Create a workspace before using this native operation");
+    if (!validSummary(workspaceSummary)) throw new Error("Create a workspace before using this native operation");
     return workspaceSummary;
   };
   const dispatchCurrentWorkspace = async (lane, payload) => {
@@ -159,11 +181,27 @@ function tauriAdapter(invoke) {
       const result = await dispatch("command", { ...payload, type, workspaceId: current.id, expectedRevision: current.revision });
       assertCurrentWorkspace(operationEpoch, current.id);
       if (result?.workspace?.id !== current.id) throw workspaceChanged();
-      advanceWorkspaceSummary(result);
+      advanceWorkspaceSummary(result, current);
       return result;
     },
     async saveUi(uiState) {
-      await invoke("motion_ui_save", { request: { document: validUiState(uiState), schemaVersion: 2 } });
+      if (activeTransitionEpoch !== null || selectionRecoveryRequired) throw workspaceChanged();
+      const document = validUiState(uiState);
+      const saveEpoch = workspaceEpoch;
+      const workspaceId = workspaceSummary?.id ?? null;
+      if (document.workspaceId !== workspaceId) throw workspaceChanged();
+      pendingUiSaves += 1;
+      const save = uiSaveTail.then(async () => {
+        assertCurrentSelection(saveEpoch, workspaceId);
+        await invoke("motion_ui_save", { request: { document, schemaVersion: 2 } });
+        assertCurrentSelection(saveEpoch, workspaceId);
+      });
+      uiSaveTail = save.catch(() => {});
+      try {
+        await save;
+      } finally {
+        pendingUiSaves -= 1;
+      }
     },
     async save() {
       throw new Error("Native whole-workspace save is unavailable; use typed commands or explicit Web-v1 import");
@@ -185,7 +223,7 @@ function tauriAdapter(invoke) {
       const result = await dispatch("async-command", { type: "attachment.put", workspaceId: current.id, expectedRevision: current.revision, fileName, mediaType, sha256, bytes: { $motionBytes: Array.from(bytes) } });
       assertCurrentWorkspace(operationEpoch, current.id);
       if (result?.workspace?.id !== current.id) throw workspaceChanged();
-      advanceWorkspaceSummary(result);
+      advanceWorkspaceSummary(result, current);
       return result;
     },
     async createBackup() { return dispatchCurrentWorkspace("async-query", { type: "backup.create" }); },

@@ -76,13 +76,15 @@ export function resolveSearchTarget(hit, workspace) {
   if (!hit || !workspace) return null;
   if (hit.entityType === "block") return hit.ownerEntityId ? { pageId: hit.ownerEntityId, blockId: hit.entityId } : null;
   if (hit.entityType === "row") {
-    const database = (workspace.databases ?? []).find(candidate => candidate.pageId === hit.ownerEntityId || candidate.id === hit.ownerEntityId || candidate.rows?.some(row => row.id === hit.entityId));
+    if (!hit.ownerEntityId) return null;
+    const database = (workspace.databases ?? []).find(candidate => candidate.pageId === hit.ownerEntityId);
     const row = database?.rows?.find(candidate => candidate.id === hit.entityId);
-    return database ? { pageId: database.pageId, recordId: row?.pageId ?? hit.entityId } : hit.ownerEntityId ? { pageId: hit.ownerEntityId, recordId: hit.entityId } : null;
+    if (!database || !row?.pageId || !(database.recordPageIds ?? []).includes(row.pageId)) return null;
+    const record = (workspace.pages ?? []).find(candidate => candidate.id === row.pageId && candidate.collectionId === database.id && !candidate.deletedAt);
+    return record ? { pageId: database.pageId, recordId: record.id } : null;
   }
-  const page = (workspace.pages ?? []).find(candidate => candidate.id === hit.entityId);
+  const page = (workspace.pages ?? []).find(candidate => candidate.id === hit.entityId && !candidate.deletedAt);
   if (page) return { pageId: page.id, ...(page.collectionId ? { recordId: page.id } : {}) };
-  if (hit.ownerEntityId) return { pageId: hit.ownerEntityId, recordId: hit.entityId };
   return null;
 }
 

@@ -1,33 +1,7 @@
 import assert from "node:assert/strict";
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
-
-function withoutComments(source) {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|[^:])\/\/.*$/gm, "$1");
-}
-
-function validateFixtureBindings(source, spec = "spec") {
-  const uncommented = withoutComments(source);
-  const fixtureImport = uncommented.match(/import\s*\{([^}]*)\}\s*from\s*["']\.\/fixtures["']\s*;/);
-  assert.ok(fixtureImport, `${spec} must use a named import from ./fixtures`);
-
-  const bindings = fixtureImport[1].split(",").map(binding => binding.trim());
-  assert.ok(bindings.includes("test"), `${spec} must bind test from ./fixtures`);
-  assert.ok(bindings.includes("expect"), `${spec} must bind expect from ./fixtures`);
-
-  const body = uncommented.replace(fixtureImport[0], "");
-  assert.match(body, /\btest\s*(?:\(|\.)/, `${spec} must use the fixture-bound test`);
-  assert.match(body, /\bexpect\s*(?:\(|\.)/, `${spec} must use the fixture-bound expect`);
-}
-
-function validateNoUnprotectedContexts(source, spec = "spec") {
-  const uncommented = withoutComments(source);
-  assert.doesNotMatch(uncommented, /\bnewContext\s*\(/, `${spec} creates an unprotected BrowserContext`);
-  assert.doesNotMatch(uncommented, /\blaunchPersistentContext\s*\(/, `${spec} creates an unprotected persistent context`);
-  assert.doesNotMatch(uncommented, /\bbrowser\s*\.\s*newPage\s*\(/, `${spec} creates an implicit unprotected BrowserContext`);
-}
+import { e2eSpecsFromTracked, trackedE2eSpecs, validateFixtureBindings, validateNoUnprotectedContexts } from "./e2e-confinement-contract.mjs";
 
 test("fixture import contract rejects comments and unused imports", () => {
   assert.throws(
@@ -45,6 +19,42 @@ test("fixture import contract rejects comments and unused imports", () => {
   assert.doesNotThrow(
     () => validateFixtureBindings('import { test, expect } from "./fixtures";\ntest("safe", () => expect(true));')
   );
+  assert.doesNotThrow(
+    () => validateFixtureBindings('import { test as protectedTest, expect as protectedExpect } from "./fixtures";\nprotectedTest("safe alias", () => protectedExpect(true));')
+  );
+  assert.throws(
+    () => validateFixtureBindings('import { test, expect } from "./fixtures";\nimport { test as direct } from "@playwright/test";\ntest("bypass", () => expect(direct));'),
+    /direct @playwright\/test import/
+  );
+  assert.throws(
+    () => validateFixtureBindings('import { test, expect } from "./fixtures";\nfunction test() {}\ntest("shadowed", () => expect(true));'),
+    /shadows the fixture-bound test/
+  );
+  assert.throws(
+    () => validateFixtureBindings('import { test, expect } from "./fixtures";\nconst expect = () => true;\ntest("shadowed", () => expect(true));'),
+    /shadows the fixture-bound expect/
+  );
+  assert.throws(
+    () => validateFixtureBindings('import { test, expect } from "./fixtures";\nfunction nested(test) { test(); }\ntest("shadowed parameter", () => expect(true));'),
+    /shadows the fixture-bound test/
+  );
+  assert.throws(
+    () => validateFixtureBindings('import { test as protectedTest, type Page } from "./fixtures";\nprotectedTest("missing expect", () => {});'),
+    /must bind expect/
+  );
+  assert.throws(
+    () => validateFixtureBindings('import { expect as protectedExpect } from "./fixtures";\nprotectedExpect(true);'),
+    /must bind test/
+  );
+  for (const direct of [
+    'import * as direct from "@playwright/test";',
+    'const direct = require("@playwright/test");',
+    'const direct = await import("@playwright/test");',
+    'import { chromium as engine } from "playwright-core";'
+  ]) assert.throws(
+    () => validateFixtureBindings(`${direct}\nimport { test, expect } from "./fixtures";\ntest("direct", () => expect(true));`),
+    /Playwright directly|direct @playwright\/test import/
+  );
 });
 
 test("every browser acceptance spec binds and uses the suite-wide fixture", async () => {
@@ -53,12 +63,21 @@ test("every browser acceptance spec binds and uses the suite-wide fixture", asyn
   const ci = await readFile(".github/workflows/ci.yml", "utf8");
   assert.match(ci, /^\s*run:\s+npm run test:e2e-offline-fixture\s*$/m);
 
-  const specs = (await readdir("e2e")).filter(name => name.endsWith(".spec.ts")).sort();
+  const specs = trackedE2eSpecs();
   assert.ok(specs.length > 0);
   for (const spec of specs) {
-    const source = await readFile(`e2e/${spec}`, "utf8");
+    const source = await readFile(spec, "utf8");
     validateFixtureBindings(source, spec);
   }
+});
+
+test("tracked Playwright specs cannot hide outside the recursive configured glob", () => {
+  assert.deepEqual(e2eSpecsFromTracked(["e2e/root.spec.ts", "e2e/nested/deep.spec.ts"]),
+    ["e2e/nested/deep.spec.ts", "e2e/root.spec.ts"]);
+  assert.throws(
+    () => e2eSpecsFromTracked(["e2e/covered.spec.ts", "browser-tests/hidden.spec.ts"]),
+    /must live below e2e/
+  );
 });
 
 test("suite-wide BrowserContext policy protects the initial page and every popup", async () => {
@@ -76,6 +95,8 @@ test("suite-wide BrowserContext policy protects the initial page and every popup
 test("service workers are blocked so BrowserContext routing cannot be bypassed", async () => {
   const config = await readFile("playwright.config.ts", "utf8");
   assert.match(config, /serviceWorkers\s*:\s*["']block["']/);
+  assert.match(config, /testDir\s*:\s*["']\.\/e2e["']/);
+  assert.match(config, /testMatch\s*:\s*["']\*\*\/\*\.spec\.ts["']/);
 });
 
 test("WebSocket locality normalizes schemes and requires the configured host and port", async () => {
@@ -100,12 +121,27 @@ test("specs cannot create BrowserContexts outside the protected fixture", async 
     () => validateNoUnprotectedContexts("await browser.newPage();", "bypass.spec.ts"),
     /implicit unprotected BrowserContext/
   );
+  for (const source of [
+    'await browser["newContext"]();',
+    "await browser[`newContext`]();",
+    "const method = 'newContext'; await browser[method]();",
+    "const create = browser.newContext; await create();",
+    "await chromium.launch();",
+    "await firefox['launchPersistentContext']('/tmp/profile');",
+    "await webkit[`launch`]();",
+    "const engine = chromium; await engine.launch();",
+    "await request.newContext();",
+    "await browserType.connectOverCDP(endpoint);"
+  ]) assert.throws(
+    () => validateNoUnprotectedContexts(source, "bypass.spec.ts"),
+    /unprotected BrowserContext|browser launch/
+  );
   assert.doesNotThrow(
     () => validateNoUnprotectedContexts("// await browser.newContext();\nawait page.goto('/');")
   );
 
-  const specs = (await readdir("e2e")).filter(name => name.endsWith(".spec.ts")).sort();
+  const specs = trackedE2eSpecs();
   for (const spec of specs) {
-    validateNoUnprotectedContexts(await readFile(`e2e/${spec}`, "utf8"), spec);
+    validateNoUnprotectedContexts(await readFile(spec, "utf8"), spec);
   }
 });

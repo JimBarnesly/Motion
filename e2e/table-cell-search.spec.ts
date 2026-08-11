@@ -100,6 +100,7 @@ for (const layout of layouts) {
             if (payload.type === "workspace.search") {
               attempts += 1;
               if (attempts === 1) throw new Error("/Users/alice/private.db: SQLITE_IOERR");
+              if (payload.query === "record-page") return [{ workspaceId: "workspace-search", entityId: "stable-record-a", entityType: "page", ownerEntityId: "commissioning-table", title: "Pump A", snippet: "Record page" }];
               return [{ workspaceId: "workspace-search", entityId: "native-row-a", entityType: "row", ownerEntityId: "commissioning-table", title: "Commissioning register", snippet: "Reading: Flow stable" }];
             }
           }
@@ -119,6 +120,13 @@ for (const layout of layouts) {
       await result.press("Enter");
       await expect(page.getByRole("textbox", { name: "Database title" })).toHaveValue("Commissioning register");
       await expect(page.locator('[data-record-id="stable-record-a"] .record-link')).toBeFocused();
+
+      await page.keyboard.press("Control+k");
+      await page.getByRole("searchbox", { name: "Search workspace" }).fill("record-page");
+      await page.locator("#searchResults").getByRole("button", { name: /Pump A.*Record page/ }).press("Enter");
+      await expect(page.getByRole("textbox", { name: "Page title" })).toHaveValue("Pump A");
+      await expect(page.getByRole("textbox", { name: "Page title" })).toBeFocused();
+      await expect(page.getByRole("textbox", { name: "Database title" })).toHaveCount(0);
       expect(await page.evaluate(() => (window as any).__searchLanes.every((lane: string) => lane === "query"))).toBe(true);
     });
   });

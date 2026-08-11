@@ -48,6 +48,28 @@ test("native row and record hits resolve owning context and stable focus without
     { pageId: "page-z", blockId: "block-2" });
 });
 
+test("native row targets fail closed for missing owners, missing rows, and trashed record pages", () => {
+  assert.equal(resolveSearchTarget({ entityId: "legacy-row", entityType: "row" }, workspace), null);
+  assert.equal(resolveSearchTarget({ entityId: "missing-row", entityType: "row", ownerEntityId: "table-page" }, workspace), null);
+  assert.equal(resolveSearchTarget({ entityId: "legacy-row", entityType: "row", ownerEntityId: "database-1" }, workspace), null);
+  const trashed = structuredClone(workspace);
+  trashed.pages.find(page => page.id === "record-b").deletedAt = "2026-08-11T00:00:00Z";
+  assert.equal(resolveSearchTarget({ entityId: "legacy-row", entityType: "row", ownerEntityId: "table-page" }, trashed), null);
+  assert.equal(resolveSearchTarget({ entityId: "record-b", entityType: "page", ownerEntityId: "table-page" }, trashed), null);
+  assert.equal(resolveSearchTarget({ entityId: "missing-record", entityType: "page", ownerEntityId: "table-page" }, workspace), null);
+});
+
+test("stable row and record-page IDs remain opaque navigation values", () => {
+  const stable = structuredClone(workspace);
+  stable.pages[2].id = 'record:😀][data-record-id="other"';
+  stable.databases[0].recordPageIds[0] = stable.pages[2].id;
+  stable.databases[0].rows[0].pageId = stable.pages[2].id;
+  assert.deepEqual(resolveSearchTarget({ entityId: "legacy-row", entityType: "row", ownerEntityId: "table-page" }, stable),
+    { pageId: "table-page", recordId: stable.pages[2].id });
+  assert.deepEqual(resolveSearchTarget({ entityId: stable.pages[2].id, entityType: "page", ownerEntityId: "table-page" }, stable),
+    { pageId: stable.pages[2].id, recordId: stable.pages[2].id });
+});
+
 test("status copy is honest, preserves the query for retry, and never leaks native diagnostics", () => {
   assert.deepEqual(searchStatus("", "idle"), { kind: "guidance", message: "Search page titles, block text, record properties, and attachment filenames." });
   assert.deepEqual(searchStatus("flow", "loading"), { kind: "loading", message: "Searching for “flow”…" });

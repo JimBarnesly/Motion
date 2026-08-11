@@ -1,10 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash } from "node:crypto";
-import { createBackup, previewRestore, restoreIntoNewWorkspace, safeArchivePath, verifyBackup, type WorkspaceSnapshot } from "../index.js";
+import { canonicalJson, createBackup, previewRestore, restoreIntoNewWorkspace, safeArchivePath, verifyBackup, type BackupBundle, type WorkspaceSnapshot } from "../index.js";
 
 const bytes = new TextEncoder().encode("attachment contents");
 const sha256 = createHash("sha256").update(bytes).digest("hex");
+const encoder = new TextEncoder();
+
+function replaceWorkspace(bundle: BackupBundle, replacement: WorkspaceSnapshot): BackupBundle {
+  const workspaceBytes = encoder.encode(canonicalJson(replacement));
+  return {
+    manifest: {
+      ...bundle.manifest,
+      workspaceId: replacement.id,
+      workspaceSchemaVersion: replacement.schemaVersion,
+      files: bundle.manifest.files.map(file => file.path === "workspace.json"
+        ? { ...file, byteLength: workspaceBytes.byteLength, sha256: createHash("sha256").update(workspaceBytes).digest("hex") }
+        : { ...file })
+    },
+    files: { ...bundle.files, "workspace.json": workspaceBytes }
+  };
+}
 
 const workspace: WorkspaceSnapshot = {
   schemaVersion: 2,
@@ -49,7 +65,8 @@ test("restoring a table remaps property IDs and row value keys together", () => 
   delete source.pages[0].blocks[0].attachmentId;
   source.databases = [{ id: "database-1", pageId: "page-root", name: "Readings",
     properties: [{ id: "property-1", name: "Reading", type: "plain-text" }],
-    rows: [{ id: "row-1", values: { "property-1": "stable cell" }, createdAt: source.createdAt, updatedAt: source.updatedAt }], views: [] }];
+    rows: [{ id: "row-1", values: { "property-1": "stable cell" }, createdAt: source.createdAt, updatedAt: source.updatedAt }],
+    recordPageIds: ["page-child"], views: [] }];
   const restored = restoreIntoNewWorkspace(createBackup(source, [], "2026-01-01T00:00:00.000Z"), "restored").workspace;
   const propertyId = (restored.databases[0]?.properties[0] as any)?.id;
   assert.equal(propertyId, "restored:property-1");
@@ -137,7 +154,7 @@ test("restore remaps only schema-declared internal identities and references", (
       "property-files": { attachmentIds: ["attachment-1"] }, "property-created-by": "page-root",
       "property-updated-by": "page-child", "property-page": "page-child"
     }, createdAt: source.createdAt, updatedAt: source.updatedAt }],
-    recordPageIds: ["page-child"],
+    recordPageIds: ["page-root", "page-child"],
     views: [{
       id: "view-1", collectionId: "database-1", name: "All", type: "table",
       visiblePropertyIds: ["property-select"], propertyOrder: ["property-multi"], columnWidths: { "property-select": 200 },
@@ -148,7 +165,8 @@ test("restore remaps only schema-declared internal identities and references", (
       sorts: [{ propertyId: "property-multi", direction: "asc" }], groupByPropertyId: "property-select",
       subgroupByPropertyId: "property-multi", calendarDatePropertyId: "property-select",
       timelineStartPropertyId: "property-select", timelineEndPropertyId: "property-multi",
-      layout: { propertyId: "property-select", nested: { viewId: "view-1", opaqueOwnerId: "page-root" } },
+      layout: { pageId: "page-root", propertyId: "property-select", nested: { propertyIds: ["property-multi"], viewId: "view-1", opaqueOwnerId: "page-root" } },
+      cardPreview: { attachmentId: "attachment-1", nested: { pageId: "page-child" } },
       permissions: { ownerId: "page-root", pageId: "page-child" }
     }]
   }];
@@ -191,7 +209,7 @@ test("restore remaps only schema-declared internal identities and references", (
   assert.deepEqual(row.values[id("property-relation")], [id("page-root")]);
   assert.deepEqual(row.values[id("property-files")], { attachmentIds: [id("attachment-1")] });
   assert.equal(row.values[id("property-page")], id("page-child"));
-  assert.deepEqual(database.recordPageIds, [id("page-child")]);
+  assert.deepEqual(database.recordPageIds, [id("page-root"), id("page-child")]);
   assert.equal(view.id, id("view-1")); assert.equal(view.collectionId, id("database-1"));
   assert.deepEqual(view.visiblePropertyIds, [id("property-select")]);
   assert.deepEqual(view.propertyOrder, [id("property-multi")]);
@@ -202,8 +220,8 @@ test("restore remaps only schema-declared internal identities and references", (
   assert.equal(view.groupByPropertyId, id("property-select")); assert.equal(view.subgroupByPropertyId, id("property-multi"));
   assert.equal(view.calendarDatePropertyId, id("property-select")); assert.equal(view.timelineStartPropertyId, id("property-select"));
   assert.equal(view.timelineEndPropertyId, id("property-multi"));
-  assert.equal(view.layout.propertyId, id("property-select")); assert.equal(view.layout.nested.viewId, id("view-1"));
-  assert.equal(view.layout.nested.opaqueOwnerId, "page-root");
+  assert.deepEqual(view.layout, source.databases[0].views[0].layout);
+  assert.deepEqual(view.cardPreview, source.databases[0].views[0].cardPreview);
   assert.deepEqual(restored.workspace.linkIndex, [{ sourcePageId: id("page-root"), targetPageId: id("page-child"), blockId: id("block-1") }]);
   assert.equal(restored.idMap.has("page-root"), true);
   assert.equal(restored.idMap.has("page-child"), true);
@@ -229,4 +247,57 @@ test("tampering and traversal paths are rejected", () => {
     assert.throws(() => safeArchivePath(path), /Unsafe/, `accepted ${path}`);
   }
   assert.throws(() => createBackup(workspace, [{ id: "attachment-1", fileName: "note.txt", bytes: new Uint8Array([1]) }]), /does not match/);
+});
+
+test("public verification cross-checks workspace attachment metadata against its exact payload", () => {
+  const original = createBackup(workspace, [{ id: "attachment-1", fileName: "note.txt", bytes }]);
+  const mutations: Array<[string, (value: WorkspaceSnapshot) => void]> = [
+    ["sha256", value => { value.attachments[0]!.sha256 = "0".repeat(64); }],
+    ["byteLength", value => { value.attachments[0]!.byteLength += 1; }],
+    ["file name path", value => { value.attachments[0]!.fileName = "renamed.txt"; }],
+    ["missing payload", value => { value.attachments[0]!.id = "attachment-missing"; }],
+    ["extra payload", value => { value.attachments = []; }],
+    ["duplicate entity", value => { value.attachments.push(structuredClone(value.attachments[0]!)); }]
+  ];
+  for (const [label, mutate] of mutations) {
+    const changed = structuredClone(workspace); mutate(changed);
+    const bundle = replaceWorkspace(original, changed);
+    assert.equal(verifyBackup(bundle).valid, false, label);
+    assert.equal(previewRestore(bundle).valid, false, label);
+    assert.throws(() => restoreIntoNewWorkspace(bundle, "restored"), /Backup verification failed/, label);
+  }
+});
+
+test("public verification rejects safe checksummed attachment payloads not owned by the workspace", () => {
+  const original = createBackup(workspace, [{ id: "attachment-1", fileName: "note.txt", bytes }]);
+  const extraPath = "attachments/unowned/extra.bin";
+  const bundle: BackupBundle = {
+    manifest: { ...original.manifest, files: [...original.manifest.files.map(file => ({ ...file })), {
+      path: extraPath, byteLength: bytes.byteLength, sha256, mediaType: "application/octet-stream"
+    }] },
+    files: { ...original.files, [extraPath]: bytes }
+  };
+  assert.equal(verifyBackup(bundle).valid, false);
+  assert.equal(previewRestore(bundle).valid, false);
+  assert.throws(() => restoreIntoNewWorkspace(bundle, "restored"), /Backup verification failed/);
+});
+
+test("public verification enforces canonical record membership before restore without mutation", () => {
+  const original = createBackup(workspace, [{ id: "attachment-1", fileName: "note.txt", bytes }]);
+  const mutations: Array<[string, (value: WorkspaceSnapshot) => void]> = [
+    ["unindexed record", value => { value.databases[0]!.recordPageIds = []; }],
+    ["record in the wrong collection", value => { value.databases[0]!.recordPageIds = ["page-root"]; }],
+    ["missing collection", value => { value.pages[1]!.collectionId = "database-missing"; }]
+  ];
+  for (const [label, mutate] of mutations) {
+    const changed = structuredClone(workspace); mutate(changed);
+    const bundle = replaceWorkspace(original, changed);
+    const beforeManifest = structuredClone(bundle.manifest);
+    const beforeFiles = Object.fromEntries(Object.entries(bundle.files).map(([path, payload]) => [path, payload.slice()]));
+    assert.equal(verifyBackup(bundle).valid, false, label);
+    assert.equal(previewRestore(bundle).valid, false, label);
+    assert.throws(() => restoreIntoNewWorkspace(bundle, "restored"), /Backup verification failed/, label);
+    assert.deepEqual(bundle.manifest, beforeManifest, `${label} manifest mutation`);
+    assert.deepEqual(bundle.files, beforeFiles, `${label} payload mutation`);
+  }
 });

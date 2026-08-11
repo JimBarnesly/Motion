@@ -36,6 +36,7 @@ const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest(
 const MAX_BACKUP_FILES = 10_000;
 const MAX_BACKUP_METADATA_STRING = 4_096;
 const MAX_BACKUP_TOTAL_BYTES = 2 * 1024 * 1024 * 1024;
+const MAX_WORKSPACE_SNAPSHOT_BYTES = 256 * 1024 * 1024;
 const CANONICAL_MAX_ID_LENGTH = 160;
 const CANONICAL_ID = new RegExp(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,${CANONICAL_MAX_ID_LENGTH - 1}}$`);
 
@@ -73,8 +74,9 @@ export function createBackup(workspace: WorkspaceSnapshot, attachments: readonly
   for (const input of attachments) {
     const expected = metadata.get(input.id);
     if (!expected) throw new Error(`Attachment ${input.id} is not referenced by the workspace`);
+    if (input.fileName !== expected.fileName) throw new Error(`Attachment ${input.id} file name does not match workspace metadata`);
     if (input.bytes.byteLength !== expected.byteLength || digest(input.bytes) !== expected.sha256) throw new Error(`Attachment ${input.id} does not match workspace metadata`);
-    const path = safeArchivePath("attachments", input.id, safeFileName(input.fileName));
+    const path = safeArchivePath("attachments", input.id, safeFileName(expected.fileName));
     if (files[path]) throw new Error(`Duplicate archive path: ${path}`);
     files[path] = input.bytes.slice();
   }
@@ -109,17 +111,105 @@ export function verifyBackup(bundle: BackupBundle): VerificationResult {
   if (totalBytes > MAX_BACKUP_TOTAL_BYTES) errors.push("Backup payload exceeds total-size limit");
   for (const path of Object.keys(bundle.files)) if (!declared.has(path)) errors.push("Undeclared backup payload");
   if (!declared.has("workspace.json")) errors.push("Missing workspace.json declaration");
+  if (errors.length === 0) {
+    try { assertBackupWorkspaceSemantics(bundle, readWorkspace(bundle)); }
+    catch (error) { errors.push(error instanceof Error ? error.message : String(error)); }
+  }
   return { valid: errors.length === 0, errors };
 }
 
 function readWorkspace(bundle: BackupBundle): WorkspaceSnapshot {
   const bytes = bundle.files["workspace.json"];
   if (!bytes) throw new Error("Missing workspace.json");
+  if (bytes.byteLength > MAX_WORKSPACE_SNAPSHOT_BYTES) throw new Error("Workspace snapshot exceeds size limit");
   const parsed: unknown = JSON.parse(decoder.decode(bytes));
   if (!parsed || typeof parsed !== "object") throw new Error("Invalid workspace snapshot");
   const candidate = parsed as Partial<WorkspaceSnapshot>;
   if (typeof candidate.id !== "string" || typeof candidate.name !== "string" || typeof candidate.schemaVersion !== "number" || !Array.isArray(candidate.pages) || !Array.isArray(candidate.databases) || !Array.isArray(candidate.attachments)) throw new Error("Invalid workspace snapshot structure");
   return parsed as WorkspaceSnapshot;
+}
+
+function assertBackupWorkspaceSemantics(bundle: BackupBundle, workspace: WorkspaceSnapshot): void {
+  if (bundle.manifest.workspaceId !== workspace.id || bundle.manifest.workspaceSchemaVersion !== workspace.schemaVersion) {
+    throw new Error("Workspace snapshot identity does not match manifest");
+  }
+  const workspaceFiles = bundle.manifest.files.filter(file => file.path === "workspace.json");
+  if (workspaceFiles.length !== 1 || workspaceFiles[0]!.mediaType !== "application/json") throw new Error("Workspace snapshot must have exactly one JSON manifest payload");
+
+  // The backup package deliberately validates only the structural and membership invariants
+  // required to verify and restore safely. Full domain validation remains owned by core.
+  const pageIds = new Set<string>();
+  const pages = new Map<string, WorkspaceSnapshot["pages"][number]>();
+  for (const [index, page] of workspace.pages.entries()) {
+    if (!plainObject(page) || typeof page.title !== "string" || (page.parentId !== null && typeof page.parentId !== "string") || !Array.isArray(page.blocks)) {
+      throw new Error(`Invalid workspace snapshot page ${index}`);
+    }
+    assertCanonicalId(page.id, `Source page ID at index ${index}`);
+    if (pageIds.has(page.id)) throw new Error("Backup contains a duplicate source ID");
+    pageIds.add(page.id); pages.set(page.id, page);
+  }
+  const databaseIds = new Set<string>();
+  const databases = new Map<string, WorkspaceSnapshot["databases"][number]>();
+  for (const [index, database] of workspace.databases.entries()) {
+    if (!plainObject(database) || typeof database.pageId !== "string" || typeof database.name !== "string"
+      || !Array.isArray(database.properties) || !Array.isArray(database.rows)
+      || (database.views !== undefined && !Array.isArray(database.views))
+      || (database.recordPageIds !== undefined && !Array.isArray(database.recordPageIds))) {
+      throw new Error(`Invalid workspace snapshot database ${index}`);
+    }
+    assertCanonicalId(database.id, `Database ${index} ID`);
+    if (databaseIds.has(database.id)) throw new Error("Backup contains a duplicate source ID");
+    if (!pages.has(database.pageId)) throw new Error(`Database ${database.id} references a missing page`);
+    databaseIds.add(database.id); databases.set(database.id, database);
+  }
+  const recordOwners = new Map<string, string>();
+  for (const database of workspace.databases) {
+    const recordPageIds = database.recordPageIds;
+    if (recordPageIds !== undefined && !Array.isArray(recordPageIds)) throw new Error(`Invalid record membership for database ${database.id}`);
+    for (const recordPageId of recordPageIds ?? []) {
+      assertCanonicalId(recordPageId, `Record page ID in ${database.id}`);
+      const recordPage = pages.get(recordPageId);
+      if (!recordPage) throw new Error(`Database ${database.id} references a missing record page`);
+      if (recordPage.collectionId !== database.id) throw new Error(`Database ${database.id} lists a record page from another collection`);
+      if (recordOwners.has(recordPageId)) throw new Error("Record page membership must be unique");
+      recordOwners.set(recordPageId, database.id);
+    }
+  }
+  for (const page of workspace.pages) {
+    if (page.parentId !== null && !pages.has(page.parentId)) throw new Error(`Page ${page.id} references a missing parent`);
+    if (page.collectionId === undefined) continue;
+    if (typeof page.collectionId !== "string" || !databases.has(page.collectionId)) throw new Error(`Page ${page.id} references a missing collection`);
+    if (recordOwners.get(page.id) !== page.collectionId) throw new Error(`Record page ${page.id} is not indexed by its collection`);
+  }
+
+  collectIdentities(workspace);
+  const attachmentEntries = bundle.manifest.files.filter(file => file.path !== "workspace.json");
+  if (workspace.attachments.length !== attachmentEntries.length) throw new Error("Workspace attachment entities and payloads must have one-to-one membership");
+  const attachmentEntriesByPath = new Map(attachmentEntries.map(file => [file.path, file] as const));
+  const expectedAttachmentPaths = new Set<string>();
+  for (const [index, attachment] of workspace.attachments.entries()) {
+    if (!plainObject(attachment) || typeof attachment.fileName !== "string" || typeof attachment.path !== "string"
+      || typeof attachment.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(attachment.sha256)
+      || !Number.isSafeInteger(attachment.byteLength) || attachment.byteLength < 0) {
+      throw new Error(`Invalid workspace attachment metadata at index ${index}`);
+    }
+    assertCanonicalId(attachment.id, `Attachment ${index} ID`);
+    const expectedPath = safeArchivePath("attachments", attachment.id, safeFileName(attachment.fileName));
+    if (expectedAttachmentPaths.has(expectedPath)) throw new Error("Duplicate workspace attachment payload identity");
+    expectedAttachmentPaths.add(expectedPath);
+    const entry = attachmentEntriesByPath.get(expectedPath);
+    if (!entry) throw new Error(`Attachment ${attachment.id} must have exactly one payload`);
+    if (entry.sha256 !== attachment.sha256 || entry.byteLength !== attachment.byteLength) throw new Error(`Attachment ${attachment.id} metadata does not match its payload`);
+  }
+  if (attachmentEntries.length !== expectedAttachmentPaths.size || attachmentEntries.some(file => !expectedAttachmentPaths.has(file.path))) {
+    throw new Error("Backup contains an attachment payload not owned by the workspace");
+  }
+}
+
+function plainObject(value: unknown): boolean {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 
 export function previewRestore(bundle: BackupBundle): RestorePreview {
@@ -202,17 +292,6 @@ export function restoreIntoNewWorkspace(bundle: BackupBundle, newWorkspaceId: st
       filter.children.forEach(child => remapFilter(child, properties));
     } else if (filter.kind === "not") remapFilter(filter.child, properties);
   }
-  const LAYOUT_ID_FIELDS = new Set(["propertyId", "viewId", "collectionId", "pageId", "attachmentId"]);
-  const LAYOUT_ID_LIST_FIELDS = new Set(["propertyIds", "viewIds", "collectionIds", "pageIds", "attachmentIds"]);
-  function remapLayout(value: JsonValue | undefined): void {
-    if (Array.isArray(value)) { value.forEach(remapLayout); return; }
-    const layout = object(value); if (!layout) return;
-    for (const [key, child] of Object.entries(layout)) {
-      if (LAYOUT_ID_FIELDS.has(key)) layout[key] = mapped(child)!;
-      else if (LAYOUT_ID_LIST_FIELDS.has(key)) layout[key] = mappedList(child)!;
-      else remapLayout(child);
-    }
-  }
 
   workspace.id = newWorkspaceId;
   for (const attachment of workspace.attachments) attachment.id = mapped(attachment.id) as string;
@@ -270,8 +349,7 @@ export function restoreIntoNewWorkspace(bundle: BackupBundle, newWorkspaceId: st
       for (const field of ["groupByPropertyId", "subgroupByPropertyId", "calendarDatePropertyId", "timelineStartPropertyId", "timelineEndPropertyId"] as const) {
         if (view[field] !== undefined) view[field] = mapped(view[field])!;
       }
-      remapLayout(view.layout);
-      // permissions and cardPreview remain opaque.
+      // layout, permissions and cardPreview remain opaque.
     }
   }
   if (Array.isArray(workspace.linkIndex)) for (const linkValue of workspace.linkIndex) {

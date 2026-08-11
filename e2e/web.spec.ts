@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test("local Web workspace persists, searches and exports without external network access", async ({ page, context, baseURL }) => {
   const localOrigin = new URL(baseURL!).origin;

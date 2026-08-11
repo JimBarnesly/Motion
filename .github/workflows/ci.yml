@@ -112,6 +112,8 @@ jobs:
       - name: Test signed release provenance enforcement
         run: npm run test:release-provenance
       - run: npm run build
+      - name: Verify suite-wide browser network denial
+        run: npm run test:e2e-offline-fixture
       - name: Verify browser end-to-end release coverage
         run: npm run test:e2e-release-gate
       - name: Install Playwright Chromium

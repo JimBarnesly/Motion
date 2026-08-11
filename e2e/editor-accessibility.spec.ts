@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 
 const layouts = [
   { name: "normal", viewport: { width: 1280, height: 800 } },

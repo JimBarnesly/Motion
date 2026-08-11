@@ -7,7 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { ContentAddressedAttachmentStore, SqliteWorkspaceStore } from "@motion/storage";
 import { assertWorkspaceValue, migrateWebWorkspaceV1 } from "@motion/core";
-import { createBackup } from "@motion/backup";
+import { createBackup, type WorkspaceSnapshot } from "@motion/backup";
 import { MotionAppError, MotionAppService, toAppError } from "../index.js";
 
 const databasePath = (name: string) => join(tmpdir(), `motion-app-service-${name}-${crypto.randomUUID()}.sqlite`);
@@ -260,7 +260,7 @@ test("service restores boundary and migrated derived IDs into bounded canonical 
     assert.equal(migrated.workspace.databases[0]!.id.length, 137);
     assert.equal(migrated.workspace.databases[0]!.views[0]!.id.length, 139);
     assertWorkspaceValue(migrated.workspace);
-    const bundle = createBackup(migrated.workspace, [], "2026-08-11T00:00:00.000Z");
+    const bundle = createBackup(migrated.workspace as unknown as WorkspaceSnapshot, [], "2026-08-11T00:00:00.000Z");
     const store = new SqliteWorkspaceStore(path); const service = new MotionAppService(store);
     const firstNamespace = "n".repeat(160);
     const first = await service.executeAsync({ type: "backup.restore-new", bundle, newWorkspaceId: firstNamespace });

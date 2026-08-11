@@ -110,9 +110,11 @@ export class WorkspaceDocument {
     const page = this.requiredPage(pageId); const memberships = this.data.databases.filter(database => (database.recordPageIds ?? []).includes(page.id));
     if (memberships.length !== 1 || page.collectionId !== memberships[0]!.id) throw new Error(`Invalid record target: page is not an indexed record: ${pageId}`);
     const db = memberships[0]!; this.assertRecordPropertyIds(db, values);
-    if (title !== undefined) page.title = title; page.properties ??= {};
-    for (const [propertyId, value] of Object.entries(values)) { if (value === undefined) delete page.properties[propertyId]; else page.properties[propertyId] = value; }
-    this.touchPage(page); return page;
+    const candidateData = structuredClone(this.data); const candidatePage = candidateData.pages.find(item => item.id === page.id)!;
+    if (title !== undefined) candidatePage.title = title; candidatePage.properties ??= {};
+    for (const [propertyId, value] of Object.entries(values)) { if (value === undefined) delete candidatePage.properties[propertyId]; else candidatePage.properties[propertyId] = value; }
+    const timestamp = now(); candidatePage.updatedAt = timestamp; candidateData.updatedAt = timestamp; assertWorkspace(candidateData);
+    Object.assign(page, candidatePage); this.data.updatedAt = timestamp; return page;
   }
   addProperty(databaseId: ID, property: Omit<DatabaseProperty, "id"> & { id?: ID }) { const db = this.requiredDatabase(databaseId); const result = { ...property, id: property.id ?? id() }; db.properties.push(result); for (const view of db.views) { view.visiblePropertyIds.push(result.id); view.propertyOrder = [...(view.propertyOrder ?? view.visiblePropertyIds.filter(propertyId => propertyId !== result.id)), result.id]; } this.touch(); return result; }
   updateProperty(databaseId: ID, propertyId: ID, patch: Partial<Omit<DatabaseProperty, "id">>) { const db = this.requiredDatabase(databaseId); const property = db.properties.find(candidate => candidate.id === propertyId); if (!property) throw new Error(`Database property not found: ${propertyId}`); if (patch.type && patch.type !== property.type) for (const page of this.indexedRecords(db)) delete page.properties?.[propertyId]; Object.assign(property, patch, { id: propertyId }); this.touch(); return property; }

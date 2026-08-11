@@ -145,6 +145,10 @@ test("record mutations only accept properties declared by their collection", () 
   const record = doc.addRecord(first.id, "Valid", { "first-value": 1 });
   doc.updateRecord(record.id, undefined, { "first-value": 3 });
   assert.equal(record.properties?.["first-value"], 3);
+  const beforeInvalidType = structuredClone(doc.data);
+  assert.throws(() => doc.updateRecord(record.id, "Must stay unchanged", { "first-value": "wrong-runtime-type" as any }), /property|number/i);
+  assert.deepEqual(doc.data, beforeInvalidType);
+
   const beforeUpdate = structuredClone(doc.data);
   assert.throws(() => doc.updateRecord(record.id, "Must roll back", { "second-value": 4 }), /property.*second-value/i);
   assert.deepEqual(doc.data, beforeUpdate);

@@ -84,16 +84,17 @@ test("bounded restore IDs preserve references, attachment keys and non-ID string
   const first = restoreIntoNewWorkspace(backup, namespace);
   const repeated = restoreIntoNewWorkspace(backup, namespace);
   const other = restoreIntoNewWorkspace(backup, "other-workspace");
+  const firstViews = first.workspace.databases[0]!.views as Array<{ id: string; collectionId: string }>;
   const entityIds = [first.workspace.id, first.workspace.pages[0]!.id, (first.workspace.pages[0]!.blocks[0] as any).id,
     first.workspace.databases[0]!.id, (first.workspace.databases[0]!.properties[0] as any).id,
-    first.workspace.databases[0]!.rows[0]!.id, (first.workspace.databases[0]!.views[0] as any).id, first.workspace.attachments[0]!.id];
+    first.workspace.databases[0]!.rows[0]!.id, firstViews[0]!.id, first.workspace.attachments[0]!.id];
 
   assert.equal(new Set(entityIds).size, entityIds.length);
   assert.ok(entityIds.every(id => id.length <= 160 && /^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(id)));
   assert.deepEqual(first.idMap, repeated.idMap);
   assert.notEqual(first.idMap.get(maximumId), other.idMap.get(maximumId));
   assert.equal(first.workspace.databases[0]!.pageId, first.idMap.get(maximumId));
-  assert.equal((first.workspace.databases[0]!.views[0] as any).collectionId, first.idMap.get(migratedDatabaseId));
+  assert.equal(firstViews[0]!.collectionId, first.idMap.get(migratedDatabaseId));
   assert.equal((first.workspace.pages[0]!.blocks[0] as any).attachmentId, first.idMap.get(attachmentId));
   assert.equal((first.workspace.databases[0]!.rows[0] as any).values[first.idMap.get("property")!], first.idMap.get(maximumId));
   assert.equal(first.workspace.pages[0]!.title, maximumId);

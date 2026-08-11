@@ -4,13 +4,15 @@ Owner: Managing Director
 Implementation authority: Engineering
 Acceptance authorities: Quality & Release and Operations & Security
 Defined: 2026-08-11
+Scope narrowed by Jake: 2026-08-11
 
 ## Release outcome
 
 Motion V1.0 is a dependable, offline, single-user Linux knowledge workspace. A
-user can create and organise substantial documents, link and find knowledge,
-manage typed records in the nine mandatory database views, and reconstruct the complete
-workspace on another machine without an account or network connection.
+user can create and organise substantial Markdown-focused documents, link pages,
+databases, and records using stable identities, manage typed records in table
+databases, and reconstruct the complete workspace on another machine without an
+account or network connection.
 
 A source-tree test, browser-development build, extracted service smoke, schema
 declaration, or renderer alone is supporting evidence. It is not V1 acceptance.
@@ -23,75 +25,75 @@ boundary in packaged AppImage and Debian builds with networking disabled.
 
 - Create, rename, nest, move, reorder, favourite, trash, restore, and permanently
   delete pages from Trash.
-- Pointer drag-and-drop and equivalent keyboard commands issue the same validated
+- Pointer interactions and equivalent keyboard commands issue the same validated
   domain mutations.
 - Stable hierarchy, breadcrumbs, selection, and expanded state survive restart.
 
-### Daily-writing editor
+### Markdown-focused page editor
 
-- Paragraphs, headings 1–3, bulleted and numbered lists, tasks, toggles, quotes,
-  callouts, dividers, code blocks, images/files, page mentions, and honest
-  unsupported placeholders.
-- Stable block IDs; single- and multi-block selection; duplicate, delete,
-  transform, reorder, indent/outdent, cross-page move, copy/paste, copy as
-  Markdown, undo, and redo.
-- IME composition, multiline paste, a 10,000-word document, and unknown-block
-  preservation have automated evidence.
-- React plus Tiptap/ProseMirror is the only authoritative production editing
-  path. Rendered HTML is never canonical data.
+- A decent production-quality editor supports substantial text editing and common
+  Markdown structures, including paragraphs, headings, lists, tasks, quotes,
+  dividers, code blocks, links, and page/database/record mentions.
+- Stable block/content identities, keyboard editing, multiline clipboard/paste,
+  undo/redo, and honest preservation of unsupported structured content are
+  dependable.
+- Editing survives restart and structured export/restore without rendered HTML
+  becoming canonical data.
+- React with Tiptap/ProseMirror may be used where the repository direction
+  requires it, but the acceptance requirement is the dependable editor outcome,
+  not a particular framework or broad Notion editor parity.
 
-### Linked knowledge and search
+### Linked knowledge and navigation
 
-- `@` mentions and `[[...]]` completion select stable page IDs.
-- Outgoing links, backlinks, block deep links, previews, and live/trashed/missing
-  states remain correct through rename, move, trash, restore, restart, export,
-  and backup restore.
-- Local search covers titles, supported block text, table values, and attachment
-  filenames with snippets, safe highlighting, filters, deterministic ordering,
+- Page-to-page, page-to-database, database-to-page, and database-record links use
+  stable identities rather than mutable names or positions.
+- Relation-style linking required by the table datatype model uses stable page or
+  record targets and preserves applicable reciprocal/index invariants.
+- Usable mentions, outgoing links, backlinks, and navigation distinguish live,
+  trashed, and missing targets.
+- Links remain correct through rename, move, trash/restore, restart, structured
+  export, and backup restore.
+- Local search supports the included page and table workflows with safe rendering
   and complete keyboard navigation.
 
-### Typed databases and core views
+### Table databases and typed records
 
-- Records remain normal pages with stable IDs and normal block content.
-- Title, text, number, checkbox, select, multi-select, status, date, URL, email,
-  phone, files, location, relation, rollup, and formula properties validate and
-  persist. Location values store explicit coordinates plus an optional human
-  label; V1 does not require online geocoding.
+- Records remain normal pages with stable IDs and normal editor content.
+- Table is the only required database view for V1.0.
+- The complete intended datatype set validates, edits, persists, filters, and
+  sorts where applicable. This includes title, text, number, checkbox, select,
+  multi-select, status, date, URL, email, phone, files, location, relation,
+  rollup, and formula properties.
 - Property creation, rename, reorder, width, visibility, populated type conversion
-  with preview, and deletion with consequences are complete.
-- Nested filters, deterministic multi-sort, grouping, and saved view lifecycle
-  are complete.
-- Table, list, board, calendar, gallery, timeline, chart, feed, and map
-  independently persist applicable configuration over shared records.
-- Chart views persist dimensions, measures, aggregation, series, chart type, and
-  an accessible data-table alternative without requiring a dashboard product.
-- Feed views persist ordering/date, preview, grouping, and visible-property
-  configuration over records; they do not imply collaboration or remote activity.
-- Map views use explicit location coordinates, remain functional offline, never
-  silently fetch map tiles or geocoding data, and provide an equivalent list/table
-  path for keyboard and assistive-technology users.
-- Empty, null, filtered, deleted, and large-dataset behavior is deterministic and
-  tested for every view.
+  with preview, and deletion with explicit consequences are complete.
+- Nested filters and deterministic multi-sort are complete for applicable table
+  datatypes.
+- Empty, null, filtered, deleted, invalid, and large-dataset behavior is
+  deterministic and tested.
 
 ### Portability and recovery
 
-- Full structured JSON export/restore, Markdown tree export/import, CSV
-  export/import, and attachment-complete verified backup are usable offline.
-- Import uses bounded staged preflight, compatibility reporting, cancellation,
-  deterministic conflict handling, and transactional rollback.
+- Full structured JSON export/restore, Markdown-focused export/import sufficient
+  for included page content, CSV table export/import, and attachment-complete
+  verified backup are usable offline.
+- Import uses bounded staged preflight, compatibility reporting, deterministic
+  conflict handling, and transactional rollback where a canonical import mutates
+  workspace state.
 - Export followed by restore into a new workspace reproduces stable IDs,
-  hierarchy, supported and unknown blocks, database schemas/views, records,
-  links, relations, formulas, templates, and attachment hashes.
+  hierarchy, supported and unknown content, table schemas and records, links,
+  relations, formulas, and attachment hashes.
 
 ### Release quality
 
-- The complete CI and release-security chain passes against one immutable commit.
+- The complete relevant CI and release-security chain passes against one immutable
+  commit with no skipped or no-op included gate.
 - Installed x86-64 and ARM64 AppImage and Debian packages pass the complete
-  offline user path.
-- WCAG 2.2 AA automation plus recorded keyboard, 200% zoom, and Linux Orca
-  screen-reader acceptance pass.
+  included offline user path.
+- Included workflows meet WCAG 2.2 AA automation targets and have recorded
+  keyboard, 200% zoom, and Linux screen-reader acceptance.
 - Representative source and packaged performance, crash-boundary, disk-full,
-  corrupt-index, and duplicate-writer evidence pass reviewed budgets.
+  corrupt-index, duplicate-writer, migration, restart, and recovery evidence pass
+  reviewed budgets.
 - Four release artifacts are checksum-bound, signed, attested, and independently
   verifiable against the exact V1 commit.
 
@@ -110,26 +112,31 @@ boundary in packaged AppImage and Debian builds with networking disabled.
 
 ## Explicitly deferred beyond V1.0
 
+- Database list, board, calendar, gallery, timeline, chart, feed, map, form,
+  dashboard, and canvas views or products.
 - Sync, collaboration, accounts, sharing, comments, presence, permissions, and
   public publishing.
-- AI, MCP, external connectors, automations, webhooks, and public API.
+- AI, MCP, external connectors, automations, webhooks, public APIs, and third-party
+  integrations.
 - Windows, macOS, mobile, hosted service, and browser-as-product distribution.
-- Form, dashboard, canvas, mail, and separate calendar products. The mandatory
-  database chart view is not a standalone dashboard product.
+- Separate calendar and mail products.
 - Application-level encrypted vaults.
+- Broad Notion parity beyond the dependable page, linking, and table outcomes
+  explicitly included above.
 
 These exclusions do not weaken local confidentiality, path safety, diagnostic
-redaction, data-integrity, backup, offline, provenance, or accessibility gates.
+redaction, data-integrity, backup, offline, provenance, migration, recovery, or
+accessibility gates.
 
 ## Immutable acceptance rule
 
 1. Freeze one candidate commit and its dependency locks.
-2. Run complete CI with no missing, skipped, or no-op gate.
+2. Run complete relevant CI with no missing, skipped, or no-op included gate.
 3. Build the four canonical Linux artifacts from that commit.
 4. Record complete installed-package acceptance on representative x86-64 and
    ARM64 graphical hosts with networking disabled.
 5. Resolve every data-loss, corruption, false-success, offline, security, and P0
-   accessibility defect.
+   accessibility defect in included workflows.
 6. Obtain explicit Quality and Security approval for the exact hashes.
 7. Create `v1.0.0` only after approval; never move or reuse a failed tag.
 

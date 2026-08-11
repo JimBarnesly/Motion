@@ -1,91 +1,88 @@
-# Motion V1 feature-parity register
+# Motion V1.0 feature register
 
 Owner: Product Director
 Decision authority: Managing Director
 Last reviewed: 2026-08-11
-Provisional evidence baseline: `a8e0c2f` (`feat/v1-phase-0-green-baseline`)
+Provisional evidence baseline: `f4d07f3` (`feat/v1-phase-0-green-baseline`); this
+commit is not a release candidate and all evidence must be revalidated after the
+documentation change.
 
 ## Purpose and evidence rule
 
-This register compares current Motion implementation with the outcomes frozen in
-`V1_SCOPE.md`. It records exercised repository evidence, not design intent.
-Requirements, ADRs, roadmap entries, schemas without a usable path, and work on
-other branches are not implementation evidence.
+This register compares current Motion implementation with the Jake-approved
+outcomes frozen in `V1_SCOPE.md`. It records exercised repository evidence, not
+design intent. Requirements, schemas without a usable path, source inspection,
+and work on other branches are not implementation evidence.
 
 Statuses:
 
-- **Implemented** — working code and focused repository evidence exist at the
-  provisional baseline. Release acceptance may still be open.
-- **Partial** — a usable tested slice exists, but one or more V1 outcomes are
+- **Implemented** — working code and focused repository evidence exist. Release
+  acceptance may still be open.
+- **Partial** — a usable tested slice exists, but one or more included outcomes are
   absent or lack required canonical/package evidence.
-- **Missing** — no usable tested implementation of the V1 outcome exists at this
-  baseline. A specification alone remains missing.
-- **Deferred** — explicitly excluded from V1 by `V1_SCOPE.md`.
+- **Missing** — no usable tested implementation of the included outcome exists.
+- **Deferred** — explicitly excluded from V1.0 by `V1_SCOPE.md`.
 
-No row is V1-accepted: there is no complete immutable CI run or installed
-package acceptance for this baseline.
+No row is V1-accepted: there is not yet one frozen commit with complete relevant
+CI, exact installed x86-64 and ARM64 offline acceptance, all approvals, and a
+valid `v1.0.0` tag.
 
-## V1 current register
+## V1.0 current register
 
-| Capability area | Status | Implemented evidence at `a8e0c2f` | Missing V1 evidence/outcome |
+| Capability area | Status | Exercised implementation evidence | Missing V1.0 evidence/outcome |
 | --- | --- | --- | --- |
-| Pages and navigation | Partial | Canonical create/move/reorder/favourite/trash/restore paths, nested Web navigation, restart-focused tests | Permanent deletion, robust pointer drag/drop plus equivalent keyboard commands, complete restart state, and installed-package acceptance |
-| Daily-writing editor | Partial | Web compatibility editor handles several block types and recoverable saves; canonical service now defines bounded typed create/update/transform/move/indent/outdent/duplicate/delete/batch commands | Authoritative React + Tiptap/ProseMirror path; UI adoption of fine-grained commands; selection/clipboard/IME/undo/redo; 10,000-word and packaged evidence |
-| Links, mentions, backlinks, deep links | Partial | Stable page-ID links, outgoing links/backlinks, live/trashed/missing states, backlink source-block focus, and focused Web tests | Accessible `[[`/`@` chooser, previews, general block deep-link UX, lifecycle through export/backup restore, restart and packaged evidence |
-| Search | Partial | Accessible canonical search covers titles, blocks, record values and attachment filenames with safe DOM rendering, deterministic ordering, recovery states and stable result focus | Highlighting, filters, complete native/package execution and deterministic packaged performance evidence |
-| Files and media | Partial | Content-addressed attachment primitives and canonical service/backup paths | Streaming/limits, image/media/PDF block UX, interruption handling, filename search, complete backup/restore and installed-package evidence |
-| Typed database properties and records-as-pages | Partial | Canonical records-as-pages with bidirectional collection membership, scoped property validation, typed editors, and schema/order/width paths | Complete V1 property set, populated type-conversion preview, deletion consequences, large/edge-state evidence, packaged acceptance |
-| Saved filters, sorts, groups, and view lifecycle | Partial | Saved filter and deterministic multi-sort slices exist in table-oriented UI | Complete nested filter/group behavior and canonical create/update/reorder/delete lifecycle for all views |
-| Table view | Partial | Usable typed table slice with focused canonical/restart tests | Complete V1 configuration/edge-state behavior and installed-package acceptance |
-| List view | Missing | No usable tested list-view implementation at this baseline | Full saved list configuration, keyboard path, restart/export/restore and package evidence |
-| Board view | Missing | No usable tested board-view implementation at this baseline | Status/select grouping, card movement, saved configuration and complete evidence |
-| Calendar view | Missing | No usable tested calendar-view implementation at this baseline | Date configuration, ranges/undated behavior, keyboard edits and complete evidence |
-| Gallery view | Missing | No usable tested gallery-view implementation at this baseline | Preview/property configuration and complete evidence |
-| Timeline view | Missing | No usable tested timeline-view implementation at this baseline | Start/end configuration, deterministic range placement and complete evidence |
-| Chart view | Missing | No usable tested chart-view implementation at this baseline | Dimension/measure configuration, deterministic aggregation, accessible source-data alternative, restart/export/restore and package evidence |
-| Feed view | Missing | No usable tested feed-view implementation at this baseline | Date/order, grouping, preview/property configuration, deterministic local record stream and complete evidence |
-| Map view | Missing | No usable tested map-view implementation at this baseline | Explicit location property/coordinates, offline markers/clustering, accessible list alternative, restart/export/restore and package evidence |
-| Relations and rollups | Missing | Requirements/schema design only | Usable reciprocal relations, deterministic rollups/cycle handling, restart/export/restore and package evidence |
-| Formulas | Partial | Versioned parser/evaluator package with focused tests | Canonical property projection/filter/sort integration, database UX and complete persistence/export/package evidence |
-| Templates | Missing | Template-origin field only | Creation, application, editing, portability and tested user workflow |
-| Structured export, backup, and restore | Partial | JSON/Markdown/CSV primitives; bounded deterministic schema-directed restore; honest attachment and membership verification; opaque-data preservation; long-ID/collision/reference tests | Complete offline user flows, full V1 reconstruction, interruption drills, and installed-package evidence |
-| Markdown and CSV import | Missing | Requirements/design only | Bounded staged preflight, compatibility report, cancellation, deterministic conflicts and transactional rollback |
-| Offline Linux desktop | Partial | Tauri shell, canonical SQLite service, bundled-runtime/package pipeline, and historical extracted-service smoke | Exact-baseline x86-64/ARM64 AppImage/Debian installed-window acceptance with networking disabled |
-| Accessibility | Partial | Labeled controls, keyboard-focused source tests, accessible search states, and normal/200%-equivalent E2E specifications exist | WCAG 2.2 AA execution and recorded keyboard, 200% zoom and Orca installed-package acceptance are missing |
-| Release provenance and security | Partial | Release/security gate implementations, repaired workflow contracts, source scanner and fail-closed governance tests | Full integrated security review, Node 22+ complete chain, Rust/Tauri, `gitleaks`, advisory DB, immutable CI, checksums/signatures/attestations and approvals |
-| Performance and failure recovery | Partial | Smoke benchmarks, transaction/recovery tests, and failed-edit retry/discard slice | Reviewed representative source/package budgets plus crash-boundary, disk-full, corrupt-index and duplicate-writer evidence on candidate artifacts |
+| Pages and navigation | Partial | Canonical create/move/reorder/favourite/trash/restore paths, nested Web navigation, restart-focused tests | Permanent deletion, complete equivalent pointer/keyboard paths, complete restart state, and installed-package acceptance |
+| Markdown-focused editor | Partial | Compatibility editor supports several block types and recoverable saves; typed fine-grained native editing and incremental SQLite persistence are integrated | Dependable production editor for common Markdown structures, substantial keyboard/clipboard editing, undo/redo, large-text/IME evidence, restart/export/restore integrity, and packaged acceptance |
+| Page/database/record links and relations | Partial | Stable page-ID links, outgoing links/backlinks, live/trashed/missing states, source-block focus, and focused Web tests | Complete page-to-database/database-to-page/record linking, usable mention chooser/navigation, relation datatype workflow and invariants, lifecycle through restart/export/backup restore, and packaged evidence |
+| Search | Partial | Accessible canonical search covers titles, blocks, record values, and attachment filenames with safe DOM rendering and deterministic ordering | Complete keyboard navigation plus native/package execution and deterministic packaged performance evidence for included workflows |
+| Files and media needed by included pages/tables | Partial | Content-addressed attachment primitives and canonical service/backup paths | Limits/interruption handling, included editor/table UX, complete backup/restore, and installed-package evidence |
+| Typed database properties and records-as-pages | Partial | Canonical records-as-pages, bidirectional collection membership checks, scoped validation, typed editors, and schema/order/width paths | Complete intended datatype set, populated conversion preview, deletion consequences, applicable filter/sort semantics, edge/large-state evidence, and packaged acceptance |
+| Table filters, sorts, and configuration | Partial | Saved filtering and deterministic multi-sort slices exist in the table-oriented UI | Complete nested filters, applicable datatype semantics, property visibility/width lifecycle, empty/null/deleted behavior, restart/export/restore, and installed-package acceptance |
+| Table view | Partial | Usable typed table slice with focused canonical and restart tests | Complete included datatype/configuration behavior, accessibility, scale evidence, and installed-package acceptance |
+| Formulas and rollups | Partial | Versioned formula parser/evaluator has focused tests; schema foundations exist | Canonical property projection/filter/sort, deterministic rollups and cycle handling, database UX, restart/export/restore, and package evidence |
+| Structured export, backup, and restore | Partial | JSON/Markdown/CSV primitives; bounded deterministic schema-directed restore; attachment and membership verification; opaque-data preservation tests | Complete offline user flows, full included reconstruction, rollback/interruption drills, and installed-package evidence |
+| Markdown-focused and CSV import | Missing | Requirements and design foundations only | Bounded staged preflight, compatibility report, deterministic conflicts, cancellation where applicable, transactional rollback, and included-content reconstruction |
+| Offline Linux desktop | Partial | Tauri shell, canonical SQLite service, bundled-runtime/package pipeline, and historical extracted-service smoke | Exact-candidate x86-64/ARM64 AppImage/Debian installed-window acceptance with networking disabled |
+| Accessibility | Partial | Labeled controls, keyboard-focused source tests, accessible search states, and browser specifications exist | Exercised automation plus recorded keyboard, 200% zoom, and Linux screen-reader installed-package acceptance for included workflows |
+| Release provenance and security | Partial | Release/security gate implementations, workflow contracts, source scanner, and fail-closed governance tests | Full exact-candidate security review, complete Node 22+/Rust/Tauri chain, immutable CI, checksums/signatures/attestations, and explicit approvals |
+| Performance and failure recovery | Partial | Smoke benchmarks, transaction/recovery tests, stale-transition regression coverage, and failed-edit retry/discard slices | Reviewed source/package budgets plus complete crash, disk-full, corrupt-index, bounded-resource, rollback, duplicate-writer, and installed recovery evidence |
 
-## Explicitly deferred beyond V1
+## Explicitly deferred beyond V1.0
 
-The following are **Deferred**, not missing V1 work: sync, collaboration,
-accounts, sharing, comments, presence, permissions, public publishing, AI, MCP,
-connectors, automations, webhooks, public API, Windows, macOS, mobile, hosted
-service, form/dashboard/canvas products, separate mail/calendar products,
-and application-level encrypted vaults.
+The following are **Deferred**, not missing V1.0 work:
 
-Database chart, feed, and map views are mandatory V1 outcomes; this does not add
-a standalone dashboard, collaboration activity feed, online geocoder, or separate
-map product.
+- database list, board, calendar, gallery, timeline, chart, feed, map, form,
+  dashboard, and canvas views or products;
+- sync, collaboration, accounts, sharing, comments, presence, permissions, and
+  public publishing;
+- third-party integrations, AI, MCP, connectors, automations, webhooks, and public
+  APIs;
+- Windows, macOS, mobile, hosted service, browser-as-product distribution,
+  separate mail/calendar products, and application-level encrypted vaults;
+- broad Notion parity not needed for dependable included page, linking, and table
+  workflows.
 
-## Phase 0 interpretation
+These deferrals do not reduce data-integrity, offline, backup/recovery, migration,
+security, accessibility, provenance, or Linux package acceptance requirements.
 
-Phase 0 repairs reproducibility and evidence collection; it does not complete a
-product capability merely because a CI contract now names its gate. At this
-baseline, the six missing workflow scripts are declared, the workflow contract
-is self-gated, complete E2E spec selection is guarded, and the static-analysis
-base passes focused local checks. Actual complete E2E, supported-toolchain CI,
-security acceptance, and package acceptance remain open.
+## Current critical path
 
-Accessible search is separately owned work and must not change the Search or
-Accessibility evidence here until its commit is integrated and reverified.
+1. Close remaining integrity evidence: stale authority/import paths, bounded
+   resources, atomic rollback, Node 22+ runtime behavior, and fail-fast
+   single-writer ownership.
+2. Complete stable page/database/record links and relation-style table linking.
+3. Deliver the dependable Markdown-focused production editor.
+4. Complete all intended table datatypes and applicable filter/sort semantics.
+5. Complete interchange, installed offline package, accessibility, recovery,
+   security, and provenance acceptance on one frozen commit.
 
 ## Monitoring cadence
 
 - Update a status only from implementation plus exercised evidence on the named
-  baseline.
-- Re-run coordinate-sensitive security and complete-E2E selection gates after
-  integrating parallel branches.
-- Keep competitor monitoring separate from V1 acceptance; comparable Notion
+  commit.
+- Re-run coordinate-sensitive security and complete test-selection gates after
+  integrating changes.
+- Keep competitor monitoring separate from V1.0 acceptance; comparable Notion
   breadth beyond `V1_SCOPE.md` does not silently expand this release.
-- Route any V1 scope change through the explicit Jake-approved process in
+- Route every V1.0 scope change through Jake's explicit approval process in
   `V1_SCOPE.md`.

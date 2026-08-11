@@ -40,13 +40,41 @@ export interface SearchHit {
   snippet: string;
 }
 
+export type FtsScopeType = "workspace" | "page" | "database" | "attachment";
+export type FtsChangeScope = Readonly<{ scope: FtsScopeType; id: string }>;
+
+/**
+ * Bounded derived-state work for one canonical workspace mutation. Arrays must be
+ * sorted and duplicate-free so a command has one deterministic SQLite write set.
+ * Omit the contract (or use rebuild) for imports, migrations, and exports that
+ * intentionally rebuild every normalized/index row from the canonical snapshot.
+ */
+export type WorkspaceChangeSet =
+  | Readonly<{ kind: "rebuild" }>
+  | Readonly<{ kind: "incremental"; pages: readonly string[]; databases: readonly string[];
+      attachments: readonly string[]; linkSourcePageIds: readonly string[]; fts: readonly FtsChangeScope[] }>;
+
+export interface WorkspaceWriteStats {
+  mode: "rebuild" | "incremental";
+  pages: number;
+  databases: number;
+  attachments: number;
+  linkSources: number;
+  linksInserted: number;
+  ftsScopes: number;
+  ftsInserted: number;
+}
+
 export interface WorkspaceWrite {
   workspaceId: string;
   schemaVersion: number;
   document: unknown;
   expectedRevision?: number;
+  changeSet?: WorkspaceChangeSet;
   /** Test/diagnostic hook. Throwing here proves the workspace and index share one transaction. */
   afterWorkspaceWrite?: () => void;
+  /** Test/diagnostic hook after all derived writes but before the single commit. */
+  beforeCommit?: () => void;
 }
 
 const migrations = [
@@ -93,6 +121,51 @@ const migrations = [
   );
   INSERT INTO reindex_jobs(workspace_id, workspace_revision, status, created_at)
     SELECT workspace_id, revision, 'pending', updated_at FROM workspaces WHERE true
+    ON CONFLICT(workspace_id, workspace_revision) DO UPDATE SET status='pending', completed_at=NULL;`,
+  `DROP TABLE workspace_search;
+  CREATE VIRTUAL TABLE workspace_search USING fts5(
+    workspace_id UNINDEXED,
+    entity_id UNINDEXED,
+    entity_type UNINDEXED,
+    owner_entity_id UNINDEXED,
+    scope_type UNINDEXED,
+    scope_id UNINDEXED,
+    title,
+    body,
+    tokenize = 'unicode61'
+  );
+  CREATE TABLE workspace_pages (
+    workspace_id TEXT NOT NULL,
+    page_id TEXT NOT NULL,
+    page_json TEXT NOT NULL,
+    PRIMARY KEY(workspace_id, page_id),
+    FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id) ON DELETE CASCADE
+  );
+  CREATE TABLE workspace_databases (
+    workspace_id TEXT NOT NULL,
+    database_id TEXT NOT NULL,
+    database_json TEXT NOT NULL,
+    PRIMARY KEY(workspace_id, database_id),
+    FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id) ON DELETE CASCADE
+  );
+  CREATE TABLE workspace_attachments (
+    workspace_id TEXT NOT NULL,
+    attachment_id TEXT NOT NULL,
+    attachment_json TEXT NOT NULL,
+    PRIMARY KEY(workspace_id, attachment_id),
+    FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id) ON DELETE CASCADE
+  );
+  CREATE TABLE workspace_links (
+    workspace_id TEXT NOT NULL,
+    source_page_id TEXT NOT NULL,
+    target_page_id TEXT NOT NULL,
+    block_id TEXT NOT NULL,
+    PRIMARY KEY(workspace_id, source_page_id, block_id, target_page_id),
+    FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id) ON DELETE CASCADE
+  );
+  CREATE INDEX workspace_links_target_idx ON workspace_links(workspace_id, target_page_id, source_page_id);
+  INSERT INTO reindex_jobs(workspace_id, workspace_revision, status, created_at)
+    SELECT workspace_id, revision, 'pending', updated_at FROM workspaces WHERE true
     ON CONFLICT(workspace_id, workspace_revision) DO UPDATE SET status='pending', completed_at=NULL;`
 ];
 
@@ -100,6 +173,95 @@ const digest = (input: string | Uint8Array) => createHash("sha256").update(input
 const requireSha256 = (value: string): void => {
   if (!/^[0-9a-f]{64}$/.test(value)) throw new Error("Attachment hash must be 64 lowercase hexadecimal characters");
 };
+
+function normalizeChangeSet(changeSet: WorkspaceChangeSet): WorkspaceChangeSet {
+  if (changeSet.kind === "rebuild") return changeSet;
+  const assertOrdered = (values: readonly string[], label: string): void => {
+    if (values.some(value => typeof value !== "string" || !value)) throw new Error(`${label} must contain non-empty IDs`);
+    for (let index = 1; index < values.length; index++) if (values[index - 1]! >= values[index]!)
+      throw new Error(`${label} must be sorted and duplicate-free`);
+  };
+  assertOrdered(changeSet.pages, "changeSet.pages");
+  assertOrdered(changeSet.databases, "changeSet.databases");
+  assertOrdered(changeSet.attachments, "changeSet.attachments");
+  assertOrdered(changeSet.linkSourcePageIds, "changeSet.linkSourcePageIds");
+  const ftsKeys = changeSet.fts.map(scope => `${scope.scope}\u0000${scope.id}`);
+  if (changeSet.fts.some(scope => !scope.id || !(["workspace", "page", "database", "attachment"] as const).includes(scope.scope)))
+    throw new Error("changeSet.fts contains an invalid scope");
+  assertOrdered(ftsKeys, "changeSet.fts");
+  return changeSet;
+}
+
+type WorkspaceParts = { pages: Record<string, unknown>[]; databases: Record<string, unknown>[]; attachments: Record<string, unknown>[];
+  links: { sourcePageId: string; targetPageId: string; blockId: string }[] };
+const entityId = (entity: Record<string, unknown>): string => {
+  if (typeof entity.id !== "string" || !entity.id) throw new Error("Normalized workspace entities require an ID");
+  return entity.id;
+};
+function workspaceParts(document: unknown): WorkspaceParts {
+  const record = document && typeof document === "object" && !Array.isArray(document) ? document as Record<string, unknown> : {};
+  const entities = (value: unknown): Record<string, unknown>[] => Array.isArray(value)
+    ? value.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item)) : [];
+  const links = entities(record.linkIndex).map(link => {
+    if (typeof link.sourcePageId !== "string" || typeof link.targetPageId !== "string" || typeof link.blockId !== "string")
+      throw new Error("Normalized workspace links require source, target, and block IDs");
+    return { sourcePageId: link.sourcePageId, targetPageId: link.targetPageId, blockId: link.blockId };
+  });
+  const compare = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0;
+  links.sort((left, right) => compare(left.sourcePageId, right.sourcePageId) || compare(left.blockId, right.blockId) || compare(left.targetPageId, right.targetPageId));
+  return { pages: entities(record.pages), databases: entities(record.databases), attachments: entities(record.attachments), links };
+}
+
+function keyedEntities(entities: readonly Record<string, unknown>[], label: string): Map<string, string> {
+  const result = new Map<string, string>();
+  for (const entity of entities) {
+    const id = entityId(entity);
+    if (result.has(id)) throw new Error(`Duplicate normalized ${label} ID: ${id}`);
+    result.set(id, JSON.stringify(entity));
+  }
+  return result;
+}
+
+function changedKeys(before: Map<string, string>, after: Map<string, string>): string[] {
+  const keys = new Set([...before.keys(), ...after.keys()]);
+  return [...keys].filter(key => before.get(key) !== after.get(key)).sort();
+}
+
+function linkScopes(parts: WorkspaceParts): Map<string, string> {
+  const grouped = new Map<string, { sourcePageId: string; targetPageId: string; blockId: string }[]>();
+  for (const link of parts.links) grouped.set(link.sourcePageId, [...(grouped.get(link.sourcePageId) ?? []), link]);
+  return new Map([...grouped].map(([id, links]) => [id, JSON.stringify(links)]));
+}
+
+function searchScopes(document: unknown, workspaceId: string): Map<string, string> {
+  const entries = extractWorkspaceSearchEntries(document, workspaceId);
+  const grouped = new Map<string, SearchEntry[]>();
+  for (const entry of entries) {
+    const key = `${entry.scopeType}\u0000${entry.scopeId}`;
+    grouped.set(key, [...(grouped.get(key) ?? []), entry]);
+  }
+  return new Map([...grouped].map(([key, values]) => [key, JSON.stringify(values)]));
+}
+
+function assertChangeSetCovers(workspaceId: string, beforeDocument: unknown, afterDocument: unknown,
+  changeSet: Extract<WorkspaceChangeSet, { kind: "incremental" }>): void {
+  const before = workspaceParts(beforeDocument); const after = workspaceParts(afterDocument);
+  const required = {
+    pages: changedKeys(keyedEntities(before.pages, "page"), keyedEntities(after.pages, "page")),
+    databases: changedKeys(keyedEntities(before.databases, "database"), keyedEntities(after.databases, "database")),
+    attachments: changedKeys(keyedEntities(before.attachments, "attachment"), keyedEntities(after.attachments, "attachment")),
+    linkSourcePageIds: changedKeys(linkScopes(before), linkScopes(after)),
+    fts: changedKeys(searchScopes(beforeDocument, workspaceId), searchScopes(afterDocument, workspaceId))
+  };
+  const supplied = {
+    pages: new Set(changeSet.pages), databases: new Set(changeSet.databases), attachments: new Set(changeSet.attachments),
+    linkSourcePageIds: new Set(changeSet.linkSourcePageIds), fts: new Set(changeSet.fts.map(scope => `${scope.scope}\u0000${scope.id}`))
+  };
+  for (const [label, ids] of Object.entries(required) as [keyof typeof required, string[]][]) {
+    const missing = ids.filter(id => !supplied[label].has(id));
+    if (missing.length) throw new Error(`Incremental change set omits dirty ${label}: ${missing.join(", ")}`);
+  }
+}
 
 type PrivatePathKind = "file" | "directory";
 function hardenPrivatePath(path: string, kind: PrivatePathKind): void {
@@ -125,7 +287,11 @@ export function hardenPrivateFile(path: string): void { hardenPrivatePath(path, 
 /** Durable local repository. UI/domain entities cross this boundary as versioned JSON, never SQLite rows. */
 export class SqliteWorkspaceStore {
   readonly database: DatabaseSync;
+  private writeStats: Readonly<WorkspaceWriteStats> | undefined;
   private readonly databasePath: string;
+
+  /** Deterministic counters for the last successfully committed write; never updated by rolled-back work. */
+  get lastWriteStats(): Readonly<WorkspaceWriteStats> | undefined { return this.writeStats; }
 
   constructor(databasePath: string) {
     this.databasePath = databasePath;
@@ -160,13 +326,17 @@ export class SqliteWorkspaceStore {
   }
 
   saveUnitOfWork(write: WorkspaceWrite): number {
+    const changeSet = normalizeChangeSet(write.changeSet ?? { kind: "rebuild" });
     this.database.exec("BEGIN IMMEDIATE");
     try {
-      const row = this.database.prepare("SELECT revision FROM workspaces WHERE workspace_id = ?").get(write.workspaceId) as { revision: number } | undefined;
+      const row = this.database.prepare("SELECT revision, document_json FROM workspaces WHERE workspace_id = ?").get(write.workspaceId) as
+        { revision: number; document_json: string } | undefined;
       const currentRevision = Number(row?.revision ?? 0);
       if (write.expectedRevision !== undefined && currentRevision !== write.expectedRevision) {
         throw new Error(`Revision conflict for workspace ${write.workspaceId}`);
       }
+      if (!row && changeSet.kind === "incremental") throw new Error("Incremental writes require an existing canonical workspace");
+      if (row && changeSet.kind === "incremental") assertChangeSetCovers(write.workspaceId, JSON.parse(row.document_json), write.document, changeSet);
       const revision = currentRevision + 1;
       const now = new Date().toISOString();
       this.database.prepare(`INSERT INTO workspaces(workspace_id, schema_version, revision, document_json, updated_at)
@@ -176,10 +346,14 @@ export class SqliteWorkspaceStore {
       this.database.prepare(`INSERT INTO reindex_jobs(workspace_id, workspace_revision, status, created_at)
         VALUES (?, ?, 'pending', ?)` ).run(write.workspaceId, revision, now);
       write.afterWorkspaceWrite?.();
-      this.reindexWorkspace(write.workspaceId, write.document);
+      const stats = changeSet.kind === "rebuild"
+        ? this.rebuildDerivedWorkspace(write.workspaceId, write.document)
+        : this.applyIncrementalChangeSet(write.workspaceId, write.document, changeSet);
       this.database.prepare("UPDATE reindex_jobs SET status='complete', completed_at=? WHERE workspace_id=? AND workspace_revision=?")
         .run(now, write.workspaceId, revision);
+      write.beforeCommit?.();
       this.database.exec("COMMIT");
+      this.writeStats = Object.freeze(stats);
       this.hardenDatabaseFiles();
       return revision;
     } catch (error) {
@@ -221,8 +395,8 @@ export class SqliteWorkspaceStore {
     if (!match) return [];
     const boundedLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
     const sql = workspaceId
-      ? "SELECT workspace_id, entity_id, entity_type, owner_entity_id, title, snippet(workspace_search, 5, '[', ']', '…', 12) snippet FROM workspace_search WHERE workspace_search MATCH ? AND workspace_id = ? ORDER BY rank, entity_id LIMIT ?"
-      : "SELECT workspace_id, entity_id, entity_type, owner_entity_id, title, snippet(workspace_search, 5, '[', ']', '…', 12) snippet FROM workspace_search WHERE workspace_search MATCH ? ORDER BY rank, workspace_id, entity_id LIMIT ?";
+      ? "SELECT workspace_id, entity_id, entity_type, owner_entity_id, title, snippet(workspace_search, 7, '[', ']', '…', 12) snippet FROM workspace_search WHERE workspace_search MATCH ? AND workspace_id = ? ORDER BY rank, entity_id LIMIT ?"
+      : "SELECT workspace_id, entity_id, entity_type, owner_entity_id, title, snippet(workspace_search, 7, '[', ']', '…', 12) snippet FROM workspace_search WHERE workspace_search MATCH ? ORDER BY rank, workspace_id, entity_id LIMIT ?";
     const rows = (workspaceId
       ? this.database.prepare(sql).all(match, workspaceId, boundedLimit)
       : this.database.prepare(sql).all(match, boundedLimit)) as Record<string, unknown>[];
@@ -239,7 +413,7 @@ export class SqliteWorkspaceStore {
       if (!workspace) continue;
       this.database.exec("BEGIN IMMEDIATE");
       try {
-        this.reindexWorkspace(job.workspace_id, workspace.document);
+        this.rebuildDerivedWorkspace(job.workspace_id, workspace.document);
         this.database.prepare("UPDATE reindex_jobs SET status='complete', completed_at=? WHERE job_id=?").run(new Date().toISOString(), job.job_id);
         this.database.exec("COMMIT");
       } catch (error) { this.database.exec("ROLLBACK"); throw error; }
@@ -247,10 +421,72 @@ export class SqliteWorkspaceStore {
     return jobs.length;
   }
 
-  private reindexWorkspace(workspaceId: string, document: unknown): void {
+  private rebuildDerivedWorkspace(workspaceId: string, document: unknown): WorkspaceWriteStats {
+    const parts = workspaceParts(document);
+    this.database.prepare("DELETE FROM workspace_pages WHERE workspace_id = ?").run(workspaceId);
+    this.database.prepare("DELETE FROM workspace_databases WHERE workspace_id = ?").run(workspaceId);
+    this.database.prepare("DELETE FROM workspace_attachments WHERE workspace_id = ?").run(workspaceId);
+    this.database.prepare("DELETE FROM workspace_links WHERE workspace_id = ?").run(workspaceId);
+    const insertPage = this.database.prepare("INSERT INTO workspace_pages(workspace_id, page_id, page_json) VALUES (?, ?, ?)");
+    const insertDatabase = this.database.prepare("INSERT INTO workspace_databases(workspace_id, database_id, database_json) VALUES (?, ?, ?)");
+    const insertAttachment = this.database.prepare("INSERT INTO workspace_attachments(workspace_id, attachment_id, attachment_json) VALUES (?, ?, ?)");
+    const insertLink = this.database.prepare("INSERT INTO workspace_links(workspace_id, source_page_id, target_page_id, block_id) VALUES (?, ?, ?, ?)");
+    for (const page of parts.pages) insertPage.run(workspaceId, entityId(page), JSON.stringify(page));
+    for (const database of parts.databases) insertDatabase.run(workspaceId, entityId(database), JSON.stringify(database));
+    for (const attachment of parts.attachments) insertAttachment.run(workspaceId, entityId(attachment), JSON.stringify(attachment));
+    for (const link of parts.links) insertLink.run(workspaceId, link.sourcePageId, link.targetPageId, link.blockId);
     this.database.prepare("DELETE FROM workspace_search WHERE workspace_id = ?").run(workspaceId);
-    const insert = this.database.prepare("INSERT INTO workspace_search(workspace_id, entity_id, entity_type, owner_entity_id, title, body) VALUES (?, ?, ?, ?, ?, ?)");
-    for (const entry of extractSearchEntries(document, workspaceId)) insert.run(workspaceId, entry.entityId, entry.entityType, entry.ownerEntityId ?? null, entry.title, entry.body);
+    const entries = extractWorkspaceSearchEntries(document, workspaceId);
+    this.insertSearchEntries(workspaceId, entries);
+    return { mode: "rebuild", pages: parts.pages.length, databases: parts.databases.length, attachments: parts.attachments.length,
+      linkSources: new Set(parts.links.map(link => link.sourcePageId)).size, linksInserted: parts.links.length,
+      ftsScopes: entries.length ? new Set(entries.map(entry => `${entry.scopeType}:${entry.scopeId}`)).size : 0, ftsInserted: entries.length };
+  }
+
+  private applyIncrementalChangeSet(workspaceId: string, document: unknown, changeSet: Extract<WorkspaceChangeSet, { kind: "incremental" }>): WorkspaceWriteStats {
+    const parts = workspaceParts(document);
+    this.syncJsonRows(workspaceId, "workspace_pages", "page_id", "page_json", changeSet.pages, parts.pages);
+    this.syncJsonRows(workspaceId, "workspace_databases", "database_id", "database_json", changeSet.databases, parts.databases);
+    this.syncJsonRows(workspaceId, "workspace_attachments", "attachment_id", "attachment_json", changeSet.attachments, parts.attachments);
+    const deleteLinks = this.database.prepare("DELETE FROM workspace_links WHERE workspace_id=? AND source_page_id=?");
+    const insertLink = this.database.prepare("INSERT INTO workspace_links(workspace_id, source_page_id, target_page_id, block_id) VALUES (?, ?, ?, ?)");
+    for (const sourcePageId of changeSet.linkSourcePageIds) deleteLinks.run(workspaceId, sourcePageId);
+    const linkSources = new Set(changeSet.linkSourcePageIds);
+    const links = parts.links.filter(link => linkSources.has(link.sourcePageId));
+    for (const link of links) insertLink.run(workspaceId, link.sourcePageId, link.targetPageId, link.blockId);
+    const deleteFts = this.database.prepare("DELETE FROM workspace_search WHERE workspace_id=? AND scope_type=? AND scope_id=?");
+    let ftsInserted = 0;
+    for (const scope of changeSet.fts) {
+      deleteFts.run(workspaceId, scope.scope, scope.id);
+      const candidates = scope.scope === "page" ? parts.pages : scope.scope === "database" ? parts.databases : scope.scope === "attachment" ? parts.attachments : [];
+      const entity = scope.scope === "workspace" ? document : candidates.find(value => entityId(value) === scope.id);
+      if (entity === undefined) continue;
+      const entries = scope.scope === "workspace"
+        ? extractWorkspaceRootSearchEntries(document, workspaceId)
+        : extractSearchEntries(entity, scope.id, scope.scope, scope.id);
+      this.insertSearchEntries(workspaceId, entries); ftsInserted += entries.length;
+    }
+    return { mode: "incremental", pages: changeSet.pages.length, databases: changeSet.databases.length,
+      attachments: changeSet.attachments.length, linkSources: changeSet.linkSourcePageIds.length,
+      linksInserted: links.length, ftsScopes: changeSet.fts.length, ftsInserted };
+  }
+
+  private syncJsonRows(workspaceId: string, table: string, idColumn: string, jsonColumn: string, ids: readonly string[], entities: readonly Record<string, unknown>[]): void {
+    const remove = this.database.prepare(`DELETE FROM ${table} WHERE workspace_id=? AND ${idColumn}=?`);
+    const upsert = this.database.prepare(`INSERT INTO ${table}(workspace_id, ${idColumn}, ${jsonColumn}) VALUES (?, ?, ?)
+      ON CONFLICT(workspace_id, ${idColumn}) DO UPDATE SET ${jsonColumn}=excluded.${jsonColumn}`);
+    for (const id of ids) {
+      const entity = entities.find(value => entityId(value) === id);
+      if (entity) upsert.run(workspaceId, id, JSON.stringify(entity)); else remove.run(workspaceId, id);
+    }
+  }
+
+  private insertSearchEntries(workspaceId: string, entries: readonly SearchEntry[]): void {
+    const insert = this.database.prepare(`INSERT INTO workspace_search(
+      workspace_id, entity_id, entity_type, owner_entity_id, scope_type, scope_id, title, body
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
+    for (const entry of entries) insert.run(workspaceId, entry.entityId, entry.entityType, entry.ownerEntityId ?? null,
+      entry.scopeType, entry.scopeId, entry.title, entry.body);
   }
 
   private migrate(): void {
@@ -280,9 +516,30 @@ export function toFtsQuery(input: string): string {
   return tokens.slice(0, 32).map((token) => `"${token.replaceAll('"', '""')}"`).join(" AND ");
 }
 
-type SearchEntry = { entityId: string; entityType: SearchHit["entityType"]; ownerEntityId?: string; title: string; body: string };
+type SearchEntry = { entityId: string; entityType: SearchHit["entityType"]; ownerEntityId?: string; title: string; body: string;
+  scopeType: FtsScopeType; scopeId: string };
 
-function extractSearchEntries(document: unknown, fallbackId: string): SearchEntry[] {
+function extractWorkspaceRootSearchEntries(document: unknown, fallbackId: string): SearchEntry[] {
+  if (!document || typeof document !== "object" || Array.isArray(document)) return extractSearchEntries(document, fallbackId, "workspace", fallbackId);
+  const root = { ...(document as Record<string, unknown>) };
+  delete root.pages; delete root.databases; delete root.attachments; delete root.linkIndex;
+  return extractSearchEntries(root, fallbackId, "workspace", fallbackId);
+}
+
+function extractWorkspaceSearchEntries(document: unknown, fallbackId: string): SearchEntry[] {
+  if (!document || typeof document !== "object" || Array.isArray(document)) {
+    return extractSearchEntries(document, fallbackId, "workspace", fallbackId);
+  }
+  const result = extractWorkspaceRootSearchEntries(document, fallbackId);
+  const parts = workspaceParts(document);
+  for (const page of parts.pages) result.push(...extractSearchEntries(page, entityId(page), "page", entityId(page)));
+  for (const database of parts.databases) result.push(...extractSearchEntries(database, entityId(database), "database", entityId(database)));
+  for (const attachment of parts.attachments) result.push(...extractSearchEntries(attachment, entityId(attachment), "attachment", entityId(attachment)));
+  if (result.length === 0) result.push({ entityId: fallbackId, entityType: "entity", title: "", body: JSON.stringify(document), scopeType: "workspace", scopeId: fallbackId });
+  return result;
+}
+
+function extractSearchEntries(document: unknown, fallbackId: string, scopeType: SearchEntry["scopeType"], scopeId: string): SearchEntry[] {
   const result: SearchEntry[] = [];
   const scalarText = (value: unknown): string[] => {
     if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return [String(value)];
@@ -299,7 +556,7 @@ function extractSearchEntries(document: unknown, fallbackId: string): SearchEntr
     const isRow = hint === "row" || (record.values && typeof record.values === "object" && !Array.isArray(record.values));
     const entityType: SearchEntry["entityType"] = isRow ? "row" : hint ?? (Array.isArray(record.blocks) ? "page" : "entity");
     const text = [record.text, record.content, record.label, ...scalarText(record.values)].filter((part): part is string => typeof part === "string").join(" ");
-    if (title || text) result.push({ entityId: id, entityType, ...(ownerEntityId ? { ownerEntityId } : {}), title, body: text });
+    if (title || text) result.push({ entityId: id, entityType, ...(ownerEntityId ? { ownerEntityId } : {}), title, body: text, scopeType, scopeId });
     for (const [key, child] of Object.entries(record)) {
       if (typeof child !== "object" || child === null || key === "values") continue;
       if (key === "pages" && Array.isArray(child)) child.forEach((page, index) => visit(page, `${path}.${key}.${index}`, "", undefined, "page"));
@@ -309,7 +566,7 @@ function extractSearchEntries(document: unknown, fallbackId: string): SearchEntr
     }
   };
   visit(document, fallbackId);
-  if (result.length === 0) result.push({ entityId: fallbackId, entityType: "entity", title: "", body: JSON.stringify(document) });
+  if (result.length === 0) result.push({ entityId: fallbackId, entityType: "entity", title: "", body: JSON.stringify(document), scopeType, scopeId });
   return result;
 }
 

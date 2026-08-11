@@ -129,6 +129,8 @@ test("fine-grained block commands preserve structure and indexes across restart"
     assert.deepEqual(state.workspace.pages[0]!.blocks[0]!.unknownData, { plugin: { stable: true } });
     state = service.execute({ type: "block.move", workspaceId, expectedRevision: state.revision, pageId: sourceId, blockId: "child",
       target: { pageId: targetId, parentBlockId: null, beforeBlockId: null } });
+    assert.deepEqual(store.lastWriteStats, { mode: "incremental", pages: 2, databases: 0, attachments: 0,
+      linkSources: 2, linksInserted: 1, ftsScopes: 2, ftsInserted: 4 });
     state = service.execute({ type: "block.create", workspaceId, expectedRevision: state.revision, pageId: targetId,
       position: { parentBlockId: null, beforeBlockId: null }, block: { id: "second", type: "paragraph", text: "Second", children: [] } });
     state = service.execute({ type: "block.indent", workspaceId, expectedRevision: state.revision, pageId: targetId, blockId: "second" });
@@ -159,6 +161,8 @@ test("block.batch commits once and malformed batches roll back document, revisio
       { type: "block.update-content", pageId: one, blockId: "batched", content: { text: "atomic linked token", references: [{ pageId: two }] } }
     ] });
     assert.equal(state.revision, beforeRevision + 1);
+    assert.deepEqual(store.lastWriteStats, { mode: "incremental", pages: 1, databases: 0, attachments: 0,
+      linkSources: 1, linksInserted: 1, ftsScopes: 1, ftsInserted: 2 });
     assert.equal(service.query({ type: "page.backlinks", workspaceId, pageId: two }).length, 1);
     const before = structuredClone(store.load(workspaceId));
     assert.throws(() => service.execute({ type: "block.batch", workspaceId, expectedRevision: state.revision, commands: [
@@ -541,6 +545,8 @@ test("record commands reject cross-collection properties without saving a revisi
     state = service.execute({ type: "database.record-create", workspaceId, expectedRevision: state.revision, databaseId: first!.id, title: "Valid", values: { [firstPropertyId]: 1 } });
     const record = state.workspace.pages.find(page => page.title === "Valid")!;
     state = service.execute({ type: "database.record-update", workspaceId, expectedRevision: state.revision, pageId: record.id, values: { [firstPropertyId]: 3 } });
+    assert.deepEqual({ pages: store.lastWriteStats?.pages, databases: store.lastWriteStats?.databases, ftsScopes: store.lastWriteStats?.ftsScopes },
+      { pages: 1, databases: 1, ftsScopes: 2 });
     assert.equal(state.workspace.pages.find(page => page.id === record.id)?.properties?.[firstPropertyId], 3);
     const beforeUpdate = structuredClone(store.load(workspaceId));
     assert.throws(() => service.execute({ type: "database.record-update", workspaceId, expectedRevision: state.revision, pageId: record.id, title: "Must roll back", values: { [secondPropertyId]: 4 } }),

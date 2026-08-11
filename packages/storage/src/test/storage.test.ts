@@ -4,7 +4,7 @@ import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { ContentAddressedAttachmentStore, SqliteWorkspaceStore } from "../index.js";
+import { ContentAddressedAttachmentStore, SqliteWorkspaceStore, type WorkspaceChangeSet } from "../index.js";
 
 const runCrashWorker = async (mode: "during-transaction" | "after-commit", databasePath: string) => {
   const worker = new URL("./fixtures/crash-worker.js", import.meta.url);
@@ -145,6 +145,119 @@ test("FTS indexes persisted table row values by stable row ID", async () => {
   } finally { store.close(); await rm(root, { recursive: true, force: true }); }
 });
 
+test("incremental change sets rewrite only dirty normalized, link, and FTS scopes", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-incremental-"));
+  const path = join(root, "motion.sqlite3");
+  const store = new SqliteWorkspaceStore(path);
+  const original = {
+    id: "ws", name: "Incremental", pages: [
+      { id: "p1", title: "One", blocks: [{ id: "b1", text: "old token", children: [], references: [{ pageId: "p2" }] }] },
+      { id: "p2", title: "Untouched", blocks: [{ id: "b2", text: "stable token", children: [] }] }
+    ], databases: [{ id: "db1", pageId: "p2", name: "Table", rows: [{ id: "r1", values: { value: "stable row" } }] }],
+    attachments: [{ id: "a1", sha256: "a".repeat(64) }], linkIndex: [{ sourcePageId: "p1", targetPageId: "p2", blockId: "b1" }],
+    futureMetadata: { plugin: { opaque: true } }
+  };
+  try {
+    store.save("ws", 2, original, 0);
+    const untouchedFtsRowids = store.database.prepare(`SELECT entity_id, rowid FROM workspace_search
+      WHERE workspace_id='ws' AND ((scope_type='page' AND scope_id='p2') OR (scope_type='database' AND scope_id='db1'))
+      ORDER BY scope_type, entity_id`).all();
+    store.database.exec(`CREATE TEMP TABLE write_audit(table_name TEXT, entity_id TEXT);
+      CREATE TEMP TRIGGER audit_page AFTER UPDATE ON workspace_pages BEGIN INSERT INTO write_audit VALUES ('page', NEW.page_id); END;
+      CREATE TEMP TRIGGER audit_database AFTER UPDATE ON workspace_databases BEGIN INSERT INTO write_audit VALUES ('database', NEW.database_id); END;
+      CREATE TEMP TRIGGER audit_attachment AFTER UPDATE ON workspace_attachments BEGIN INSERT INTO write_audit VALUES ('attachment', NEW.attachment_id); END;`);
+    const changed = structuredClone(original) as typeof original; changed.pages[0]!.title = "Changed"; changed.pages[0]!.blocks[0]!.text = "new token";
+    (changed.pages[0]!.blocks[0]! as { references?: { pageId: string }[] }).references = []; changed.linkIndex = [];
+    const changeSet: WorkspaceChangeSet = { kind: "incremental", pages: ["p1"], databases: [], attachments: [],
+      linkSourcePageIds: ["p1"], fts: [{ scope: "page", id: "p1" }] };
+    assert.equal(store.saveUnitOfWork({ workspaceId: "ws", schemaVersion: 2, document: changed, expectedRevision: 1, changeSet }), 2);
+
+    assert.deepEqual(store.database.prepare("SELECT table_name, entity_id FROM write_audit ORDER BY table_name, entity_id").all(),
+      [{ table_name: "page", entity_id: "p1" }]);
+    assert.deepEqual(store.lastWriteStats, { mode: "incremental", pages: 1, databases: 0, attachments: 0,
+      linkSources: 1, linksInserted: 0, ftsScopes: 1, ftsInserted: 2 });
+    assert.equal(store.search("old token", "ws").length, 0);
+    assert.equal(store.search("new token", "ws")[0]?.entityId, "b1");
+    assert.equal(store.search("stable token", "ws")[0]?.entityId, "b2");
+    assert.equal(store.search("stable row", "ws")[0]?.entityId, "r1");
+    assert.deepEqual(store.database.prepare(`SELECT entity_id, rowid FROM workspace_search
+      WHERE workspace_id='ws' AND ((scope_type='page' AND scope_id='p2') OR (scope_type='database' AND scope_id='db1'))
+      ORDER BY scope_type, entity_id`).all(), untouchedFtsRowids);
+    assert.equal((store.database.prepare("SELECT COUNT(*) count FROM workspace_links WHERE workspace_id='ws'").get() as { count: number }).count, 0);
+    assert.deepEqual(store.load("ws")?.document, changed);
+    const derivedRows = () => ({
+      search: store.database.prepare(`SELECT entity_id, entity_type, owner_entity_id, scope_type, scope_id, title, body
+        FROM workspace_search WHERE workspace_id='ws' ORDER BY scope_type, scope_id, entity_type, entity_id`).all(),
+      links: store.database.prepare("SELECT source_page_id, target_page_id, block_id FROM workspace_links WHERE workspace_id='ws' ORDER BY source_page_id, block_id, target_page_id").all(),
+      pages: store.database.prepare("SELECT page_id, page_json FROM workspace_pages WHERE workspace_id='ws' ORDER BY page_id").all(),
+      databases: store.database.prepare("SELECT database_id, database_json FROM workspace_databases WHERE workspace_id='ws' ORDER BY database_id").all(),
+      attachments: store.database.prepare("SELECT attachment_id, attachment_json FROM workspace_attachments WHERE workspace_id='ws' ORDER BY attachment_id").all()
+    });
+    const incrementalDerived = derivedRows();
+    assert.equal(store.saveUnitOfWork({ workspaceId: "ws", schemaVersion: 2, document: changed, expectedRevision: 2, changeSet: { kind: "rebuild" } }), 3);
+    assert.deepEqual(derivedRows(), incrementalDerived);
+    assert.deepEqual(store.load("ws")?.document, changed);
+  } finally { store.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test("incremental scope validation rejects omissions and deletes removed entities from every derived table", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-incremental-removals-"));
+  const store = new SqliteWorkspaceStore(join(root, "motion.sqlite3"));
+  const original = { id: "ws", name: "Removal", pages: [
+    { id: "p1", title: "Source", blocks: [{ id: "b1", text: "linked", children: [] }] },
+    { id: "p2", title: "Removed page token", blocks: [] }
+  ], databases: [{ id: "db1", name: "Removed database token", rows: [] }],
+  attachments: [{ id: "a1", label: "Removed attachment token" }],
+  linkIndex: [{ sourcePageId: "p1", targetPageId: "p2", blockId: "b1" }] };
+  try {
+    store.save("ws", 1, original, 0);
+    const removed = structuredClone(original);
+    removed.pages = removed.pages.filter(page => page.id !== "p2"); removed.databases = []; removed.attachments = []; removed.linkIndex = [];
+    assert.throws(() => store.saveUnitOfWork({ workspaceId: "ws", schemaVersion: 1, document: removed, expectedRevision: 1,
+      changeSet: { kind: "incremental", pages: [], databases: [], attachments: [], linkSourcePageIds: [], fts: [] } }),
+    /omits dirty pages: p2/);
+    assert.equal(store.load("ws")?.revision, 1);
+    assert.equal(store.search("Removed", "ws").length, 3);
+    assert.equal(store.saveUnitOfWork({ workspaceId: "ws", schemaVersion: 1, document: removed, expectedRevision: 1,
+      changeSet: { kind: "incremental", pages: ["p2"], databases: ["db1"], attachments: ["a1"], linkSourcePageIds: ["p1"],
+        fts: [{ scope: "attachment", id: "a1" }, { scope: "database", id: "db1" }, { scope: "page", id: "p2" }] } }), 2);
+    assert.equal(store.search("Removed", "ws").length, 0);
+    for (const table of ["workspace_pages", "workspace_databases", "workspace_attachments", "workspace_links"])
+      assert.equal((store.database.prepare(`SELECT COUNT(*) count FROM ${table} WHERE workspace_id='ws'`).get() as { count: number }).count,
+        table === "workspace_pages" ? 1 : 0);
+    assert.deepEqual(store.load("ws")?.document, removed);
+  } finally { store.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test("incremental rollback preserves canonical and normalized rows, FTS, links, and revision", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-incremental-rollback-"));
+  const store = new SqliteWorkspaceStore(join(root, "motion.sqlite3"));
+  const original = { id: "ws", pages: [{ id: "p1", title: "Original", blocks: [{ id: "b1", text: "durable", children: [] }] }],
+    databases: [], attachments: [], linkIndex: [] };
+  try {
+    store.save("ws", 1, original, 0);
+    const before = {
+      workspace: store.database.prepare("SELECT * FROM workspaces WHERE workspace_id='ws'").get(),
+      pages: store.database.prepare("SELECT * FROM workspace_pages WHERE workspace_id='ws' ORDER BY page_id").all(),
+      fts: store.database.prepare("SELECT rowid, * FROM workspace_search WHERE workspace_id='ws' ORDER BY rowid").all(),
+      links: store.database.prepare("SELECT * FROM workspace_links WHERE workspace_id='ws'").all()
+    };
+    const changed = structuredClone(original); changed.pages[0]!.title = "Broken"; changed.pages[0]!.blocks[0]!.text = "vanish";
+    assert.throws(() => store.saveUnitOfWork({ workspaceId: "ws", schemaVersion: 1, document: changed, expectedRevision: 1,
+      changeSet: { kind: "incremental", pages: ["p1"], databases: [], attachments: [], linkSourcePageIds: ["p1"], fts: [{ scope: "page", id: "p1" }] },
+      beforeCommit: () => { throw new Error("injected normalized failure"); } }), /injected normalized failure/);
+    assert.deepEqual({
+      workspace: store.database.prepare("SELECT * FROM workspaces WHERE workspace_id='ws'").get(),
+      pages: store.database.prepare("SELECT * FROM workspace_pages WHERE workspace_id='ws' ORDER BY page_id").all(),
+      fts: store.database.prepare("SELECT rowid, * FROM workspace_search WHERE workspace_id='ws' ORDER BY rowid").all(),
+      links: store.database.prepare("SELECT * FROM workspace_links WHERE workspace_id='ws'").all()
+    }, before);
+    assert.equal(store.load("ws")?.revision, 1);
+    assert.equal(store.search("durable", "ws").length, 1);
+    assert.equal(store.search("vanish", "ws").length, 0);
+  } finally { store.close(); await rm(root, { recursive: true, force: true }); }
+});
+
 test("hostile FTS syntax is tokenized and migrations are idempotent", async () => {
   const root = await mkdtemp(join(tmpdir(), "motion-migrations-"));
   const path = join(root, "motion.sqlite3");
@@ -155,7 +268,7 @@ test("hostile FTS syntax is tokenized and migrations are idempotent", async () =
     first.close();
     const second = new SqliteWorkspaceStore(path);
     const migrations = second.database.prepare("SELECT version FROM motion_migrations ORDER BY version").all() as { version: number }[];
-    assert.deepEqual(migrations.map(({ version }) => version), [1, 2, 3]);
+    assert.deepEqual(migrations.map(({ version }) => version), [1, 2, 3, 4]);
     assert.throws(() => second.save("ws", 1, { id: "p", title: "stale" }, 0), /Revision conflict/);
     second.close();
   } finally { await rm(root, { recursive: true, force: true }); }

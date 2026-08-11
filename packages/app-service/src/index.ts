@@ -21,7 +21,7 @@ import {
   type PageLink,
   type Workspace
 } from "@motion/core";
-import { ContentAddressedAttachmentStore, SqliteWorkspaceStore, type SearchHit, type StagedAttachment, type StoredWorkspace } from "@motion/storage";
+import { ContentAddressedAttachmentStore, SqliteWorkspaceStore, type FtsScopeType, type SearchHit, type StagedAttachment, type StoredWorkspace, type WorkspaceChangeSet } from "@motion/storage";
 import { createBackup, previewRestore, restoreIntoNewWorkspace, verifyBackup, type BackupBundle, type RestorePreview, type VerificationResult } from "@motion/backup";
 
 export type AppErrorCode =
@@ -249,6 +249,33 @@ function operationFromCommand(command: BlockCommand): BlockOperation {
   return operation as BlockOperation;
 }
 
+class MutationChangeSet {
+  private readonly pageIds = new Set<string>();
+  private readonly databaseIds = new Set<string>();
+  private readonly attachmentIds = new Set<string>();
+  private readonly linkSourceIds = new Set<string>();
+  private readonly ftsScopes = new Map<string, { scope: FtsScopeType; id: string }>();
+  page(id: string, options: { links?: boolean; fts?: boolean } = {}): void {
+    this.pageIds.add(id);
+    if (options.links) this.linkSourceIds.add(id);
+    if (options.fts) this.ftsScopes.set(`page\u0000${id}`, { scope: "page", id });
+  }
+  database(id: string, fts = true): void {
+    this.databaseIds.add(id);
+    if (fts) this.ftsScopes.set(`database\u0000${id}`, { scope: "database", id });
+  }
+  attachment(id: string): void { this.attachmentIds.add(id); this.ftsScopes.set(`attachment\u0000${id}`, { scope: "attachment", id }); }
+  block(operation: BlockOperation): void {
+    this.page(operation.pageId, { links: true, fts: true });
+    if (operation.type === "block.move") this.page(operation.target.pageId, { links: true, fts: true });
+  }
+  build(): Extract<WorkspaceChangeSet, { kind: "incremental" }> {
+    const ordered = (values: Set<string>) => [...values].sort();
+    return { kind: "incremental", pages: ordered(this.pageIds), databases: ordered(this.databaseIds), attachments: ordered(this.attachmentIds),
+      linkSourcePageIds: ordered(this.linkSourceIds), fts: [...this.ftsScopes.entries()].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0).map(([, scope]) => scope) };
+  }
+}
+
 export class MotionAppService {
   constructor(private readonly store: SqliteWorkspaceStore, private readonly attachments?: ContentAddressedAttachmentStore) {}
 
@@ -308,7 +335,8 @@ export class MotionAppService {
       document.updatedAt = now;
       assertWorkspaceValue(document);
       try {
-        const savedRevision = this.store.saveUnitOfWork({ workspaceId: document.id, schemaVersion: document.schemaVersion, document, expectedRevision });
+        const changes = new MutationChangeSet(); changes.attachment(id);
+        const savedRevision = this.store.saveUnitOfWork({ workspaceId: document.id, schemaVersion: document.schemaVersion, document, expectedRevision, changeSet: changes.build() });
         await this.attachmentStore().promote(staged);
         return immutable({ workspace: document, revision: savedRevision, saved: true as const }) as MutationDto;
       } catch (error) {
@@ -400,47 +428,64 @@ export class MotionAppService {
     const expectedRevision = revision(command.expectedRevision);
     const loaded = this.required(command.workspaceId);
     const document = new WorkspaceDocument(clone(loaded.document));
+    const changes = new MutationChangeSet();
     switch (command.type) {
-      case "block.batch": for (const operation of command.commands) applyBlockOperation(document, operation); break;
+      case "block.batch": for (const operation of command.commands) { applyBlockOperation(document, operation); changes.block(operation); } break;
       case "block.create": case "block.update-content": case "block.transform": case "block.move":
-      case "block.indent": case "block.outdent": case "block.duplicate": case "block.delete":
-        applyBlockOperation(document, operationFromCommand(command)); break;
-      case "page.create": document.addPage(requiredText(command.title, "title", true), command.parentId ?? null); break;
-      case "page.rename": {
-        const page = requiredPage(document, command.pageId); page.title = requiredText(command.title, "title", true); const database = document.data.databases.find(candidate => candidate.pageId === page.id); if (database) database.name = page.title; page.updatedAt = new Date().toISOString(); document.data.updatedAt = page.updatedAt; break;
+      case "block.indent": case "block.outdent": case "block.duplicate": case "block.delete": {
+        const operation = operationFromCommand(command); applyBlockOperation(document, operation); changes.block(operation); break;
       }
-      case "page.move": document.movePage(requiredText(command.pageId, "pageId"), command.parentId); break;
-      case "page.reorder": document.reorderPage(requiredText(command.pageId, "pageId"), command.beforePageId); break;
-      case "page.set-favourite": { const page = requiredPage(document, command.pageId); page.favourite = Boolean(command.favourite); page.updatedAt = new Date().toISOString(); document.data.updatedAt = page.updatedAt; break; }
+      case "page.create": { const page = document.addPage(requiredText(command.title, "title", true), command.parentId ?? null); changes.page(page.id, { links: true, fts: true }); break; }
+      case "page.rename": {
+        const page = requiredPage(document, command.pageId); page.title = requiredText(command.title, "title", true); const database = document.data.databases.find(candidate => candidate.pageId === page.id); if (database) { database.name = page.title; changes.database(database.id); } page.updatedAt = new Date().toISOString(); document.data.updatedAt = page.updatedAt; changes.page(page.id, { fts: true }); break;
+      }
+      case "page.move": { const pageId = requiredText(command.pageId, "pageId"); document.movePage(pageId, command.parentId); changes.page(pageId); break; }
+      case "page.reorder": { const pageId = requiredText(command.pageId, "pageId"); document.reorderPage(pageId, command.beforePageId); changes.page(pageId); break; }
+      case "page.set-favourite": { const page = requiredPage(document, command.pageId); page.favourite = Boolean(command.favourite); page.updatedAt = new Date().toISOString(); document.data.updatedAt = page.updatedAt; changes.page(page.id); break; }
       case "page.trash": {
-        const page = requiredPage(document, command.pageId); const timestamp = new Date().toISOString(); for (const target of [page, ...document.descendants(page.id)]) { target.deletedAt = timestamp; target.updatedAt = timestamp; } document.data.updatedAt = timestamp; break;
+        const page = requiredPage(document, command.pageId); const timestamp = new Date().toISOString(); for (const target of [page, ...document.descendants(page.id)]) { target.deletedAt = timestamp; target.updatedAt = timestamp; changes.page(target.id); } document.data.updatedAt = timestamp; break;
       }
       case "page.restore": {
         const page = requiredPage(document, command.pageId); const timestamp = new Date().toISOString(); const targets = new Set([page]); let changed = true;
         while (changed) { changed = false; for (const candidate of document.data.pages) if (candidate.parentId && [...targets].some(target => target.id === candidate.parentId) && !targets.has(candidate)) { targets.add(candidate); changed = true; } }
         for (const target of [...targets]) { for (let parent = target.parentId ? document.page(target.parentId) : undefined; parent; parent = parent.parentId ? document.page(parent.parentId) : undefined) targets.add(parent); }
-        for (const target of targets) { delete target.deletedAt; target.updatedAt = timestamp; } document.data.updatedAt = timestamp; break;
+        for (const target of targets) { delete target.deletedAt; target.updatedAt = timestamp; changes.page(target.id); } document.data.updatedAt = timestamp; break;
       }
       case "page.replace-blocks": {
         const page = requiredPage(document, command.pageId); page.blocks = clone(command.blocks) as Block[]; page.updatedAt = new Date().toISOString(); document.data.updatedAt = page.updatedAt;
         // Validate the candidate tree before any traversal-derived indexes are rebuilt.
-        assertWorkspaceValue(document.data); document.rebuildLinkIndex(); break;
+        assertWorkspaceValue(document.data); document.rebuildLinkIndex(); changes.page(page.id, { links: true, fts: true }); break;
       }
       case "database.create": {
         const page = document.addPage(requiredText(command.title, "title", true), command.parentId ?? null);
         const titleId = crypto.randomUUID(); const databaseId = crypto.randomUUID();
         document.addDatabase({ id: databaseId, pageId: page.id, name: page.title, properties: [{ id: titleId, name: "Name", type: "title" }], rows: [], recordPageIds: [], views: [{ id: crypto.randomUUID(), collectionId: databaseId, name: "Table", type: "table", visiblePropertyIds: [titleId], propertyOrder: [titleId], columnWidths: { [titleId]: 280 }, sorts: [] }] });
-        break;
+        changes.page(page.id, { links: true, fts: true }); changes.database(databaseId); break;
       }
-      case "database.property-add": document.addProperty(requiredText(command.databaseId, "databaseId"), clone(command.property)); break;
-      case "database.property-update": document.updateProperty(requiredText(command.databaseId, "databaseId"), requiredText(command.propertyId, "propertyId"), clone(command.patch)); break;
-      case "database.property-delete": document.deleteProperty(requiredText(command.databaseId, "databaseId"), requiredText(command.propertyId, "propertyId")); break;
-      case "database.record-create": document.addRecord(requiredText(command.databaseId, "databaseId"), requiredText(command.title, "title", true), clone(command.values ?? {})); break;
-      case "database.record-update": document.updateRecord(requiredText(command.pageId, "pageId"), command.title === undefined ? undefined : requiredText(command.title, "title", true), clone(command.values)); break;
-      case "database.view-update": document.updateView(requiredText(command.databaseId, "databaseId"), requiredText(command.viewId, "viewId"), clone(command.patch)); break;
+      case "database.property-add": { const databaseId = requiredText(command.databaseId, "databaseId"); document.addProperty(databaseId, clone(command.property)); changes.database(databaseId); break; }
+      case "database.property-update": {
+        const databaseId = requiredText(command.databaseId, "databaseId"); const database = document.data.databases.find(candidate => candidate.id === databaseId)!;
+        document.updateProperty(databaseId, requiredText(command.propertyId, "propertyId"), clone(command.patch)); changes.database(databaseId);
+        if (command.patch.type !== undefined) for (const pageId of database.recordPageIds ?? []) changes.page(pageId, { fts: true }); break;
+      }
+      case "database.property-delete": {
+        const databaseId = requiredText(command.databaseId, "databaseId"); const database = document.data.databases.find(candidate => candidate.id === databaseId)!;
+        document.deleteProperty(databaseId, requiredText(command.propertyId, "propertyId")); changes.database(databaseId);
+        for (const pageId of database.recordPageIds ?? []) changes.page(pageId, { fts: true }); break;
+      }
+      case "database.record-create": {
+        const databaseId = requiredText(command.databaseId, "databaseId"); const page = document.addRecord(databaseId, requiredText(command.title, "title", true), clone(command.values ?? {}));
+        changes.database(databaseId); changes.page(page.id, { links: true, fts: true }); break;
+      }
+      case "database.record-update": {
+        const pageId = requiredText(command.pageId, "pageId"); const page = requiredPage(document, pageId);
+        document.updateRecord(pageId, command.title === undefined ? undefined : requiredText(command.title, "title", true), clone(command.values));
+        if (page.collectionId) changes.database(page.collectionId); changes.page(pageId, { fts: true }); break;
+      }
+      case "database.view-update": { const databaseId = requiredText(command.databaseId, "databaseId"); document.updateView(databaseId, requiredText(command.viewId, "viewId"), clone(command.patch)); changes.database(databaseId); break; }
     }
     assertWorkspaceValue(document.data);
-    const savedRevision = this.store.saveUnitOfWork({ workspaceId: document.data.id, schemaVersion: WORKSPACE_SCHEMA_VERSION, document: document.data, expectedRevision });
+    const savedRevision = this.store.saveUnitOfWork({ workspaceId: document.data.id, schemaVersion: WORKSPACE_SCHEMA_VERSION, document: document.data, expectedRevision, changeSet: changes.build() });
     return immutable({ workspace: document.data, revision: savedRevision, saved: true as const }) as MutationDto;
   }
 

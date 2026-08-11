@@ -33,6 +33,23 @@ export function createPagesTablesFixture(recordCount=100) {
   return document.data;
 }
 
+export function benchmarkIncrementalPersistence(recordCount,databasePath) {
+  const workspace=createPagesTablesFixture(recordCount);
+  workspace.futureMetadata={preserved:{version:1}};
+  const database=workspace.databases[0],target=workspace.pages.find(page=>page.collectionId===database.id);
+  const store=new SqliteWorkspaceStore(databasePath);
+  store.saveUnitOfWork({workspaceId:workspace.id,schemaVersion:workspace.schemaVersion,document:workspace,expectedRevision:0});
+  const candidate=new WorkspaceDocument(structuredClone(workspace));
+  candidate.updateRecord(target.id,undefined,{"fixture-cost":9999});
+  const revision=store.saveUnitOfWork({workspaceId:workspace.id,schemaVersion:workspace.schemaVersion,document:candidate.data,expectedRevision:1,
+    changeSet:{kind:"incremental",pages:[target.id],databases:[database.id],attachments:[],linkSourcePageIds:[],fts:[{scope:"database",id:database.id},{scope:"page",id:target.id}]}});
+  const stats=structuredClone(store.lastWriteStats),normalizedPages=store.database.prepare("SELECT COUNT(*) count FROM workspace_pages WHERE workspace_id=?").get(workspace.id).count;
+  store.close();
+  const reopened=new SqliteWorkspaceStore(databasePath),loaded=reopened.load(workspace.id);
+  const result={records:recordCount,revision,reopenedRevision:loaded?.revision,normalizedPages,stats,canonicalEqual:JSON.stringify(loaded?.document)===JSON.stringify(candidate.data),unknownFieldsPreserved:loaded?.document?.futureMetadata?.preserved?.version===1};
+  reopened.close();return result;
+}
+
 export function benchmarkPagesTables(recordCount) {
   const before=process.memoryUsage().heapUsed,start=performance.now(),workspace=createPagesTablesFixture(recordCount),created=performance.now();
   const openedDocument=new WorkspaceDocument(structuredClone(workspace)),opened=performance.now();

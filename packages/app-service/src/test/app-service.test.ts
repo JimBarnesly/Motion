@@ -109,6 +109,104 @@ test("committed vertical slice survives restart and supports search, backlinks, 
   } finally { await removeDatabase(path); }
 });
 
+test("fine-grained block commands preserve structure and indexes across restart", async () => {
+  const path = databasePath("block-commands");
+  try {
+    let store = new SqliteWorkspaceStore(path); let service = new MotionAppService(store);
+    let state = service.execute({ type: "workspace.create", name: "Blocks" }); const workspaceId = state.workspace.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Source" }); const sourceId = state.workspace.pages[0]!.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Target" }); const targetId = state.workspace.pages[1]!.id;
+    state = service.execute({ type: "block.create", workspaceId, expectedRevision: state.revision, pageId: sourceId,
+      position: { parentBlockId: null, beforeBlockId: null }, block: { id: "parent", type: "future-toggle", text: "Parent", children: [], unknownData: { plugin: { stable: true } } } });
+    state = service.execute({ type: "block.create", workspaceId, expectedRevision: state.revision, pageId: sourceId,
+      position: { parentBlockId: "parent", beforeBlockId: null }, block: { id: "child", type: "paragraph", text: "old", children: [] } });
+    state = service.execute({ type: "block.update-content", workspaceId, expectedRevision: state.revision, pageId: sourceId, blockId: "child",
+      content: { text: "indexed needle", references: [{ pageId: sourceId }] } });
+    state = service.execute({ type: "block.transform", workspaceId, expectedRevision: state.revision, pageId: sourceId, blockId: "parent",
+      transform: { type: "toggle" } });
+    assert.deepEqual(state.workspace.pages[0]!.blocks[0]!.unknownData, { plugin: { stable: true } });
+    state = service.execute({ type: "block.move", workspaceId, expectedRevision: state.revision, pageId: sourceId, blockId: "child",
+      target: { pageId: targetId, parentBlockId: null, beforeBlockId: null } });
+    state = service.execute({ type: "block.create", workspaceId, expectedRevision: state.revision, pageId: targetId,
+      position: { parentBlockId: null, beforeBlockId: null }, block: { id: "second", type: "paragraph", text: "Second", children: [] } });
+    state = service.execute({ type: "block.indent", workspaceId, expectedRevision: state.revision, pageId: targetId, blockId: "second" });
+    state = service.execute({ type: "block.outdent", workspaceId, expectedRevision: state.revision, pageId: targetId, blockId: "second" });
+    state = service.execute({ type: "block.duplicate", workspaceId, expectedRevision: state.revision, pageId: targetId, blockId: "second", newBlockId: "second-copy" });
+    state = service.execute({ type: "block.delete", workspaceId, expectedRevision: state.revision, pageId: targetId, blockId: "second-copy" });
+    const backlink = service.query({ type: "page.backlinks", workspaceId, pageId: sourceId })[0];
+    assert.deepEqual({ blockId: backlink?.blockId, sourcePageId: backlink?.sourcePageId }, { blockId: "child", sourcePageId: targetId });
+    const searchHit = service.query({ type: "workspace.search", workspaceId, query: "needle" })[0];
+    assert.deepEqual({ entityId: searchHit?.entityId, ownerEntityId: searchHit?.ownerEntityId }, { entityId: "child", ownerEntityId: targetId });
+    store.close(); store = new SqliteWorkspaceStore(path); service = new MotionAppService(store);
+    const reopened = service.query({ type: "workspace.get", workspaceId });
+    assert.deepEqual(reopened.workspace.pages.find(page => page.id === targetId)?.blocks.map(block => block.id), ["child", "second"]);
+    assert.equal(reopened.revision, state.revision); store.close();
+  } finally { await removeDatabase(path); }
+});
+
+test("block.batch commits once and malformed batches roll back document, revision, links and FTS", async () => {
+  const path = databasePath("block-batch");
+  try {
+    const store = new SqliteWorkspaceStore(path); const service = new MotionAppService(store);
+    let state = service.execute({ type: "workspace.create", name: "Batch" }); const workspaceId = state.workspace.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "One" }); const one = state.workspace.pages[0]!.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Two" }); const two = state.workspace.pages[1]!.id;
+    const beforeRevision = state.revision;
+    state = service.execute({ type: "block.batch", workspaceId, expectedRevision: state.revision, commands: [
+      { type: "block.create", pageId: one, position: { parentBlockId: null, beforeBlockId: null }, block: { id: "batched", type: "paragraph", text: "atomic token", children: [] } },
+      { type: "block.update-content", pageId: one, blockId: "batched", content: { text: "atomic linked token", references: [{ pageId: two }] } }
+    ] });
+    assert.equal(state.revision, beforeRevision + 1);
+    assert.equal(service.query({ type: "page.backlinks", workspaceId, pageId: two }).length, 1);
+    const before = structuredClone(store.load(workspaceId));
+    assert.throws(() => service.execute({ type: "block.batch", workspaceId, expectedRevision: state.revision, commands: [
+      { type: "block.create", pageId: one, position: { parentBlockId: null, beforeBlockId: null }, block: { id: "must-rollback", type: "paragraph", text: "rollback canary", children: [] } },
+      { type: "block.move", pageId: one, blockId: "missing", target: { pageId: two, parentBlockId: null, beforeBlockId: null } }
+    ] }), (error: unknown) => error instanceof MotionAppError && error.code === "NOT_FOUND");
+    assert.deepEqual(store.load(workspaceId), before);
+    assert.equal(service.query({ type: "workspace.search", workspaceId, query: "rollback canary" }).length, 0);
+    assert.throws(() => service.execute({ type: "block.delete", workspaceId, expectedRevision: state.revision - 1, pageId: one, blockId: "batched" }),
+      (error: unknown) => error instanceof MotionAppError && error.code === "REVISION_CONFLICT");
+    assert.deepEqual(store.load(workspaceId), before);
+    assert.throws(() => service.execute({ type: "block.batch", workspaceId, expectedRevision: state.revision, commands: [
+      { type: "block.delete", pageId: one, blockId: "batched", unexpected: true }
+    ] } as any), (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    assert.deepEqual(store.load(workspaceId), before); store.close();
+  } finally { await removeDatabase(path); }
+});
+
+test("block command validation rejects typed-field mismatches, unsafe values and bounded payload attacks", async () => {
+  const path = databasePath("block-input-validation");
+  try {
+    const store = new SqliteWorkspaceStore(path); const service = new MotionAppService(store);
+    let state = service.execute({ type: "workspace.create", name: "Validation" }); const workspaceId = state.workspace.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Page" }); const pageId = state.workspace.pages[0]!.id;
+    const before = structuredClone(store.load(workspaceId));
+    const create = (block: any) => service.execute({ type: "block.create", workspaceId, expectedRevision: state.revision, pageId, position: { parentBlockId: null, beforeBlockId: null }, block });
+    for (const block of [
+      { id: "task", type: "task", text: "", children: [] },
+      { id: "paragraph", type: "paragraph", text: "", children: [], checked: false },
+      { id: "image", type: "image", text: "", children: [] },
+      { id: "mention", type: "page-mention", text: "", children: [] },
+      { id: "date", type: "date-mention", text: "", children: [], date: "not-a-date" },
+      { id: "bookmark", type: "bookmark", text: "", children: [], url: "file:///private/secret" },
+      { id: "undefined", type: "code", text: "", children: [], language: undefined }
+    ]) assert.throws(() => create(block), (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    const deep: any = { id: "depth-0", type: "toggle", text: "", children: [] }; let cursor = deep;
+    for (let depth = 1; depth < 70; depth++) { const child = { id: `depth-${depth}`, type: "toggle", text: "", children: [] }; cursor.children = [child]; cursor = child; }
+    assert.throws(() => create(deep), (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    const references = Array.from({ length: 100_001 }, () => ({ pageId }));
+    assert.throws(() => create({ id: "refs", type: "paragraph", text: "", children: [], references }), (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    assert.deepEqual(store.load(workspaceId), before);
+    state = create({ id: "transform-target", type: "paragraph", text: "", children: [] });
+    assert.throws(() => service.execute({ type: "block.transform", workspaceId, expectedRevision: state.revision, pageId, blockId: "transform-target", transform: { type: "task" } }), (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    state = service.execute({ type: "block.transform", workspaceId, expectedRevision: state.revision, pageId, blockId: "transform-target", transform: { type: "task", checked: true } });
+    assert.equal(state.workspace.pages[0]?.blocks[0]?.checked, true);
+    assert.throws(() => service.execute({ type: "block.transform", workspaceId, expectedRevision: state.revision, pageId, blockId: "transform-target", transform: { type: "paragraph", checked: false } }), (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    store.close();
+  } finally { await removeDatabase(path); }
+});
+
 test("revision conflict writes neither document nor search index", async () => {
   const path = databasePath("conflict");
   try {

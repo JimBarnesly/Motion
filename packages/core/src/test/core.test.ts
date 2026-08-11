@@ -18,6 +18,63 @@ test("hierarchy, links, backlinks and search", async () => {
   assert.equal((await store.load(ws.id))!.name, "Private notes");
 });
 
+test("canonical block placement recursively creates and moves blocks across pages", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Blocks"));
+  const source = doc.addPage("Source"); const target = doc.addPage("Target");
+  doc.createBlock({ pageId: source.id, parentBlockId: null, beforeBlockId: null }, { id: "parent", type: "toggle", text: "Parent", children: [] });
+  doc.createBlock({ pageId: source.id, parentBlockId: "parent", beforeBlockId: null }, { id: "child", type: "paragraph", text: "Child", children: [] });
+  doc.createBlock({ pageId: target.id, parentBlockId: null, beforeBlockId: null }, { id: "anchor", type: "paragraph", text: "Anchor", children: [] });
+  doc.moveBlock(source.id, "child", { pageId: target.id, parentBlockId: null, beforeBlockId: "anchor" });
+  assert.deepEqual(source.blocks[0]?.children, []);
+  assert.deepEqual(target.blocks.map(block => block.id), ["child", "anchor"]);
+});
+
+test("block mutations reject duplicate IDs, missing positions, cycles and invalid nesting without mutation", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Block validation")); const page = doc.addPage("Page");
+  doc.createBlock({ pageId: page.id, parentBlockId: null, beforeBlockId: null }, { id: "parent", type: "toggle", text: "Parent", children: [{ id: "child", type: "paragraph", text: "Child", children: [] }] });
+  const before = structuredClone(doc.data);
+  assert.throws(() => doc.createBlock({ pageId: page.id, parentBlockId: null, beforeBlockId: null }, { id: "child", type: "paragraph", text: "Duplicate", children: [] }), /duplicate ID/);
+  assert.throws(() => doc.moveBlock(page.id, "parent", { pageId: page.id, parentBlockId: "child", beforeBlockId: null }), /cycles/);
+  assert.throws(() => doc.moveBlock(page.id, "parent", { pageId: page.id, parentBlockId: null, beforeBlockId: "missing" }), /not found/);
+  assert.throws(() => doc.transformBlock(page.id, "parent", { type: "divider" }), /cannot contain children/);
+  assert.deepEqual(doc.data, before);
+});
+
+test("same-sibling block moves are correct in both directions", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Moves")); const page = doc.addPage("Page");
+  for (const blockId of ["a", "b", "c", "d"]) doc.addBlock(page.id, { id: blockId, type: "paragraph", text: blockId });
+  doc.moveBlock(page.id, "a", { pageId: page.id, parentBlockId: null, beforeBlockId: "d" });
+  assert.deepEqual(page.blocks.map(block => block.id), ["b", "c", "a", "d"]);
+  doc.moveBlock(page.id, "d", { pageId: page.id, parentBlockId: null, beforeBlockId: "b" });
+  assert.deepEqual(page.blocks.map(block => block.id), ["d", "b", "c", "a"]);
+});
+
+test("duplicateBlock assigns deterministic path IDs and rejects workspace-wide collisions atomically", () => {
+  const workspace = createWorkspace("Duplicate"); const doc = new WorkspaceDocument(workspace); const page = doc.addPage("Page");
+  doc.createBlock({ pageId: page.id, parentBlockId: null, beforeBlockId: null }, { id: "source", type: "toggle", text: "", children: [
+    { id: "child-a", type: "paragraph", text: "", children: [] },
+    { id: "child-b", type: "toggle", text: "", children: [{ id: "grandchild", type: "paragraph", text: "", children: [] }] }
+  ] });
+  const copy = doc.duplicateBlock(page.id, "source", "copy");
+  assert.deepEqual(copy.children.map(block => block.id), ["copy:0", "copy:1"]);
+  assert.equal(copy.children[1]?.children[0]?.id, "copy:1.0");
+  doc.addBlock(page.id, { id: "clash:0", type: "paragraph", text: "existing generated-path collision" });
+  const before = structuredClone(doc.data);
+  assert.throws(() => doc.duplicateBlock(page.id, "source", "clash"), /duplicate ID clash:0/);
+  assert.throws(() => doc.duplicateBlock(page.id, "source", page.id), /duplicate ID/);
+  assert.deepEqual(doc.data, before);
+});
+
+test("WorkspaceDocument rejects invalid typed block mutations without changing data", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Typed")); const page = doc.addPage("Page");
+  doc.addBlock(page.id, { id: "task", type: "task", text: "Do it", checked: false });
+  const before = structuredClone(doc.data);
+  assert.throws(() => doc.createBlock({ pageId: page.id, parentBlockId: null, beforeBlockId: null }, { id: "bad", type: "image", text: "", children: [] }), /attachmentId/);
+  assert.throws(() => doc.transformBlock(page.id, "task", { type: "heading-1", headingLevel: 2 }), /headingLevel/);
+  assert.throws(() => doc.updateBlockContent(page.id, "task", { text: "x", references: [{ pageId: "bad id with spaces" }] }), /pageId/);
+  assert.deepEqual(doc.data, before);
+});
+
 test("portable full export contains JSON, Markdown, CSV and attachment manifest", () => {
   const ws = createWorkspace("Export"); const doc = new WorkspaceDocument(ws); const page = doc.addPage("Tasks");
   doc.addBlock(page.id, { type: "task", text: "Ship", checked: false });
@@ -136,6 +193,29 @@ test("validation strictly checks collection properties, rows, views and globally
   reject(w => { w.databases[0].views[0].sorts = [{ propertyId: "title", direction: "sideways" }]; }, /unsupported value/);
   reject(w => { w.databases[0].views[0].id = "row"; }, /duplicate ID row/);
   reject(w => { w.databases[0].properties[1].id = "title"; }, /duplicate ID title/);
+  reject(w => { w.databases[0].properties[2].options[0].id = "row"; }, /duplicate ID row/);
+});
+
+test("workspace validation enforces the known block payload matrix and preserves future payloads", () => {
+  const base: any = createWorkspace("Block matrix");
+  base.attachments.push({ id: "attachment", fileName: "x", mediaType: "image/png", byteLength: 0, sha256: "0".repeat(64), path: "objects/0", createdAt: base.createdAt });
+  base.pages.push({ id: "page", parentId: null, title: "Page", createdAt: base.createdAt, updatedAt: base.updatedAt, blocks: [
+    { id: "task", type: "task", text: "", children: [], checked: false },
+    { id: "code", type: "code", text: "", children: [], language: "" },
+    { id: "heading", type: "heading-2", text: "", children: [], headingLevel: 2 },
+    { id: "image", type: "image", text: "", children: [], attachmentId: "attachment" },
+    { id: "mention", type: "page-mention", text: "", children: [], pageId: "page" },
+    { id: "date", type: "date-mention", text: "", children: [], date: base.createdAt },
+    { id: "bookmark", type: "bookmark", text: "", children: [], url: "https://example.test/path" },
+    { id: "future", type: "future-widget", text: "", children: [], checked: true, unknownData: { opaque: { value: 1 } } }
+  ] });
+  assertWorkspaceValue(base);
+  const reject = (mutate: (workspace: any) => void, pattern: RegExp) => { const candidate = structuredClone(base); mutate(candidate); assert.throws(() => assertWorkspaceValue(candidate), pattern); };
+  reject(w => { delete w.pages[0].blocks[0].checked; }, /checked/);
+  reject(w => { w.pages[0].blocks[1].attachmentId = "attachment"; }, /irrelevant/);
+  reject(w => { w.pages[0].blocks[2].headingLevel = 1; }, /headingLevel/);
+  reject(w => { w.pages[0].blocks[6].url = "javascript:alert(1)"; }, /safe URL/);
+  assert.deepEqual(base.pages[0].blocks[7].unknownData, { opaque: { value: 1 } });
 });
 
 test("canonical schema-v2 rejects every hostile ID class and reference without leaking content", () => {

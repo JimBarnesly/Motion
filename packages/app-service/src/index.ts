@@ -1,11 +1,17 @@
 import {
   WORKSPACE_SCHEMA_VERSION,
   WorkspaceDocument,
+  DEFAULT_VALIDATION_LIMITS,
+  assertBlockTypePayload,
   assertWorkspaceValue,
   createWorkspace,
   exportFullWorkspace,
   migrateWebWorkspaceV1,
+  stableId,
   type Block,
+  type BlockContent,
+  type BlockPosition,
+  type BlockTransform,
   type Attachment,
   type FullExport,
   type DatabaseProperty,
@@ -34,7 +40,22 @@ export interface MutationDto extends WorkspaceDto { readonly saved: true }
 export interface ImportDto extends MutationDto { readonly activePageId: string | null }
 export interface AttachmentDto { readonly attachment: Readonly<Attachment>; readonly bytes?: Uint8Array }
 
+export type BlockSiblingPosition = Omit<BlockPosition, "pageId">;
+export type BlockOperation =
+  | { type: "block.create"; pageId: string; position: BlockSiblingPosition; block: Block }
+  | { type: "block.update-content"; pageId: string; blockId: string; content: BlockContent }
+  | { type: "block.transform"; pageId: string; blockId: string; transform: BlockTransform }
+  | { type: "block.move"; pageId: string; blockId: string; target: BlockPosition }
+  | { type: "block.indent"; pageId: string; blockId: string }
+  | { type: "block.outdent"; pageId: string; blockId: string }
+  | { type: "block.duplicate"; pageId: string; blockId: string; newBlockId: string }
+  | { type: "block.delete"; pageId: string; blockId: string };
+export type BlockCommand = BlockOperation & { workspaceId: string; expectedRevision: number };
+export type BlockBatchCommand = { type: "block.batch"; workspaceId: string; expectedRevision: number; commands: readonly BlockOperation[] };
+
 export type AppCommand =
+  | BlockCommand
+  | BlockBatchCommand
   | { type: "workspace.create"; name: string }
   | { type: "workspace.import-web-v1"; document: unknown; workspaceId?: string; workspaceName?: string; migratedAt?: string }
   | { type: "page.create"; workspaceId: string; expectedRevision: number; title: string; parentId?: string | null }
@@ -81,6 +102,15 @@ export interface CommandResults {
   "page.trash": MutationDto;
   "page.restore": MutationDto;
   "page.replace-blocks": MutationDto;
+  "block.create": MutationDto;
+  "block.update-content": MutationDto;
+  "block.transform": MutationDto;
+  "block.move": MutationDto;
+  "block.indent": MutationDto;
+  "block.outdent": MutationDto;
+  "block.duplicate": MutationDto;
+  "block.delete": MutationDto;
+  "block.batch": MutationDto;
   "database.create": MutationDto;
   "database.property-add": MutationDto;
   "database.property-update": MutationDto;
@@ -110,7 +140,7 @@ function deepFreeze<T>(value: T): Readonly<T> {
   return value;
 }
 const requiredText = (value: unknown, field: string, allowEmpty = false): string => {
-  if (typeof value !== "string" || (!allowEmpty && !value.trim()) || value.length > 10_000_000)
+  if (typeof value !== "string" || (!allowEmpty && !value.trim()) || value.length > DEFAULT_VALIDATION_LIMITS.maxStringLength)
     throw new MotionAppError("INVALID_INPUT", `${field} must be ${allowEmpty ? "a string" : "a non-empty string"}`);
   return value;
 };
@@ -118,6 +148,104 @@ const revision = (value: unknown): number => {
   if (!Number.isSafeInteger(value) || Number(value) < 1) throw new MotionAppError("INVALID_INPUT", "expectedRevision must be a positive integer");
   return Number(value);
 };
+const plainObject = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
+const exactObject = (value: unknown, field: string, allowed: readonly string[], required: readonly string[] = allowed): Record<string, unknown> => {
+  if (!plainObject(value)) throw new MotionAppError("INVALID_INPUT", `${field} must be a plain object`);
+  const keys = Object.keys(value); if (keys.some(key => !allowed.includes(key)) || required.some(key => !Object.hasOwn(value, key)))
+    throw new MotionAppError("INVALID_INPUT", `${field} has an invalid shape`);
+  if (keys.some(key => value[key] === undefined)) throw new MotionAppError("INVALID_INPUT", `${field} must not contain undefined values`);
+  return value;
+};
+const blockKeys = ["id", "type", "text", "children", "checked", "language", "attachmentId", "headingLevel", "pageId", "viewId", "date", "url", "references", "unknownData"] as const;
+interface BlockInputState { blocks: number; references: number; payloadUnits: number }
+const blockInputState = (): BlockInputState => ({ blocks: 0, references: 0, payloadUnits: 0 });
+function inputId(value: unknown, field: string): string {
+  try { return stableId(value, field); } catch { throw new MotionAppError("INVALID_INPUT", `${field} must be a safe stable ID`); }
+}
+function validateReference(value: unknown, field: string): void {
+  const reference = exactObject(value, field, ["pageId", "start", "end"], ["pageId"]); inputId(reference.pageId, `${field}.pageId`);
+  for (const key of ["start", "end"] as const) if (reference[key] !== undefined && (!Number.isSafeInteger(reference[key]) || Number(reference[key]) < 0)) throw new MotionAppError("INVALID_INPUT", `${field}.${key} must be a non-negative integer`);
+  if ((reference.start === undefined) !== (reference.end === undefined) || (typeof reference.start === "number" && typeof reference.end === "number" && reference.start > reference.end)) throw new MotionAppError("INVALID_INPUT", `${field} must contain an ordered start/end pair`);
+}
+function validateTypedBlockFields(block: Record<string, unknown>, field: string, state: BlockInputState): void {
+  if (block.checked !== undefined && typeof block.checked !== "boolean") throw new MotionAppError("INVALID_INPUT", `${field}.checked must be a boolean`);
+  for (const key of ["language", "date", "url"] as const) if (block[key] !== undefined) requiredText(block[key], `${field}.${key}`, key === "language");
+  for (const key of ["attachmentId", "pageId", "viewId"] as const) if (block[key] !== undefined) inputId(block[key], `${field}.${key}`);
+  if (block.headingLevel !== undefined && ![1, 2, 3].includes(block.headingLevel as number)) throw new MotionAppError("INVALID_INPUT", `${field}.headingLevel must be 1, 2, or 3`);
+  if (block.references !== undefined) {
+    if (!Array.isArray(block.references) || block.references.length > DEFAULT_VALIDATION_LIMITS.maxReferences) throw new MotionAppError("INVALID_INPUT", `${field}.references must be an array within limits`);
+    if ((state.references += block.references.length) > DEFAULT_VALIDATION_LIMITS.maxReferences) throw new MotionAppError("INVALID_INPUT", "block references exceed command limits");
+    block.references.forEach((reference, index) => validateReference(reference, `${field}.references[${index}]`));
+  }
+  try { assertBlockTypePayload(block, field); } catch { throw new MotionAppError("INVALID_INPUT", `${field} has an invalid typed payload`); }
+}
+function validateUnknownData(value: unknown, field: string, state: BlockInputState): void {
+  if (!plainObject(value)) throw new MotionAppError("INVALID_INPUT", `${field} must be a plain object`);
+  const pending: { value: unknown; path: string; depth: number }[] = [{ value, path: field, depth: 0 }];
+  while (pending.length) {
+    const item = pending.pop()!; if (item.depth > DEFAULT_VALIDATION_LIMITS.maxBlockDepth) throw new MotionAppError("INVALID_INPUT", `${field} exceeds depth limit`);
+    if (typeof item.value === "string") { requiredText(item.value, item.path, true); continue; }
+    if (item.value === null || typeof item.value === "boolean") continue;
+    if (typeof item.value === "number") { if (!Number.isFinite(item.value)) throw new MotionAppError("INVALID_INPUT", `${item.path} must be finite`); continue; }
+    if (Array.isArray(item.value)) { if ((state.payloadUnits += item.value.length) > DEFAULT_VALIDATION_LIMITS.maxObjectKeys) throw new MotionAppError("INVALID_INPUT", `${field} exceeds size limit`); item.value.forEach((child, index) => pending.push({ value: child, path: `${item.path}[${index}]`, depth: item.depth + 1 })); continue; }
+    if (!plainObject(item.value)) throw new MotionAppError("INVALID_INPUT", `${item.path} must contain JSON values`);
+    const entries = Object.entries(item.value); if ((state.payloadUnits += entries.length) > DEFAULT_VALIDATION_LIMITS.maxObjectKeys) throw new MotionAppError("INVALID_INPUT", `${field} exceeds size limit`);
+    for (const [key, child] of entries) { if (["__proto__", "prototype", "constructor"].includes(key) || child === undefined) throw new MotionAppError("INVALID_INPUT", `${item.path} has an invalid shape`); requiredText(key, `${item.path} key`, true); pending.push({ value: child, path: `${item.path}.${key}`, depth: item.depth + 1 }); }
+  }
+}
+function validateBlockPayload(value: unknown, field = "block", state = blockInputState()): Block {
+  const pending: { value: unknown; path: string; depth: number }[] = [{ value, path: field, depth: 0 }];
+  while (pending.length) {
+    const item = pending.pop()!;
+    if (item.depth > DEFAULT_VALIDATION_LIMITS.maxBlockDepth || ++state.blocks > DEFAULT_VALIDATION_LIMITS.maxBlocks) throw new MotionAppError("INVALID_INPUT", `${field} exceeds block limits`);
+    const block = exactObject(item.value, item.path, blockKeys, ["id", "type", "text", "children"]);
+    inputId(block.id, `${item.path}.id`); requiredText(block.type, `${item.path}.type`); requiredText(block.text, `${item.path}.text`, true);
+    if (!Array.isArray(block.children)) throw new MotionAppError("INVALID_INPUT", `${item.path}.children must be an array`);
+    validateTypedBlockFields(block, item.path, state); if (block.unknownData !== undefined) validateUnknownData(block.unknownData, `${item.path}.unknownData`, state);
+    block.children.forEach((child, index) => pending.push({ value: child, path: `${item.path}.children[${index}]`, depth: item.depth + 1 }));
+  }
+  return value as Block;
+}
+function validatePosition(value: unknown, field: string, includePage: boolean): BlockPosition {
+  const allowed = includePage ? ["pageId", "parentBlockId", "beforeBlockId"] : ["parentBlockId", "beforeBlockId"];
+  const position = exactObject(value, field, allowed);
+  const pageId = includePage ? inputId(position.pageId, `${field}.pageId`) : "";
+  for (const key of ["parentBlockId", "beforeBlockId"] as const) if (position[key] !== null) inputId(position[key], `${field}.${key}`);
+  return { pageId, parentBlockId: position.parentBlockId as string | null, beforeBlockId: position.beforeBlockId as string | null };
+}
+function validateBlockOperation(value: unknown, envelope: boolean, blockState = blockInputState()): BlockOperation {
+  if (!plainObject(value) || typeof value.type !== "string" || !value.type.startsWith("block.") || value.type === "block.batch") throw new MotionAppError("INVALID_INPUT", "Invalid block command type");
+  const common = envelope ? ["workspaceId", "expectedRevision"] : [];
+  const shape = (specific: string[]) => exactObject(value, "block command", ["type", ...common, ...specific]);
+  switch (value.type) {
+    case "block.create": { const command = shape(["pageId", "position", "block"]); inputId(command.pageId, "pageId"); validatePosition(command.position, "position", false); validateBlockPayload(command.block, "block", blockState); break; }
+    case "block.update-content": { const command = shape(["pageId", "blockId", "content"]); inputId(command.pageId, "pageId"); inputId(command.blockId, "blockId"); const content = exactObject(command.content, "content", ["text", "references"], ["text"]); requiredText(content.text, "content.text", true); if (content.references !== undefined) { if (!Array.isArray(content.references) || content.references.length > DEFAULT_VALIDATION_LIMITS.maxReferences || (blockState.references += content.references.length) > DEFAULT_VALIDATION_LIMITS.maxReferences) throw new MotionAppError("INVALID_INPUT", "content.references must be an array within limits"); content.references.forEach((reference, index) => validateReference(reference, `content.references[${index}]`)); } break; }
+    case "block.transform": { const command = shape(["pageId", "blockId", "transform"]); inputId(command.pageId, "pageId"); inputId(command.blockId, "blockId"); const transform = exactObject(command.transform, "transform", ["type", "checked", "language", "attachmentId", "headingLevel", "pageId", "viewId", "date", "url"], ["type"]); requiredText(transform.type, "transform.type"); validateTypedBlockFields(transform, "transform", blockState); break; }
+    case "block.move": { const command = shape(["pageId", "blockId", "target"]); inputId(command.pageId, "pageId"); inputId(command.blockId, "blockId"); validatePosition(command.target, "target", true); break; }
+    case "block.indent": case "block.outdent": case "block.delete": { const command = shape(["pageId", "blockId"]); inputId(command.pageId, "pageId"); inputId(command.blockId, "blockId"); break; }
+    case "block.duplicate": { const command = shape(["pageId", "blockId", "newBlockId"]); inputId(command.pageId, "pageId"); inputId(command.blockId, "blockId"); inputId(command.newBlockId, "newBlockId"); break; }
+    default: throw new MotionAppError("INVALID_INPUT", "Invalid block command type");
+  }
+  if (envelope) { inputId((value as Record<string, unknown>).workspaceId, "workspaceId"); revision((value as Record<string, unknown>).expectedRevision); }
+  return value as BlockOperation;
+}
+function applyBlockOperation(document: WorkspaceDocument, operation: BlockOperation): void {
+  const command = validateBlockOperation(operation, false);
+  switch (command.type) {
+    case "block.create": document.createBlock({ ...validatePosition(command.position, "position", false), pageId: command.pageId }, clone(command.block)); break;
+    case "block.update-content": document.updateBlockContent(command.pageId, command.blockId, clone(command.content)); break;
+    case "block.transform": document.transformBlock(command.pageId, command.blockId, clone(command.transform)); break;
+    case "block.move": document.moveBlock(command.pageId, command.blockId, validatePosition(command.target, "target", true)); break;
+    case "block.indent": document.indentBlock(command.pageId, command.blockId); break;
+    case "block.outdent": document.outdentBlock(command.pageId, command.blockId); break;
+    case "block.duplicate": document.duplicateBlock(command.pageId, command.blockId, command.newBlockId); break;
+    case "block.delete": document.deleteBlock(command.pageId, command.blockId); break;
+  }
+}
+function operationFromCommand(command: BlockCommand): BlockOperation {
+  const { workspaceId: _workspaceId, expectedRevision: _expectedRevision, ...operation } = command;
+  return operation as BlockOperation;
+}
 
 export class MotionAppService {
   constructor(private readonly store: SqliteWorkspaceStore, private readonly attachments?: ContentAddressedAttachmentStore) {}
@@ -260,10 +388,20 @@ export class MotionAppService {
       const savedRevision = this.store.saveUnitOfWork({ workspaceId: migrated.workspace.id, schemaVersion: migrated.workspace.schemaVersion, document: migrated.workspace, expectedRevision: 0 });
       return immutable({ workspace: migrated.workspace, revision: savedRevision, saved: true as const, activePageId: migrated.uiState.activePageId }) as ImportDto;
     }
+    if (command.type === "block.batch") {
+      const batch = exactObject(command, "block.batch", ["type", "workspaceId", "expectedRevision", "commands"]);
+      if (!Array.isArray(batch.commands) || batch.commands.length < 1 || batch.commands.length > DEFAULT_VALIDATION_LIMITS.maxBatchCommands) throw new MotionAppError("INVALID_INPUT", "commands must be a non-empty array within limits");
+      inputId(batch.workspaceId, "workspaceId"); revision(batch.expectedRevision); const blockState = blockInputState();
+      batch.commands.forEach(operation => validateBlockOperation(operation, false, blockState));
+    } else if (command.type.startsWith("block.")) validateBlockOperation(command, true);
     const expectedRevision = revision(command.expectedRevision);
     const loaded = this.required(command.workspaceId);
     const document = new WorkspaceDocument(clone(loaded.document));
     switch (command.type) {
+      case "block.batch": for (const operation of command.commands) applyBlockOperation(document, operation); break;
+      case "block.create": case "block.update-content": case "block.transform": case "block.move":
+      case "block.indent": case "block.outdent": case "block.duplicate": case "block.delete":
+        applyBlockOperation(document, operationFromCommand(command)); break;
       case "page.create": document.addPage(requiredText(command.title, "title", true), command.parentId ?? null); break;
       case "page.rename": {
         const page = requiredPage(document, command.pageId); page.title = requiredText(command.title, "title", true); const database = document.data.databases.find(candidate => candidate.pageId === page.id); if (database) database.name = page.title; page.updatedAt = new Date().toISOString(); document.data.updatedAt = page.updatedAt; break;
@@ -346,7 +484,7 @@ export function toAppError(error: unknown): MotionAppError {
   const message = error instanceof Error ? error.message : "Unknown application error";
   if (message.startsWith("Revision conflict")) return new MotionAppError("REVISION_CONFLICT", "Workspace changed since it was loaded; reload and retry");
   if (/not found/i.test(message)) return new MotionAppError("NOT_FOUND", "Requested local resource was not found");
-  if (/Invalid workspace|Invalid web v1|Unsupported workspace|cycle|Backup verification|JSON|duplicate ID|exceeds .*limit|schemaVersion/i.test(message)) return new MotionAppError("VALIDATION_FAILED", "Workspace data failed validation");
+  if (/Invalid workspace|Invalid web v1|Unsupported workspace|cycle|cannot contain children|cannot be (?:positioned|outdented)|no previous sibling|Backup verification|JSON|duplicate ID|exceeds .*limit|schemaVersion/i.test(message)) return new MotionAppError("VALIDATION_FAILED", "Workspace data failed validation");
   if (/SQLITE|database|Private (?:file|directory) path/i.test(message)) return new MotionAppError("STORAGE_FAILURE", "Local database operation failed");
   return new MotionAppError("INTERNAL_ERROR", "Unexpected local application failure");
 }

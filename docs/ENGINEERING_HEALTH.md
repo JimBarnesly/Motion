@@ -3,7 +3,7 @@
 Owner: Engineering Director  
 Decision authority: Managing Director  
 Last reviewed: 2026-08-11
-Provisional evidence baseline: `8b7cc13` (`feat/v1-phase-0-green-baseline`)
+Provisional evidence baseline: `ac570c5` (`feat/v1-phase-0-green-baseline`)
 
 This commit identifies the current integration point, not a frozen candidate.
 The baseline will advance before merge as documentation and separately owned
@@ -20,9 +20,10 @@ Phase 0 work.
 | --- | --- | --- |
 | Six missing workflow npm scripts | Implemented | Root scripts now declare dependency release, offline advisory, runtime confinement, backup integrity, release-security preflight, and release-manifest gates. |
 | Workflow command contract | Verified locally | Self-gated contract discovers workflow `npm run` references; 2 contract tests pass. |
-| Complete E2E spec selection and network denial | Verified locally; execution blocked | Playwright discovery is complete; 7 source contracts prove suite-wide fail-closed HTTP(S)/WebSocket policy. Playwright/browser dependencies are absent. |
-| Static-analysis base | Verified locally | Scanner passed 77 first-party files under 8 rules; 16 governance tests passed after final sink review. |
-| Link, search, and failed-edit recovery | Integrated; focused evidence only | Link lifecycle, accessible canonical search, and race-hardened retry/discard are present; complete Web suite passed 45 tests. |
+| Complete E2E spec selection and network denial | Verified locally; execution blocked | Playwright discovery is complete; 20 source/selection contracts prove suite-wide fail-closed HTTP(S)/WebSocket policy. Playwright/browser dependencies are absent. |
+| Static-analysis base | Verified locally | Scanner passed 80 first-party files under 8 rules; 16 governance tests passed after final sink review. |
+| Link, search, and failed-edit recovery | Integrated; focused evidence only | Link lifecycle, accessible canonical search, and race-hardened retry/discard are present; complete Web suite passed 53 tests. |
+| Fine-grained block commands | Integrated; compilation pending | Create/update/transform/move/indent/outdent/duplicate/delete/batch contracts include shared identity and resource bounds; TypeScript tests require CI. |
 | Web zero-dependency build | Verified locally | `npm run build --workspace @motion/web` passed under Node 20. |
 | Complete package/unit/integration suite | Blocked on audit host | Repository requires Node >=22; host is Node v20.20.2 and dependencies are not installed/cached. |
 | Root typecheck/build and offline restart | Blocked on audit host | Supported Node, workspace dependencies, and generated package outputs are unavailable. |
@@ -40,7 +41,7 @@ collection, or release security pass under the supported toolchain.
 
 Historical 0.1 CI/package evidence predates the provisional V1 baseline. It may
 support continuity investigations, but it cannot be attributed to
-`8b7cc13`, used as an immutable V1 run, or treated as installed-package
+`ac570c5`, used as an immutable V1 run, or treated as installed-package
 acceptance.
 
 ## Engineering priorities for Managing Director coordination

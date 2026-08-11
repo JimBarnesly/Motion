@@ -3,7 +3,7 @@
 Owner: Product Director
 Decision authority: Managing Director
 Last reviewed: 2026-08-11
-Provisional evidence baseline: `8b7cc13` (`feat/v1-phase-0-green-baseline`)
+Provisional evidence baseline: `ac570c5` (`feat/v1-phase-0-green-baseline`)
 
 ## Purpose and evidence rule
 
@@ -27,10 +27,10 @@ package acceptance for this baseline.
 
 ## V1 current register
 
-| Capability area | Status | Implemented evidence at `8b7cc13` | Missing V1 evidence/outcome |
+| Capability area | Status | Implemented evidence at `ac570c5` | Missing V1 evidence/outcome |
 | --- | --- | --- | --- |
 | Pages and navigation | Partial | Canonical create/move/reorder/favourite/trash/restore paths, nested Web navigation, restart-focused tests | Permanent deletion, robust pointer drag/drop plus equivalent keyboard commands, complete restart state, and installed-package acceptance |
-| Daily-writing editor | Partial | Web compatibility editor handles several block types, stable IDs, ordering controls, unknown-block preservation, and recoverable canonical save failure | Authoritative React + Tiptap/ProseMirror path; complete V1 block set; selection/clipboard/IME/undo/redo/cross-page operations; 10,000-word and packaged evidence |
+| Daily-writing editor | Partial | Web compatibility editor handles several block types and recoverable saves; canonical service now defines bounded typed create/update/transform/move/indent/outdent/duplicate/delete/batch commands | Authoritative React + Tiptap/ProseMirror path; UI adoption of fine-grained commands; selection/clipboard/IME/undo/redo; 10,000-word and packaged evidence |
 | Links, mentions, backlinks, deep links | Partial | Stable page-ID links, outgoing links/backlinks, live/trashed/missing states, backlink source-block focus, and focused Web tests | Accessible `[[`/`@` chooser, previews, general block deep-link UX, lifecycle through export/backup restore, restart and packaged evidence |
 | Search | Partial | Accessible canonical search covers titles, blocks, record values and attachment filenames with safe DOM rendering, deterministic ordering, recovery states and stable result focus | Highlighting, filters, complete native/package execution and deterministic packaged performance evidence |
 | Files and media | Partial | Content-addressed attachment primitives and canonical service/backup paths | Streaming/limits, image/media/PDF block UX, interruption handling, filename search, complete backup/restore and installed-package evidence |

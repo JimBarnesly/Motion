@@ -3,7 +3,7 @@
 Owner: Quality & Release Director  
 Decision authority: Managing Director  
 Reviewed: 2026-08-11
-Current provisional V1 baseline: `8b7cc13` (`feat/v1-phase-0-green-baseline`)
+Current provisional V1 baseline: `ac570c5` (`feat/v1-phase-0-green-baseline`)
 Quality disposition: **NOT ACCEPTED for V1 or public release**
 
 The current baseline is provisional and will advance before merge as this
@@ -18,7 +18,7 @@ missing workflow npm scripts have been restored, workflow script contracts are
 self-gated, complete tracked Playwright spec selection is gated, and the
 first-party static-analysis baseline has been repaired. Link lifecycle states,
 accessible canonical search, race-hardened edit recovery, and suite-wide
-HTTP(S)/WebSocket denial are integrated at `8b7cc13`.
+HTTP(S)/WebSocket denial are integrated at `ac570c5`.
 
 The audit host has Node `v20.20.2`, while the repository requires Node 22 or
 newer. It also lacks installed/cached workspace dependencies, the Rust/Tauri
@@ -28,9 +28,9 @@ this host.
 
 | Current Phase 0 evidence | Result | Acceptance boundary |
 | --- | --- | --- |
-| Workflow/E2E selection/network-denial source gates | 9 passed, 0 failed | Proves declarations and confinement policy only; Playwright itself was not run |
-| Complete Web unit/source-boundary suite | 45 passed, 0 failed | Source-level Web evidence, not packaged native interaction |
-| First-party static-analysis scan | Passed: 77 files, 8 rules | Final release-security approval remains open |
+| Workflow/E2E selection/network-denial source gates | 22 passed, 0 failed | Proves declarations and confinement policy only; Playwright itself was not run |
+| Complete Web unit/source-boundary suite | 53 passed, 0 failed | Source-level Web evidence, not packaged native interaction |
+| First-party static-analysis scan | Passed: 80 files, 8 rules | Final release-security approval remains open |
 | Static-analysis governance tests | 16 passed, 0 failed | Must be rerun on final combined bytes |
 | Web workspace build | Passed | Zero-dependency Web asset build, not root build/package evidence |
 | Complete Node 22+ CI/release-security chain | Blocked / not run | Missing supported toolchain, dependencies and security tooling/data |
@@ -46,7 +46,7 @@ user outcomes. V1 readiness must not be inferred from repaired gate wiring.
 
 The remainder of this report records the legitimate 0.1.0 evidence reviewed on
 2026-08-05. Its source and CI baselines are historical and must not be presented
-as verification of `8b7cc13` or of V1. The recorded historical baseline was
+as verification of `ac570c5` or of V1. The recorded historical baseline was
 `8ae8a17` (`main`) plus the uncommitted working tree present at final retest.
 
 Motion 0.1.0 had credible automated evidence for its canonical service and Web

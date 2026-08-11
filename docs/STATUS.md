@@ -1,7 +1,7 @@
 # Status
 
 Updated: 2026-08-11
-Provisional evidence baseline: `8b7cc13` (`feat/v1-phase-0-green-baseline`)
+Provisional evidence baseline: `ac570c5` (`feat/v1-phase-0-green-baseline`)
 
 The baseline is provisional because the Phase 0 documentation and remaining
 integration work will advance the commit before merge. It is not an immutable
@@ -35,17 +35,20 @@ Integrated at the provisional baseline:
   focus, accessible canonical search, and race-hardened failed-edit recovery.
 - Every tracked Playwright spec inherits fail-closed HTTP(S)/WebSocket denial;
   service workers and unprotected extra browser contexts are prohibited.
+- Added fine-grained typed block commands and an atomic batch boundary with
+  shared canonical ID, payload-shape, depth, count, and resource limits. These
+  TypeScript paths still require supported-toolchain compilation in CI.
 
 ## Evidence verified locally on 2026-08-11
 
 These checks are zero-dependency/source checks that ran on the audit host. They
 do not substitute for the Node 22+ complete suite or immutable CI:
 
-| Check | Result at `8b7cc13` |
+| Check | Result at `ac570c5` |
 | --- | --- |
-| Workflow, complete-E2E-selection, and network-denial contracts | 9 passed, 0 failed |
-| Complete Web unit/source-boundary suite | 45 passed, 0 failed |
-| First-party static-analysis scan | Passed; 77 files, 8 rules |
+| Workflow, complete-E2E-selection, and network-denial contracts | 22 passed, 0 failed |
+| Complete Web unit/source-boundary suite | 53 passed, 0 failed |
+| First-party static-analysis scan | Passed; 80 files, 8 rules |
 | Static-analysis governance tests | 16 passed, 0 failed |
 | Web workspace build | Passed (`apps/web/dist`) |
 

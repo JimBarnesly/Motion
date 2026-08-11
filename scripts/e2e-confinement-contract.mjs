@@ -5,7 +5,11 @@ import { posix } from "node:path";
 const IDENTIFIER_START = /[A-Za-z_$]/;
 const IDENTIFIER_PART = /[A-Za-z0-9_$]/;
 const PLAYWRIGHT_MODULE = /^(?:@playwright\/test|playwright(?:-core)?)(?:\/|$)/;
-const FORBIDDEN_BROWSER_BINDINGS = new Set(["browser", "chromium", "firefox", "webkit", "_electron", "playwright"]);
+const FORBIDDEN_BROWSER_BINDINGS = new Set([
+  "browser", "browserName", "browserType", "Browser", "BrowserContext", "BrowserType",
+  "chromium", "firefox", "webkit", "ChromiumBrowser", "FirefoxBrowser", "WebKitBrowser",
+  "_electron", "playwright", "APIRequest", "APIRequestContext"
+]);
 const FORBIDDEN_CONTEXT_METHODS = new Set(["newContext", "launch", "launchPersistentContext", "connect", "connectOverCDP"]);
 
 /** A small zero-dependency lexer for the JavaScript subset used by E2E specs. */
@@ -94,38 +98,83 @@ function fixturePathFor(spec) {
   return relative.startsWith(".") ? relative : `./${relative}`;
 }
 
-function isFunctionParameter(parsed, index) {
+function matchingClose(parsed, open, opening = "(", closing = ")") {
   let depth = 0;
+  for (let index = open; index < parsed.length; index += 1) {
+    if (parsed[index].value === opening) depth += 1;
+    else if (parsed[index].value === closing && --depth === 0) return index;
+  }
+  return -1;
+}
+
+function isFunctionParameter(parsed, index) {
+  const depths = { ")": 0, "}": 0, "]": 0 };
+  const pairs = { "(": ")", "{": "}", "[": "]" };
   for (let at = index - 1; at >= 0; at -= 1) {
-    if (parsed[at].value === ")") depth += 1;
-    else if (parsed[at].value === "(") {
-      if (depth) { depth -= 1; continue; }
-      const before = parsed[at - 1]?.value;
-      return before === "function" || parsed[at - 2]?.value === "function";
-    }
-    if (!depth && [";", "{", "}"].includes(parsed[at].value)) return false;
+    const value = parsed[at].value;
+    if (value in depths) { depths[value] += 1; continue; }
+    const closing = pairs[value];
+    if (!closing) continue;
+    if (depths[closing] > 0) { depths[closing] -= 1; continue; }
+    if (value !== "(") continue;
+    const close = matchingClose(parsed, at);
+    return parsed[at - 1]?.value === "function"
+      || parsed[at - 2]?.value === "function"
+      || parsed[close + 1]?.value === "=>";
   }
   return false;
 }
 
-function assertNotShadowed(parsed, binding, spec, importRange) {
+function assertSafeSyntax(parsed, spec) {
+  for (let index = 0; index < parsed.length; index += 1) {
+    const token = parsed[index];
+    assert.ok(!(token.kind === "identifier" && token.value === "import" && parsed[index + 1]?.value === "("),
+      `${spec} uses a forbidden dynamic import`);
+    assert.ok(!(token.kind === "identifier" && token.value === "require"),
+      `${spec} uses a forbidden require identifier or call`);
+    if (token.kind === "template") {
+      assert.ok(!/\bimport\s*\(/.test(token.value), `${spec} uses a forbidden dynamic import in a template expression`);
+      assert.ok(!/\brequire\b/.test(token.value), `${spec} uses a forbidden require in a template expression`);
+    }
+    if (token.value !== "]") continue;
+    let callCursor = index + 1;
+    if (parsed[callCursor]?.value === "!") callCursor += 1;
+    if (parsed[callCursor]?.value === "?." && parsed[callCursor + 1]?.value === "(") callCursor += 1;
+    const directCall = parsed[callCursor]?.value === "(";
+    const next = parsed[index + 1]?.value;
+    const indirectCall = [".", "?."].includes(next)
+      && ["call", "apply", "bind"].includes(parsed[index + 2]?.value)
+      && parsed[index + 3]?.value === "(";
+    assert.ok(!directCall && !indirectCall,
+      `${spec} uses a forbidden computed member call that may create an unprotected BrowserContext or browser launch`);
+  }
+}
+
+function assertFixtureBindingUses(parsed, binding, spec, importRange) {
+  let used = false;
   for (let index = 0; index < parsed.length; index += 1) {
     if (index >= importRange.start && index <= importRange.end) continue;
     const token = parsed[index];
-    if (token.value !== binding) continue;
+    if (token.kind !== "identifier" || token.value !== binding) continue;
     const before = parsed[index - 1]?.value;
-    const beforeTwo = parsed[index - 2]?.value;
-    const declaration = ["const", "let", "var", "function", "class", "catch"].includes(before)
-      || (["{", ",", "("].includes(before) && ["const", "let", "var"].includes(beforeTwo))
-      || isFunctionParameter(parsed, index)
-      || (parsed[index + 1]?.value === ")" && parsed[index + 2]?.value === "=>")
-      || (parsed[index + 1]?.value === "," && parsed.slice(index + 1, index + 8).some(item => item.value === "=>"));
-    assert.equal(declaration, false, `${spec} shadows the fixture-bound ${binding}`);
+    const directCall = parsed[index + 1]?.value === "(";
+    let cursor = index + 1;
+    while ([".", "?."].includes(parsed[cursor]?.value)
+      && parsed[cursor + 1]?.kind === "identifier") cursor += 2;
+    const memberCall = cursor > index + 1 && parsed[cursor]?.value === "(";
+    const declaration = ["function", "class", "const", "let", "var", "catch"].includes(before)
+      || isFunctionParameter(parsed, index);
+    const allowed = !declaration && ![".", "?."].includes(before) && (directCall || memberCall);
+    assert.ok(allowed,
+      `${spec} shadows the fixture-bound ${binding}, reassigns it, or uses it outside an allowed call`);
+    used = true;
   }
+  assert.ok(used, `${spec} must use the fixture-bound ${binding}`);
 }
 
 export function validateFixtureBindings(source, spec = "e2e/spec.spec.ts") {
   const parsed = tokens(source);
+  assertSafeSyntax(parsed, spec);
   const declarations = imports(parsed);
   for (const declaration of declarations) {
     assert.ok(!PLAYWRIGHT_MODULE.test(declaration.source ?? ""), `${spec} has a direct @playwright/test import`);
@@ -139,19 +188,21 @@ export function validateFixtureBindings(source, spec = "e2e/spec.spec.ts") {
   for (const protectedName of ["test", "expect"]) {
     const binding = fixtureImport.named.find(item => item.imported === protectedName)?.local;
     assert.ok(binding, `${spec} must bind ${protectedName} from ${expectedSource}`);
-    assertNotShadowed(parsed, binding, spec, fixtureImport);
-    assert.ok(parsed.some((token, index) => token.value === binding && index > fixtureImport.end && ["(", ".", "?."].includes(parsed[index + 1]?.value)),
-      `${spec} must use the fixture-bound ${protectedName}`);
+    assertFixtureBindingUses(parsed, binding, spec, fixtureImport);
   }
 }
 
 export function validateNoUnprotectedContexts(source, spec = "spec") {
   const parsed = tokens(source);
+  assertSafeSyntax(parsed, spec);
   for (const declaration of imports(parsed)) {
     assert.ok(!PLAYWRIGHT_MODULE.test(declaration.source ?? ""), `${spec} has a direct @playwright/test import`);
   }
   for (let index = 0; index < parsed.length; index += 1) {
     const token = parsed[index];
+    if (token.kind === "identifier" && token.value === "request" && isFunctionParameter(parsed, index)) {
+      assert.fail(`${spec} binds the unprotected Playwright request fixture`);
+    }
     if (token.kind === "identifier" && FORBIDDEN_BROWSER_BINDINGS.has(token.value)) {
       assert.fail(`${spec} creates an implicit unprotected BrowserContext or browser launch via ${token.value}`);
     }

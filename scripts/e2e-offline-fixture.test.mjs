@@ -53,8 +53,125 @@ test("fixture import contract rejects comments and unused imports", () => {
     'import { chromium as engine } from "playwright-core";'
   ]) assert.throws(
     () => validateFixtureBindings(`${direct}\nimport { test, expect } from "./fixtures";\ntest("direct", () => expect(true));`),
-    /Playwright directly|direct @playwright\/test import/
+    /Playwright directly|direct @playwright\/test import|forbidden (?:require|dynamic import)/
   );
+});
+
+test("dynamic imports cannot assemble a direct Playwright dependency", () => {
+  const source = `
+    import { test, expect } from "./fixtures";
+    const direct = await import("@playwright/" + "test");
+    test("dynamic import", () => expect(direct).toBeDefined());
+  `;
+  assert.throws(() => validateFixtureBindings(source), /dynamic import|Playwright directly/);
+});
+
+test("runtime loaders cannot hide inside template expressions", () => {
+  for (const expression of [
+    'await import("@playwright/test")',
+    'require("playwright-core")'
+  ]) {
+    const source = `
+      import { test, expect } from "./fixtures";
+      const direct = \`\${${expression}}\`;
+      test("template loader", () => expect(direct).toBeDefined());
+    `;
+    assert.throws(() => validateFixtureBindings(source), /dynamic import|require/);
+  }
+});
+
+test("an aliased require cannot assemble playwright-core", () => {
+  const source = `
+    import { test, expect } from "./fixtures";
+    const loader = require;
+    const direct = loader("playwright" + "-core");
+    test("aliased require", () => expect(direct).toBeDefined());
+  `;
+  assert.throws(() => validateFixtureBindings(source), /require|Playwright directly/);
+});
+
+test("fixture-bound test cannot be redeclared by nested destructured parameters", () => {
+  const source = `
+    import { test, expect } from "./fixtures";
+    function nested({ test }) { test("unprotected", () => {}); }
+    test("protected", () => expect(nested).toBeDefined());
+  `;
+  assert.throws(() => validateFixtureBindings(source), /shadows the fixture-bound test/);
+});
+
+test("fixture-bound tokens cannot be assigned or passed as values", () => {
+  for (const use of [
+    "test = replacement;",
+    "const alias = expect;",
+    "register(test);"
+  ]) {
+    const source = `
+      import { test, expect } from "./fixtures";
+      ${use}
+      test("protected", () => expect(true));
+    `;
+    assert.throws(() => validateFixtureBindings(source), /fixture-bound (?:test|expect)/);
+  }
+});
+
+test("Playwright request fixture and APIRequestContext bindings are forbidden", () => {
+  for (const source of [
+    'test("request", async ({ request }) => request.get("/"));',
+    'test("aliased request", async ({ request: api }) => api.get("/"));',
+    'let api: APIRequestContext; api.get("/");'
+  ]) assert.throws(
+    () => validateNoUnprotectedContexts(source, "bypass.spec.ts"),
+    /request fixture|APIRequestContext|browser launch/
+  );
+});
+
+test("computed request context creation cannot hide a forbidden method", () => {
+  assert.throws(
+    () => validateNoUnprotectedContexts('await request["new" + "Context"]();', "bypass.spec.ts"),
+    /computed member call|unprotected BrowserContext/
+  );
+});
+
+test("an aliased browser cannot hide computed context creation", () => {
+  assert.throws(
+    () => validateNoUnprotectedContexts('const b = fixtures["browser"]; await b["new" + "Context"]();', "bypass.spec.ts"),
+    /computed member call|unprotected BrowserContext/
+  );
+});
+
+test("computed Chromium launch cannot hide an unprotected browser", () => {
+  assert.throws(
+    () => validateNoUnprotectedContexts('await engines["chro" + "mium"]["la" + "unch"]();', "bypass.spec.ts"),
+    /computed member call|browser launch/
+  );
+});
+
+test("computed connectOverCDP cannot hide an unprotected browser", () => {
+  assert.throws(
+    () => validateNoUnprotectedContexts('await browserTypes[engine]["con" + "nectOverCDP"](endpoint);', "bypass.spec.ts"),
+    /computed member call|browser launch/
+  );
+});
+
+test("optional and non-null computed member calls are forbidden", () => {
+  for (const source of [
+    "await factories[key]?.();",
+    "await factories[key]!();"
+  ]) assert.throws(
+    () => validateNoUnprotectedContexts(source, "bypass.spec.ts"),
+    /computed member call/
+  );
+});
+
+test("nested specs resolve the fixture import relative to their directory", () => {
+  assert.doesNotThrow(() => validateFixtureBindings(
+    'import { test, expect } from "../fixtures"; test("nested", () => expect(true));',
+    "e2e/nested/deep.spec.ts"
+  ));
+  assert.throws(() => validateFixtureBindings(
+    'import { test, expect } from "./fixtures"; test("wrong", () => expect(true));',
+    "e2e/nested/deep.spec.ts"
+  ), /named import from \.\.\/fixtures/);
 });
 
 test("every browser acceptance spec binds and uses the suite-wide fixture", async () => {

@@ -8,7 +8,7 @@ const appPath = resolve(import.meta.dirname, "../app.js");
 test("table records use confirmed, undo-checkpointed trash instead of permanent row deletion", async () => {
   const source = await readFile(appPath, "utf8");
   const rowRenderer = source.match(/const rows=items[\s\S]*?\$\("#content"\)/)?.[0] ?? "";
-  const handler = source.match(/if\(button\.dataset\.trashPage[\s\S]*?\n/)?.[0] ?? "";
+  const handler = source.match(/if\(button\.dataset\.trashPage&&confirm\("Move this page to Trash\?"\)\)[^\n]*/)?.[0] ?? "";
   const trash = source.match(/async function trash\(page\)[\s\S]*?\n/)?.[0] ?? "";
 
   assert.match(rowRenderer, /data-trash-page="\$\{record\.id\}"/);

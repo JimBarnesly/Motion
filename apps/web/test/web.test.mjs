@@ -31,6 +31,23 @@ test("workspace persistence uses an explicit async native/browser adapter", asyn
   assert.match(adapter, /schemaVersion:\s*2/);
 });
 
+test("schema-v2 typed edits use the canonical recoverable confirmation boundary", async () => {
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  const html = await readFile(resolve(root, "index.html"), "utf8");
+  const build = await readFile(resolve(root, "scripts/build.mjs"), "utf8");
+  assert.match(source, /createEditRecoveryController/);
+  assert.match(build, /edit-recovery\.js/);
+  assert.match(source, /adapter\.execute\(candidate\.type,candidate\.payload\)/);
+  assert.match(source, /function queueCanonicalEdit/);
+  assert.match(source, /function requireResolvedEdit/);
+  assert.match(source, /window\.addEventListener\("beforeunload"/);
+  assert.doesNotMatch(source, /alert\(error instanceof Error \? error\.message/);
+  for (const action of ["exporting", "creating a backup", "restoring", "moving content to Trash", "leaving this page"]) assert.match(source, new RegExp(`requireResolvedEdit\\(\\"${action}`));
+  assert.match(html, /id="editRecovery"[^>]*role="alert"/);
+  assert.match(html, /id="retryEdit"/);
+  assert.match(html, /id="discardEdit"/);
+});
+
 test("native adapter sends versioned typed IPC envelopes", async () => {
   const calls = [];
   const { createMotionUiAdapter } = await import("../app-adapter.js");

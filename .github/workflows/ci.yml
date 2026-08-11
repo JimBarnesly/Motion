@@ -36,6 +36,8 @@ jobs:
         with:
           workspaces: apps/desktop/src-tauri -> target
       - run: npm ci --ignore-scripts
+      - name: Validate workflow npm script contracts
+        run: npm run test:workflow-script-contracts
       - name: Prime locked Cargo dependency cache
         run: cargo fetch --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
       - name: Enforce offline dependency policy and canonical inventory

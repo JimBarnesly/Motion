@@ -15,6 +15,12 @@ for (const pattern of root.workspaces ?? []) {
   }
 }
 
+test("workflow script-contract validation is itself release-gated", async () => {
+  assert.equal(root.scripts?.["test:workflow-script-contracts"], "node --test scripts/workflow-npm-script-contracts.test.mjs");
+  const ci = await readFile(".github/workflows/ci.yml", "utf8");
+  assert.match(ci, /run: npm run test:workflow-script-contracts/);
+});
+
 test("every workflow npm run command references a declared script", async () => {
   const missing = [];
   const workflows = (await readdir(".github/workflows")).filter(path => path.endsWith(".yml")).sort();

@@ -16,6 +16,7 @@
     "lint": "node scripts/lint.mjs",
     "test:e2e": "playwright test",
     "test:e2e-release-gate": "node --test scripts/e2e-release-gate.test.mjs",
+    "test:workflow-script-contracts": "node --test scripts/workflow-npm-script-contracts.test.mjs",
     "test:destructive-accessibility": "playwright test e2e/destructive-accessibility.spec.ts",
     "test:dependency-inventory": "node --test scripts/dependency-inventory.test.mjs",
     "test:dependency-release-gate": "node --test scripts/dependency-release-gate.test.mjs",

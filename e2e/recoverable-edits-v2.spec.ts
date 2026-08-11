@@ -25,7 +25,7 @@ const initialDocument = {
 
 async function installTypedFailureHarness(page: Page) {
   await page.addInitScript(documentValue => {
-    let durable = structuredClone(documentValue), failNext = false, exportCalls = 0;
+    let durable = structuredClone(documentValue), failNext = false, exportCalls = 0, exportGate: Promise<void>|null = null, releaseExport: (() => void)|null = null;
     const command = (payload: any) => {
       const workspace = structuredClone(durable.workspace);
       const page = (id: string) => workspace.pages.find((item: any) => item.id === id);
@@ -39,6 +39,8 @@ async function installTypedFailureHarness(page: Page) {
     };
     Object.defineProperty(window, "__motionEditV2", { value: {
       failNext() { failNext = true; },
+      pauseExport() { exportGate = new Promise(resolve => { releaseExport = resolve; }); },
+      releaseExport() { releaseExport?.(); exportGate = null; releaseExport = null; },
       get durable() { return structuredClone(durable); },
       get exportCalls() { return exportCalls; }
     } });
@@ -49,7 +51,7 @@ async function installTypedFailureHarness(page: Page) {
       const payload = args.request.payload;
       if (payload.type === "workspace.list") return [{ id: "workspace-1", revision: durable.revision }];
       if (payload.type === "workspace.search") return [];
-      if (payload.type === "workspace.export") { exportCalls += 1; return { schemaVersion: 1, files: {}, attachments: [] }; }
+      if (payload.type === "workspace.export") { exportCalls += 1; if (exportGate) await exportGate; return { schemaVersion: 1, files: {}, attachments: [] }; }
       if (failNext) { failNext = false; throw new Error("SQLITE_IOERR /private/workspace.db secret-canary"); }
       return command(payload);
     } } } });
@@ -82,6 +84,13 @@ for (const layout of layouts) {
       await expect(page.locator("#saveState")).not.toContainText("Saved to Motion");
       expect((await durable(page)).workspace.pages[0].title).toBe("Durable document");
 
+      const rejectedParagraph = page.locator('[data-block="paragraph-block"]');
+      await rejectedParagraph.fill("must be rejected");
+      await expect(title).toHaveValue(exact);
+      await expect(title).toHaveAttribute("data-unsaved", "true");
+      await expect(rejectedParagraph).toHaveText("Durable text");
+      await expect(page.locator("#editRecovery")).toContainText("Resolve the unsaved edit");
+
       const retry = page.getByRole("button", { name: "Retry save" });
       await retry.focus();
       await page.keyboard.press("Enter");
@@ -106,6 +115,23 @@ for (const layout of layouts) {
       await expect(paragraph).toHaveText("Durable text");
       await expect(paragraph).toBeFocused();
       expect((await durable(page)).workspace.pages[0].blocks[0].text).toBe("Durable text");
+    });
+
+    test("MOTION-UX-011 v2: an in-flight canonical read rejects edits without DOM or state mutation", async ({ page }) => {
+      await installTypedFailureHarness(page);
+      await page.goto("/");
+      await page.evaluate(() => (window as any).__motionEditV2.pauseExport());
+      await page.getByRole("button", { name: "Export JSON" }).click();
+      await expect.poll(() => page.evaluate(() => (window as any).__motionEditV2.exportCalls)).toBe(1);
+
+      const title = page.getByRole("textbox", { name: "Page title" });
+      await title.fill("must not enter state");
+      await expect(title).toHaveValue("Durable document");
+      await expect(title).not.toHaveAttribute("data-unsaved", "true");
+      expect((await durable(page)).workspace.pages[0].title).toBe("Durable document");
+
+      await page.evaluate(() => (window as any).__motionEditV2.releaseExport());
+      await expect(page.locator("#saveState")).toContainText("edit not applied");
     });
 
     test("MOTION-UX-011 v2: unresolved edits block canonical reads, destructive navigation, and unload", async ({ page }) => {

@@ -13,7 +13,7 @@ const publicPending = pending => ({
  * application's confirmed data. Native failures deliberately never enter the
  * public state returned to the UI.
  */
-export function createEditRecoveryController({ confirm, onChange = () => {} }) {
+export function createEditRecoveryController({ confirm, onChange = () => {}, acquireEdit = () => true, releaseEdit = () => {} }) {
   if (typeof confirm !== "function") throw new TypeError("confirm must be a function");
   let pending = null;
   let generation = 0;
@@ -27,6 +27,7 @@ export function createEditRecoveryController({ confirm, onChange = () => {} }) {
   function update(edit) {
     if (!edit || typeof edit.key !== "string" || typeof edit.label !== "string") throw new TypeError("edit requires key and label");
     if (pending && pending.key !== edit.key) return false;
+    if (!pending && !acquireEdit()) return false;
     const wasSaving = pending?.status === "saving";
     pending = {
       key: edit.key,
@@ -63,6 +64,7 @@ export function createEditRecoveryController({ confirm, onChange = () => {} }) {
       }
       pending = null;
       saved = true;
+      releaseEdit();
       changed();
       return true;
     } catch {
@@ -91,6 +93,7 @@ export function createEditRecoveryController({ confirm, onChange = () => {} }) {
     };
     pending = null;
     saved = false;
+    releaseEdit();
     changed();
     return discarded;
   }

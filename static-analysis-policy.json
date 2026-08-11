@@ -5,7 +5,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:d1f4f4c45f068e497a1019209fdf4779e26127a499606ef3fb3d549938727ee3",
+      "fingerprint": "sha256:dca4c526a3f6f4b85576128c3fdb6387bff794abb75ae137527624d834e07865",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "Page-tree markup uses trusted templates; page titles are HTML-escaped and page IDs are constrained stable identifiers.",
@@ -14,7 +14,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:ca781555ab7765e4cc8673b5809a2aeb2609e97261a6eb493a94302ede90822c",
+      "fingerprint": "sha256:10e3298cc33dedded02f47494cdbf16fb7d8b00a43e37631d33744ab7c1bbf63",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "Favourite navigation uses trusted templates; titles are HTML-escaped and page IDs are constrained stable identifiers.",
@@ -23,7 +23,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:a8efe997f9d17211d5f52483616961769e70e72ee4680fd2b719bec5231e0da5",
+      "fingerprint": "sha256:1f6cc0e085dfa55ec3a9b211d2c0ff8deeb01052fac7ed0c058ce5639de40fd9",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "Trash navigation uses trusted templates; titles and aria-label text are HTML-escaped and page IDs are constrained stable identifiers.",
@@ -32,7 +32,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:4bd624aef97ae959b36d1ececd07cb123bd4fa7ca831ab7135e1d98890d77f8e",
+      "fingerprint": "sha256:0ae5e4f04642e3c25a4977515bb737c9e6c8848bbf6223a05ac3305f7cddf9e9",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "The empty-workspace renderer contains only fixed application markup with no dynamic values.",
@@ -41,7 +41,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:9ce449f499584142ce40886bdfc224801256020d9d301252d1e2e81e26654ac7",
+      "fingerprint": "sha256:f9be26c121df3701ab85a0c5e397136d403fc5a6cdb3f96b6b38429c221fce8f",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "Breadcrumb markup uses trusted separators and controls; titles are HTML-escaped and page IDs are constrained stable identifiers.",
@@ -50,7 +50,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:69716535aa49b624e00eedadad3575ed5cfeee4fb1eedf344f19fa3846fdd32f",
+      "fingerprint": "sha256:56dfd3549fad88e224b823b8107fc52b078c69b7dc6a5d316ad00e93622989fa",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests; apps/web/test/block-presentation.test.mjs hostile unknown-type boundary test",
       "owner": "Operations & Security Director",
       "rationale": "Document composition delegates dynamic values to reviewed escaped renderers; unknown block types are attribute-escaped by renderBlockTypeOption.",
@@ -59,25 +59,16 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:6e7cc9d7f72356b898cee6e28df946d0f6b602c1df9b4f81c24b298d35ef3d85",
-      "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
+      "fingerprint": "sha256:571c178324655b3c63f8ebd8f500942bd652610d934fc26971b3859fda746e2c",
+      "evidence": "packages/core/src/test/core.test.ts rejects unsupported property types; apps/web/test/web.test.mjs verifies hostile values are escaped and hostile IDs rejected",
       "owner": "Operations & Security Director",
-      "rationale": "Database composition uses trusted templates; displayed names and values are escaped and identifiers are constrained stable IDs.",
+      "rationale": "Database table markup uses fixed PROPERTY_LABELS values for validated property types; displayed names/values are escaped and IDs are stable-ID constrained.",
       "expires": "2026-11-05"
     },
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:116c3ba11c3a3ac7b4859c48579f1d4433d9ea96a31f3f7cced07fd5a75a1f9a",
-      "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
-      "owner": "Operations & Security Director",
-      "rationale": "Legacy context fallback assigns only fixed markup or markup built from escaped titles and constrained stable page IDs.",
-      "expires": "2026-11-05"
-    },
-    {
-      "rule": "js-no-html-sink",
-      "file": "apps/web/app.js",
-      "fingerprint": "sha256:5946a4ff87566af7a8ef4d1283bf9783dca6f91844b0f98bf7d5a834eeeb764a",
+      "fingerprint": "sha256:fd00297edc71acf3b4f9ad7d39cc29bfc23e2ec5fa20188dd21238c643ba7477",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "Legacy context fallback assigns only fixed markup or markup built from escaped titles and constrained stable page IDs.",
@@ -86,7 +77,16 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:6c8bbe036755000c98635d29c7879553da3776be3b4a469b427f7ec73cb8f751",
+      "fingerprint": "sha256:6b264b4b6bb8ea560c5a11c42e79750429140d41714e9c01b529451c7e83564b",
+      "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
+      "owner": "Operations & Security Director",
+      "rationale": "Legacy context fallback assigns only fixed markup or markup built from escaped titles and constrained stable page IDs.",
+      "expires": "2026-11-05"
+    },
+    {
+      "rule": "js-no-html-sink",
+      "file": "apps/web/app.js",
+      "fingerprint": "sha256:4404b0135b4af4145d856d8b849f2105f46ae9aea52e1765b71cc5183315dad5",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "Outgoing-link composition uses escaped titles and constrained stable page IDs inside trusted markup.",
@@ -95,7 +95,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:30629e8e94f298c5c08b7aadac4d9a43513db9855e8ff73e9c063db4de081509",
+      "fingerprint": "sha256:56435790a510abbcdffb63c75d1c32814047628020261fc8797c191cb0fe4011",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "Backlink composition uses escaped titles and constrained stable page IDs inside trusted markup.",
@@ -104,7 +104,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:2dab20fbb235459c741929433613ce17274942fa14868652f16e533722f14758",
+      "fingerprint": "sha256:a78df2b740f8cb03785a3c792a2fd7f50f4d42766df1c45ab324345edb38eace",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "Attachment context fallback is fixed application markup with no dynamic values.",
@@ -113,7 +113,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:1ebe6681ed8fd215e8ef805588c94ff5a5f463426092ba902c5c18168b4802b5",
+      "fingerprint": "sha256:0585a84be9048c162f569378a3c6451ac704f094937a91930b7102a30f9a3193",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "Page-menu insertion uses trusted templates; visible titles are escaped and all referenced page IDs are constrained stable identifiers.",
@@ -122,7 +122,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:752e47f44dc46e304dc5a9ac777d434992642b482c1bff6560d049998b8ef94e",
+      "fingerprint": "sha256:a3e06a3c09ba94c9c532761ca5340388c4a2c61dfb96ad201863767a87246b78",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "Property-menu markup escapes persisted names/options; type choices are fixed constants and IDs are constrained stable identifiers.",
@@ -131,7 +131,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:75f00f8c2cc7dda903435c46805320db42dda4197c6e78a71968daf48f7dcfb0",
+      "fingerprint": "sha256:616ef74c1e66f203173073cf13200c7cd065ce4b7c2a3e4e59386d660225625b",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "Filter controls compose reviewed filterRow output and fixed operator controls; persisted labels and values are escaped.",
@@ -140,7 +140,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:e7d53086d73b8be7ddc92f6ee73f40c69e1b6926be4bfa90b831e5c3d3a7f24c",
+      "fingerprint": "sha256:795f633d53b3cbdc245059fe792bb576b40bb293893ef19f10517d3c85a84bf9",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "Sort controls compose reviewed sortRow output from fixed directions, escaped labels, and constrained property IDs.",
@@ -149,7 +149,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:15fc24c7a5c9ef976cf13cf04c23408dd95023b81923015170b7a84266bbc888",
+      "fingerprint": "sha256:8f96dfd67055a907fbf0423ac5736b979f108f36ecc397465f4add9979f7490a",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "Added filter rows come from filterRow, which escapes persisted labels/values and uses fixed operators with constrained property IDs.",
@@ -158,7 +158,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:aed6d18db180fbcf665fbc2cfef857f7af943e3df982de22627b15bc9541b53a",
+      "fingerprint": "sha256:11caa96c13ed643143d600e6e455cdabe37b8064001072220f1f345d7770c986",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
       "rationale": "Added sort rows come from sortRow, which uses fixed directions, escaped labels, and constrained property IDs.",

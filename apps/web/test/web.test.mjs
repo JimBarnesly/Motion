@@ -42,7 +42,8 @@ test("schema-v2 typed edits use the canonical recoverable confirmation boundary"
   assert.match(source, /function requireResolvedEdit/);
   assert.match(source, /window\.addEventListener\("beforeunload"/);
   assert.doesNotMatch(source, /alert\(error instanceof Error \? error\.message/);
-  for (const action of ["exporting", "creating a backup", "restoring", "moving content to Trash", "leaving this page"]) assert.match(source, new RegExp(`requireResolvedEdit\\(\\"${action}`));
+  for (const action of ["exporting", "creating a backup", "restoring"]) assert.match(source, new RegExp(`runCanonicalOperation\\(\\"${action}`));
+  for (const action of ["moving content to Trash", "leaving this page"]) assert.match(source, new RegExp(`requireResolvedEdit\\(\\"${action}`));
   assert.match(html, /id="editRecovery"[^>]*role="alert"/);
   assert.match(html, /id="retryEdit"/);
   assert.match(html, /id="discardEdit"/);
@@ -149,6 +150,22 @@ test("workspace backup and restore use a documented version marker", async () =>
   assert.match(source, /motion\.workspace\/2\.0/);
   assert.match(source, /exportWorkspace/);
   assert.match(source, /restoreWorkspace/);
+});
+
+test("canonical operations are coordinated across their async boundaries", async () => {
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  assert.match(source, /createOperationCoordinator/);
+  assert.match(source, /runCanonicalOperation\("exporting"/);
+  assert.match(source, /runCanonicalOperation\("creating a backup"/);
+  assert.match(source, /runCanonicalOperation\("restoring"/);
+});
+
+test("different-key edit rejection preserves pending metadata and avoids a full render", async () => {
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  const queue = source.slice(source.indexOf("function queueCanonicalEdit"), source.indexOf("function requireResolvedEdit"));
+  assert.match(queue, /if\(editRecovery\.update\([^)]+\)\)\{activeEditMeta=/);
+  assert.match(queue, /restoreRejectedEditTarget/);
+  assert.doesNotMatch(queue, /\brender\(\)/);
 });
 
 test("document editor supports substantial block types and keyboard operations", async () => {

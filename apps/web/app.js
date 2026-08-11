@@ -1,6 +1,8 @@
 import { createMotionUiAdapter } from "./app-adapter.js";
 import { renderBlockTypeOption } from "./block-presentation.js";
+import { confirmBrowserEdit } from "./browser-edit-confirmation.js";
 import { createEditRecoveryController } from "./edit-recovery.js";
+import { createOperationCoordinator } from "./operation-coordinator.js";
 import { buildBrowserSearchHits, normalizeSearchHits, resolveSearchTarget, searchStatus } from "./search-recovery.js";
 import { normalizeWorkspaceV1 } from "./workspace-v1.js";
 
@@ -49,29 +51,12 @@ async function commit(type,payload,localMutation) {
     $("#saveState").textContent=adapter.kind === "tauri" ? "Saved to Motion" : "Saved in browser (development mode)";
   } catch (error) { $("#saveState").textContent="Save failed"; alert("Motion could not save this change."); throw error; }
 }
-function applyLocalEdit(document,candidate) {
-  const page=id=>document.workspace.pages.find(item=>item.id===id);
-  if(candidate.type==="page.rename"){
-    const target=page(candidate.payload.pageId);target.title=candidate.payload.title;target.updatedAt=now();
-    const database=document.workspace.databases.find(item=>item.pageId===target.id);if(database)database.name=candidate.payload.title;
-  }else if(candidate.type==="page.replace-blocks"){
-    const target=page(candidate.payload.pageId);target.blocks=structuredClone(candidate.payload.blocks);target.updatedAt=now();
-  }else if(candidate.type==="database.record-update"){
-    const target=page(candidate.payload.pageId);target.properties??={};
-    for(const [propertyId,value] of Object.entries(candidate.payload.values)){if(value===undefined)delete target.properties[propertyId];else target.properties[propertyId]=structuredClone(value);}
-    target.updatedAt=now();
-  }else if(candidate.type==="database.view-update"){
-    const database=document.workspace.databases.find(item=>item.id===candidate.payload.databaseId),view=database.views.find(item=>item.id===candidate.payload.viewId);Object.assign(view,structuredClone(candidate.payload.patch));
-  }else throw new Error("Unsupported local edit command");
-}
-
 async function confirmCanonicalEdit({candidate}) {
   if(adapter.kind==="tauri"){
     const result=await adapter.execute(candidate.type,candidate.payload);
     state.workspace=result.workspace;state.revision=result.revision;
   }else{
-    const confirmed=structuredClone(state);applyLocalEdit(confirmed,candidate);confirmed.workspace.updatedAt=now();confirmed.revision++;
-    saveQueue=saveQueue.catch(()=>{}).then(()=>adapter.save(confirmed));await saveQueue;state=confirmed;
+    const confirmed=await confirmBrowserEdit(state,candidate,document=>{saveQueue=saveQueue.catch(()=>{}).then(()=>adapter.save(document));return saveQueue;},now);state=confirmed;
   }
 }
 
@@ -84,6 +69,22 @@ function editTarget(target){
   if(target.kind==="record-property")return [...document.querySelectorAll("[data-property]")].find(element=>element.dataset.property===target.propertyId&&(element.dataset.record??state.activePageId)===target.pageId);
   if(target.kind==="view-width")return findByDataValue("[data-column-width]","columnWidth",target.propertyId);
   return null;
+}
+
+function restoreRejectedEditTarget(target){
+  const element=editTarget(target);if(!element)return;
+  const page=pageById(target.pageId);
+  if(target.kind==="page-title")element.value=page?.title??"";
+  else if(target.kind==="block-text")element.textContent=page?.blocks.find(block=>block.id===target.blockId)?.text??"";
+  else if(target.kind==="block-type")element.value=page?.blocks.find(block=>block.id===target.blockId)?.type??"paragraph";
+  else if(target.kind==="task")element.checked=Boolean(page?.blocks.find(block=>block.id===target.blockId)?.checked);
+  else if(target.kind==="view-width"){const database=databaseForPage(page),property=database?.properties.find(item=>item.id===target.propertyId);element.value=database?.views[0].columnWidths?.[target.propertyId]??(property?.type==="title"?280:170);}
+  else if(target.kind==="record-property"){
+    const property=databaseForPage(page)?.properties.find(item=>item.id===target.propertyId),value=page?.properties?.[target.propertyId];
+    if(property?.type==="checkbox")element.checked=Boolean(value);
+    else if(property?.type==="multi-select")for(const option of element.options)option.selected=Array.isArray(value)&&value.includes(option.value);
+    else element.value=value??"";
+  }
 }
 
 function markPendingEdit(snapshot){
@@ -109,13 +110,15 @@ function syncEditRecovery(snapshot){
   else if(snapshot.status==="editing")editTimer=setTimeout(()=>void editRecovery.commit(),180);
 }
 
-const editRecovery=createEditRecoveryController({confirm:confirmCanonicalEdit,onChange:syncEditRecovery});
+const operationCoordinator=createOperationCoordinator();
+const editRecovery=createEditRecoveryController({confirm:confirmCanonicalEdit,onChange:syncEditRecovery,acquireEdit:operationCoordinator.beginEdit,releaseEdit:operationCoordinator.endEdit});
 
 function queueCanonicalEdit({key,label,candidate,target,rerender=false}){
-  activeEditMeta={target,rerender};
-  if(editRecovery.update({key,label,candidate,target}))return true;
-  render();
-  const pending=editRecovery.snapshot();syncEditRecovery(pending);$("#editRecoveryMessage").textContent="Resolve the unsaved edit before editing other content.";requestAnimationFrame(()=>editTarget(pending.target)?.focus());
+  if(editRecovery.update({key,label,candidate,target})){activeEditMeta={target,rerender};return true;}
+  restoreRejectedEditTarget(target);
+  const pending=editRecovery.snapshot();
+  if(pending.blocked){syncEditRecovery(pending);$("#editRecoveryMessage").textContent="Resolve the unsaved edit before editing other content.";requestAnimationFrame(()=>editTarget(pending.target)?.focus());}
+  else{$("#saveState").textContent=`${operationCoordinator.snapshot().canonicalOperation} in progress — edit not applied.`;requestAnimationFrame(()=>editTarget(target)?.focus());}
   return false;
 }
 function requireResolvedEdit(action){
@@ -132,12 +135,13 @@ async function ensureWorkspace() {
   else { const stamp=now(); state.workspace={schemaVersion:2,id:uid(),name:"Motion Workspace",pages:[],databases:[],attachments:[],linkIndex:[],createdAt:stamp,updatedAt:stamp}; state.revision=1; }
 }
 function downloadJson(value,fileName){const blob=new Blob([JSON.stringify(value,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;link.download=fileName;link.click();URL.revokeObjectURL(url);}
-async function exportWorkspace(){if(!requireResolvedEdit("exporting"))return false;const date=new Date().toISOString().slice(0,10);if(adapter.kind==="tauri")downloadJson(await adapter.exportWorkspace(),`motion-canonical-export-${date}.json`);else downloadJson({exportVersion:"motion.workspace/2.0",exportedAt:now(),workspace:state.workspace},`motion-browser-development-${date}.json`);return true;}
+async function runCanonicalOperation(action,operation){const result=await operationCoordinator.runCanonical(action,operation);if(result.started)return result.value;if(editRecovery.snapshot().blocked)requireResolvedEdit(action);return false;}
+async function exportWorkspace(){return runCanonicalOperation("exporting",async()=>{const date=new Date().toISOString().slice(0,10);if(adapter.kind==="tauri")downloadJson(await adapter.exportWorkspace(),`motion-canonical-export-${date}.json`);else downloadJson({exportVersion:"motion.workspace/2.0",exportedAt:now(),workspace:state.workspace},`motion-browser-development-${date}.json`);return true;});}
 async function sha256(bytes){const digest=await crypto.subtle.digest("SHA-256",bytes);return [...new Uint8Array(digest)].map(byte=>byte.toString(16).padStart(2,"0")).join("");}
 async function attachNativeFile(file){const bytes=new Uint8Array(await file.arrayBuffer()),digest=await sha256(bytes),result=await adapter.putAttachment({fileName:file.name,mediaType:file.type||"application/octet-stream",sha256:digest,bytes});state.workspace=result.workspace;state.revision=result.revision;renderContext(activePage());}
-async function createVerifiedBackup(){if(!requireResolvedEdit("creating a backup"))return false;const bundle=await adapter.createBackup(),verification=await adapter.verifyBackup(bundle);if(!verification.valid)throw new Error(verification.errors.join("; "));downloadJson(bundle,`motion-verified-backup-${new Date().toISOString().slice(0,10)}.json`);return true;}
-async function restoreVerifiedBackup(file){if(!requireResolvedEdit("restoring"))return false;const bundle=JSON.parse(await file.text()),verification=await adapter.verifyBackup(bundle);if(!verification.valid)throw new Error(verification.errors.join("; "));const preview=await adapter.previewBackup(bundle);if(!confirm(`Restore ${preview.workspaceName??"workspace"} with ${preview.pages} pages as a new workspace?`))return false;await adapter.restoreBackup(bundle);state=migrateLoaded(await adapter.load());render();return true;}
-async function restoreWorkspace(file){if(!requireResolvedEdit("restoring"))return false;const parsed=JSON.parse(await file.text()),candidate=parsed?.workspace??parsed;if(candidate?.schemaVersion===2&&Array.isArray(candidate.pages)&&Array.isArray(candidate.databases)){if(adapter.kind==="tauri")throw new Error("Use a verified native backup to restore a canonical workspace.");state={...EMPTY,workspace:structuredClone(candidate),revision:1,activePageId:candidate.pages.find(page=>!page.deletedAt)?.id??null};await saveLocal();render();return true;}state=migrateLoaded(normalizeWorkspaceV1(candidate));await saveLocal();render();return true;}
+async function createVerifiedBackup(){return runCanonicalOperation("creating a backup",async()=>{const bundle=await adapter.createBackup(),verification=await adapter.verifyBackup(bundle);if(!verification.valid)throw new Error(verification.errors.join("; "));downloadJson(bundle,`motion-verified-backup-${new Date().toISOString().slice(0,10)}.json`);return true;});}
+async function restoreVerifiedBackup(file){return runCanonicalOperation("restoring",async()=>{const bundle=JSON.parse(await file.text()),verification=await adapter.verifyBackup(bundle);if(!verification.valid)throw new Error(verification.errors.join("; "));const preview=await adapter.previewBackup(bundle);if(!confirm(`Restore ${preview.workspaceName??"workspace"} with ${preview.pages} pages as a new workspace?`))return false;await adapter.restoreBackup(bundle);state=migrateLoaded(await adapter.load());render();return true;});}
+async function restoreWorkspace(file){return runCanonicalOperation("restoring",async()=>{const parsed=JSON.parse(await file.text()),candidate=parsed?.workspace??parsed;if(candidate?.schemaVersion===2&&Array.isArray(candidate.pages)&&Array.isArray(candidate.databases)){if(adapter.kind==="tauri")throw new Error("Use a verified native backup to restore a canonical workspace.");const restored={...EMPTY,workspace:structuredClone(candidate),revision:1,activePageId:candidate.pages.find(page=>!page.deletedAt)?.id??null};await adapter.save(structuredClone(restored));state=restored;render();return true;}const restored=migrateLoaded(normalizeWorkspaceV1(candidate));await adapter.save(structuredClone(restored));state=restored;render();return true;});}
 function openPage(id,push=true) { if(id!==state.activePageId&&!requireResolvedEdit("leaving this page"))return false;if (push && state.activePageId && state.activePageId !== id) navigation.push(state.activePageId); state.activePageId=id; void saveUi(); render(); $("#sidebar").classList.remove("open"); return true;}
 function ancestors(page) { const path=[]; for(let current=page;current;current=pageById(current.parentId)) path.unshift(current); return path; }
 function descendants(id) { const result=[]; for(const child of visiblePages().filter(page=>page.parentId===id)){ result.push(child,...descendants(child.id)); } return result; }

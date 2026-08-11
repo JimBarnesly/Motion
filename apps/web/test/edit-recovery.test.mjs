@@ -98,3 +98,30 @@ test("a different edit is rejected while an unresolved candidate exists", () => 
   assert.equal(controller.update({ ...edit("other"), key: "block:text:block-1" }), false);
   assert.equal(controller.snapshot().candidate, "pending");
 });
+
+test("an edit rejected by a canonical operation never enters recovery state", () => {
+  const controller = createEditRecoveryController({ confirm: async () => {}, acquireEdit: () => false });
+
+  assert.equal(controller.update(edit("must not leak")), false);
+  assert.deepEqual(controller.snapshot(), { status: "idle", saved: false, blocked: false });
+});
+
+test("the edit lease spans failure and retry and releases only after resolution", async () => {
+  let releases = 0;
+  let attempts = 0;
+  const controller = createEditRecoveryController({
+    confirm: async () => { if (++attempts === 1) throw new Error("failure"); },
+    acquireEdit: () => true,
+    releaseEdit: () => { releases += 1; }
+  });
+
+  assert.equal(controller.update(edit("exact candidate")), true);
+  assert.equal(await controller.commit(), false);
+  assert.equal(releases, 0);
+  assert.equal(await controller.retry(), true);
+  assert.equal(releases, 1);
+
+  assert.equal(controller.update(edit("discard me")), true);
+  controller.discard();
+  assert.equal(releases, 2);
+});

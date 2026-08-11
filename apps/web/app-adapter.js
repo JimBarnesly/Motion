@@ -82,6 +82,12 @@ function browserDevelopmentAdapter() {
 
 function tauriAdapter(invoke) {
   let workspaceSummary;
+  let workspaceEpoch = 0;
+  let activeTransitionEpoch = null;
+  const workspaceChanged = () => new Error("Native workspace changed while the operation was running");
+  const assertCurrentWorkspace = (epoch, id) => {
+    if (epoch !== workspaceEpoch || workspaceSummary?.id !== id) throw workspaceChanged();
+  };
   const advanceWorkspaceSummary = result => {
     if (result?.workspace?.id && Number.isSafeInteger(result.revision)
         && (!workspaceSummary || workspaceSummary.id !== result.workspace.id || result.revision > workspaceSummary.revision)) {
@@ -89,31 +95,70 @@ function tauriAdapter(invoke) {
     }
   };
   const dispatch = (lane, payload) => invoke("app_dispatch", { request: { protocolVersion: 1, lane, payload } });
+  const transitionSummary = (result, allowEmpty) => {
+    if (allowEmpty && result?.workspace === null && Number.isSafeInteger(result.revision)) return undefined;
+    if (!result?.workspace || !UI_STATE_ID.test(result.workspace.id) || !Number.isSafeInteger(result.revision)) {
+      throw new Error("Native transition returned an invalid workspace summary");
+    }
+    return { id: result.workspace.id, revision: result.revision };
+  };
+  const transitionWorkspace = async (operation, allowEmpty = false) => {
+    const transitionEpoch = ++workspaceEpoch;
+    activeTransitionEpoch = transitionEpoch;
+    workspaceSummary = undefined;
+    try {
+      const result = await operation();
+      if (transitionEpoch !== workspaceEpoch || activeTransitionEpoch !== transitionEpoch) throw workspaceChanged();
+      workspaceSummary = transitionSummary(result, allowEmpty);
+      activeTransitionEpoch = null;
+      return result;
+    } catch (error) {
+      if (activeTransitionEpoch === transitionEpoch) {
+        workspaceSummary = undefined;
+        activeTransitionEpoch = null;
+      }
+      throw error;
+    }
+  };
   const requiredWorkspace = async () => {
+    if (activeTransitionEpoch !== null) throw workspaceChanged();
     if (workspaceSummary) return workspaceSummary;
+    const discoveryEpoch = workspaceEpoch;
     const workspaces = await dispatch("query", { type: "workspace.list" });
+    if (discoveryEpoch !== workspaceEpoch) return requiredWorkspace();
     workspaceSummary = workspaces?.[0];
     if (!workspaceSummary?.id || !Number.isSafeInteger(workspaceSummary.revision)) throw new Error("Create a workspace before using this native operation");
     return workspaceSummary;
+  };
+  const dispatchCurrentWorkspace = async (lane, payload) => {
+    const operationEpoch = workspaceEpoch;
+    const current = await requiredWorkspace();
+    assertCurrentWorkspace(operationEpoch, current.id);
+    const result = await dispatch(lane, { ...payload, workspaceId: current.id });
+    assertCurrentWorkspace(operationEpoch, current.id);
+    return result;
   };
   return {
     kind: "tauri",
     durable: true,
     async load() {
-      const loaded = await invoke("motion_ui_load", { request: { schemaVersion: 2 } });
-      if (loaded?.schemaVersion !== 2) throw new Error("Native Motion returned an unsupported UI document");
-      workspaceSummary = loaded.workspace ? { id: loaded.workspace.id, revision: loaded.revision } : undefined;
-      return loaded;
+      return transitionWorkspace(async () => {
+        const loaded = await invoke("motion_ui_load", { request: { schemaVersion: 2 } });
+        if (loaded?.schemaVersion !== 2) throw new Error("Native Motion returned an unsupported UI document");
+        return loaded;
+      }, true);
     },
     async execute(type, payload = {}) {
+      const operationEpoch = workspaceEpoch;
       if (!nativeExecuteOperations.has(type)) throw new Error(`Unsupported native command: ${String(type)}`);
       if (type === "workspace.create") {
-        const result = await dispatch("command", { ...payload, type });
-        advanceWorkspaceSummary(result);
-        return result;
+        return transitionWorkspace(() => dispatch("command", { ...payload, type }));
       }
       const current = await requiredWorkspace();
+      assertCurrentWorkspace(operationEpoch, current.id);
       const result = await dispatch("command", { ...payload, type, workspaceId: current.id, expectedRevision: current.revision });
+      assertCurrentWorkspace(operationEpoch, current.id);
+      if (result?.workspace?.id !== current.id) throw workspaceChanged();
       advanceWorkspaceSummary(result);
       return result;
     },
@@ -125,30 +170,30 @@ function tauriAdapter(invoke) {
     },
     async importWebV1(document) {
       const candidate = normalizeWorkspaceV1(document);
-      const result = await dispatch("web-v1-import", { type: "workspace.import-web-v1", document: candidate });
-      workspaceSummary = { id: result.workspace.id, revision: result.revision };
-      return result;
+      return transitionWorkspace(() => dispatch("web-v1-import", { type: "workspace.import-web-v1", document: candidate }));
     },
     async search(query, limit = 50) {
-      return dispatch("query", { type: "workspace.search", workspaceId: (await requiredWorkspace()).id, query, limit });
+      return dispatchCurrentWorkspace("query", { type: "workspace.search", query, limit });
     },
     async exportWorkspace() {
-      return dispatch("query", { type: "workspace.export", workspaceId: (await requiredWorkspace()).id });
+      return dispatchCurrentWorkspace("query", { type: "workspace.export" });
     },
     async putAttachment({ fileName, mediaType, sha256, bytes }) {
+      const operationEpoch = workspaceEpoch;
       const current = await requiredWorkspace();
+      assertCurrentWorkspace(operationEpoch, current.id);
       const result = await dispatch("async-command", { type: "attachment.put", workspaceId: current.id, expectedRevision: current.revision, fileName, mediaType, sha256, bytes: { $motionBytes: Array.from(bytes) } });
+      assertCurrentWorkspace(operationEpoch, current.id);
+      if (result?.workspace?.id !== current.id) throw workspaceChanged();
       advanceWorkspaceSummary(result);
       return result;
     },
-    async createBackup() { return dispatch("async-query", { type: "backup.create", workspaceId: (await requiredWorkspace()).id }); },
+    async createBackup() { return dispatchCurrentWorkspace("async-query", { type: "backup.create" }); },
     async saveBackup(bundle) { return invoke("motion_backup_save", { request: { schemaVersion: 1, bundle } }); },
     async verifyBackup(bundle) { return dispatch("async-query", { type: "backup.verify", bundle }); },
     async previewBackup(bundle) { return dispatch("async-query", { type: "backup.preview", bundle }); },
     async restoreBackup(bundle) {
-      const result = await dispatch("async-command", { type: "backup.restore-new", bundle });
-      workspaceSummary = result?.workspace?.id ? { id: result.workspace.id, revision: result.revision } : undefined;
-      return result;
+      return transitionWorkspace(() => dispatch("async-command", { type: "backup.restore-new", bundle }));
     }
   };
 }

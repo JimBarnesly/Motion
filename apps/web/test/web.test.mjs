@@ -110,6 +110,159 @@ test("native whole-snapshot save fails closed and explicit Web-v1 import uses on
   assert.equal(calls.some(call => call.command === "motion_ui_save"), false);
 });
 
+test("native workspace transitions reject malformed authoritative summaries", async () => {
+  const { createMotionUiAdapter } = await import("../app-adapter.js");
+  const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (_command, payload) => {
+    if (payload?.request?.payload?.type === "workspace.import-web-v1") {
+      return { workspace: { id: "imported", pages: [], databases: [] }, saved: true };
+    }
+    throw new Error("Unexpected native call");
+  } } } });
+
+  await assert.rejects(
+    adapter.importWebV1({ schemaVersion: 1, pages: [], activePageId: null }),
+    /invalid workspace summary/
+  );
+});
+
+test("native commands cannot start while a workspace transition is in flight", async () => {
+  let releaseImport;
+  const importResponse = new Promise(resolve => { releaseImport = resolve; });
+  const calls = [];
+  const { createMotionUiAdapter } = await import("../app-adapter.js");
+  const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => {
+    const operation = payload?.request?.payload;
+    calls.push(operation?.type ?? command);
+    if (command === "motion_ui_load") return { schemaVersion: 2, workspace: { id: "workspace-old", pages: [], databases: [] }, revision: 4 };
+    if (operation?.type === "workspace.import-web-v1") return importResponse;
+    if (operation?.type === "page.rename") return { workspace: { id: "workspace-old", pages: [], databases: [] }, revision: 5, saved: true };
+    throw new Error(`Unexpected native call: ${operation?.type ?? command}`);
+  } } } });
+
+  await adapter.load();
+  const pendingImport = adapter.importWebV1({ schemaVersion: 1, pages: [], activePageId: null });
+  await assert.rejects(adapter.execute("page.rename", { pageId: "page-old", title: "Must wait" }), /workspace changed while the operation was running/);
+  assert.equal(calls.includes("page.rename"), false);
+  releaseImport({ workspace: { id: "workspace-new", pages: [], databases: [] }, revision: 1, activePageId: null, saved: true });
+  await pendingImport;
+});
+
+test("late native command response cannot switch the adapter back after Web-v1 import", async () => {
+  let releaseRename;
+  const renameResponse = new Promise(resolve => { releaseRename = resolve; });
+  const calls = [];
+  const { createMotionUiAdapter } = await import("../app-adapter.js");
+  const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => {
+    calls.push({ command, payload });
+    const operation = payload?.request?.payload;
+    if (command === "motion_ui_load") return { schemaVersion: 2, workspace: { id: "workspace-old", pages: [], databases: [] }, revision: 4 };
+    if (operation?.type === "page.rename") return renameResponse;
+    if (operation?.type === "workspace.import-web-v1") return { workspace: { id: "workspace-new", pages: [], databases: [] }, revision: 1, activePageId: null, saved: true };
+    if (operation?.type === "workspace.search") return [];
+    throw new Error(`Unexpected native call: ${operation?.type ?? command}`);
+  } } } });
+
+  await adapter.load();
+  const pendingRename = adapter.execute("page.rename", { pageId: "page-old", title: "Old response" });
+  await adapter.importWebV1({ schemaVersion: 1, pages: [], activePageId: null });
+  releaseRename({ workspace: { id: "workspace-old", pages: [], databases: [] }, revision: 5, saved: true });
+
+  await assert.rejects(pendingRename, /workspace changed while the operation was running/);
+  await adapter.search("new workspace");
+  const search = calls.find(call => call.payload?.request?.payload?.type === "workspace.search").payload.request.payload;
+  assert.equal(search.workspaceId, "workspace-new");
+});
+
+test("late workspace discovery cannot dispatch an old-workspace command after import", async () => {
+  let releaseWorkspaceList;
+  const workspaceList = new Promise(resolve => { releaseWorkspaceList = resolve; });
+  const calls = [];
+  const { createMotionUiAdapter } = await import("../app-adapter.js");
+  const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => {
+    const operation = payload?.request?.payload;
+    calls.push(operation?.type ?? command);
+    if (operation?.type === "workspace.list") return workspaceList;
+    if (operation?.type === "workspace.import-web-v1") return { workspace: { id: "workspace-new", pages: [], databases: [] }, revision: 1, activePageId: null, saved: true };
+    if (operation?.type === "page.rename") return { workspace: { id: "workspace-old", pages: [], databases: [] }, revision: 5, saved: true };
+    throw new Error(`Unexpected native call: ${operation?.type ?? command}`);
+  } } } });
+
+  const pendingRename = adapter.execute("page.rename", { pageId: "page-old", title: "Must not dispatch" });
+  await adapter.importWebV1({ schemaVersion: 1, pages: [], activePageId: null });
+  releaseWorkspaceList([{ id: "workspace-old", revision: 4 }]);
+
+  await assert.rejects(pendingRename, /workspace changed while the operation was running/);
+  assert.equal(calls.includes("page.rename"), false);
+});
+
+test("late attachment response cannot reactivate its old workspace after import", async () => {
+  let releaseAttachment;
+  const attachmentResponse = new Promise(resolve => { releaseAttachment = resolve; });
+  const calls = [];
+  const { createMotionUiAdapter } = await import("../app-adapter.js");
+  const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => {
+    const operation = payload?.request?.payload;
+    calls.push(operation);
+    if (command === "motion_ui_load") return { schemaVersion: 2, workspace: { id: "workspace-old", pages: [], databases: [] }, revision: 4 };
+    if (operation?.type === "attachment.put") return attachmentResponse;
+    if (operation?.type === "workspace.import-web-v1") return { workspace: { id: "workspace-new", pages: [], databases: [] }, revision: 1, activePageId: null, saved: true };
+    if (operation?.type === "workspace.search") return [];
+    throw new Error(`Unexpected native call: ${operation?.type ?? command}`);
+  } } } });
+
+  await adapter.load();
+  const pendingAttachment = adapter.putAttachment({ fileName: "old.txt", mediaType: "text/plain", sha256: "a".repeat(64), bytes: new Uint8Array([1]) });
+  await adapter.importWebV1({ schemaVersion: 1, pages: [], activePageId: null });
+  releaseAttachment({ workspace: { id: "workspace-old", pages: [], databases: [] }, revision: 5, saved: true });
+
+  await assert.rejects(pendingAttachment, /workspace changed while the operation was running/);
+  await adapter.search("new workspace");
+  assert.equal(calls.find(call => call?.type === "workspace.search").workspaceId, "workspace-new");
+});
+
+test("older concurrent import cannot overwrite the workspace selected by the newer import", async () => {
+  const releases = [];
+  const calls = [];
+  const { createMotionUiAdapter } = await import("../app-adapter.js");
+  const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (_command, payload) => {
+    const operation = payload.request.payload;
+    calls.push(operation);
+    if (operation.type === "workspace.import-web-v1") return new Promise(resolve => releases.push(resolve));
+    if (operation.type === "workspace.search") return [];
+    throw new Error(`Unexpected native call: ${operation.type}`);
+  } } } });
+
+  const older = adapter.importWebV1({ schemaVersion: 1, pages: [], activePageId: null });
+  const newer = adapter.importWebV1({ schemaVersion: 1, pages: [], activePageId: null });
+  releases[1]({ workspace: { id: "workspace-newer", pages: [], databases: [] }, revision: 1, activePageId: null, saved: true });
+  await newer;
+  releases[0]({ workspace: { id: "workspace-older", pages: [], databases: [] }, revision: 1, activePageId: null, saved: true });
+
+  await assert.rejects(older, /workspace changed while the operation was running/);
+  await adapter.search("selected workspace");
+  assert.equal(calls.find(call => call.type === "workspace.search").workspaceId, "workspace-newer");
+});
+
+test("search results from the prior workspace are rejected after import", async () => {
+  let releaseSearch;
+  const searchResponse = new Promise(resolve => { releaseSearch = resolve; });
+  const { createMotionUiAdapter } = await import("../app-adapter.js");
+  const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => {
+    const operation = payload?.request?.payload;
+    if (command === "motion_ui_load") return { schemaVersion: 2, workspace: { id: "workspace-old", pages: [], databases: [] }, revision: 4 };
+    if (operation?.type === "workspace.search") return searchResponse;
+    if (operation?.type === "workspace.import-web-v1") return { workspace: { id: "workspace-new", pages: [], databases: [] }, revision: 1, activePageId: null, saved: true };
+    throw new Error(`Unexpected native call: ${operation?.type ?? command}`);
+  } } } });
+
+  await adapter.load();
+  const pendingSearch = adapter.search("old content");
+  await adapter.importWebV1({ schemaVersion: 1, pages: [], activePageId: null });
+  releaseSearch([{ workspaceId: "workspace-old", entityId: "secret-old", title: "Old", snippet: "Old" }]);
+
+  await assert.rejects(pendingSearch, /workspace changed while the operation was running/);
+});
+
 test("native UI-state save rejects canonical snapshots and bounds its exact ephemeral allowlist", async () => {
   const calls = [];
   const { createMotionUiAdapter } = await import("../app-adapter.js");
@@ -188,11 +341,11 @@ test("native attachment and verified backup operations use revisioned typed lane
   const invoke = async (command, payload) => {
     calls.push({ command, payload });
     if (command === "app_dispatch" && payload.request.payload.type === "workspace.list") return [{ id: "workspace-1", revision: 7 }];
-    if (payload?.request?.payload?.type === "attachment.put") return { revision: 8, workspace: { attachments: [{ id: "attachment-1", fileName: "proof.txt", byteLength: 3, sha256: "a".repeat(64) }] } };
+    if (payload?.request?.payload?.type === "attachment.put") return { revision: 8, workspace: { id: "workspace-1", attachments: [{ id: "attachment-1", fileName: "proof.txt", byteLength: 3, sha256: "a".repeat(64) }] } };
     if (payload?.request?.payload?.type === "backup.create") return { manifest: { files: [] }, files: {} };
     if (payload?.request?.payload?.type === "backup.verify") return { valid: true, errors: [] };
     if (payload?.request?.payload?.type === "backup.preview") return { valid: true, pages: 1, attachments: 1, totalBytes: 3 };
-    if (payload?.request?.payload?.type === "backup.restore-new") return { revision: 1, saved: true };
+    if (payload?.request?.payload?.type === "backup.restore-new") return { revision: 1, workspace: { id: "workspace-restored", pages: [], databases: [] }, saved: true };
   };
   const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke } } });
   const bundle = await adapter.createBackup();

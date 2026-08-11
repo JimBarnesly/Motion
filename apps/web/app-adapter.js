@@ -85,6 +85,7 @@ function tauriAdapter(invoke) {
   let workspaceEpoch = 0;
   let activeTransitionEpoch = null;
   let selectionRecoveryRequired = false;
+  let selectionKnown = false;
   let pendingUiSaves = 0;
   let uiSaveTail = Promise.resolve();
   const workspaceChanged = () => new Error("Native workspace changed while the operation was running");
@@ -117,17 +118,20 @@ function tauriAdapter(invoke) {
     const transitionEpoch = ++workspaceEpoch;
     activeTransitionEpoch = transitionEpoch;
     workspaceSummary = undefined;
+    selectionKnown = false;
     try {
       const result = await operation();
       if (transitionEpoch !== workspaceEpoch || activeTransitionEpoch !== transitionEpoch) throw workspaceChanged();
       workspaceSummary = transitionSummary(result, allowEmpty);
       selectionRecoveryRequired = false;
+      selectionKnown = true;
       activeTransitionEpoch = null;
       return result;
     } catch (error) {
       if (activeTransitionEpoch === transitionEpoch) {
         workspaceSummary = undefined;
         selectionRecoveryRequired = true;
+        selectionKnown = false;
         activeTransitionEpoch = null;
       }
       throw error;
@@ -136,6 +140,7 @@ function tauriAdapter(invoke) {
   const requiredWorkspace = async () => {
     if (activeTransitionEpoch !== null) throw workspaceChanged();
     if (workspaceSummary) return workspaceSummary;
+    if (selectionKnown) throw new Error("Create a workspace before using this native operation");
     const discoveryEpoch = workspaceEpoch;
     if (selectionRecoveryRequired) {
       const loaded = await invoke("motion_ui_load", { request: { schemaVersion: 2 } });
@@ -143,6 +148,7 @@ function tauriAdapter(invoke) {
       if (loaded?.schemaVersion !== 2) throw new Error("Native Motion returned an unsupported UI document");
       workspaceSummary = transitionSummary(loaded, true);
       selectionRecoveryRequired = false;
+      selectionKnown = true;
       if (!workspaceSummary) throw new Error("Create a workspace before using this native operation");
       return workspaceSummary;
     }
@@ -150,6 +156,7 @@ function tauriAdapter(invoke) {
     if (discoveryEpoch !== workspaceEpoch) return requiredWorkspace();
     workspaceSummary = workspaces?.[0];
     if (!validSummary(workspaceSummary)) throw new Error("Create a workspace before using this native operation");
+    selectionKnown = true;
     return workspaceSummary;
   };
   const dispatchCurrentWorkspace = async (lane, payload) => {

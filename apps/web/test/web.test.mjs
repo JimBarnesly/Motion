@@ -125,6 +125,26 @@ test("native workspace transitions reject malformed authoritative summaries", as
   );
 });
 
+test("authoritative empty selection never falls back to the most recent workspace", async () => {
+  const calls = [];
+  const { createMotionUiAdapter } = await import("../app-adapter.js");
+  const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => {
+    const operation = payload?.request?.payload;
+    calls.push(operation?.type ?? command);
+    if (command === "motion_ui_load") return { schemaVersion: 2, workspace: null, revision: 0, activePageId: null };
+    if (operation?.type === "workspace.list") return [{ id: "workspace-B", revision: 9 }];
+    if (operation?.type === "page.rename") return { workspace: { id: "workspace-B", pages: [], databases: [] }, revision: 10, saved: true };
+    throw new Error(`Unexpected native call: ${operation?.type ?? command}`);
+  } } } });
+
+  await adapter.load();
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await assert.rejects(adapter.execute("page.rename", { pageId: "page-B", title: "Must not dispatch" }), /Create a workspace/);
+  }
+  assert.equal(calls.includes("workspace.list"), false);
+  assert.equal(calls.includes("page.rename"), false);
+});
+
 test("failed workspace transitions reload the persisted selection before later commands", async () => {
   const calls = [];
   let loadCount = 0;

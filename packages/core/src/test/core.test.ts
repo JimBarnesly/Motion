@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { MemoryWorkspaceStore, WorkspaceDocument, assertWorkspaceValue, createWorkspace, exportDatabaseCsv, exportFullWorkspace, exportPageMarkdown, exportWorkspaceJson, migrateWebWorkspaceV1, migrateWorkspace, type Page } from "../index.js";
+import { DEFAULT_VALIDATION_LIMITS, MemoryWorkspaceStore, WorkspaceDocument, assertWorkspaceValue, createWorkspace, exportDatabaseCsv, exportFullWorkspace, exportPageMarkdown, exportWorkspaceJson, migrateWebWorkspaceV1, migrateWorkspace, type Block, type Page } from "../index.js";
 
 test("hierarchy, links, backlinks and search", async () => {
   const ws = createWorkspace("Private notes");
@@ -37,6 +37,18 @@ test("block mutations reject duplicate IDs, missing positions, cycles and invali
   assert.throws(() => doc.moveBlock(page.id, "parent", { pageId: page.id, parentBlockId: "child", beforeBlockId: null }), /cycles/);
   assert.throws(() => doc.moveBlock(page.id, "parent", { pageId: page.id, parentBlockId: null, beforeBlockId: "missing" }), /not found/);
   assert.throws(() => doc.transformBlock(page.id, "parent", { type: "divider" }), /cannot contain children/);
+  assert.deepEqual(doc.data, before);
+});
+
+test("block mutation traversal handles wide valid trees and rejects over-limit widths atomically", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Wide blocks")); const page = doc.addPage("Page");
+  const wideChildren: Block[] = Array.from({ length: 120_000 }, (_, index) => ({ id: `wide-${index}`, type: "paragraph", text: "", children: [] }));
+  doc.createBlock({ pageId: page.id, parentBlockId: null, beforeBlockId: null }, { id: "wide-root", type: "toggle", text: "", children: wideChildren });
+  assert.equal(page.blocks[0]?.children.length, wideChildren.length);
+
+  const before = structuredClone(doc.data);
+  const overLimit = { id: "over-limit", type: "toggle", text: "", children: new Array(DEFAULT_VALIDATION_LIMITS.maxBlocks) } as Block;
+  assert.throws(() => doc.createBlock({ pageId: page.id, parentBlockId: null, beforeBlockId: null }, overLimit), /Block subtree exceeds limits/);
   assert.deepEqual(doc.data, before);
 });
 

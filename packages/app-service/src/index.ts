@@ -202,7 +202,9 @@ function validateBlockPayload(value: unknown, field = "block", state = blockInpu
     inputId(block.id, `${item.path}.id`); requiredText(block.type, `${item.path}.type`); requiredText(block.text, `${item.path}.text`, true);
     if (!Array.isArray(block.children)) throw new MotionAppError("INVALID_INPUT", `${item.path}.children must be an array`);
     validateTypedBlockFields(block, item.path, state); if (block.unknownData !== undefined) validateUnknownData(block.unknownData, `${item.path}.unknownData`, state);
-    block.children.forEach((child, index) => pending.push({ value: child, path: `${item.path}.children[${index}]`, depth: item.depth + 1 }));
+    if (item.depth >= DEFAULT_VALIDATION_LIMITS.maxBlockDepth && block.children.length) throw new MotionAppError("INVALID_INPUT", `${field} exceeds block limits`);
+    if (block.children.length > DEFAULT_VALIDATION_LIMITS.maxBlocks - state.blocks - pending.length) throw new MotionAppError("INVALID_INPUT", `${field} exceeds block limits`);
+    for (let index = 0; index < block.children.length; index++) pending.push({ value: block.children[index], path: `${item.path}.children[${index}]`, depth: item.depth + 1 });
   }
   return value as Block;
 }
@@ -372,6 +374,7 @@ export class MotionAppService {
   }
 
   private executeUnsafe(command: AppCommand): MutationDto | ImportDto {
+    if (!plainObject(command) || typeof command.type !== "string") throw new MotionAppError("INVALID_INPUT", "command must be a plain object with a type");
     if (command.type === "workspace.create") {
       const document = createWorkspace(requiredText(command.name, "name"));
       assertWorkspaceValue(document);

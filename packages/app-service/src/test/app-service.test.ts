@@ -197,6 +197,11 @@ test("block command validation rejects typed-field mismatches, unsafe values and
     assert.throws(() => create(deep), (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
     const references = Array.from({ length: 100_001 }, () => ({ pageId }));
     assert.throws(() => create({ id: "refs", type: "paragraph", text: "", children: [], references }), (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    const tooWide = { id: "wide-root", type: "future-wide", text: "", children: new Array(1_000_000), unknownData: { preserved: true } };
+    assert.throws(() => create(tooWide), (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    assert.throws(() => create({ id: "future", type: "future-widget", text: "", children: [], pageId: "unsafe page id", unknownData: { preserved: true } }),
+      (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    assert.throws(() => service.execute(null as any), (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
     assert.deepEqual(store.load(workspaceId), before);
     state = create({ id: "transform-target", type: "paragraph", text: "", children: [] });
     assert.throws(() => service.execute({ type: "block.transform", workspaceId, expectedRevision: state.revision, pageId, blockId: "transform-target", transform: { type: "task" } }), (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");

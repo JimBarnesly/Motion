@@ -33,7 +33,7 @@ export class WorkspaceDocument {
   addBlock(pageId: ID, block: Omit<Block, "id" | "children"> & { id?: ID; children?: Block[] }): Block { return this.createBlock({ pageId, parentBlockId: null, beforeBlockId: null }, { ...block, id: block.id ?? id(), children: block.children ?? [] }); }
   updateBlock(pageId: ID, blockId: ID, patch: Partial<Block>) { const location = this.requiredBlock(pageId, blockId); const candidate = Object.assign(structuredClone(location.block), structuredClone(patch), { id: blockId }); location.siblings[location.index] = candidate; try { this.assertMutableState(); } catch (error) { location.siblings[location.index] = location.block; throw error; } this.changedPages(location.page); return candidate; }
   createBlock(position: BlockPosition, block: Block): Block {
-    const candidate = structuredClone(block); this.assertNewBlockIds(candidate); this.assertBlockNesting(candidate);
+    this.assertNewBlockIds(block); this.assertBlockNesting(block); const candidate = structuredClone(block);
     const siblings = this.targetSiblings(position); const index = this.targetIndex(siblings, position.beforeBlockId);
     siblings.splice(index, 0, candidate);
     try { this.assertMutableState(); } catch (error) { siblings.splice(index, 1); throw error; }
@@ -134,12 +134,38 @@ export class WorkspaceDocument {
   }
   private assertNewBlockIds(root: Block): void {
     const existing = this.allStableIds(), candidate = new Set<ID>(), pending = [{ block: root, depth: 0 }]; let count = 0;
-    while (pending.length) { const { block, depth } = pending.pop()!; if (depth > DEFAULT_VALIDATION_LIMITS.maxBlockDepth || ++count > DEFAULT_VALIDATION_LIMITS.maxBlocks || !Array.isArray(block.children)) throw new Error("Block subtree exceeds limits"); stableId(block.id); if (existing.has(block.id) || candidate.has(block.id)) throw new Error(`duplicate ID ${block.id}`); candidate.add(block.id); for (const child of block.children) pending.push({ block: child, depth: depth + 1 }); }
+    while (pending.length) {
+      const { block, depth } = pending.pop()!;
+      if (!block || typeof block !== "object" || depth > DEFAULT_VALIDATION_LIMITS.maxBlockDepth || ++count > DEFAULT_VALIDATION_LIMITS.maxBlocks || !Array.isArray(block.children)) throw new Error("Block subtree exceeds limits");
+      stableId(block.id); if (existing.has(block.id) || candidate.has(block.id)) throw new Error(`duplicate ID ${block.id}`); candidate.add(block.id);
+      if (depth >= DEFAULT_VALIDATION_LIMITS.maxBlockDepth && block.children.length) throw new Error("Block subtree exceeds limits");
+      if (block.children.length > DEFAULT_VALIDATION_LIMITS.maxBlocks - count - pending.length) throw new Error("Block subtree exceeds limits");
+      for (let index = 0; index < block.children.length; index++) pending.push({ block: block.children[index]!, depth: depth + 1 });
+    }
   }
-  private assertBlockNesting(root: Block): void { const pending = [root]; while (pending.length) { const block = pending.pop()!; if (LEAF_BLOCK_TYPES.has(block.type) && block.children.length) throw new Error(`Block type ${block.type} cannot contain children`); pending.push(...block.children); } }
+  private assertBlockNesting(root: Block): void {
+    const pending = [{ block: root, depth: 0 }]; let count = 0;
+    while (pending.length) {
+      const { block, depth } = pending.pop()!;
+      if (!block || typeof block !== "object" || depth > DEFAULT_VALIDATION_LIMITS.maxBlockDepth || ++count > DEFAULT_VALIDATION_LIMITS.maxBlocks || !Array.isArray(block.children)) throw new Error("Block subtree exceeds limits");
+      if (LEAF_BLOCK_TYPES.has(block.type) && block.children.length) throw new Error(`Block type ${block.type} cannot contain children`);
+      if (depth >= DEFAULT_VALIDATION_LIMITS.maxBlockDepth && block.children.length) throw new Error("Block subtree exceeds limits");
+      if (block.children.length > DEFAULT_VALIDATION_LIMITS.maxBlocks - count - pending.length) throw new Error("Block subtree exceeds limits");
+      for (let index = 0; index < block.children.length; index++) pending.push({ block: block.children[index]!, depth: depth + 1 });
+    }
+  }
   private refreshDescendantIds(root: Block): void {
-    const pending = root.children.map((block, index) => ({ block, path: String(index) }));
-    while (pending.length) { const { block, path } = pending.pop()!; block.id = `${root.id}:${path}`; block.children.forEach((child, index) => pending.push({ block: child, path: `${path}.${index}` })); }
+    const pending: { block: Block; path: string; depth: number }[] = []; let count = 1;
+    if (root.children.length > DEFAULT_VALIDATION_LIMITS.maxBlocks - count) throw new Error("Block subtree exceeds limits");
+    for (let index = 0; index < root.children.length; index++) pending.push({ block: root.children[index]!, path: String(index), depth: 1 });
+    while (pending.length) {
+      const { block, path, depth } = pending.pop()!;
+      if (!block || typeof block !== "object" || depth > DEFAULT_VALIDATION_LIMITS.maxBlockDepth || ++count > DEFAULT_VALIDATION_LIMITS.maxBlocks || !Array.isArray(block.children)) throw new Error("Block subtree exceeds limits");
+      block.id = `${root.id}:${path}`;
+      if (depth >= DEFAULT_VALIDATION_LIMITS.maxBlockDepth && block.children.length) throw new Error("Block subtree exceeds limits");
+      if (block.children.length > DEFAULT_VALIDATION_LIMITS.maxBlocks - count - pending.length) throw new Error("Block subtree exceeds limits");
+      for (let index = 0; index < block.children.length; index++) pending.push({ block: block.children[index]!, path: `${path}.${index}`, depth: depth + 1 });
+    }
   }
   private assertMutableState(): void { assertWorkspace({ ...this.data, linkIndex: [] }); }
   private changedPages(...pages: Page[]): void { for (const page of new Set(pages)) { page.updatedAt = now(); this.indexPage(page); } this.touch(); }

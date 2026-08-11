@@ -1,7 +1,7 @@
 # Status
 
 Updated: 2026-08-11
-Provisional evidence baseline: `ac570c5` (`feat/v1-phase-0-green-baseline`)
+Provisional evidence baseline: `fd15dbe` (`feat/v1-phase-0-green-baseline`)
 
 The baseline is provisional because the Phase 0 documentation and remaining
 integration work will advance the commit before merge. It is not an immutable
@@ -41,23 +41,27 @@ Integrated at the provisional baseline:
 
 ## Evidence verified locally on 2026-08-11
 
-These checks are zero-dependency/source checks that ran on the audit host. They
-do not substitute for the Node 22+ complete suite or immutable CI:
+These checks ran against an identical source tree in the dependency-equipped
+integration worktree. They do not substitute for Node 22 runtime tests, actual
+Playwright/native execution, or immutable CI:
 
-| Check | Result at `ac570c5` |
+| Check | Result at `fd15dbe` |
 | --- | --- |
 | Workflow, complete-E2E-selection, and network-denial contracts | 22 passed, 0 failed |
-| Complete Web unit/source-boundary suite | 53 passed, 0 failed |
+| Complete Web unit/source-boundary suite | 54 passed, 0 failed |
+| Core tests | 24 passed, 0 failed |
+| Backup tests | 5 passed, 0 failed |
+| Root TypeScript typecheck | Passed with TypeScript 5.9.3 |
+| Root build | Passed |
 | First-party static-analysis scan | Passed; 80 files, 8 rules |
 | Static-analysis governance tests | 16 passed, 0 failed |
-| Web workspace build | Passed (`apps/web/dist`) |
 
 ## Blocked or absent evidence
 
-- `npm test`, root `npm run typecheck`, root `npm run build`,
-  `npm run test:offline`, and actual Playwright execution were not completed on
-  this host because the supported Node toolchain and installed dependencies are
-  unavailable.
+- Root typecheck/build and the Core, Backup, and Web suites passed in the
+  dependency-equipped worktree. The complete `npm test`, app-service runtime
+  tests, `npm run test:offline`, and actual Playwright execution remain blocked
+  because this host runs Node 20; `node:sqlite` requires the pinned Node 22 CI runtime.
 - Rust/Tauri builds, vulnerability collection, secret scanning with `gitleaks`,
   and advisory-database-backed release-security checks were not run here.
 - No complete CI and release-security chain has passed against one immutable V1
@@ -80,11 +84,11 @@ V1 acceptance.
 
 ## Next actions
 
-1. Integrate the accessible-search work and complete the static-analysis and
-   security review on the final combined bytes.
-2. Provision the pinned Node 22+ dependency/tool cache and run every documented
-   Phase 0 command from a clean checkout.
-3. Obtain a complete immutable CI run, then perform checksum-bound installed
+1. Complete independent review of the final combined bytes and push the exact
+   reviewed commit.
+2. Run the complete Node 22 CI, Playwright, Rust/Tauri, and release-security
+   chain on that immutable commit.
+3. Preserve the complete immutable CI run, then perform checksum-bound installed
    package acceptance separately; do not infer package acceptance from service
    smoke tests.
 

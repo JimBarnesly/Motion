@@ -3,7 +3,7 @@
 Owner: Quality & Release Director  
 Decision authority: Managing Director  
 Reviewed: 2026-08-11
-Current provisional V1 baseline: `ac570c5` (`feat/v1-phase-0-green-baseline`)
+Current provisional V1 baseline: `fd15dbe` (`feat/v1-phase-0-green-baseline`)
 Quality disposition: **NOT ACCEPTED for V1 or public release**
 
 The current baseline is provisional and will advance before merge as this
@@ -18,22 +18,23 @@ missing workflow npm scripts have been restored, workflow script contracts are
 self-gated, complete tracked Playwright spec selection is gated, and the
 first-party static-analysis baseline has been repaired. Link lifecycle states,
 accessible canonical search, race-hardened edit recovery, and suite-wide
-HTTP(S)/WebSocket denial are integrated at `ac570c5`.
+HTTP(S)/WebSocket denial are integrated at `fd15dbe`.
 
 The audit host has Node `v20.20.2`, while the repository requires Node 22 or
-newer. It also lacks installed/cached workspace dependencies, the Rust/Tauri
-toolchain, Playwright/browser payload, `gitleaks`, and the offline advisory
-database. Therefore the complete CI and release-security chain could not run on
-this host.
+newer. Dependencies became available in an isolated integration worktree, where
+typecheck/build and focused suites passed. App-service runtime (`node:sqlite`),
+Rust/Tauri, Playwright/browser execution, `gitleaks`, and advisory-backed gates
+still require the pinned CI/release environment.
 
 | Current Phase 0 evidence | Result | Acceptance boundary |
 | --- | --- | --- |
 | Workflow/E2E selection/network-denial source gates | 22 passed, 0 failed | Proves declarations and confinement policy only; Playwright itself was not run |
-| Complete Web unit/source-boundary suite | 53 passed, 0 failed | Source-level Web evidence, not packaged native interaction |
+| Complete Web unit/source-boundary suite | 54 passed, 0 failed | Source-level Web evidence, not packaged native interaction |
+| Core and Backup suites | 24/24 and 5/5 passed | Focused canonical and restore evidence |
+| Root TypeScript typecheck and build | Passed | Real compilation on Node 20; Node 22 runtime CI remains required |
 | First-party static-analysis scan | Passed: 80 files, 8 rules | Final release-security approval remains open |
 | Static-analysis governance tests | 16 passed, 0 failed | Must be rerun on final combined bytes |
-| Web workspace build | Passed | Zero-dependency Web asset build, not root build/package evidence |
-| Complete Node 22+ CI/release-security chain | Blocked / not run | Missing supported toolchain, dependencies and security tooling/data |
+| Complete Node 22+ CI/release-security chain | Blocked / not run | Missing supported runtime and security tooling/data |
 | Immutable CI run for exact V1 candidate | Missing | No frozen candidate exists |
 | Installed x86-64/ARM64 AppImage and Debian acceptance | Missing | No package from this baseline was installed or launched |
 
@@ -46,7 +47,7 @@ user outcomes. V1 readiness must not be inferred from repaired gate wiring.
 
 The remainder of this report records the legitimate 0.1.0 evidence reviewed on
 2026-08-05. Its source and CI baselines are historical and must not be presented
-as verification of `ac570c5` or of V1. The recorded historical baseline was
+as verification of `fd15dbe` or of V1. The recorded historical baseline was
 `8ae8a17` (`main`) plus the uncommitted working tree present at final retest.
 
 Motion 0.1.0 had credible automated evidence for its canonical service and Web

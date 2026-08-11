@@ -3,7 +3,7 @@
 Owner: Engineering Director  
 Decision authority: Managing Director  
 Last reviewed: 2026-08-11
-Provisional evidence baseline: `ac570c5` (`feat/v1-phase-0-green-baseline`)
+Provisional evidence baseline: `fd15dbe` (`feat/v1-phase-0-green-baseline`)
 
 This commit identifies the current integration point, not a frozen candidate.
 The baseline will advance before merge as documentation and separately owned
@@ -23,25 +23,24 @@ Phase 0 work.
 | Complete E2E spec selection and network denial | Verified locally; execution blocked | Playwright discovery is complete; 20 source/selection contracts prove suite-wide fail-closed HTTP(S)/WebSocket policy. Playwright/browser dependencies are absent. |
 | Static-analysis base | Verified locally | Scanner passed 80 first-party files under 8 rules; 16 governance tests passed after final sink review. |
 | Link, search, and failed-edit recovery | Integrated; focused evidence only | Link lifecycle, accessible canonical search, and race-hardened retry/discard are present; complete Web suite passed 53 tests. |
-| Fine-grained block commands | Integrated; compilation pending | Create/update/transform/move/indent/outdent/duplicate/delete/batch contracts include shared identity and resource bounds; TypeScript tests require CI. |
-| Web zero-dependency build | Verified locally | `npm run build --workspace @motion/web` passed under Node 20. |
-| Complete package/unit/integration suite | Blocked on audit host | Repository requires Node >=22; host is Node v20.20.2 and dependencies are not installed/cached. |
-| Root typecheck/build and offline restart | Blocked on audit host | Supported Node, workspace dependencies, and generated package outputs are unavailable. |
+| Fine-grained block commands | Integrated and compiled locally | Create/update/transform/move/indent/outdent/duplicate/delete/batch contracts include shared identity/resource bounds and desktop IPC allowlisting. |
+| Root typecheck and build | Verified locally | TypeScript 5.9.3 typecheck and all workspace builds passed against the exact tree. |
+| Focused package suites | Partially verified | Core 24/24, Backup 5/5, and Web 54/54 passed. App-service runtime is blocked under Node 20 because `node:sqlite` requires Node 22. |
+| Complete package/unit/integration suite and offline restart | Blocked on audit host | Repository requires Node >=22; complete runtime execution awaits CI. |
 | Release-security chain | Blocked / review open | Rust/Tauri, `gitleaks`, dependency tooling, and the offline advisory database are unavailable; static-analysis success alone is insufficient. |
 | Immutable CI for V1 baseline | Missing | No complete run exists for one frozen Phase 0 commit. |
 | Installed native package acceptance | Missing | No package from this baseline was installed and exercised on representative x86-64 and ARM64 graphical hosts. |
 
 ## Evidence boundaries
 
-The passing local checks above are deterministic, zero-dependency source tests
-or the Web asset build. They establish that the repaired contracts are present
-and that focused source behavior is internally consistent. They do **not**
-establish that workspace compilation, native packaging, browsers, advisory
-collection, or release security pass under the supported toolchain.
+The passing local checks include real TypeScript compilation, workspace builds,
+and focused Core, Backup, and Web suites. They establish source consistency but
+do **not** establish Node 22 app-service runtime behavior, native packaging,
+browser execution, advisory collection, or release-security acceptance.
 
 Historical 0.1 CI/package evidence predates the provisional V1 baseline. It may
 support continuity investigations, but it cannot be attributed to
-`ac570c5`, used as an immutable V1 run, or treated as installed-package
+`fd15dbe`, used as an immutable V1 run, or treated as installed-package
 acceptance.
 
 ## Engineering priorities for Managing Director coordination

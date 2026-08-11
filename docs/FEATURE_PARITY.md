@@ -3,7 +3,7 @@
 Owner: Product Director
 Decision authority: Managing Director
 Last reviewed: 2026-08-11
-Provisional evidence baseline: `ac570c5` (`feat/v1-phase-0-green-baseline`)
+Provisional evidence baseline: `fd15dbe` (`feat/v1-phase-0-green-baseline`)
 
 ## Purpose and evidence rule
 
@@ -27,7 +27,7 @@ package acceptance for this baseline.
 
 ## V1 current register
 
-| Capability area | Status | Implemented evidence at `ac570c5` | Missing V1 evidence/outcome |
+| Capability area | Status | Implemented evidence at `fd15dbe` | Missing V1 evidence/outcome |
 | --- | --- | --- | --- |
 | Pages and navigation | Partial | Canonical create/move/reorder/favourite/trash/restore paths, nested Web navigation, restart-focused tests | Permanent deletion, robust pointer drag/drop plus equivalent keyboard commands, complete restart state, and installed-package acceptance |
 | Daily-writing editor | Partial | Web compatibility editor handles several block types and recoverable saves; canonical service now defines bounded typed create/update/transform/move/indent/outdent/duplicate/delete/batch commands | Authoritative React + Tiptap/ProseMirror path; UI adoption of fine-grained commands; selection/clipboard/IME/undo/redo; 10,000-word and packaged evidence |
@@ -45,7 +45,7 @@ package acceptance for this baseline.
 | Relations and rollups | Missing | Requirements/schema design only | Usable reciprocal relations, deterministic rollups/cycle handling, restart/export/restore and package evidence |
 | Formulas | Partial | Versioned parser/evaluator package with focused tests | Canonical property projection/filter/sort integration, database UX and complete persistence/export/package evidence |
 | Templates | Missing | Template-origin field only | Creation, application, editing, portability and tested user workflow |
-| Structured export, backup, and restore | Partial | JSON/Markdown/CSV export primitives and verified backup service paths with prior focused tests | Complete offline user flows, attachment-complete reconstruction of all V1 entities, hostile-input/rollback evidence and installed-package drills |
+| Structured export, backup, and restore | Partial | JSON/Markdown/CSV primitives; bounded deterministic restore namespacing; long-ID, collision, reference, row-key, and attachment-focused tests | Complete offline user flows, full V1 reconstruction, interruption drills, and installed-package evidence |
 | Markdown and CSV import | Missing | Requirements/design only | Bounded staged preflight, compatibility report, cancellation, deterministic conflicts and transactional rollback |
 | Offline Linux desktop | Partial | Tauri shell, canonical SQLite service, bundled-runtime/package pipeline, and historical extracted-service smoke | Exact-baseline x86-64/ARM64 AppImage/Debian installed-window acceptance with networking disabled |
 | Accessibility | Partial | Labeled controls, keyboard-focused source tests, accessible search states, and normal/200%-equivalent E2E specifications exist | WCAG 2.2 AA execution and recorded keyboard, 200% zoom and Orca installed-package acceptance are missing |

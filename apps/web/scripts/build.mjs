@@ -7,5 +7,5 @@ const output = resolve(root, "dist");
 
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
-await Promise.all(["index.html", "app.js", "app-adapter.js", "app-adapter.d.ts", "edit-recovery.js", "workspace-v1.js", "link-presentation.js", "styles.css"].map((file) => cp(resolve(root, file), resolve(output, file))));
+await Promise.all(["index.html", "app.js", "app-adapter.js", "app-adapter.d.ts", "block-presentation.js", "edit-recovery.js", "search-recovery.js", "workspace-v1.js", "link-presentation.js", "styles.css"].map((file) => cp(resolve(root, file), resolve(output, file))));
 console.log("Built @motion/web to apps/web/dist");

@@ -72,7 +72,7 @@
     <dialog id="searchDialog" class="search-dialog">
       <form method="dialog" class="dialog-card">
         <div class="search-input-row"><span aria-hidden="true">⌕</span><input id="searchInput" type="search" autocomplete="off" placeholder="Search pages and blocks…" aria-label="Search workspace" /><button value="cancel" class="key-button" aria-label="Close search">Esc</button></div>
-        <div id="searchResults" class="search-results"></div>
+        <div id="searchResults" class="search-results" role="status" aria-live="polite"></div>
       </form>
     </dialog>
     <script type="module" src="./app.js"></script>

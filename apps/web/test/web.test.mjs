@@ -80,7 +80,8 @@ test("search and export use canonical native queries with honest browser fallbac
   assert.match(adapter, /type: "workspace\.export"/);
   assert.match(source, /adapter\.kind === "tauri"/);
   assert.match(source, /motion-browser-development/);
-  assert.match(source, /new Set\(hits\.map/);
+  assert.match(source, /buildBrowserSearchHits\(workspace\(\),term,50\)/);
+  assert.match(source, /normalizeSearchHits\(raw\?\?\[\],50\)/);
 });
 
 test("native attachment and verified backup operations use revisioned typed lanes", async () => {

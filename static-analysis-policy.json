@@ -5,181 +5,163 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:7dd9ffb2a10235dff3c9128d8998ce136730160f41a3d3dd89ec6176175bcb17",
+      "fingerprint": "sha256:d1f4f4c45f068e497a1019209fdf4779e26127a499606ef3fb3d549938727ee3",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
+      "rationale": "Page-tree markup uses trusted templates; page titles are HTML-escaped and page IDs are constrained stable identifiers.",
       "expires": "2026-11-05"
     },
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:74e6d04be0e453f9edd3eecfa906b9d1809d22df666c22385cd5cf8d7307b017",
+      "fingerprint": "sha256:ca781555ab7765e4cc8673b5809a2aeb2609e97261a6eb493a94302ede90822c",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
+      "rationale": "Favourite navigation uses trusted templates; titles are HTML-escaped and page IDs are constrained stable identifiers.",
       "expires": "2026-11-05"
     },
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:e9efde8deec62910d95032d34cef9241b769ba526eaab000d9ca51b1978fc235",
+      "fingerprint": "sha256:a8efe997f9d17211d5f52483616961769e70e72ee4680fd2b719bec5231e0da5",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
+      "rationale": "Trash navigation uses trusted templates; titles and aria-label text are HTML-escaped and page IDs are constrained stable identifiers.",
       "expires": "2026-11-05"
     },
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:0b8f83f7a4b4f47a1d6012a75a68944d4a3c512f73b245d88db2c4d759d568bc",
+      "fingerprint": "sha256:4bd624aef97ae959b36d1ececd07cb123bd4fa7ca831ab7135e1d98890d77f8e",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
+      "rationale": "The empty-workspace renderer contains only fixed application markup with no dynamic values.",
       "expires": "2026-11-05"
     },
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:642cb97739cb7213f1e16e229cf98883aec049bb68a6985ec82e8d25eb606c85",
+      "fingerprint": "sha256:9ce449f499584142ce40886bdfc224801256020d9d301252d1e2e81e26654ac7",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
+      "rationale": "Breadcrumb markup uses trusted separators and controls; titles are HTML-escaped and page IDs are constrained stable identifiers.",
       "expires": "2026-11-05"
     },
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:d10fa3da918a51cec12e9b09ce303bbfe42820a0533ccd3101cf2603a0c27f9c",
-      "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
+      "fingerprint": "sha256:69716535aa49b624e00eedadad3575ed5cfeee4fb1eedf344f19fa3846fdd32f",
+      "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests; apps/web/test/block-presentation.test.mjs hostile unknown-type boundary test",
       "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
+      "rationale": "Document composition delegates dynamic values to reviewed escaped renderers; unknown block types are attribute-escaped by renderBlockTypeOption.",
       "expires": "2026-11-05"
     },
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:2c832539dfb8d1497c4e958ad7924ac87bc67493a09c3f1e2473767085005dfa",
+      "fingerprint": "sha256:6e7cc9d7f72356b898cee6e28df946d0f6b602c1df9b4f81c24b298d35ef3d85",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
+      "rationale": "Database composition uses trusted templates; displayed names and values are escaped and identifiers are constrained stable IDs.",
       "expires": "2026-11-05"
     },
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:cf96a8ae2338b95075d81976f74446836c1a0925cc2678b4fc8800c48456a79b",
+      "fingerprint": "sha256:116c3ba11c3a3ac7b4859c48579f1d4433d9ea96a31f3f7cced07fd5a75a1f9a",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
+      "rationale": "Legacy context fallback assigns only fixed markup or markup built from escaped titles and constrained stable page IDs.",
       "expires": "2026-11-05"
     },
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:1fd675ed9d26ba8fe3cedadefe8d8672f4007830ae795087a1fb4839e6c45c70",
+      "fingerprint": "sha256:5946a4ff87566af7a8ef4d1283bf9783dca6f91844b0f98bf7d5a834eeeb764a",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
+      "rationale": "Legacy context fallback assigns only fixed markup or markup built from escaped titles and constrained stable page IDs.",
       "expires": "2026-11-05"
     },
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:0575a5aa57327bcc8eb8bd1b1f19d302bfe5ef1756fa8705618b294db9ac5d1f",
+      "fingerprint": "sha256:6c8bbe036755000c98635d29c7879553da3776be3b4a469b427f7ec73cb8f751",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
+      "rationale": "Outgoing-link composition uses escaped titles and constrained stable page IDs inside trusted markup.",
       "expires": "2026-11-05"
     },
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:b718d664644308a47e7a37f628b62b9abd870ffea4e3b6ef62a7fb27c8c6074e",
+      "fingerprint": "sha256:30629e8e94f298c5c08b7aadac4d9a43513db9855e8ff73e9c063db4de081509",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
+      "rationale": "Backlink composition uses escaped titles and constrained stable page IDs inside trusted markup.",
       "expires": "2026-11-05"
     },
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:b464529a77dfa205f6990810c9873214c024826fd0dc5357cff0f34a9fef4ab1",
+      "fingerprint": "sha256:2dab20fbb235459c741929433613ce17274942fa14868652f16e533722f14758",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
+      "rationale": "Attachment context fallback is fixed application markup with no dynamic values.",
       "expires": "2026-11-05"
     },
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:3932780f48dcf68c8153dd709ded7696502a9e7b0fa4b58977c44b02a43c0884",
+      "fingerprint": "sha256:1ebe6681ed8fd215e8ef805588c94ff5a5f463426092ba902c5c18168b4802b5",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
+      "rationale": "Page-menu insertion uses trusted templates; visible titles are escaped and all referenced page IDs are constrained stable identifiers.",
       "expires": "2026-11-05"
     },
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:d4301985cd8bf621106d623ff580030779f5ef01cc929bd5cb25960d1b3ace83",
+      "fingerprint": "sha256:752e47f44dc46e304dc5a9ac777d434992642b482c1bff6560d049998b8ef94e",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
+      "rationale": "Property-menu markup escapes persisted names/options; type choices are fixed constants and IDs are constrained stable identifiers.",
       "expires": "2026-11-05"
     },
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:43118694623349d50ca98bfc3e5a4cab18208c21cf1bc8181ebd8149f732cd68",
+      "fingerprint": "sha256:75f00f8c2cc7dda903435c46805320db42dda4197c6e78a71968daf48f7dcfb0",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
+      "rationale": "Filter controls compose reviewed filterRow output and fixed operator controls; persisted labels and values are escaped.",
       "expires": "2026-11-05"
     },
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:ebd9b9826bf54c53d52c72e0d4544c0d4fb7fcb8d6161306e126e637ffecfed8",
+      "fingerprint": "sha256:e7d53086d73b8be7ddc92f6ee73f40c69e1b6926be4bfa90b831e5c3d3a7f24c",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
+      "rationale": "Sort controls compose reviewed sortRow output from fixed directions, escaped labels, and constrained property IDs.",
       "expires": "2026-11-05"
     },
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:7b5086b9c140128a411db482ef6b7bb253144c4696d4ff24c24dc1c5af93bb92",
+      "fingerprint": "sha256:15fc24c7a5c9ef976cf13cf04c23408dd95023b81923015170b7a84266bbc888",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
+      "rationale": "Added filter rows come from filterRow, which escapes persisted labels/values and uses fixed operators with constrained property IDs.",
       "expires": "2026-11-05"
     },
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:2b942254b02134c931fe0cca66d2715ba7d96d8bf5115203c1369f4f0beee3eb",
+      "fingerprint": "sha256:aed6d18db180fbcf665fbc2cfef857f7af943e3df982de22627b15bc9541b53a",
       "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
       "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
-      "expires": "2026-11-05"
-    },
-    {
-      "rule": "js-no-html-sink",
-      "file": "apps/web/app.js",
-      "fingerprint": "sha256:57a1676a3cd3e4030fb102fdc6fe3d5534d3d84be9cd45836e7ccdc785db24da",
-      "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
-      "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
-      "expires": "2026-11-05"
-    },
-    {
-      "rule": "js-no-html-sink",
-      "file": "apps/web/app.js",
-      "fingerprint": "sha256:007e9ac5c5a3eea404b9ae5b4bee5f9f600ed027c0c03c0ed36aba6108a2b0d3",
-      "evidence": "apps/web/test/web.test.mjs hostile-XSS, escaped-label, and hostile-ID boundary tests",
-      "owner": "Operations & Security Director",
-      "rationale": "This exact renderer sink was reviewed: dynamic text is escaped, identifiers are stable-ID constrained, and remaining markup is trusted static composition.",
+      "rationale": "Added sort rows come from sortRow, which uses fixed directions, escaped labels, and constrained property IDs.",
       "expires": "2026-11-05"
     }
   ]

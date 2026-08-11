@@ -4,9 +4,9 @@ A collection is a versioned schema over records; each record is also a page. Pro
 
 ## Types and views
 
-Initial properties: title, plain/rich text, number, checkbox, select, multi-select, status, date/range, URL, email, phone, files, and creation/modification actor/time fields. Relation, rollup, formula, person, identifier, action, location, duration, progress, and dependency extend the registry without changing stored historical types.
+Initial properties: title, plain/rich text, number, checkbox, select, multi-select, status, date/range, URL, email, phone, files, location (explicit coordinates plus optional label), and creation/modification actor/time fields. Relation, rollup, formula, person, identifier, action, duration, progress, and dependency extend the registry without changing stored historical types.
 
-Views are saved configurations over common records. Configuration includes ID, collection, type, visible/property order, widths, typed filter AST, stable sorts, grouping, layout, previews, date fields, permissions, and personal/shared scope. Implement views in order: table, list, board, calendar, gallery, timeline, chart, form.
+Views are saved configurations over common records. Configuration includes ID, collection, type, visible/property order, widths, typed filter AST, stable sorts, grouping, layout, previews, date fields, chart dimensions/measures/aggregation, feed ordering, map location/viewport, permissions, and personal/shared scope. Implement V1 views in order: table, list, board, calendar, gallery, timeline, chart, feed, map. Form is post-V1.
 
 Filters use typed `AND`/`OR`/`NOT` expression trees. Sorts specify direction, null position, locale-aware comparison, and deterministic tie-breaking. Never persist raw SQL as a view filter.
 

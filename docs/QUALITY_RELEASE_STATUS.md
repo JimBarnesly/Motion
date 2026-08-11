@@ -39,7 +39,7 @@ still require the pinned CI/release environment.
 | Installed x86-64/ARM64 AppImage and Debian acceptance | Missing | No package from this baseline was installed or launched |
 
 This focused evidence does not satisfy `V1_SCOPE.md`: it does not prove the
-complete editor, linked-search, six-view database, interchange, accessibility,
+complete editor, linked-search, nine-view database, interchange, accessibility,
 representative reliability/performance, signed artifact, or installed offline
 user outcomes. V1 readiness must not be inferred from repaired gate wiring.
 

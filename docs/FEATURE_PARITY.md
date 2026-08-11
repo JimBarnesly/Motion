@@ -42,6 +42,9 @@ package acceptance for this baseline.
 | Calendar view | Missing | No usable tested calendar-view implementation at this baseline | Date configuration, ranges/undated behavior, keyboard edits and complete evidence |
 | Gallery view | Missing | No usable tested gallery-view implementation at this baseline | Preview/property configuration and complete evidence |
 | Timeline view | Missing | No usable tested timeline-view implementation at this baseline | Start/end configuration, deterministic range placement and complete evidence |
+| Chart view | Missing | No usable tested chart-view implementation at this baseline | Dimension/measure configuration, deterministic aggregation, accessible source-data alternative, restart/export/restore and package evidence |
+| Feed view | Missing | No usable tested feed-view implementation at this baseline | Date/order, grouping, preview/property configuration, deterministic local record stream and complete evidence |
+| Map view | Missing | No usable tested map-view implementation at this baseline | Explicit location property/coordinates, offline markers/clustering, accessible list alternative, restart/export/restore and package evidence |
 | Relations and rollups | Missing | Requirements/schema design only | Usable reciprocal relations, deterministic rollups/cycle handling, restart/export/restore and package evidence |
 | Formulas | Partial | Versioned parser/evaluator package with focused tests | Canonical property projection/filter/sort integration, database UX and complete persistence/export/package evidence |
 | Templates | Missing | Template-origin field only | Creation, application, editing, portability and tested user workflow |
@@ -57,8 +60,12 @@ package acceptance for this baseline.
 The following are **Deferred**, not missing V1 work: sync, collaboration,
 accounts, sharing, comments, presence, permissions, public publishing, AI, MCP,
 connectors, automations, webhooks, public API, Windows, macOS, mobile, hosted
-service, chart/form/dashboard/canvas products, separate mail/calendar products,
+service, form/dashboard/canvas products, separate mail/calendar products,
 and application-level encrypted vaults.
+
+Database chart, feed, and map views are mandatory V1 outcomes; this does not add
+a standalone dashboard, collaboration activity feed, online geocoder, or separate
+map product.
 
 ## Phase 0 interpretation
 

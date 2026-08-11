@@ -9,7 +9,7 @@ Defined: 2026-08-11
 
 Motion V1.0 is a dependable, offline, single-user Linux knowledge workspace. A
 user can create and organise substantial documents, link and find knowledge,
-manage typed records in the six core database views, and reconstruct the complete
+manage typed records in the nine mandatory database views, and reconstruct the complete
 workspace on another machine without an account or network connection.
 
 A source-tree test, browser-development build, extracted service smoke, schema
@@ -54,14 +54,24 @@ boundary in packaged AppImage and Debian builds with networking disabled.
 
 - Records remain normal pages with stable IDs and normal block content.
 - Title, text, number, checkbox, select, multi-select, status, date, URL, email,
-  phone, files, relation, rollup, and formula properties validate and persist.
+  phone, files, location, relation, rollup, and formula properties validate and
+  persist. Location values store explicit coordinates plus an optional human
+  label; V1 does not require online geocoding.
 - Property creation, rename, reorder, width, visibility, populated type conversion
   with preview, and deletion with consequences are complete.
 - Nested filters, deterministic multi-sort, grouping, and saved view lifecycle
   are complete.
-- Table, list, board, calendar, gallery, and timeline independently persist
-  applicable configuration over shared records. Empty, null, filtered, deleted,
-  and large-dataset behavior is deterministic and tested.
+- Table, list, board, calendar, gallery, timeline, chart, feed, and map
+  independently persist applicable configuration over shared records.
+- Chart views persist dimensions, measures, aggregation, series, chart type, and
+  an accessible data-table alternative without requiring a dashboard product.
+- Feed views persist ordering/date, preview, grouping, and visible-property
+  configuration over records; they do not imply collaboration or remote activity.
+- Map views use explicit location coordinates, remain functional offline, never
+  silently fetch map tiles or geocoding data, and provide an equivalent list/table
+  path for keyboard and assistive-technology users.
+- Empty, null, filtered, deleted, and large-dataset behavior is deterministic and
+  tested for every view.
 
 ### Portability and recovery
 
@@ -104,7 +114,8 @@ boundary in packaged AppImage and Debian builds with networking disabled.
   public publishing.
 - AI, MCP, external connectors, automations, webhooks, and public API.
 - Windows, macOS, mobile, hosted service, and browser-as-product distribution.
-- Chart, form, dashboard, canvas, mail, and separate calendar products.
+- Form, dashboard, canvas, mail, and separate calendar products. The mandatory
+  database chart view is not a standalone dashboard product.
 - Application-level encrypted vaults.
 
 These exclusions do not weaken local confidentiality, path safety, diagnostic

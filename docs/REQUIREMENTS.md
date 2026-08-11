@@ -43,8 +43,9 @@ Requirement IDs are stable references for implementation, tests, release notes, 
 ## Views, filters, and sorting
 
 - **VIEW-001:** Every view is saved configuration over shared collection records; a view does not duplicate record data.
-- **VIEW-002:** Views are implemented in this order: table, list, board, calendar, gallery, timeline, chart, then form.
-- **VIEW-003:** A view stores stable view and collection IDs, type, name, visible properties, property order, column widths, filters, sorts, grouping/subgrouping, layout, card preview, calendar date property, timeline start/end properties, permissions, and personal/shared state as applicable.
+- **VIEW-002:** V1 views are implemented in this order: table, list, board, calendar, gallery, timeline, chart, feed, then map. Form is post-V1.
+- **VIEW-003:** A view stores stable view and collection IDs, type, name, visible properties, property order, column widths, filters, sorts, grouping/subgrouping, layout, card preview, calendar date property, timeline start/end properties, chart dimensions/measures/aggregation, feed date/order/preview, map location property/viewport, permissions, and personal/shared state as applicable.
+- **VIEW-004:** Chart has an accessible source-data alternative; feed is a deterministic local record presentation; map uses explicit coordinates, works with networking disabled, never silently fetches tiles/geocoding, and has an equivalent list/table path.
 - **FILTER-001:** Filters use a typed abstract syntax tree with nested `AND`, `OR`, and `NOT`; raw SQL fragments are forbidden in persisted view configuration.
 - **FILTER-002:** Operators are type-aware and support relative dates, empty/not-empty, and relation conditions; formula-result conditions are an extension.
 - **SORT-001:** Views support multiple ascending/descending clauses, deterministic stable ordering, manual ordering, explicit null positioning, type-aware comparison, and locale-aware text comparison.

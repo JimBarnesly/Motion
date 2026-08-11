@@ -85,14 +85,24 @@ Exit gate: links survive rename/move, target lifecycle is honest, block deep lin
    - board: select/status grouping, ungrouped lane, keyboard and pointer card moves;
    - calendar: configured date property, range handling, undated section, keyboard date changes;
    - gallery: configurable preview and visible properties;
-   - timeline: configured start/end fields and deterministic range placement.
+   - timeline: configured start/end fields and deterministic range placement;
+   - chart: configured dimensions/measures, deterministic aggregation and an
+     accessible data-table alternative;
+   - feed: configured date/order, grouping, preview and visible properties over
+     shared records, with no collaboration or remote-activity dependency;
+   - map: explicit location coordinates, deterministic marker clustering, an
+     equivalent list/table path, and no silent remote tiles or geocoding.
 4. Keep table behaviour and the 5,000-record bounded-rendering evidence intact.
 
-Exit gate: each view is saved canonical configuration, survives restart/export/restore, uses deterministic filtered/sorted records, and has keyboard-accessible record movement/editing.
+Exit gate: all nine mandatory views are saved canonical configuration, survive
+restart/export/restore, use deterministic filtered/sorted records, and have
+keyboard-accessible record movement/editing. Chart exposes its source data
+accessibly, feed remains local record presentation, and map remains useful with
+networking disabled.
 
 ## Phase 4 — advanced databases
 
-1. Populated property type-change preflight with explicit conversion, rejection, or clearing choices.
+1. Populated property type-change preflight with explicit conversion, rejection, or clearing choices, including bounded coordinate validation for location values.
 2. Relations with reciprocal constraints and stable record targets.
 3. Rollups with cycle detection and deterministic aggregation.
 4. Formula-result projection/filter/sort using the versioned parser/evaluator; never JavaScript `eval`.
@@ -117,7 +127,7 @@ After Phases 1–5:
 - local comments and history;
 - project/task dependency and workload outcomes;
 - optional self-hosted sync, collaboration, and permissions;
-- explicitly approved automation, dashboards/forms/charts, API/MCP, and AI adapters.
+- explicitly approved automation, standalone dashboards/forms, API/MCP, and AI adapters.
 
 Mobile, enterprise administration, Calendar, Mail, and cloud-only connectors remain separate scope decisions.
 

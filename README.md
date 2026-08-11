@@ -42,6 +42,10 @@ top-bar export/restore controls for portable JSON or a verified native backup.
 Workspace data stays in the current user's local application-data directory.
 See [the release guide](docs/RELEASE.md) for verification and uninstall details.
 
+The active V1.0 scope and delivery sequence are published in
+[`docs/V1_SCOPE.md`](docs/V1_SCOPE.md) and
+[`docs/V1_IMPLEMENTATION_WORKPLAN.md`](docs/V1_IMPLEMENTATION_WORKPLAN.md).
+
 ## Development
 
 ```sh

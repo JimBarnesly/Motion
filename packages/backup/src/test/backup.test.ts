@@ -57,6 +57,62 @@ test("restoring a table remaps property IDs and row value keys together", () => 
   assert.equal("property-1" in ((restored.databases[0]?.rows[0] as any)?.values ?? {}), false);
 });
 
+test("bounded restore IDs preserve references, attachment keys and non-ID strings", () => {
+  const maximumId = "p".repeat(160);
+  const migratedDatabaseId = `database:${"d".repeat(128)}`;
+  const migratedViewId = `view:${"v".repeat(128)}:table`;
+  const attachmentId = "a".repeat(160);
+  const source: WorkspaceSnapshot = {
+    schemaVersion: 2,
+    id: "source-workspace",
+    name: "Boundary fixture",
+    pages: [{ id: maximumId, parentId: null, title: maximumId, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", blocks: [
+      { id: "boundary-block", type: "file", text: maximumId, children: [], attachmentId }
+    ] }],
+    databases: [{ id: migratedDatabaseId, pageId: maximumId, name: "Migrated", properties: [
+      { id: "property", name: "Relation", type: "page" }
+    ], rows: [{ id: "row", values: { property: maximumId }, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }], views: [
+      { id: migratedViewId, collectionId: migratedDatabaseId, name: "Table", type: "table", visiblePropertyIds: ["property"] }
+    ] }],
+    attachments: [{ id: attachmentId, fileName: "boundary.bin", mediaType: "application/octet-stream", sha256, byteLength: bytes.byteLength, path: "/retained/source/path", createdAt: "2026-01-01T00:00:00.000Z" }],
+    linkIndex: [],
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  };
+  const backup = createBackup(source, [{ id: attachmentId, fileName: "boundary.bin", bytes }], "2026-01-02T00:00:00.000Z");
+  const namespace = "n".repeat(160);
+  const first = restoreIntoNewWorkspace(backup, namespace);
+  const repeated = restoreIntoNewWorkspace(backup, namespace);
+  const other = restoreIntoNewWorkspace(backup, "other-workspace");
+  const entityIds = [first.workspace.id, first.workspace.pages[0]!.id, (first.workspace.pages[0]!.blocks[0] as any).id,
+    first.workspace.databases[0]!.id, (first.workspace.databases[0]!.properties[0] as any).id,
+    first.workspace.databases[0]!.rows[0]!.id, (first.workspace.databases[0]!.views[0] as any).id, first.workspace.attachments[0]!.id];
+
+  assert.equal(new Set(entityIds).size, entityIds.length);
+  assert.ok(entityIds.every(id => id.length <= 160 && /^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(id)));
+  assert.deepEqual(first.idMap, repeated.idMap);
+  assert.notEqual(first.idMap.get(maximumId), other.idMap.get(maximumId));
+  assert.equal(first.workspace.databases[0]!.pageId, first.idMap.get(maximumId));
+  assert.equal((first.workspace.databases[0]!.views[0] as any).collectionId, first.idMap.get(migratedDatabaseId));
+  assert.equal((first.workspace.pages[0]!.blocks[0] as any).attachmentId, first.idMap.get(attachmentId));
+  assert.equal((first.workspace.databases[0]!.rows[0] as any).values[first.idMap.get("property")!], first.idMap.get(maximumId));
+  assert.equal(first.workspace.pages[0]!.title, maximumId);
+  assert.equal((first.workspace.pages[0]!.blocks[0] as any).text, maximumId);
+  assert.equal(first.workspace.attachments[0]!.path, "/retained/source/path");
+  assert.deepEqual(first.attachments.get(first.idMap.get(attachmentId)!), bytes);
+});
+
+test("restore rejects unsafe namespaces and ambiguous duplicate source identities", () => {
+  const backup = createBackup({ ...workspace, attachments: [] }, [], "2026-01-02T00:00:00.000Z");
+  for (const namespace of ["", "bad/id", "x".repeat(161)]) assert.throws(() => restoreIntoNewWorkspace(backup, namespace), /workspace ID/i);
+  const duplicate = structuredClone({ ...workspace, attachments: [] });
+  duplicate.pages[1]!.id = duplicate.pages[0]!.id;
+  assert.throws(() => restoreIntoNewWorkspace(createBackup(duplicate, []), "safe-workspace"), /duplicate source ID/i);
+  const hostile = structuredClone({ ...workspace, attachments: [] });
+  hostile.pages[0]!.id = "bad/id";
+  assert.throws(() => restoreIntoNewWorkspace(createBackup(hostile, []), "safe-workspace"), /source page ID/i);
+});
+
 test("tampering and traversal paths are rejected", () => {
   const backup = createBackup(workspace, [{ id: "attachment-1", fileName: "note.txt", bytes }]);
   const corrupted = { ...backup, files: { ...backup.files, "workspace.json": new TextEncoder().encode("{}") } };

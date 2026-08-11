@@ -36,6 +36,8 @@ const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest(
 const MAX_BACKUP_FILES = 10_000;
 const MAX_BACKUP_METADATA_STRING = 4_096;
 const MAX_BACKUP_TOTAL_BYTES = 2 * 1024 * 1024 * 1024;
+const CANONICAL_MAX_ID_LENGTH = 160;
+const CANONICAL_ID = new RegExp(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,${CANONICAL_MAX_ID_LENGTH - 1}}$`);
 
 /** Stable JSON bytes make checksums reproducible on every platform. */
 export function canonicalJson(value: unknown): string {
@@ -135,18 +137,45 @@ export function previewRestore(bundle: BackupBundle): RestorePreview {
 export function restoreIntoNewWorkspace(bundle: BackupBundle, newWorkspaceId: string = randomUUID()): RestoreResult {
   const verification = verifyBackup(bundle);
   if (!verification.valid) throw new Error(`Backup verification failed: ${verification.errors.join("; ")}`);
+  assertCanonicalId(newWorkspaceId, "New workspace ID");
   const source = readWorkspace(bundle);
-  const ids = collectIds(source);
-  const idMap = new Map([...ids].map(id => [id, id === source.id ? newWorkspaceId : `${newWorkspaceId}:${id}`]));
-  const remap = (value: JsonValue, key?: string): JsonValue => {
+  const identities = collectIdentities(source);
+  const used = new Set<string>([newWorkspaceId]);
+  const idMap = new Map<string, string>([[source.id, newWorkspaceId]]);
+  for (const identity of identities.filter(item => item.source !== source.id).sort((a, b) => a.source.localeCompare(b.source) || a.kind.localeCompare(b.kind))) {
+    const readable = `${newWorkspaceId}:${identity.source}`;
+    let mapped = readable.length <= CANONICAL_MAX_ID_LENGTH && CANONICAL_ID.test(readable) && !used.has(readable) ? readable : "";
+    for (let collision = 0; !mapped || used.has(mapped); collision++) {
+      const hash = createHash("sha256").update("motion.restore-id.v1\0").update(newWorkspaceId).update("\0")
+        .update(identity.kind).update("\0").update(identity.source).update("\0").update(String(collision)).digest("hex");
+      const candidate = `restore:${hash}`;
+      if (!used.has(candidate)) mapped = candidate;
+    }
+    used.add(mapped); idMap.set(identity.source, mapped);
+  }
+  const propertyTypes = new Map<string, string>();
+  for (const database of source.databases) for (const property of database.properties) {
+    if (property && typeof property === "object" && !Array.isArray(property) && typeof property.id === "string" && typeof property.type === "string") propertyTypes.set(property.id, property.type);
+  }
+  function remapPropertyValue(value: JsonValue, type: string): JsonValue {
+    if (new Set(["select", "status", "created-by", "updated-by", "page"]).has(type) && typeof value === "string") return idMap.get(value) ?? value;
+    if (new Set(["multi-select", "relation"]).has(type) && Array.isArray(value)) return value.map(item => typeof item === "string" ? idMap.get(item) ?? item : item);
+    return remap(value);
+  }
+  function remap(value: JsonValue, key?: string): JsonValue {
     if (typeof value === "string" && key && (key === "id" || key.endsWith("Id") || key.endsWith("Ids")) && idMap.has(value)) return idMap.get(value)!;
     if (Array.isArray(value)) return value.map(item => remap(item, key));
-    if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([childKey, child]) => [
-      key === "values" && idMap.has(childKey) ? idMap.get(childKey)! : childKey,
-      remap(child, childKey)
-    ]));
+    if (value && typeof value === "object") {
+      const filterPropertyType = typeof value.propertyId === "string" ? propertyTypes.get(value.propertyId) : undefined;
+      return Object.fromEntries(Object.entries(value).map(([childKey, child]) => [
+        new Set(["values", "properties", "columnWidths"]).has(key ?? "") && idMap.has(childKey) ? idMap.get(childKey)! : childKey,
+        childKey === "unknownData" ? structuredClone(child) : childKey === "value" && filterPropertyType
+          ? remapPropertyValue(child, filterPropertyType) : new Set(["values", "properties"]).has(key ?? "") && propertyTypes.has(childKey)
+            ? remapPropertyValue(child, propertyTypes.get(childKey)!) : remap(child, childKey)
+      ]));
+    }
     return value;
-  };
+  }
   const workspace = remap(source as unknown as JsonValue) as WorkspaceSnapshot;
   workspace.id = newWorkspaceId;
   const restored = new Map<string, Uint8Array>();
@@ -158,14 +187,38 @@ export function restoreIntoNewWorkspace(bundle: BackupBundle, newWorkspaceId: st
   return { workspace, attachments: restored, idMap };
 }
 
-function collectIds(value: unknown): Set<string> {
-  const ids = new Set<string>();
-  const visit = (item: unknown, key?: string): void => {
-    if (typeof item === "string" && key && (key === "id" || key.endsWith("Id") || key.endsWith("Ids"))) ids.add(item);
-    else if (Array.isArray(item)) item.forEach(child => visit(child, key));
-    else if (item && typeof item === "object") Object.entries(item).forEach(([childKey, child]) => visit(child, childKey));
+interface SourceIdentity { source: string; kind: string }
+function assertCanonicalId(value: unknown, label: string): asserts value is string {
+  if (typeof value !== "string" || !CANONICAL_ID.test(value)) throw new Error(`${label} must be a safe canonical workspace ID`);
+}
+function collectIdentities(workspace: WorkspaceSnapshot): SourceIdentity[] {
+  const identities: SourceIdentity[] = [];
+  const seen = new Set<string>();
+  const add = (source: unknown, kind: string): void => {
+    assertCanonicalId(source, `Source ${kind} ID`);
+    if (seen.has(source)) throw new Error("Backup contains a duplicate source ID");
+    seen.add(source); identities.push({ source, kind });
   };
-  visit(value); return ids;
+  const blocks = (items: JsonValue[]): void => {
+    for (const item of items) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+      add(item.id, "block");
+      if (Array.isArray(item.children)) blocks(item.children);
+    }
+  };
+  add(workspace.id, "workspace");
+  for (const attachment of workspace.attachments) add(attachment.id, "attachment");
+  for (const page of workspace.pages) { add(page.id, "page"); blocks(page.blocks); }
+  for (const database of workspace.databases) {
+    add(database.id, "database");
+    for (const property of database.properties) if (property && typeof property === "object" && !Array.isArray(property)) {
+      add(property.id, "property");
+      if (Array.isArray(property.options)) for (const option of property.options) if (option && typeof option === "object" && !Array.isArray(option)) add(option.id, "property-option");
+    }
+    for (const row of database.rows) add(row.id, "row");
+    if (Array.isArray(database.views)) for (const view of database.views) if (view && typeof view === "object" && !Array.isArray(view)) add(view.id, "view");
+  }
+  return identities;
 }
 
 const escapeHtml = (text: string) => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");

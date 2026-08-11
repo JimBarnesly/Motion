@@ -6,6 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ContentAddressedAttachmentStore, SqliteWorkspaceStore } from "@motion/storage";
+import { assertWorkspaceValue, migrateWebWorkspaceV1 } from "@motion/core";
+import { createBackup } from "@motion/backup";
 import { MotionAppError, MotionAppService, toAppError } from "../index.js";
 
 const databasePath = (name: string) => join(tmpdir(), `motion-app-service-${name}-${crypto.randomUUID()}.sqlite`);
@@ -244,6 +246,39 @@ test("web v1 import is deterministic and preserves unsupported blocks", async ()
     });
     assert.equal(outputs[0], outputs[1]);
   } finally { await Promise.all(paths.map(removeDatabase)); }
+});
+
+test("service restores boundary and migrated derived IDs into bounded canonical namespaces", async () => {
+  const path = databasePath("bounded-restore-ids");
+  try {
+    const legacyId = "m".repeat(128);
+    const migrated = migrateWebWorkspaceV1({ schemaVersion: 1, activePageId: legacyId, pages: [{ id: legacyId, parentId: null, order: 0,
+      type: "database", title: "Boundary table", columns: [{ id: "property", name: "Value", type: "text" }],
+      rows: [{ id: "row", values: { property: "external text" } }] }] }, { workspaceId: "source", migratedAt: "2026-08-11T00:00:00.000Z" });
+    const maximumId = "p".repeat(160);
+    migrated.workspace.pages.push({ id: maximumId, parentId: null, title: maximumId, blocks: [], createdAt: migrated.workspace.createdAt, updatedAt: migrated.workspace.updatedAt });
+    assert.equal(migrated.workspace.databases[0]!.id.length, 137);
+    assert.equal(migrated.workspace.databases[0]!.views[0]!.id.length, 139);
+    assertWorkspaceValue(migrated.workspace);
+    const bundle = createBackup(migrated.workspace, [], "2026-08-11T00:00:00.000Z");
+    const store = new SqliteWorkspaceStore(path); const service = new MotionAppService(store);
+    const firstNamespace = "n".repeat(160);
+    const first = await service.executeAsync({ type: "backup.restore-new", bundle, newWorkspaceId: firstNamespace });
+    const second = await service.executeAsync({ type: "backup.restore-new", bundle, newWorkspaceId: "second-namespace" });
+    assertWorkspaceValue(first.workspace); assertWorkspaceValue(second.workspace);
+    const ids = [first.workspace.id, ...first.workspace.pages.map(page => page.id), ...first.workspace.databases.flatMap(database => [
+      database.id, ...database.properties.map(property => property.id), ...database.rows.map(row => row.id), ...database.views.map(view => view.id)
+    ])];
+    assert.equal(new Set(ids).size, ids.length);
+    assert.ok(ids.every(id => id.length <= 160));
+    assert.notEqual(first.workspace.pages.find(page => page.title === maximumId)!.id, second.workspace.pages.find(page => page.title === maximumId)!.id);
+    assert.equal(first.workspace.databases[0]!.rows[0]!.values[first.workspace.databases[0]!.properties[0]!.id], "external text");
+    for (const hostile of ["bad/id", "x".repeat(161)]) {
+      await assert.rejects(service.executeAsync({ type: "backup.restore-new", bundle, newWorkspaceId: hostile }), (error: unknown) => error instanceof MotionAppError && error.code === "VALIDATION_FAILED");
+      assert.equal(store.load(hostile), undefined);
+    }
+    store.close();
+  } finally { await removeDatabase(path); }
 });
 
 test("native table-row search survives restart and a clean authenticated restore", async () => {

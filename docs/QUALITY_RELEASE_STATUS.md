@@ -1,13 +1,56 @@
-# Motion 0.1.0 release acceptance report
+# Motion quality and release acceptance status
 
 Owner: Quality & Release Director  
 Decision authority: Managing Director  
-Reviewed: 2026-08-05  
-Baseline: `8ae8a17` (`main`) plus the uncommitted working tree present at final retest  
-Quality disposition: **NOT ACCEPTED for public release**
+Reviewed: 2026-08-11
+Current provisional V1 baseline: `3a16a36` (`agent/phase0-docs`)
+Quality disposition: **NOT ACCEPTED for V1 or public release**
 
-Motion 0.1.0 has credible automated evidence for its canonical service and Web
-workflow, including operation with networking denied. It does not yet have
+The current baseline is provisional and will advance before merge as this
+report and separately owned work are integrated. It is not an immutable release
+candidate, and no passing immutable CI run or installed-package acceptance can
+be attributed to it.
+
+## V1 Phase 0 baseline — 2026-08-11
+
+Phase 0 is **in progress; its clean-checkout exit gate is not met**. The six
+missing workflow npm scripts have been restored, workflow script contracts are
+self-gated, complete tracked Playwright spec selection is gated, and the
+first-party static-analysis baseline has been repaired. Link lifecycle states
+and failed canonical edit recovery are integrated. Accessible search is being
+integrated separately and is not evidence at `3a16a36`.
+
+The audit host has Node `v20.20.2`, while the repository requires Node 22 or
+newer. It also lacks installed/cached workspace dependencies, the Rust/Tauri
+toolchain, Playwright/browser payload, `gitleaks`, and the offline advisory
+database. Therefore the complete CI and release-security chain could not run on
+this host.
+
+| Current Phase 0 evidence | Result | Acceptance boundary |
+| --- | --- | --- |
+| Workflow contract and complete-E2E-selection source gates | 3 passed, 0 failed | Proves declarations/selection only; Playwright itself was not run |
+| Focused Web failed-edit/source-boundary tests | 22 passed, 0 failed | Source-level Web evidence, not packaged native interaction |
+| First-party static-analysis scan | Passed: 73 files, 8 rules | Integrated security review remains in progress |
+| Static-analysis governance tests | 16 passed, 0 failed | Must be rerun on final combined bytes |
+| Web workspace build | Passed | Zero-dependency Web asset build, not root build/package evidence |
+| Complete Node 22+ CI/release-security chain | Blocked / not run | Missing supported toolchain, dependencies and security tooling/data |
+| Immutable CI run for exact V1 candidate | Missing | No frozen candidate exists |
+| Installed x86-64/ARM64 AppImage and Debian acceptance | Missing | No package from this baseline was installed or launched |
+
+This focused evidence does not satisfy `V1_SCOPE.md`: it does not prove the
+complete editor, linked-search, six-view database, interchange, accessibility,
+representative reliability/performance, signed artifact, or installed offline
+user outcomes. V1 readiness must not be inferred from repaired gate wiring.
+
+## Historical Motion 0.1.0 evidence — preserved
+
+The remainder of this report records the legitimate 0.1.0 evidence reviewed on
+2026-08-05. Its source and CI baselines are historical and must not be presented
+as verification of `3a16a36` or of V1. The recorded historical baseline was
+`8ae8a17` (`main`) plus the uncommitted working tree present at final retest.
+
+Motion 0.1.0 had credible automated evidence for its canonical service and Web
+workflow, including operation with networking denied. It did not have
 user-facing acceptance evidence from installed native packages. Passing the
 automated service smoke is not equivalent to launching and operating the Tauri
 UI from an installed artifact.
@@ -18,7 +61,7 @@ acceptance report to pass and the security gate in
 `OPERATIONS_SECURITY_REVIEW.md` to be explicitly satisfied or accepted by the
 Managing Director.
 
-## Existing evidence
+## Historical 0.1.0 existing evidence
 
 | Area | Evidence | Status |
 | --- | --- | --- |
@@ -31,7 +74,7 @@ Managing Director.
 | Browser workflow | Playwright creates, edits, reloads, searches, exports, trashes, reloads, and restores with external HTTP and WebSocket requests blocked | Pass |
 | Staged ARM64 files | `sha256sum --check SHA256SUMS`; AppImage and Debian package both match on 2026-08-05 | Pass |
 
-## Focused RC verification — 2026-08-05
+## Historical 0.1.0 focused RC verification — 2026-08-05
 
 Host: Debian AArch64 `6.18.34+rpt-rpi-2712`, Node `v24.18.0`, npm
 `11.16.0`. This host is the OpenClaw gateway, not a clean graphical acceptance
@@ -86,7 +129,7 @@ The ARM64 files currently staged in `artifacts/release/` are correctly typed as
 an AArch64 AppImage and an `arm64` Debian package version 0.1.0. Equivalent
 x86-64 files are CI artifacts, not locally staged evidence.
 
-## Required manual acceptance
+## Historical 0.1.0 required manual acceptance
 
 Run the complete checklist on a clean representative x86-64 Linux host and a
 clean representative ARM64 Linux host. Test both AppImage and Debian formats.
@@ -131,7 +174,7 @@ Keep networking disabled for this entire section.
 - [ ] After completing section B in the Debian build, run `sudo apt remove motion`, reinstall the same package, and confirm the workspace remains intact.
 - [ ] Confirm uninstall removes the application launcher/binaries but does not silently delete user workspace data.
 
-## Remaining blockers
+## Historical 0.1.0 remaining blockers
 
 1. **P0 — Installed native acceptance:** sections A and B have no passing
    evidence on either supported architecture or package format.
@@ -154,7 +197,7 @@ Keep networking disabled for this entire section.
    HEAD CI run. Freeze and commit the intended candidate, then rerun CI and this
    focused gate against that exact commit before release.
 
-## Acceptance rule and next action
+## Historical 0.1.0 acceptance rule and next action
 
 Public release acceptance requires all P0 checks to pass on x86-64 and ARM64,
 no unresolved data-loss or offline defect, recorded accessibility disposition,

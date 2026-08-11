@@ -1,87 +1,89 @@
 # Status
 
-Updated: 2026-08-05
+Updated: 2026-08-11
+Provisional evidence baseline: `3a16a36` (`agent/phase0-docs`)
 
-## Working foundation
+The baseline is provisional because the Phase 0 documentation and remaining
+integration work will advance the commit before merge. It is not an immutable
+release candidate.
 
-- Monorepo, development scripts, product/architecture/data/sync/security documentation, and initial ADRs exist.
-- `packages/core`: versioned workspace/page/block/collection/view/attachment models, hierarchy cycle prevention, links/backlinks, ranked in-memory search, persistence abstraction, and JSON/Markdown/CSV export primitives.
-- `apps/web`: runnable offline-oriented vertical slice with nested navigation,
-  editable blocks/tables, keyboard quick search, wiki links/backlinks, and
-  responsive light/dark UI. It uses IndexedDB in browser development and an
-  allowlisted Tauri IPC adapter when hosted by the desktop shell; schema-v1
-  imports are validated and migrated into the canonical service. Native mode
-  uses canonical FTS search and export queries, content-addressed attachment
-  ingestion, and verified backup/create/preview/restore operations.
-- Storage, search, formula, backup, and observability packages have initial implementations and focused tests.
-- `packages/app-service` now proves a canonical command/query path through
-  validation, domain mutations, SQLite revision commits, FTS, restart, search,
-  backlinks, trash/restore, attachments, verified backup/restore into a new
-  workspace, export, and explicit Web-v1 migration.
-- `apps/desktop`: typed Tauri 2 commands expose UI load/save and the canonical
-  application-service command/query lanes without exposing SQL or arbitrary
-  filesystem access. It manages one persistent service process and packages an
-  architecture-specific Node 24.18.0 runtime whose archive is pinned and
-  SHA-256 verified during build preparation; installed applications do not
-  download a runtime.
-- `npm run test:offline` proves the canonical SQLite vertical slice survives a
-  restart in a separate Node process while outbound networking is denied, then
-  runs the offline-asset scan.
-- Native CI tests the Rust shell and builds `.deb` and AppImage artifacts on
-  native x86-64 and ARM64 Ubuntu runners. Run `30876348219` passed both native
-  jobs and uploaded architecture-specific package artifacts.
-- Playwright covers the offline browser create/edit/reload/search/export flow.
-- Page trash is reversible and restores affected ancestors/descendants. Attachment
-  staging and deterministic recovery mitigate interrupted blob promotion.
-- An original Motion application icon and required Tauri Linux derivatives are
-  included.
-- Foundational spike verdicts are now recorded in ADRs 0006-0012:
-  editor/Yjs behavior and SQLite/FTS5 primitives are validated; stable block IDs,
-  versioned logical documents with Yjs persistence, and rebuildable local search
-  are accepted. Self-contained Tauri packaging and crash-safe attachment
-  staging retain explicit validation gates.
+## V1 Phase 0 — reproducible engineering baseline
 
-## Not yet a release
+**Status: in progress; exit gate not met.** The Phase 0 exit gate in
+`NOTION_PARITY_EXECUTION_PLAN.md` requires a clean checkout to execute the
+complete documented verification set with pinned inputs. This audit host has
+Node `v20.20.2` while the repository requires Node 22 or newer, and it does not
+have the dependency cache, Rust/Tauri toolchain, Playwright/browser payload,
+`gitleaks`, or the offline advisory database needed by the complete CI and
+release-security chain.
 
-- Native Tauri packages now build successfully in CI for x86-64 and ARM64. CI
-  extracts each AppImage and proves that its bundled service can save while
-  offline, terminate, restart, reload, search, and complete verified
-  backup/restore. Installed native UI launch and end-to-end interaction remain
-  outstanding; this host still lacks the GTK/WebKit development packages
-  required for local native compilation and launch.
-- The UI remains vanilla JavaScript and a Web-v1 compatibility document adapter,
-  not the required React plus Tiptap/ProseMirror editor. Not every UI mutation
-  is expressed as a fine-grained typed domain command.
-- The canonical SQLite service has both a source-tree separate-process offline
-  restart test and an extracted-AppImage bundled-runtime restart test. Forced
-  termination at transaction boundaries and packaged native UI E2E remain
-  unverified. Browser Playwright E2E does not close those gates.
-- Attachments are currently read and transported as complete in-memory byte
-  arrays; streaming and large-file limits are not implemented.
-- Required block behaviours, collection views, relations/rollups, full import/export UX, and complete restore workflow remain partial.
-- Sync server, multi-user collaboration, permissions, encryption, AI, and MCP are designed/deferred, not shipped.
-- Full E2E, accessibility, security, failure-injection, migration, and representative performance evidence is incomplete.
+Integrated at the provisional baseline:
 
-## Next vertical slice
+- Restored the six workflow-referenced npm contracts:
+  `test:dependency-release-gate`, `validate:dependencies:offline`,
+  `test:runtime-confinement`, `test:backup-integrity`,
+  `test:release-security-preflight`, and `test:release-manifest`.
+- Added a repository test that discovers workflow `npm run` references and
+  fails when a referenced root script is undeclared. The release workflow now
+  runs that contract test, so the contract is self-gated.
+- Changed the release-gated `test:e2e` command from one named spec to complete
+  Playwright discovery and added a test that rejects omitted tracked E2E specs.
+- Repaired the first-party static-analysis policy and scanner baseline. The
+  scanner and its fail-closed governance tests pass locally, but integrated
+  security review is still in progress; this is not final security acceptance.
+- Integrated honest live/trashed/missing link lifecycle states, backlink source
+  focus, and recoverable failed canonical edits with retry/discard behavior.
+- Accessible search behavior is being integrated on a separate branch and is
+  not evidence at `3a16a36`.
 
-Smoke-test the uploaded x86-64 and ARM64 packages on representative Linux hosts,
-including create/edit/link/search/attach, terminate/restart, export, restore into
-a new workspace, and operation with networking blocked. Then replace the Web-v1
-compatibility editor with the React plus Tiptap/ProseMirror editor over the same
-typed service boundary.
+## Evidence verified locally on 2026-08-11
 
-See `ENGINEERING_HEALTH.md`, `RISKS.md`, `ROADMAP.md`, and `TEST_STRATEGY.md`
-for gates and dependencies.
-Product capability coverage and competitor gaps are tracked in
-`FEATURE_PARITY.md`; status changes require repository evidence.
+These checks are zero-dependency/source checks that ran on the audit host. They
+do not substitute for the Node 22+ complete suite or immutable CI:
 
-## Evidence baseline
+| Check | Result at `3a16a36` |
+| --- | --- |
+| Workflow script contract plus complete-E2E-selection gates | 3 passed, 0 failed |
+| Focused Web failed-edit and source-boundary tests | 22 passed, 0 failed |
+| First-party static-analysis scan | Passed; 73 files, 8 rules |
+| Static-analysis governance tests | 16 passed, 0 failed |
+| Web workspace build | Passed (`apps/web/dist`) |
 
-- Editor spike: `spikes/002-editor-yjs`, 4/4 tests pass for block types/IDs,
-  versioned offline reload, undo/redo, and unknown-node preservation.
-- SQLite/FTS spike: `spikes/003-sqlite-fts`, 3/3 tests pass for migrations,
-  document updates, FTS5, attachment hashing, rollback, restart, and WAL recovery.
-- Tauri spike: `spikes/001-tauri-linux`, 2/2 boundary tests and the offline web
-  build pass. The typed shell, verified bundled runtime, icon, and native CI
-  matrix now exist. CI run `30876348219` built and uploaded x86-64 and ARM64
-  packages; installed-artifact behavior remains unverified.
+## Blocked or absent evidence
+
+- `npm test`, root `npm run typecheck`, root `npm run build`,
+  `npm run test:offline`, and actual Playwright execution were not completed on
+  this host because the supported Node toolchain and installed dependencies are
+  unavailable.
+- Rust/Tauri builds, vulnerability collection, secret scanning with `gitleaks`,
+  and advisory-database-backed release-security checks were not run here.
+- No complete CI and release-security chain has passed against one immutable V1
+  commit. There is no immutable Phase 0 CI run.
+- No AppImage or Debian package from this baseline has passed installed native
+  UI acceptance on representative x86-64 and ARM64 graphical hosts.
+- V1 editor, database-view, interchange, accessibility, representative
+  performance, failure-injection, signing, and attestation outcomes remain
+  incomplete as defined by `V1_SCOPE.md`.
+
+## Current product foundation
+
+The repository has a canonical typed application service, SQLite/FTS
+persistence, an allowlisted Tauri boundary, a zero-network Web compatibility
+UI, links/backlinks, search, attachments, structured export, and verified
+backup primitives. Earlier CI built x86-64 and ARM64 0.1 packages and exercised
+an extracted packaged service. That historical evidence remains useful, but it
+does not prove the current provisional baseline, installed-window behavior, or
+V1 acceptance.
+
+## Next actions
+
+1. Integrate the accessible-search work and complete the static-analysis and
+   security review on the final combined bytes.
+2. Provision the pinned Node 22+ dependency/tool cache and run every documented
+   Phase 0 command from a clean checkout.
+3. Obtain a complete immutable CI run, then perform checksum-bound installed
+   package acceptance separately; do not infer package acceptance from service
+   smoke tests.
+
+See `ENGINEERING_HEALTH.md`, `QUALITY_RELEASE_STATUS.md`, `V1_SCOPE.md`, and
+`FEATURE_PARITY.md` for gate-level evidence and remaining product gaps.

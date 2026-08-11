@@ -1,96 +1,84 @@
-# Notion feature-parity register
+# Motion V1 feature-parity register
 
 Owner: Product Director
-
 Decision authority: Managing Director
+Last reviewed: 2026-08-11
+Provisional evidence baseline: `3a16a36` (`agent/phase0-docs`)
 
-Last reviewed: 2026-08-05
+## Purpose and evidence rule
 
-## Purpose
-
-This register tracks whether Motion covers the user outcomes available in
-Notion without copying Notion branding, wording, assets, or interface patterns.
-Parity means comparable capability, not identical implementation. Motion's
-offline local mode, structured portable data, and no-account baseline remain
-product constraints even where Notion takes a cloud-first approach.
+This register compares current Motion implementation with the outcomes frozen in
+`V1_SCOPE.md`. It records exercised repository evidence, not design intent.
+Requirements, ADRs, roadmap entries, schemas without a usable path, and work on
+other branches are not implementation evidence.
 
 Statuses:
 
-- **Implemented** — working code exists, with repository evidence.
-- **Partial** — a usable slice exists but the outcome is incomplete.
-- **Specified** — requirements or architecture exist; the capability is not shipped.
-- **Untracked** — no sufficient Motion requirement or implementation was found.
-- **Out of baseline** — deliberately excluded from the local-first baseline; reconsider only by Managing Director decision.
+- **Implemented** — working code and focused repository evidence exist at the
+  provisional baseline. Release acceptance may still be open.
+- **Partial** — a usable tested slice exists, but one or more V1 outcomes are
+  absent or lack required canonical/package evidence.
+- **Missing** — no usable tested implementation of the V1 outcome exists at this
+  baseline. A specification alone remains missing.
+- **Deferred** — explicitly excluded from V1 by `V1_SCOPE.md`.
 
-## Current register
+No row is V1-accepted: there is no complete immutable CI run or installed
+package acceptance for this baseline.
 
-| Capability area | Motion status | Repository evidence | Product gap / next decision |
+## V1 current register
+
+| Capability area | Status | Implemented evidence at `3a16a36` | Missing V1 evidence/outcome |
 | --- | --- | --- | --- |
-| Nested pages and navigation | Partial | Canonical create/move/reorder/favourite/trash/restore commands; Web sidebar and SQLite restart test | Add robust drag-and-drop and packaged desktop interaction acceptance. |
-| Rich block editor | Partial | `BLOCK-001`–`BLOCK-009`; editor ADR 0006 | Replace the Web-v1 compatibility editor with React + Tiptap/ProseMirror and complete the initial block set, selection, clipboard, drag, IME, and accessibility. |
-| Links, mentions, backlinks, deep links | Partial | `LINK-001`–`LINK-007`; canonical link-index service; Web live/Trash/missing target states and backlink block focus | Finish mention entry, previews, packaged lifecycle/recovery evidence, and general block deep-link UX. |
-| Search | Partial | `SEARCH-001`–`SEARCH-004`; SQLite FTS package | Add full filters, snippets/highlighting, recent-search controls, and packaged performance evidence. |
-| Files and media | Partial | `BLOCK-003`, `BLOCK-009`; content-addressed attachment storage | Stream large files, enforce limits, and implement media/PDF blocks and interruption UX. |
-| Databases and records-as-pages | Partial | Ten typed property editors, canonical record-page UX, schema/order/width editing, SQLite restart coverage | Add populated type-change conversion preview and packaged desktop acceptance. |
-| Table, list, board, calendar, gallery, timeline views | Partial | `VIEW-001`–`VIEW-004`; milestones M3–M4 | Table is partial; list/board/calendar/gallery/timeline require complete saved-view UI and tests. |
-| Chart, form, and dashboard views | Specified | `VIEW-002`; milestones M4–M5 cover chart/form contracts | Add dashboard view to requirements; decide priority after core views. Current Notion documentation treats dashboards as a view composed of widgets. |
-| Filters, sorts, groups, formulas | Partial | Saved AND/OR/NOT filter UI, comparison operators, deterministic multi-sort; formula package | Add deeper visual filter nesting and formula-result filters; formulas remain outside the table usability scope. |
-| Relations and rollups | Specified | `REL-001`–`REL-007`; milestone M5 | Implement after collection/view foundations; preserve deterministic local semantics. |
-| Templates and reusable page/database structures | Untracked | Template origin exists in `PAGE-002`, but no complete template workflow requirement | Product requirement needed for creation, application, editing, and export of templates. |
-| Comments, discussions, history, and presence | Specified | Roadmap stage 4; milestones M6–M7 | Define local comments/history before optional live collaboration; presence remains remote-only. |
-| Sharing, guests, teams, and permissions | Specified | `PAGE-005`, `PERMISSIONS.md`, roadmap stage 4 | Requires Managing Director scope decision because accounts and remote authorization cannot weaken local-only mode. |
-| Projects, tasks, dependencies, and workload | Partial | Task blocks and future dependency/progress properties are specified | Define first-class project/task views and dependency/workload outcomes rather than relying only on generic databases. |
-| Database automations, buttons, and webhooks | Untracked | AI/agent mutation controls exist, but no user automation model | Architecture and safety requirements needed before implementation. Keep outbound actions explicit and disabled by default. |
-| Import from Notion and other tools | Specified | `PORT-001`–`PORT-004`; import pipeline design | Add a Notion import compatibility matrix and fixtures; do not claim import parity until round-trip evidence exists. |
-| Export, backup, and restore | Partial | Structured JSON/Markdown/CSV export and verified backup service | Finish end-user flows, attachments/static HTML, hostile-input coverage, and packaged restore drills. |
-| Offline desktop use | Partial, Motion differentiator | Tauri shell, canonical SQLite service, `LOCAL-001`–`LOCAL-004` | Pass installed-package launch/restart/network-denied acceptance on supported hosts. |
-| Mobile apps | Out of baseline | No mobile milestone | Managing Director decision required before adding a client platform. |
-| Calendar and mail products | Out of baseline | No product requirements | Treat as separate products/integrations, not automatic workspace parity. |
-| AI writing, research, connectors, and agents | Specified | `AGENT-001`–`AGENT-005`; milestone M8 | Optional only; require explicit consent, bounded context, preview/approval, and provider isolation. |
-| Integrations, public API, embeds, and MCP | Partial | Optional MCP contract exists; bookmark/local-file extensions specified | Define API/integration scope and offline behaviour. Remote embeds must never load silently. |
-| Enterprise administration, audit, SSO, and compliance | Out of baseline | Permissions/security foundations only | Separate enterprise programme requiring Managing Director approval. |
+| Pages and navigation | Partial | Canonical create/move/reorder/favourite/trash/restore paths, nested Web navigation, restart-focused tests | Permanent deletion, robust pointer drag/drop plus equivalent keyboard commands, complete restart state, and installed-package acceptance |
+| Daily-writing editor | Partial | Web compatibility editor handles several block types, stable IDs, ordering controls, unknown-block preservation, and recoverable canonical save failure | Authoritative React + Tiptap/ProseMirror path; complete V1 block set; selection/clipboard/IME/undo/redo/cross-page operations; 10,000-word and packaged evidence |
+| Links, mentions, backlinks, deep links | Partial | Stable page-ID links, outgoing links/backlinks, live/trashed/missing states, backlink source-block focus, and focused Web tests | Accessible `[[`/`@` chooser, previews, general block deep-link UX, lifecycle through export/backup restore, restart and packaged evidence |
+| Search | Partial | Core ranked search and SQLite FTS paths exist; title/content/table search has focused prior tests | Accessible search integration is not in this baseline; snippets, safe highlighting, complete keyboard navigation, filters, attachment filenames, deterministic packaged performance evidence |
+| Files and media | Partial | Content-addressed attachment primitives and canonical service/backup paths | Streaming/limits, image/media/PDF block UX, interruption handling, filename search, complete backup/restore and installed-package evidence |
+| Typed database properties and records-as-pages | Partial | Canonical records-as-pages, multiple typed property editors, table editing, schema/order/width paths, restart-focused tests | Complete V1 property set, populated type-conversion preview, deletion consequences, large/edge-state evidence, packaged acceptance |
+| Saved filters, sorts, groups, and view lifecycle | Partial | Saved filter and deterministic multi-sort slices exist in table-oriented UI | Complete nested filter/group behavior and canonical create/update/reorder/delete lifecycle for all views |
+| Table view | Partial | Usable typed table slice with focused canonical/restart tests | Complete V1 configuration/edge-state behavior and installed-package acceptance |
+| List view | Missing | No usable tested list-view implementation at this baseline | Full saved list configuration, keyboard path, restart/export/restore and package evidence |
+| Board view | Missing | No usable tested board-view implementation at this baseline | Status/select grouping, card movement, saved configuration and complete evidence |
+| Calendar view | Missing | No usable tested calendar-view implementation at this baseline | Date configuration, ranges/undated behavior, keyboard edits and complete evidence |
+| Gallery view | Missing | No usable tested gallery-view implementation at this baseline | Preview/property configuration and complete evidence |
+| Timeline view | Missing | No usable tested timeline-view implementation at this baseline | Start/end configuration, deterministic range placement and complete evidence |
+| Relations and rollups | Missing | Requirements/schema design only | Usable reciprocal relations, deterministic rollups/cycle handling, restart/export/restore and package evidence |
+| Formulas | Partial | Versioned parser/evaluator package with focused tests | Canonical property projection/filter/sort integration, database UX and complete persistence/export/package evidence |
+| Templates | Missing | Template-origin field only | Creation, application, editing, portability and tested user workflow |
+| Structured export, backup, and restore | Partial | JSON/Markdown/CSV export primitives and verified backup service paths with prior focused tests | Complete offline user flows, attachment-complete reconstruction of all V1 entities, hostile-input/rollback evidence and installed-package drills |
+| Markdown and CSV import | Missing | Requirements/design only | Bounded staged preflight, compatibility report, cancellation, deterministic conflicts and transactional rollback |
+| Offline Linux desktop | Partial | Tauri shell, canonical SQLite service, bundled-runtime/package pipeline, and historical extracted-service smoke | Exact-baseline x86-64/ARM64 AppImage/Debian installed-window acceptance with networking disabled |
+| Accessibility | Partial | Some labeled controls and keyboard-focused source tests | Accessible search is pending integration; WCAG 2.2 AA automation and recorded keyboard, 200% zoom and Orca acceptance are missing |
+| Release provenance and security | Partial | Release/security gate implementations, repaired workflow contracts, source scanner and fail-closed governance tests | Full integrated security review, Node 22+ complete chain, Rust/Tauri, `gitleaks`, advisory DB, immutable CI, checksums/signatures/attestations and approvals |
+| Performance and failure recovery | Partial | Smoke benchmarks, transaction/recovery tests, and failed-edit retry/discard slice | Reviewed representative source/package budgets plus crash-boundary, disk-full, corrupt-index and duplicate-writer evidence on candidate artifacts |
 
-## Product priorities proposed for approval
+## Explicitly deferred beyond V1
 
-1. **P0 — close the trustworthy local workspace loop:** packaged durability,
-   React/Tiptap editor, complete page/block interaction, search, attachments,
-   export, and restore (M0–M2).
-2. **P1 — reach database workflow parity:** complete collection properties,
-   table/list/board/calendar/gallery/timeline, filters/sorts/groups, relations,
-   rollups, formulas, templates, and import compatibility (M3–M5).
-3. **P2 — add team outcomes without compromising local mode:** comments,
-   history, permissions, optional sync/collaboration, and project/task workflows.
-4. **P3 — separately approve expansion areas:** automations, dashboard/form/chart,
-   AI/connectors, mobile, enterprise administration, Calendar, and Mail.
+The following are **Deferred**, not missing V1 work: sync, collaboration,
+accounts, sharing, comments, presence, permissions, public publishing, AI, MCP,
+connectors, automations, webhooks, public API, Windows, macOS, mobile, hosted
+service, chart/form/dashboard/canvas products, separate mail/calendar products,
+and application-level encrypted vaults.
 
-Managing Director decision requested: approve this sequencing and confirm that
-"feature parity with Notion" targets the core workspace product first, while
-Notion Calendar, Notion Mail, enterprise administration, and cloud-only AI
-connectors remain separate scope decisions.
+## Phase 0 interpretation
 
-The first release-level application of this sequence is the ranked
-[`BACKLOG_0.1.1.md`](BACKLOG_0.1.1.md) backlog.
+Phase 0 repairs reproducibility and evidence collection; it does not complete a
+product capability merely because a CI contract now names its gate. At this
+baseline, the six missing workflow scripts are declared, the workflow contract
+is self-gated, complete E2E spec selection is guarded, and the static-analysis
+base passes focused local checks. Actual complete E2E, supported-toolchain CI,
+security acceptance, and package acceptance remain open.
+
+Accessible search is separately owned work and must not change the Search or
+Accessibility evidence here until its commit is integrated and reverified.
 
 ## Monitoring cadence
 
-- Review Notion's official help centre and release notes monthly.
-- Add or revise one row for each material competitor capability change.
-- Link every Motion status change to implementation and test evidence.
-- Route scope, priority, or local-first conflicts to the Managing Director.
-- Product may open discovery/definition work; implementation ownership must be
-  assigned through the project office to avoid duplicating another director.
-
-## Competitor evidence checked
-
-Checked 2026-08-05 against Notion's public Help Center:
-
-- Database views: <https://www.notion.com/help/category/database-views>
-- Charts and dashboard views: <https://www.notion.com/help/charts>
-- Forms: <https://www.notion.com/help/forms>
-- Database automations: <https://www.notion.com/help/database-automations>
-- Enterprise search: <https://www.notion.com/help/enterprise-search>
-- AI connectors: <https://www.notion.com/help/notion-ai-connectors>
-
-This is a capability baseline, not a claim that every Notion feature has been
-exhaustively enumerated. The Notion connector was not installed, so the review
-used public documentation only.
+- Update a status only from implementation plus exercised evidence on the named
+  baseline.
+- Re-run coordinate-sensitive security and complete-E2E selection gates after
+  integrating parallel branches.
+- Keep competitor monitoring separate from V1 acceptance; comparable Notion
+  breadth beyond `V1_SCOPE.md` does not silently expand this release.
+- Route any V1 scope change through the explicit Jake-approved process in
+  `V1_SCOPE.md`.

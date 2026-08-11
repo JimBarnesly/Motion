@@ -122,7 +122,7 @@ test("materialized stable-ID links update without scans at read time", () => {
 
 test("records are pages; typed filters and stable multi-sort operate on properties", () => {
   const doc = new WorkspaceDocument(createWorkspace("Collections")); const home = doc.addPage("Tasks");
-  const db = doc.addDatabase({ pageId: home.id, name: "Tasks", properties: [
+  const db = doc.addDatabase({ id: "db", pageId: home.id, name: "Tasks", properties: [
     { id: "title", name: "Title", type: "title" }, { id: "status", name: "Status", type: "status" }, { id: "priority", name: "Priority", type: "number" }
   ], rows: [], views: [{ id: "table", collectionId: "db", name: "All", type: "table", visiblePropertyIds: ["title", "status"], filters: { kind: "condition", propertyId: "status", operator: "equals", value: "open" }, sorts: [{ propertyId: "priority", direction: "desc" }] }] });
   const low = doc.addRecord(db.id, "Low", { status: "open", priority: 1 });
@@ -132,12 +132,42 @@ test("records are pages; typed filters and stable multi-sort operate on properti
   assert.deepEqual(doc.queryRecords(db.id, { kind: "and", children: [{ kind: "condition", propertyId: "status", operator: "equals", value: "open" }] }, [{ propertyId: "priority", direction: "desc" }]).map(p => p.id), [high.id, low.id]);
 });
 
+test("record mutations only accept properties declared by their collection", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Scoped properties"));
+  const firstPage = doc.addPage("First"); const secondPage = doc.addPage("Second");
+  const first = doc.addDatabase({ id: "first-db", pageId: firstPage.id, name: "First", properties: [{ id: "first-value", name: "First value", type: "number" }], rows: [], views: [] });
+  doc.addDatabase({ id: "second-db", pageId: secondPage.id, name: "Second", properties: [{ id: "second-value", name: "Second value", type: "number" }], rows: [], views: [] });
+
+  const beforeCreate = structuredClone(doc.data);
+  assert.throws(() => doc.addRecord(first.id, "Injected", { "second-value": 2 }), /property.*second-value/i);
+  assert.deepEqual(doc.data, beforeCreate);
+
+  const record = doc.addRecord(first.id, "Valid", { "first-value": 1 });
+  doc.updateRecord(record.id, undefined, { "first-value": 3 });
+  assert.equal(record.properties?.["first-value"], 3);
+  const beforeUpdate = structuredClone(doc.data);
+  assert.throws(() => doc.updateRecord(record.id, "Must roll back", { "second-value": 4 }), /property.*second-value/i);
+  assert.deepEqual(doc.data, beforeUpdate);
+});
+
+test("workspace validation rejects record values from another collection", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Scoped validation"));
+  const firstPage = doc.addPage("First"); const secondPage = doc.addPage("Second");
+  const first = doc.addDatabase({ id: "first-db", pageId: firstPage.id, name: "First", properties: [{ id: "first-value", name: "First value", type: "number" }], rows: [], views: [] });
+  doc.addDatabase({ id: "second-db", pageId: secondPage.id, name: "Second", properties: [{ id: "second-value", name: "Second value", type: "number" }], rows: [], views: [] });
+  const record = doc.addRecord(first.id, "Valid", { "first-value": 1 });
+  const candidate = structuredClone(doc.data);
+  candidate.pages.find(page => page.id === record.id)!.properties = { "second-value": 2 };
+  assert.throws(() => assertWorkspaceValue(candidate), /another collection|unknown property/i);
+  assert.doesNotThrow(() => assertWorkspaceValue(doc.data));
+});
+
 test("unknown blocks survive deterministic serialization and v1 migrates", () => {
   const ws = createWorkspace("Future"); const doc = new WorkspaceDocument(ws); const page = doc.addPage("Page");
   doc.addBlock(page.id, { type: "future-plugin-widget", text: "", unknownData: { z: 1, a: { y: true } } });
   const first = exportWorkspaceJson(ws); const second = exportWorkspaceJson(structuredClone(ws));
   assert.equal(first, second); assert.match(first, /future-plugin-widget/); assert.ok(first.indexOf('"a"') < first.indexOf('"z"'));
-  const old: any = structuredClone(ws); old.schemaVersion = 1; delete old.linkIndex; old.pages[0].blocks[0].type = "todo";
+  const old: any = structuredClone(ws); old.schemaVersion = 1; delete old.linkIndex; old.pages[0].blocks[0].type = "todo"; old.pages[0].blocks[0].checked = false;
   const migrated = migrateWorkspace(old); assert.equal(migrated.schemaVersion, 2); assert.equal(migrated.pages[0].blocks[0].type, "task");
 });
 
@@ -148,7 +178,7 @@ test("broken stable references remain indexed and null placement is direction-in
   assert.equal(doc.brokenLinks(root.id)[0]?.targetPageId, "deleted-page");
 
   const collectionPage = doc.addPage("Collection");
-  const database = doc.addDatabase({ pageId: collectionPage.id, name: "Items", properties: [], rows: [], views: [] });
+  const database = doc.addDatabase({ pageId: collectionPage.id, name: "Items", properties: [{ id: "score", name: "Score", type: "number" }], rows: [], views: [] });
   const missing = doc.addRecord(database.id, "Missing", {});
   const present = doc.addRecord(database.id, "Present", { score: 5 });
   assert.deepEqual(doc.queryRecords(database.id, undefined, [{ propertyId: "score", direction: "desc", nulls: "last" }]).map(page => page.id), [present.id, missing.id]);
@@ -236,7 +266,7 @@ test("canonical schema-v2 rejects every hostile ID class and reference without l
   valid.id = "550e8400-e29b-41d4-a716-446655440000:restored.v2";
   assertWorkspaceValue(valid);
   assert.equal(valid.pages[0].blocks[0].type, "future-plugin-widget");
-  assert.equal(valid.pages[0].blocks[0].unknownData.markup, "<opaque>");
+  assert.equal(valid.pages[0].blocks[0].unknownData?.markup, "<opaque>");
   for (const attack of fixture.attacks) {
     const candidate: any = structuredClone(fixture.workspace);
     let target: any = candidate;

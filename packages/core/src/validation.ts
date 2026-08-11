@@ -224,10 +224,20 @@ export function assertWorkspaceValue(value: unknown, overrides: Partial<Validati
     for (const [v, view] of db.views.entries()) { const here = `${path}.views[${v}]`; if (!plain(view)) fail(`${here} must be a plain object`); const viewId = unique(view.id, `${here}.id`, limits, allIds); viewIds.add(viewId); if (view.collectionId !== undefined && stableId(view.collectionId, `${here}.collectionId`, limits) !== id) fail(`${here} references another collection`); string(view.name, `${here}.name`, limits, true); oneOf(view.type, VIEW_TYPES, `${here}.type`, limits); if (!Array.isArray(view.visiblePropertyIds)) fail(`${here}.visiblePropertyIds must be an array`); const propertyRefs = [view.visiblePropertyIds, view.propertyOrder ?? []]; for (const refs of propertyRefs) { if (!Array.isArray(refs)) fail(`${here} property IDs must be arrays`); for (const ref of refs) if (!properties.has(stableId(ref, `${here} property ID`, limits))) fail(`${here} references unknown property ${ref}`); } if (view.columnWidths !== undefined) { if (!plain(view.columnWidths)) fail(`${here}.columnWidths must be a plain object`); for (const [propertyId, width] of Object.entries(view.columnWidths)) { stableId(propertyId, `${here}.columnWidths key`, limits); if (!properties.has(propertyId)) fail(`${here}.columnWidths references unknown property ${propertyId}`); if (typeof width !== "number" || !Number.isFinite(width) || width <= 0) fail(`${here}.columnWidths.${propertyId} must be positive`); } } if (view.filters !== undefined) validateFilter(view.filters, `${here}.filters`, limits, properties); if (view.sorts !== undefined) { if (!Array.isArray(view.sorts)) fail(`${here}.sorts must be an array`); for (const [s, sort] of view.sorts.entries()) { if (!plain(sort)) fail(`${here}.sorts[${s}] must be a plain object`); const propertyId = stableId(sort.propertyId, `${here}.sorts[${s}].propertyId`, limits); if (!properties.has(propertyId)) fail(`${here}.sorts[${s}] references unknown property`); oneOf(sort.direction, new Set(["asc", "desc"]), `${here}.sorts[${s}].direction`, limits); if (sort.nulls !== undefined) oneOf(sort.nulls, new Set(["first", "last"]), `${here}.sorts[${s}].nulls`, limits); if (sort.locale !== undefined) string(sort.locale, `${here}.sorts[${s}].locale`, limits); } } for (const field of ["groupByPropertyId", "subgroupByPropertyId", "calendarDatePropertyId", "timelineStartPropertyId", "timelineEndPropertyId"] as const) if (view[field] !== undefined && !properties.has(stableId(view[field], `${here}.${field}`, limits))) fail(`${here}.${field} references unknown property`); for (const field of ["layout", "cardPreview", "permissions"] as const) if (view[field] !== undefined) safeObject(view[field], `${here}.${field}`, limits); if (view.scope !== undefined) oneOf(view.scope, new Set(["personal", "shared"]), `${here}.scope`, limits); }
     for (const recordPageId of db.recordPageIds ?? []) if (!pageIds.has(stableId(recordPageId, `${path}.recordPageIds`, limits))) fail(`${path} references missing record page`);
   }
-  const workspaceProperties = new Map(w.databases.flatMap(database => database.properties.map(property => [property.id, property] as const)));
-  for (const [pageIndex, page] of w.pages.entries()) for (const [propertyId, propertyValue] of Object.entries(page.properties ?? {})) {
-    const property = workspaceProperties.get(propertyId);
-    if (property) validatePropertyValue(propertyValue, property, `pages[${pageIndex}].properties.${propertyId}`, limits);
+  const collections = new Map(w.databases.map(database => [database.id, database] as const));
+  for (const [pageIndex, page] of w.pages.entries()) {
+    if (page.collectionId === undefined) continue;
+    const collection = collections.get(page.collectionId);
+    if (!collection) continue; // The missing collection is reported below with the canonical path.
+    const properties = new Map(collection.properties.map(property => [property.id, property] as const));
+    for (const [propertyId, propertyValue] of Object.entries(page.properties ?? {})) {
+      const property = properties.get(propertyId);
+      if (property === undefined) {
+        fail(`pages[${pageIndex}].properties references property ${propertyId} from another collection or an unknown property`);
+      } else {
+        validatePropertyValue(propertyValue, property, `pages[${pageIndex}].properties.${propertyId}`, limits);
+      }
+    }
   }
   for (const [index, db] of w.databases.entries()) for (const [propertyIndex, property] of db.properties.entries()) {
     const target = property.relation?.targetCollectionId ?? property.relationDatabaseId;

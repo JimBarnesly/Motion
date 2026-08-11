@@ -513,3 +513,33 @@ test("page hierarchy and typed record commands persist through SQLite restart", 
     store.close();
   } finally { await removeDatabase(path); }
 });
+
+test("record commands reject cross-collection properties without saving a revision", async () => {
+  const path = databasePath("record-property-scope");
+  try {
+    const store = new SqliteWorkspaceStore(path); const service = new MotionAppService(store);
+    let state = service.execute({ type: "workspace.create", name: "Scoped records" }); const workspaceId = state.workspace.id;
+    state = service.execute({ type: "database.create", workspaceId, expectedRevision: state.revision, title: "First" });
+    state = service.execute({ type: "database.create", workspaceId, expectedRevision: state.revision, title: "Second" });
+    const [first, second] = state.workspace.databases;
+    state = service.execute({ type: "database.property-add", workspaceId, expectedRevision: state.revision, databaseId: first!.id, property: { name: "First value", type: "number" } });
+    const firstPropertyId = state.workspace.databases.find(database => database.id === first!.id)!.properties.find(property => property.name === "First value")!.id;
+    state = service.execute({ type: "database.property-add", workspaceId, expectedRevision: state.revision, databaseId: second!.id, property: { name: "Second value", type: "number" } });
+    const secondPropertyId = state.workspace.databases.find(database => database.id === second!.id)!.properties.find(property => property.name === "Second value")!.id;
+
+    const beforeCreate = structuredClone(store.load(workspaceId));
+    assert.throws(() => service.execute({ type: "database.record-create", workspaceId, expectedRevision: state.revision, databaseId: first!.id, title: "Injected", values: { [secondPropertyId]: 2 } }),
+      (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    assert.deepEqual(store.load(workspaceId), beforeCreate);
+
+    state = service.execute({ type: "database.record-create", workspaceId, expectedRevision: state.revision, databaseId: first!.id, title: "Valid", values: { [firstPropertyId]: 1 } });
+    const record = state.workspace.pages.find(page => page.title === "Valid")!;
+    state = service.execute({ type: "database.record-update", workspaceId, expectedRevision: state.revision, pageId: record.id, values: { [firstPropertyId]: 3 } });
+    assert.equal(state.workspace.pages.find(page => page.id === record.id)?.properties?.[firstPropertyId], 3);
+    const beforeUpdate = structuredClone(store.load(workspaceId));
+    assert.throws(() => service.execute({ type: "database.record-update", workspaceId, expectedRevision: state.revision, pageId: record.id, title: "Must roll back", values: { [secondPropertyId]: 4 } }),
+      (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    assert.deepEqual(store.load(workspaceId), beforeUpdate);
+    store.close();
+  } finally { await removeDatabase(path); }
+});

@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "node scripts/serve.mjs",
     "build": "node scripts/build.mjs",
-    "test": "node --check app.js && node --test test/*.test.mjs"
+    "typecheck": "tsc --strict --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext test/app-adapter-types.ts",
+    "test": "node --check app.js && npm run typecheck && node --test test/*.test.mjs"
   }
 }

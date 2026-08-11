@@ -79,12 +79,52 @@ test("native adapter sends versioned typed IPC envelopes", async () => {
   ]);
 });
 
-test("native adapter declaration exposes typed Phase 1 block command payloads and results", async () => {
+test("native execute injects authoritative workspace fields and rejects commands outside its contract", async () => {
+  const calls = [];
+  const { createMotionUiAdapter } = await import("../app-adapter.js");
+  const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => {
+    calls.push({ command, payload });
+    if (payload?.request?.payload?.type === "workspace.list") return [{ id: "workspace-1", revision: 3 }];
+    if (payload?.request?.payload?.type === "page.create") return { workspace: { id: "workspace-1" }, revision: 4, saved: true };
+  } } } });
+  await adapter.execute("page.create", { title: "Page", workspaceId: "caller-workspace", expectedRevision: 99 });
+  const command = calls.find(call => call.payload?.request?.payload?.type === "page.create").payload.request.payload;
+  assert.deepEqual(command, { type: "page.create", title: "Page", workspaceId: "workspace-1", expectedRevision: 3 });
+  await assert.rejects(adapter.execute("workspace.import-web-v1", {}), /Unsupported native command/);
+});
+
+test("native adapter declaration exhaustively types the synchronous service surface except the privileged Web-v1 import lane", async () => {
   const declaration = await readFile(resolve(root, "app-adapter.d.ts"), "utf8");
+  const source = await readFile(resolve(root, "app-adapter.js"), "utf8");
+  const serviceSource = await readFile(resolve(root, "../../packages/app-service/src/index.ts"), "utf8");
+  const operations = [
+    "workspace.create", "page.create", "page.rename", "page.move", "page.reorder", "page.set-favourite", "page.trash", "page.restore", "page.replace-blocks",
+    "block.create", "block.update-content", "block.transform", "block.move", "block.indent", "block.outdent", "block.duplicate", "block.delete", "block.batch",
+    "database.create", "database.property-add", "database.property-update", "database.property-delete", "database.record-create", "database.record-update", "database.view-update"
+  ];
+  const blockOperations = serviceSource.match(/export type BlockOperation =([\s\S]*?)export type BlockCommand/)?.[1];
+  const appCommands = serviceSource.match(/export type AppCommand =([\s\S]*?)export type AsyncAppCommand/)?.[1];
+  assert.ok(blockOperations && appCommands, "app-service command unions must remain statically discoverable");
+  const serviceOperations = new Set([
+    ...[...blockOperations.matchAll(/type: "([^"]+)"/g)].map(match => match[1]),
+    "block.batch",
+    ...[...appCommands.matchAll(/type: "([^"]+)"/g)].map(match => match[1])
+  ]);
+  assert.equal(serviceOperations.has("workspace.import-web-v1"), true, "the service retains its privileged migration command");
+  serviceOperations.delete("workspace.import-web-v1"); // Deliberately desktop-internal: the UI adapter must not expose raw document import.
+  assert.deepEqual([...operations].sort(), [...serviceOperations].sort());
+  const { NATIVE_EXECUTE_OPERATIONS } = await import("../app-adapter.js");
+  assert.deepEqual(NATIVE_EXECUTE_OPERATIONS, operations);
   assert.match(declaration, /NativeBlockOperation/);
   assert.match(declaration, /"block\.batch": \{ commands: readonly NativeBlockOperation\[\] \}/);
+  for (const operation of operations) {
+    assert.match(declaration, new RegExp(`"${operation.replace(".", "\\.")}"`));
+    assert.match(source, new RegExp(`"${operation.replace(".", "\\.")}"`));
+  }
+  assert.match(declaration, /NativeCommandContractAssertion = AssertTrue/);
   assert.match(declaration, /execute<C extends keyof NativeCommandPayloads>\(type: C, payload: NativeCommandPayloads\[C\]\): Promise<NativeCommandResults\[C\]>/);
   assert.match(declaration, /type MotionUiAdapter = TauriMotionUiAdapter \| BrowserDevelopmentMotionUiAdapter/);
+  assert.doesNotMatch(declaration, /BrowserDevelopmentMotionUiAdapter[^}]+execute/s);
 });
 
 test("search and export use canonical native queries with honest browser fallbacks", async () => {

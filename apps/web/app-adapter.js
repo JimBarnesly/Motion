@@ -6,6 +6,13 @@ import { normalizeWorkspaceV1 } from "./workspace-v1.js";
  */
 
 const EMPTY_WORKSPACE = Object.freeze({ schemaVersion: 1, pages: [], activePageId: null });
+const NATIVE_EXECUTE_OPERATIONS = Object.freeze([
+  "workspace.create",
+  "page.create", "page.rename", "page.move", "page.reorder", "page.set-favourite", "page.trash", "page.restore", "page.replace-blocks",
+  "block.create", "block.update-content", "block.transform", "block.move", "block.indent", "block.outdent", "block.duplicate", "block.delete", "block.batch",
+  "database.create", "database.property-add", "database.property-update", "database.property-delete", "database.record-create", "database.record-update", "database.view-update"
+]);
+const nativeExecuteOperations = new Set(NATIVE_EXECUTE_OPERATIONS);
 const DB_NAME = "motion-web-development";
 const STORE_NAME = "workspace";
 const WORKSPACE_KEY = "default";
@@ -77,13 +84,14 @@ function tauriAdapter(invoke) {
       return loaded;
     },
     async execute(type, payload = {}) {
+      if (!nativeExecuteOperations.has(type)) throw new Error(`Unsupported native command: ${String(type)}`);
       if (type === "workspace.create") {
-        const result = await dispatch("command", { type, ...payload });
+        const result = await dispatch("command", { ...payload, type });
         workspaceSummary = { id: result.workspace.id, revision: result.revision };
         return result;
       }
       const current = await requiredWorkspace();
-      const result = await dispatch("command", { type, workspaceId: current.id, expectedRevision: current.revision, ...payload });
+      const result = await dispatch("command", { ...payload, type, workspaceId: current.id, expectedRevision: current.revision });
       workspaceSummary = { id: current.id, revision: result.revision };
       return result;
     },
@@ -124,4 +132,4 @@ export function createMotionUiAdapter(runtime = window) {
   return typeof invoke === "function" ? tauriAdapter(invoke) : browserDevelopmentAdapter();
 }
 
-export { EMPTY_WORKSPACE };
+export { EMPTY_WORKSPACE, NATIVE_EXECUTE_OPERATIONS };

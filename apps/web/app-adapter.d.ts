@@ -44,13 +44,50 @@ export type NativeBlockOperation =
   | { type: "block.delete"; pageId: string; blockId: string }
   | { type: "block.duplicate"; pageId: string; blockId: string; newBlockId: string };
 
+export type NativePropertyValue = string | number | boolean | null | string[] | { start: string; end?: string } | { attachmentIds: string[] };
+export type NativeDatabasePropertyType = "title" | "plain-text" | "rich-text" | "number" | "checkbox" | "select" | "multi-select" | "status" | "date" | "date-range" | "url" | "email" | "phone" | "files" | "created-time" | "updated-time" | "created-by" | "updated-by" | "relation" | "text" | "page";
+export interface NativeDatabasePropertyInput {
+  name: string;
+  type: NativeDatabasePropertyType;
+  relation?: { targetCollectionId: string; reciprocalPropertyId?: string; cardinality?: "one-to-one" | "one-to-many" | "many-to-many"; maxItems?: number; onDelete?: "retain" | "remove" };
+  relationDatabaseId?: string;
+  options?: Array<{ id: string; name: string; color?: string }>;
+}
+export type NativeDatabasePropertyPatch = Partial<NativeDatabasePropertyInput>;
+export type NativeFilterOperator = "equals" | "not-equals" | "contains" | "not-contains" | "gt" | "gte" | "lt" | "lte" | "before" | "after" | "is-empty" | "is-not-empty" | "in" | "relative-date";
+export type NativeFilterExpression =
+  | { kind: "condition"; propertyId: string; operator: NativeFilterOperator; value?: NativePropertyValue }
+  | { kind: "and" | "or"; children: NativeFilterExpression[] }
+  | { kind: "not"; child: NativeFilterExpression };
+export interface NativeDatabaseViewPatch {
+  name?: string;
+  visiblePropertyIds?: string[];
+  propertyOrder?: string[];
+  columnWidths?: Record<string, number>;
+  filters?: NativeFilterExpression;
+  sorts?: Array<{ propertyId: string; direction: "asc" | "desc"; nulls?: "first" | "last"; locale?: string }>;
+  groupByPropertyId?: string;
+  subgroupByPropertyId?: string;
+  layout?: Record<string, unknown>;
+  cardPreview?: Record<string, unknown>;
+  calendarDatePropertyId?: string;
+  timelineStartPropertyId?: string;
+  timelineEndPropertyId?: string;
+  permissions?: Record<string, unknown>;
+  scope?: "personal" | "shared";
+}
+
 type PayloadFor<T extends NativeBlockOperation["type"]> = Omit<Extract<NativeBlockOperation, { type: T }>, "type">;
 export interface NativeCommandPayloads {
   "workspace.create": { name: string };
+  "page.create": { title: string; parentId?: string | null };
   "page.rename": { pageId: string; title: string };
+  "page.move": { pageId: string; parentId: string | null };
+  "page.reorder": { pageId: string; beforePageId: string | null };
+  "page.set-favourite": { pageId: string; favourite: boolean };
+  "page.trash": { pageId: string };
+  "page.restore": { pageId: string };
   "page.replace-blocks": { pageId: string; blocks: readonly NativeBlock[] };
-  "database.record-update": { pageId: string; title?: string; values: Record<string, unknown> };
-  "database.view-update": { databaseId: string; viewId: string; patch: Record<string, unknown> };
   "block.create": PayloadFor<"block.create">;
   "block.update-content": PayloadFor<"block.update-content">;
   "block.transform": PayloadFor<"block.transform">;
@@ -60,7 +97,25 @@ export interface NativeCommandPayloads {
   "block.duplicate": PayloadFor<"block.duplicate">;
   "block.delete": PayloadFor<"block.delete">;
   "block.batch": { commands: readonly NativeBlockOperation[] };
+  "database.create": { title: string; parentId?: string | null };
+  "database.property-add": { databaseId: string; property: NativeDatabasePropertyInput };
+  "database.property-update": { databaseId: string; propertyId: string; patch: NativeDatabasePropertyPatch };
+  "database.property-delete": { databaseId: string; propertyId: string };
+  "database.record-create": { databaseId: string; title: string; values?: Record<string, NativePropertyValue> };
+  "database.record-update": { pageId: string; title?: string; values: Record<string, NativePropertyValue | undefined> };
+  "database.view-update": { databaseId: string; viewId: string; patch: NativeDatabaseViewPatch };
 }
+
+export declare const NATIVE_EXECUTE_OPERATIONS: readonly [
+  "workspace.create",
+  "page.create", "page.rename", "page.move", "page.reorder", "page.set-favourite", "page.trash", "page.restore", "page.replace-blocks",
+  "block.create", "block.update-content", "block.transform", "block.move", "block.indent", "block.outdent", "block.duplicate", "block.delete", "block.batch",
+  "database.create", "database.property-add", "database.property-update", "database.property-delete", "database.record-create", "database.record-update", "database.view-update"
+];
+export type NativeExecuteOperation = typeof NATIVE_EXECUTE_OPERATIONS[number];
+type AssertTrue<T extends true> = T;
+type ExactCommandKeys = [Exclude<NativeExecuteOperation, keyof NativeCommandPayloads>, Exclude<keyof NativeCommandPayloads, NativeExecuteOperation>] extends [never, never] ? true : false;
+export type NativeCommandContractAssertion = AssertTrue<ExactCommandKeys>;
 
 export interface NativeMutationResult {
   workspace: Readonly<Record<string, unknown> & { id: string }>;

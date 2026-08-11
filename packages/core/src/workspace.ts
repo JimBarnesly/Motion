@@ -91,8 +91,17 @@ export class WorkspaceDocument {
     const location = this.requiredBlock(pageId, blockId); location.siblings.splice(location.index, 1); this.changedPages(location.page); return location.block;
   }
   addDatabase(database: Omit<Database, "id"> & { id?: ID }): Database { this.requiredPage(database.pageId); const result = { ...database, id: database.id ?? id(), recordPageIds: database.recordPageIds ?? [] }; this.data.databases.push(result); this.touch(); return result; }
-  addRecord(databaseId: ID, title: string, values: Record<ID, PropertyValue> = {}): Page { const db = this.requiredDatabase(databaseId); const page = this.addPage(title, db.pageId, { collectionId: db.id, properties: values }); db.recordPageIds ??= []; db.recordPageIds.push(page.id); return page; }
-  updateRecord(pageId: ID, title: string | undefined, values: Record<ID, PropertyValue | undefined>) { const page = this.requiredPage(pageId); const db = this.requiredDatabase(page.collectionId ?? ""); if (title !== undefined) page.title = title; page.properties ??= {}; for (const [propertyId, value] of Object.entries(values)) { if (!db.properties.some(property => property.id === propertyId)) throw new Error(`Database property not found: ${propertyId}`); if (value === undefined) delete page.properties[propertyId]; else page.properties[propertyId] = value; } this.touchPage(page); return page; }
+  addRecord(databaseId: ID, title: string, values: Record<ID, PropertyValue> = {}): Page {
+    const db = this.requiredDatabase(databaseId); this.assertRecordPropertyIds(db, values);
+    const page = this.addPage(title, db.pageId, { collectionId: db.id, properties: values });
+    db.recordPageIds ??= []; db.recordPageIds.push(page.id); return page;
+  }
+  updateRecord(pageId: ID, title: string | undefined, values: Record<ID, PropertyValue | undefined>) {
+    const page = this.requiredPage(pageId); const db = this.requiredDatabase(page.collectionId ?? ""); this.assertRecordPropertyIds(db, values);
+    if (title !== undefined) page.title = title; page.properties ??= {};
+    for (const [propertyId, value] of Object.entries(values)) { if (value === undefined) delete page.properties[propertyId]; else page.properties[propertyId] = value; }
+    this.touchPage(page); return page;
+  }
   addProperty(databaseId: ID, property: Omit<DatabaseProperty, "id"> & { id?: ID }) { const db = this.requiredDatabase(databaseId); const result = { ...property, id: property.id ?? id() }; db.properties.push(result); for (const view of db.views) { view.visiblePropertyIds.push(result.id); view.propertyOrder = [...(view.propertyOrder ?? view.visiblePropertyIds.filter(propertyId => propertyId !== result.id)), result.id]; } this.touch(); return result; }
   updateProperty(databaseId: ID, propertyId: ID, patch: Partial<Omit<DatabaseProperty, "id">>) { const db = this.requiredDatabase(databaseId); const property = db.properties.find(candidate => candidate.id === propertyId); if (!property) throw new Error(`Database property not found: ${propertyId}`); if (patch.type && patch.type !== property.type) for (const page of this.records(databaseId)) delete page.properties?.[propertyId]; Object.assign(property, patch, { id: propertyId }); this.touch(); return property; }
   deleteProperty(databaseId: ID, propertyId: ID) { const db = this.requiredDatabase(databaseId); if (db.properties.find(candidate => candidate.id === propertyId)?.type === "title") throw new Error("The title property cannot be deleted"); db.properties = db.properties.filter(candidate => candidate.id !== propertyId); for (const page of this.records(databaseId)) delete page.properties?.[propertyId]; for (const view of db.views) { view.visiblePropertyIds = view.visiblePropertyIds.filter(id => id !== propertyId); view.propertyOrder = view.propertyOrder?.filter(id => id !== propertyId); if (view.columnWidths) delete view.columnWidths[propertyId]; view.sorts = view.sorts?.filter(sort => sort.propertyId !== propertyId); if (view.filters && filterReferences(view.filters, propertyId)) delete view.filters; } this.touch(); }
@@ -171,6 +180,7 @@ export class WorkspaceDocument {
   private changedPages(...pages: Page[]): void { for (const page of new Set(pages)) { page.updatedAt = now(); this.indexPage(page); } this.touch(); }
   private requiredPage(pageId: ID) { const page = this.page(pageId); if (!page) throw new Error(`Page not found: ${pageId}`); return page; }
   private requiredDatabase(databaseId: ID) { const db = this.data.databases.find(d => d.id === databaseId); if (!db) throw new Error(`Database not found: ${databaseId}`); return db; }
+  private assertRecordPropertyIds(db: Database, values: Record<ID, PropertyValue | undefined>): void { for (const propertyId of Object.keys(values)) if (!db.properties.some(property => property.id === propertyId)) throw new Error(`Invalid record property for collection: ${propertyId}`); }
   private touchPage(page: Page) { page.updatedAt = now(); this.touch(); }
   private touch() { this.data.updatedAt = now(); }
 }

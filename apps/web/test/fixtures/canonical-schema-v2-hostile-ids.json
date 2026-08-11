@@ -47,7 +47,7 @@
         "blocks": [],
         "properties": {
           "property:select": "option:open",
-          "property:multi": ["option:open"],
+          "property:multi": ["option:multi"],
           "property:relation": ["page:root"],
           "property:files": { "attachmentIds": ["attachment:one"] },
           "property:creator": "user:creator",
@@ -62,7 +62,7 @@
       "properties": [
         { "id": "property:title", "name": "Title", "type": "title" },
         { "id": "property:select", "name": "Status", "type": "select", "options": [{ "id": "option:open", "name": "Open" }] },
-        { "id": "property:multi", "name": "Tags", "type": "multi-select", "options": [{ "id": "option:open", "name": "Open" }] },
+        { "id": "property:multi", "name": "Tags", "type": "multi-select", "options": [{ "id": "option:multi", "name": "Multi" }] },
         { "id": "property:relation", "name": "Relation", "type": "relation", "relation": { "targetCollectionId": "database:one", "reciprocalPropertyId": "property:relation" }, "relationDatabaseId": "database:one" },
         { "id": "property:files", "name": "Files", "type": "files" },
         { "id": "property:creator", "name": "Creator", "type": "created-by" },
@@ -74,7 +74,7 @@
         "values": {
           "property:title": "Record",
           "property:select": "option:open",
-          "property:multi": ["option:open"],
+          "property:multi": ["option:multi"],
           "property:relation": ["page:root"],
           "property:files": { "attachmentIds": ["attachment:one"] },
           "property:creator": "user:creator",

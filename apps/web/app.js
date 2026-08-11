@@ -87,7 +87,7 @@ function render(){
   $("#breadcrumbs").innerHTML=`${navigation.length?`<button data-back aria-label="Go back">←</button>`:""}${ancestors(page).map(item=>`<button data-open-page="${item.id}">${escapeHtml(item.title||"Untitled")}</button>`).join("<span>/</span>")}`;
   const database=databaseForPage(page); if(database?.pageId===page.id)renderDatabase(page,database);else renderDocument(page,database);renderContext(page);
 }
-function pageHeader(page,label){return `<div class="page-kicker"><span>${label}</span><span><button class="quiet" data-favourite="${page.id}">${page.favourite?"★ Favourited":"☆ Favourite"}</button><button class="danger-text" data-trash-page="${page.id}">Trash</button></span></div><input id="pageTitle" class="page-title" value="${escapeHtml(page.title)}" aria-label="Page title" placeholder="Untitled" />`;}
+function pageHeader(page,label){return `<div class="page-kicker"><span>${escapeHtml(label)}</span><span><button class="quiet" data-favourite="${page.id}">${page.favourite?"★ Favourited":"☆ Favourite"}</button><button class="danger-text" data-trash-page="${page.id}">Trash</button></span></div><input id="pageTitle" class="page-title" value="${escapeHtml(page.title)}" aria-label="Page title" placeholder="Untitled" />`;}
 function propertyInput(property,value,attrs=""){
   const common=`data-property="${property.id}" ${attrs} aria-label="${escapeHtml(property.name)}"`;
   if(property.type==="checkbox")return `<input type="checkbox" ${common} ${value?"checked":""}>`;

@@ -110,6 +110,7 @@ test("hostile restores are closed-shape normalised before rendering", async () =
   assert.match(source, /migrateLoaded\(normalizeWorkspaceV1\(candidate\)\)/);
   assert.match(source, /escapeHtml\(page\.title/);
   assert.match(source, /escapeHtml\(block\.text/);
+  assert.match(source, /<span>\$\{escapeHtml\(label\)\}<\/span>/);
 });
 
 test("invalid hierarchy and duplicate IDs are rejected", async () => {

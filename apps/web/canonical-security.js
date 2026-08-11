@@ -1,4 +1,6 @@
-const CANONICAL_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+import { CANONICAL_MAX_ID_LENGTH, stableIdPattern } from "./id-security.js";
+
+const CANONICAL_ID = stableIdPattern(CANONICAL_MAX_ID_LENGTH);
 
 const fail = path => { throw new Error(`Invalid Motion workspace: ${path} contains an unsafe canonical ID`); };
 const id = (value, path) => {

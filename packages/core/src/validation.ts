@@ -1,4 +1,4 @@
-import type { Attachment, Block, Database, DatabaseProperty, ID, Page, PropertyValue, Workspace } from "./model.js";
+import { CANONICAL_MAX_ID_LENGTH, type Attachment, type Block, type Database, type DatabaseProperty, type ID, type Page, type PropertyValue, type Workspace } from "./model.js";
 
 export interface ValidationLimits {
   maxPages: number; maxBlocks: number; maxBlockDepth: number; maxDatabases: number;
@@ -22,7 +22,7 @@ const string = (value: unknown, path: string, limits: ValidationLimits, allowEmp
   if (result.length > limits.maxStringLength) fail(`${path} exceeds string limit`);
   return result;
 };
-const CANONICAL_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const CANONICAL_ID = new RegExp(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,${CANONICAL_MAX_ID_LENGTH - 1}}$`);
 const stableId = (value: unknown, path: string, limits: ValidationLimits): ID => {
   const result = string(value, path, limits);
   if (!CANONICAL_ID.test(result)) fail(`${path} must be a safe canonical ID`);

@@ -1,8 +1,8 @@
 # Motion V1.0 scope and acceptance contract
 
-Owner: Managing Director  
-Implementation authority: Engineering  
-Acceptance authorities: Quality & Release and Operations & Security  
+Owner: Managing Director
+Implementation authority: Engineering
+Acceptance authorities: Quality & Release and Operations & Security
 Defined: 2026-08-11
 
 ## Release outcome

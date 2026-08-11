@@ -180,6 +180,19 @@ test("web v1 migration is deterministic, separates UI state, preserves unknown b
   assertWorkspaceValue(first.workspace);
 });
 
+test("web v1 migration preserves a maximum-length safe database page ID in deterministic canonical IDs", () => {
+  const pageId = "p".repeat(128);
+  const result = migrateWebWorkspaceV1({ schemaVersion: 1, activePageId: pageId, pages: [{ id: pageId, parentId: null, order: 0, type: "database", title: "Data", columns: [], rows: [] }] });
+  assert.equal(result.workspace.databases[0]?.id, `database:${pageId}`);
+  assert.equal(result.workspace.databases[0]?.views[0]?.id, `view:${pageId}:table`);
+  assertWorkspaceValue(result.workspace);
+});
+
+test("web v1 migration retains the legacy ID grammar while allowing deterministic canonical affixes", () => {
+  const candidate = (id: string) => ({ schemaVersion: 1, activePageId: null, pages: [{ id, parentId: null, order: 0, type: "document", title: "Page", blocks: [] }] });
+  for (const hostile of ['page"quoted', " page", "page ", "p".repeat(129)]) assert.throws(() => migrateWebWorkspaceV1(candidate(hostile)), /safe stable ID/);
+});
+
 test("web v1 trash migration preserves page identity and content", () => {
   const fixture = JSON.parse(readFileSync(new URL("../../../../fixtures/web-workspace-v1.json", import.meta.url), "utf8"));
   fixture.pages[0].deleted = true;

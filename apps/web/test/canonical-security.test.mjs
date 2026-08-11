@@ -2,8 +2,26 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { assertSafeCanonicalWorkspaceIds, escapeAttribute } from "../canonical-security.js";
+import { normalizeWorkspaceV1 } from "../workspace-v1.js";
 
 const fixture = JSON.parse(await readFile(new URL("./fixtures/canonical-schema-v2-hostile-ids.json", import.meta.url), "utf8"));
+
+test("canonical validation preserves IDs derived from a maximum-length Web-v1 database page ID", () => {
+  const pageId = "p".repeat(128);
+  const legacy = normalizeWorkspaceV1({ schemaVersion: 1, activePageId: pageId, pages: [{ id: pageId, parentId: null, order: 0, type: "database", title: "Data", columns: [], rows: [] }] });
+  const workspace = {
+    schemaVersion: 2,
+    id: "web-workspace-v1",
+    pages: [{ id: legacy.pages[0].id, parentId: null, blocks: [] }],
+    databases: [{ id: `database:${legacy.pages[0].id}`, pageId: legacy.pages[0].id, properties: [], rows: [], views: [{ id: `view:${legacy.pages[0].id}:table`, collectionId: `database:${legacy.pages[0].id}`, visiblePropertyIds: [] }] }],
+    attachments: [],
+    linkIndex: []
+  };
+
+  assert.equal(workspace.databases[0].id.length, 137);
+  assert.equal(workspace.databases[0].views[0].id.length, 139);
+  assert.doesNotThrow(() => assertSafeCanonicalWorkspaceIds(workspace));
+});
 
 function attackedWorkspace(attack) {
   const workspace = structuredClone(fixture.workspace);

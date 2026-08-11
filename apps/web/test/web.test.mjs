@@ -12,6 +12,11 @@ test("entrypoint references only local assets", async () => {
   assert.doesNotMatch(html, /https?:\/\//);
 });
 
+test("Web build includes the shared ID security module", async () => {
+  const build = await readFile(resolve(root, "scripts/build.mjs"), "utf8");
+  assert.match(build, /"id-security\.js"/);
+});
+
 test("development server supports an explicit bind host without embedding a remote URL", async () => {
   const source = await readFile(resolve(root, "scripts/serve.mjs"), "utf8");
   assert.match(source, /process\.env\.HOST \?\? "127\.0\.0\.1"/);
@@ -140,9 +145,10 @@ test("invalid hierarchy and duplicate IDs are rejected", async () => {
   }
 });
 
-test("hostile IDs cannot enter HTML attributes", async () => {
+test("hostile and oversized Web-v1 IDs cannot enter HTML attributes", async () => {
   const { normalizeWorkspaceV1 } = await import("../workspace-v1.js");
-  assert.throws(() => normalizeWorkspaceV1({ schemaVersion: 1, activePageId: null, pages: [{ id: '\" onclick=alert(1)', parentId: null, order: 0, type: "document", title: "x", blocks: [] }] }), /safe stable ID/);
+  const candidate = id => ({ schemaVersion: 1, activePageId: null, pages: [{ id, parentId: null, order: 0, type: "document", title: "x", blocks: [] }] });
+  for (const hostile of ['\" onclick=alert(1)', " page", "page ", "p".repeat(129)]) assert.throws(() => normalizeWorkspaceV1(candidate(hostile)), /safe stable ID/);
 });
 
 test("workspace backup and restore use a documented version marker", async () => {

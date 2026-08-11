@@ -1,4 +1,8 @@
 export const WORKSPACE_SCHEMA_VERSION = 2 as const;
+/** Web-v1 persisted IDs were constrained to this length before migration. */
+export const WEB_V1_MAX_ID_LENGTH = 128;
+/** Includes deterministic migration affixes around a maximum-length Web-v1 ID. */
+export const CANONICAL_MAX_ID_LENGTH = 160;
 export type ID = string;
 export type ISODate = string;
 export type Scalar = string | number | boolean | null;

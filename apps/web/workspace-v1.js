@@ -1,4 +1,6 @@
-const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+import { stableIdPattern, WEB_V1_MAX_ID_LENGTH } from "./id-security.js";
+
+const ID = stableIdPattern(WEB_V1_MAX_ID_LENGTH);
 const PAGE_TYPES = new Set(["document", "database"]);
 const MAX_PAGES = 100_000;
 

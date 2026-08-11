@@ -86,6 +86,7 @@ function tauriAdapter(invoke) {
   let activeTransitionEpoch = null;
   let selectionRecoveryRequired = false;
   let selectionKnown = false;
+  let selectionRecoveryPromise = null;
   let pendingUiSaves = 0;
   let uiSaveTail = Promise.resolve();
   const workspaceChanged = () => new Error("Native workspace changed while the operation was running");
@@ -143,14 +144,25 @@ function tauriAdapter(invoke) {
     if (selectionKnown) throw new Error("Create a workspace before using this native operation");
     const discoveryEpoch = workspaceEpoch;
     if (selectionRecoveryRequired) {
-      const loaded = await invoke("motion_ui_load", { request: { schemaVersion: 2 } });
-      if (discoveryEpoch !== workspaceEpoch || activeTransitionEpoch !== null) throw workspaceChanged();
-      if (loaded?.schemaVersion !== 2) throw new Error("Native Motion returned an unsupported UI document");
-      workspaceSummary = transitionSummary(loaded, true);
-      selectionRecoveryRequired = false;
-      selectionKnown = true;
-      if (!workspaceSummary) throw new Error("Create a workspace before using this native operation");
-      return workspaceSummary;
+      if (!selectionRecoveryPromise) {
+        const recoveryEpoch = discoveryEpoch;
+        const recovery = (async () => {
+          const loaded = await invoke("motion_ui_load", { request: { schemaVersion: 2 } });
+          if (recoveryEpoch !== workspaceEpoch || activeTransitionEpoch !== null) throw workspaceChanged();
+          if (loaded?.schemaVersion !== 2) throw new Error("Native Motion returned an unsupported UI document");
+          workspaceSummary = transitionSummary(loaded, true);
+          selectionRecoveryRequired = false;
+          selectionKnown = true;
+          return workspaceSummary;
+        })();
+        selectionRecoveryPromise = recovery.finally(() => {
+          if (selectionRecoveryPromise === recoveryWithCleanup) selectionRecoveryPromise = null;
+        });
+        const recoveryWithCleanup = selectionRecoveryPromise;
+      }
+      const recovered = await selectionRecoveryPromise;
+      if (!recovered) throw new Error("Create a workspace before using this native operation");
+      return recovered;
     }
     const workspaces = await dispatch("query", { type: "workspace.list" });
     if (discoveryEpoch !== workspaceEpoch) return requiredWorkspace();

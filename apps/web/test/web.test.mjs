@@ -145,6 +145,37 @@ test("authoritative empty selection never falls back to the most recent workspac
   assert.equal(calls.includes("page.rename"), false);
 });
 
+test("failed-transition selection recovery is single-flight for concurrent commands", async () => {
+  let loadCount = 0;
+  let releaseRecovery;
+  const recovery = new Promise(resolve => { releaseRecovery = resolve; });
+  const calls = [];
+  const { createMotionUiAdapter } = await import("../app-adapter.js");
+  const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => {
+    const operation = payload?.request?.payload;
+    calls.push(operation?.type ?? command);
+    if (command === "motion_ui_load") {
+      loadCount += 1;
+      if (loadCount === 1) return { schemaVersion: 2, workspace: { id: "workspace-A", pages: [], databases: [] }, revision: 4 };
+      return recovery;
+    }
+    if (operation?.type === "workspace.import-web-v1") throw new Error("transition failed");
+    if (operation?.type === "page.rename") return { workspace: { id: "workspace-A", pages: [], databases: [] }, revision: 5, saved: true };
+    throw new Error(`Unexpected native call: ${operation?.type ?? command}`);
+  } } } });
+
+  await adapter.load();
+  await assert.rejects(adapter.importWebV1({ schemaVersion: 1, pages: [], activePageId: null }), /transition failed/);
+  const first = adapter.execute("page.rename", { pageId: "page-A", title: "First" });
+  const second = adapter.execute("page.rename", { pageId: "page-A", title: "Second" });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(loadCount, 2);
+  releaseRecovery({ schemaVersion: 2, workspace: null, revision: 0, activePageId: null });
+  await assert.rejects(first, /Create a workspace/);
+  await assert.rejects(second, /Create a workspace/);
+  assert.equal(calls.includes("page.rename"), false);
+});
+
 test("failed workspace transitions reload the persisted selection before later commands", async () => {
   const calls = [];
   let loadCount = 0;

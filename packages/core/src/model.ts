@@ -60,7 +60,14 @@ export function migrateWorkspace(input: unknown): Workspace {
       const aliases: Record<string, string> = { heading: "heading-2", todo: "task", attachment: "file" };
       block.type = aliases[block.type] ?? block.type;
     }
-    for (const db of raw.databases ?? []) db.recordPageIds ??= (db.rows ?? []).map((r: DatabaseRow) => r.pageId).filter(Boolean);
+    for (const db of raw.databases ?? []) {
+      db.recordPageIds ??= (db.rows ?? []).map((r: DatabaseRow) => r.pageId).filter(Boolean);
+      if (!Array.isArray(db.recordPageIds)) continue;
+      for (const recordPageId of db.recordPageIds) {
+        const page = (raw.pages ?? []).find((candidate: Page) => candidate.id === recordPageId);
+        if (page?.collectionId === undefined) page.collectionId = db.id;
+      }
+    }
     assertWorkspaceValue(raw);
     return raw as Workspace;
   }

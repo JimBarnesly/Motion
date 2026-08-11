@@ -487,6 +487,7 @@ export function toAppError(error: unknown): MotionAppError {
   const message = error instanceof Error ? error.message : "Unknown application error";
   if (message.startsWith("Revision conflict")) return new MotionAppError("REVISION_CONFLICT", "Workspace changed since it was loaded; reload and retry");
   if (/Invalid record property for collection/i.test(message)) return new MotionAppError("INVALID_INPUT", "Record values must use properties from their collection");
+  if (/Invalid record target/i.test(message)) return new MotionAppError("INVALID_INPUT", "Record updates require a page indexed by exactly one matching collection");
   if (/not found/i.test(message)) return new MotionAppError("NOT_FOUND", "Requested local resource was not found");
   if (/Invalid workspace|Invalid web v1|Unsupported workspace|cycle|cannot contain children|cannot be (?:positioned|outdented)|no previous sibling|Backup verification|JSON|duplicate ID|exceeds .*limit|schemaVersion/i.test(message)) return new MotionAppError("VALIDATION_FAILED", "Workspace data failed validation");
   if (/SQLITE|database|Private (?:file|directory) path/i.test(message)) return new MotionAppError("STORAGE_FAILURE", "Local database operation failed");

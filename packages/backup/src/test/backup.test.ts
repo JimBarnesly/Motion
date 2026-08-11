@@ -12,7 +12,7 @@ const workspace: WorkspaceSnapshot = {
   name: "Portable workspace",
   pages: [
     { id: "page-root", parentId: null, title: "Root", blocks: [{ id: "block-1", type: "paragraph", text: "Hello", children: [], attachmentId: "attachment-1" }], createdAt: "2026-01-01T00:00:00Z" },
-    { id: "page-child", parentId: "page-root", title: "Child", blocks: [], createdAt: "2026-01-01T00:00:00Z" }
+    { id: "page-child", parentId: "page-root", title: "Child", blocks: [], collectionId: "database-1", createdAt: "2026-01-01T00:00:00Z" }
   ],
   databases: [{ id: "database-1", pageId: "page-root", name: "Tasks", properties: [], rows: [{ id: "row-1", pageId: "page-child" }], recordPageIds: ["page-child"], views: [] }],
   attachments: [{ id: "attachment-1", fileName: "note.txt", sha256, byteLength: bytes.byteLength, path: "/private/source/note.txt" }],

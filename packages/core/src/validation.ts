@@ -182,7 +182,7 @@ export function assertWorkspaceValue(value: unknown, overrides: Partial<Validati
   if (!Array.isArray(w.databases) || w.databases.length > limits.maxDatabases) fail("databases must be an array within limits");
   if (!Array.isArray(w.attachments) || w.attachments.length > limits.maxAttachments) fail("attachments must be an array within limits");
   if (!Array.isArray(w.linkIndex)) fail("linkIndex must be an array");
-  const pageIds = new Set<ID>(), databaseIds = new Set<ID>(), viewIds = new Set<ID>(), attachmentIds = new Set<ID>(), allIds = new Set<ID>([w.id]), blockOwners = new Map<ID, ID>();
+  const pageIds = new Set<ID>(), pageById = new Map<ID, Page>(), databaseIds = new Set<ID>(), viewIds = new Set<ID>(), attachmentIds = new Set<ID>(), allIds = new Set<ID>([w.id]), blockOwners = new Map<ID, ID>();
   for (const [index, item] of w.attachments.entries()) {
     const attachment = item as Attachment; const path = `attachments[${index}]`;
     if (!plain(attachment)) fail(`${path} must be a plain object`);
@@ -195,7 +195,7 @@ export function assertWorkspaceValue(value: unknown, overrides: Partial<Validati
   for (const [index, item] of w.pages.entries()) {
     const page = item as Page; const path = `pages[${index}]`;
     if (!plain(page)) fail(`${path} must be a plain object`);
-    const id = unique(page.id, `${path}.id`, limits, allIds); pageIds.add(id);
+    const id = unique(page.id, `${path}.id`, limits, allIds); pageIds.add(id); pageById.set(id, page);
     string(page.title, `${path}.title`, limits, true); timestamp(page.createdAt, `${path}.createdAt`, limits); timestamp(page.updatedAt, `${path}.updatedAt`, limits);
   }
   const blockState = { count: 0, viewRefs: [] as { id: ID; path: string }[] };
@@ -210,7 +210,7 @@ export function assertWorkspaceValue(value: unknown, overrides: Partial<Validati
     while (current?.parentId) { if (visited.has(current.id)) fail(`page hierarchy cycle at ${current.id}`); visited.add(current.id); current = w.pages.find(candidate => candidate.id === current!.parentId); }
     validateBlocks(page.blocks, `pages[${index}].blocks`, limits, allIds, page.id, blockOwners, attachmentIds, blockState);
   }
-  let rows = 0;
+  let rows = 0; const recordPageOwners = new Map<ID, ID>();
   for (const [index, item] of w.databases.entries()) {
     const db = item as Database; const path = `databases[${index}]`;
     if (!plain(db)) fail(`${path} must be a plain object`);
@@ -218,17 +218,27 @@ export function assertWorkspaceValue(value: unknown, overrides: Partial<Validati
     if (!pageIds.has(stableId(db.pageId, `${path}.pageId`, limits))) fail(`${path} references missing page`);
     string(db.name, `${path}.name`, limits, true);
     if (!Array.isArray(db.properties) || !Array.isArray(db.rows) || !Array.isArray(db.views)) fail(`${path} collections must be arrays`);
+    if (db.recordPageIds !== undefined && !Array.isArray(db.recordPageIds)) fail(`${path}.recordPageIds must be an array`);
     rows += db.rows.length; if (rows > limits.maxRows) fail("row count exceeds limit");
     const properties = new Map<ID, DatabaseProperty>(); for (const [p, prop] of db.properties.entries()) { const here = `${path}.properties[${p}]`; if (!plain(prop)) fail(`${here} must be a plain object`); const propId = unique(prop.id, `${here}.id`, limits, allIds); properties.set(propId, prop as DatabaseProperty); string(prop.name, `${here}.name`, limits, true); oneOf(prop.type, PROPERTY_TYPES, `${here}.type`, limits); if (prop.options !== undefined) { if (!Array.isArray(prop.options)) fail(`${here}.options must be an array`); for (const [o, option] of prop.options.entries()) { if (!plain(option)) fail(`${here}.options[${o}] must be a plain object`); unique(option.id, `${here}.options[${o}].id`, limits, allIds); string(option.name, `${here}.options[${o}].name`, limits, true); if (option.color !== undefined) string(option.color, `${here}.options[${o}].color`, limits); } } if (prop.relation !== undefined) { if (!plain(prop.relation)) fail(`${here}.relation must be a plain object`); stableId(prop.relation.targetCollectionId, `${here}.relation.targetCollectionId`, limits); if (prop.relation.reciprocalPropertyId !== undefined) stableId(prop.relation.reciprocalPropertyId, `${here}.relation.reciprocalPropertyId`, limits); if (prop.relation.cardinality !== undefined) oneOf(prop.relation.cardinality, new Set(["one-to-one", "one-to-many", "many-to-many"]), `${here}.relation.cardinality`, limits); if (prop.relation.maxItems !== undefined && (!Number.isSafeInteger(prop.relation.maxItems) || prop.relation.maxItems < 1)) fail(`${here}.relation.maxItems must be a positive safe integer`); if (prop.relation.onDelete !== undefined) oneOf(prop.relation.onDelete, new Set(["retain", "remove"]), `${here}.relation.onDelete`, limits); } if (prop.relationDatabaseId !== undefined) stableId(prop.relationDatabaseId, `${here}.relationDatabaseId`, limits); }
     for (const [r, row] of db.rows.entries()) { if (!plain(row) || !plain(row.values)) fail(`${path}.rows[${r}] must be a plain row`); unique(row.id, `${path}.rows[${r}].id`, limits, allIds); if (row.pageId !== undefined && !pageIds.has(stableId(row.pageId, `${path}.rows[${r}].pageId`, limits))) fail(`${path}.rows[${r}] references missing page`); timestamp(row.createdAt, `${path}.rows[${r}].createdAt`, limits); timestamp(row.updatedAt, `${path}.rows[${r}].updatedAt`, limits); for (const [propertyId, propertyValue] of Object.entries(row.values)) { stableId(propertyId, `${path}.rows[${r}].values key`, limits); const property = properties.get(propertyId); if (!property) fail(`${path}.rows[${r}].values references unknown property ${propertyId}`); validatePropertyValue(propertyValue, property!, `${path}.rows[${r}].values.${propertyId}`, limits); } }
     for (const [v, view] of db.views.entries()) { const here = `${path}.views[${v}]`; if (!plain(view)) fail(`${here} must be a plain object`); const viewId = unique(view.id, `${here}.id`, limits, allIds); viewIds.add(viewId); if (view.collectionId !== undefined && stableId(view.collectionId, `${here}.collectionId`, limits) !== id) fail(`${here} references another collection`); string(view.name, `${here}.name`, limits, true); oneOf(view.type, VIEW_TYPES, `${here}.type`, limits); if (!Array.isArray(view.visiblePropertyIds)) fail(`${here}.visiblePropertyIds must be an array`); const propertyRefs = [view.visiblePropertyIds, view.propertyOrder ?? []]; for (const refs of propertyRefs) { if (!Array.isArray(refs)) fail(`${here} property IDs must be arrays`); for (const ref of refs) if (!properties.has(stableId(ref, `${here} property ID`, limits))) fail(`${here} references unknown property ${ref}`); } if (view.columnWidths !== undefined) { if (!plain(view.columnWidths)) fail(`${here}.columnWidths must be a plain object`); for (const [propertyId, width] of Object.entries(view.columnWidths)) { stableId(propertyId, `${here}.columnWidths key`, limits); if (!properties.has(propertyId)) fail(`${here}.columnWidths references unknown property ${propertyId}`); if (typeof width !== "number" || !Number.isFinite(width) || width <= 0) fail(`${here}.columnWidths.${propertyId} must be positive`); } } if (view.filters !== undefined) validateFilter(view.filters, `${here}.filters`, limits, properties); if (view.sorts !== undefined) { if (!Array.isArray(view.sorts)) fail(`${here}.sorts must be an array`); for (const [s, sort] of view.sorts.entries()) { if (!plain(sort)) fail(`${here}.sorts[${s}] must be a plain object`); const propertyId = stableId(sort.propertyId, `${here}.sorts[${s}].propertyId`, limits); if (!properties.has(propertyId)) fail(`${here}.sorts[${s}] references unknown property`); oneOf(sort.direction, new Set(["asc", "desc"]), `${here}.sorts[${s}].direction`, limits); if (sort.nulls !== undefined) oneOf(sort.nulls, new Set(["first", "last"]), `${here}.sorts[${s}].nulls`, limits); if (sort.locale !== undefined) string(sort.locale, `${here}.sorts[${s}].locale`, limits); } } for (const field of ["groupByPropertyId", "subgroupByPropertyId", "calendarDatePropertyId", "timelineStartPropertyId", "timelineEndPropertyId"] as const) if (view[field] !== undefined && !properties.has(stableId(view[field], `${here}.${field}`, limits))) fail(`${here}.${field} references unknown property`); for (const field of ["layout", "cardPreview", "permissions"] as const) if (view[field] !== undefined) safeObject(view[field], `${here}.${field}`, limits); if (view.scope !== undefined) oneOf(view.scope, new Set(["personal", "shared"]), `${here}.scope`, limits); }
-    for (const recordPageId of db.recordPageIds ?? []) if (!pageIds.has(stableId(recordPageId, `${path}.recordPageIds`, limits))) fail(`${path} references missing record page`);
+    for (const [recordIndex, value] of (db.recordPageIds ?? []).entries()) {
+      const recordPath = `${path}.recordPageIds[${recordIndex}]`; const recordPageId = stableId(value, recordPath, limits);
+      if (!pageById.has(recordPageId)) fail(`${recordPath} references missing record page`);
+      const recordPage = pageById.get(recordPageId)!;
+      if (recordPageOwners.has(recordPageId)) fail(`${recordPath} duplicates record page membership across one or multiple databases`);
+      if (recordPage.collectionId === undefined) fail(`${recordPath} lists page ${recordPageId} that is not a record`);
+      if (recordPage.collectionId !== id) fail(`${recordPath} lists a record page from another collection`);
+      recordPageOwners.set(recordPageId, id);
+    }
   }
   const collections = new Map(w.databases.map(database => [database.id, database] as const));
   for (const [pageIndex, page] of w.pages.entries()) {
     if (page.collectionId === undefined) continue;
     const collection = collections.get(page.collectionId);
     if (!collection) continue; // The missing collection is reported below with the canonical path.
+    if (recordPageOwners.get(page.id) !== collection.id) fail(`pages[${pageIndex}] record page is not indexed by its collection record membership`);
     const properties = new Map(collection.properties.map(property => [property.id, property] as const));
     for (const [propertyId, propertyValue] of Object.entries(page.properties ?? {})) {
       const property = properties.get(propertyId);

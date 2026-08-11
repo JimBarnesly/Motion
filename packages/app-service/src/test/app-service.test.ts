@@ -549,3 +549,34 @@ test("record commands reject cross-collection properties without saving a revisi
     store.close();
   } finally { await removeDatabase(path); }
 });
+
+test("record update rejects non-record targets without saving a revision", async () => {
+  const path = databasePath("record-target-membership");
+  try {
+    const store = new SqliteWorkspaceStore(path); const service = new MotionAppService(store);
+    let state = service.execute({ type: "workspace.create", name: "Record targets" }); const workspaceId = state.workspace.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Ordinary page" });
+    const page = state.workspace.pages[0]!; const before = structuredClone(store.load(workspaceId));
+    assert.throws(() => service.execute({ type: "database.record-update", workspaceId, expectedRevision: state.revision, pageId: page.id, title: "Must not change", values: {} }),
+      (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    assert.deepEqual(store.load(workspaceId), before);
+    store.close();
+  } finally { await removeDatabase(path); }
+});
+
+test("corrupt unindexed record workspaces fail validation without another save", async () => {
+  const path = databasePath("corrupt-record-membership");
+  try {
+    const store = new SqliteWorkspaceStore(path); const service = new MotionAppService(store);
+    let state = service.execute({ type: "workspace.create", name: "Corrupt membership" }); const workspaceId = state.workspace.id;
+    state = service.execute({ type: "database.create", workspaceId, expectedRevision: state.revision, title: "Records" });
+    state = service.execute({ type: "database.record-create", workspaceId, expectedRevision: state.revision, databaseId: state.workspace.databases[0]!.id, title: "Invisible", values: {} });
+    const corrupt = structuredClone(state.workspace); corrupt.databases[0]!.recordPageIds = [];
+    const corruptRevision = store.saveUnitOfWork({ workspaceId, schemaVersion: corrupt.schemaVersion, document: corrupt, expectedRevision: state.revision });
+    const before = structuredClone(store.load(workspaceId));
+    assert.throws(() => service.execute({ type: "database.record-update", workspaceId, expectedRevision: corruptRevision, pageId: corrupt.pages.at(-1)!.id, title: "Must not save", values: {} }),
+      (error: unknown) => error instanceof MotionAppError && error.code === "VALIDATION_FAILED");
+    assert.deepEqual(store.load(workspaceId), before);
+    store.close();
+  } finally { await removeDatabase(path); }
+});

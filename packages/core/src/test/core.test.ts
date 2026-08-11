@@ -162,6 +162,55 @@ test("workspace validation rejects record values from another collection", () =>
   assert.doesNotThrow(() => assertWorkspaceValue(doc.data));
 });
 
+test("workspace validation enforces bidirectional record page membership", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Record membership"));
+  const firstPage = doc.addPage("First"); const secondPage = doc.addPage("Second");
+  const first = doc.addDatabase({ id: "first-db", pageId: firstPage.id, name: "First", properties: [], rows: [], views: [] });
+  const second = doc.addDatabase({ id: "second-db", pageId: secondPage.id, name: "Second", properties: [], rows: [], views: [] });
+  const record = doc.addRecord(first.id, "Record");
+  const ordinary = doc.addPage("Ordinary");
+  assert.doesNotThrow(() => assertWorkspaceValue(doc.data));
+
+  const reject = (mutate: (workspace: any) => void, pattern: RegExp) => {
+    const candidate = structuredClone(doc.data); mutate(candidate);
+    assert.throws(() => assertWorkspaceValue(candidate), pattern);
+  };
+  reject(workspace => { workspace.databases[0].recordPageIds = []; }, /record page.*not indexed|membership/i);
+  reject(workspace => { workspace.databases[0].recordPageIds = [ordinary.id]; }, /not a record|collection/i);
+  reject(workspace => { workspace.databases[0].recordPageIds = [record.id, record.id]; }, /duplicate.*record|multiple.*database/i);
+  reject(workspace => { workspace.databases[0].recordPageIds = []; workspace.databases[1].recordPageIds = [record.id]; }, /another collection|collection.*mismatch/i);
+  reject(workspace => { workspace.databases[1].recordPageIds = [record.id]; }, /multiple.*database|duplicate.*record/i);
+  assert.equal(second.recordPageIds?.length, 0);
+});
+
+test("record updates require indexed membership and leave unindexed pages unchanged", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Record update membership"));
+  const collectionPage = doc.addPage("Collection");
+  const database = doc.addDatabase({ id: "db", pageId: collectionPage.id, name: "Data", properties: [{ id: "score", name: "Score", type: "number" }], rows: [], views: [] });
+  const record = doc.addRecord(database.id, "Visible", { score: 1 });
+  assert.deepEqual(doc.records(database.id).map(page => page.id), [record.id]);
+  doc.updateRecord(record.id, "Updated", { score: 2 });
+  assert.equal(record.properties?.score, 2);
+
+  database.recordPageIds = [];
+  const before = structuredClone(doc.data);
+  assert.throws(() => doc.updateRecord(record.id, "Invisible update", { score: 3 }), /indexed.*record|record.*membership/i);
+  assert.deepEqual(doc.data, before);
+});
+
+test("schema-v1 migration restores record list membership on record pages", () => {
+  const workspace: any = createWorkspace("Legacy records");
+  const doc = new WorkspaceDocument(workspace); const collectionPage = doc.addPage("Collection"); const recordPage = doc.addPage("Legacy record");
+  doc.addDatabase({ id: "legacy-db", pageId: collectionPage.id, name: "Legacy", properties: [], rows: [{ id: "legacy-row", pageId: recordPage.id, values: {}, createdAt: workspace.createdAt, updatedAt: workspace.updatedAt }], views: [] });
+  workspace.schemaVersion = 1; delete workspace.linkIndex; delete workspace.databases[0].recordPageIds;
+  const malformed = structuredClone(workspace); malformed.databases[0].recordPageIds = {};
+  assert.throws(() => migrateWorkspace(malformed), /recordPageIds.*array/i);
+  const migrated = migrateWorkspace(workspace);
+  assert.equal(migrated.pages.find(page => page.id === recordPage.id)?.collectionId, "legacy-db");
+  assert.deepEqual(migrated.databases[0]?.recordPageIds, [recordPage.id]);
+  assert.doesNotThrow(() => assertWorkspaceValue(migrated));
+});
+
 test("unknown blocks survive deterministic serialization and v1 migrates", () => {
   const ws = createWorkspace("Future"); const doc = new WorkspaceDocument(ws); const page = doc.addPage("Page");
   doc.addBlock(page.id, { type: "future-plugin-widget", text: "", unknownData: { z: 1, a: { y: true } } });

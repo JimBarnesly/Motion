@@ -97,7 +97,9 @@ export class WorkspaceDocument {
     db.recordPageIds ??= []; db.recordPageIds.push(page.id); return page;
   }
   updateRecord(pageId: ID, title: string | undefined, values: Record<ID, PropertyValue | undefined>) {
-    const page = this.requiredPage(pageId); const db = this.requiredDatabase(page.collectionId ?? ""); this.assertRecordPropertyIds(db, values);
+    const page = this.requiredPage(pageId); const memberships = this.data.databases.filter(database => (database.recordPageIds ?? []).includes(page.id));
+    if (memberships.length !== 1 || page.collectionId !== memberships[0]!.id) throw new Error(`Invalid record target: page is not an indexed record: ${pageId}`);
+    const db = memberships[0]!; this.assertRecordPropertyIds(db, values);
     if (title !== undefined) page.title = title; page.properties ??= {};
     for (const [propertyId, value] of Object.entries(values)) { if (value === undefined) delete page.properties[propertyId]; else page.properties[propertyId] = value; }
     this.touchPage(page); return page;

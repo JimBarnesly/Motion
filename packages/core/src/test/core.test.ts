@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { DEFAULT_VALIDATION_LIMITS, MemoryWorkspaceStore, WorkspaceDocument, assertWorkspaceValue, createWorkspace, exportDatabaseCsv, exportFullWorkspace, exportPageMarkdown, exportWorkspaceJson, migrateWebWorkspaceV1, migrateWorkspace, type Block, type Page } from "../index.js";
+import { CANONICAL_MAX_ID_LENGTH, DEFAULT_VALIDATION_LIMITS, MemoryWorkspaceStore, WorkspaceDocument, assertWorkspaceValue, createWorkspace, exportDatabaseCsv, exportFullWorkspace, exportPageMarkdown, exportWorkspaceJson, migrateWebWorkspaceV1, migrateWorkspace, stableId, type Block, type Page } from "../index.js";
 
 test("hierarchy, links, backlinks and search", async () => {
   const ws = createWorkspace("Private notes");
@@ -256,6 +256,23 @@ test("canonical schema-v2 rejects every hostile ID class and reference without l
     assert.equal(error.message.includes(attack.value), false, `${attack.label} leaked hostile content`);
     if (attack.label.startsWith("workspace ID")) assert.throws(() => migrateWorkspace(candidate), /safe canonical ID/);
   }
+});
+
+test("canonical ID length is centralized at 160 for entities and typed block references", () => {
+  const maximum = "a".repeat(CANONICAL_MAX_ID_LENGTH);
+  assert.equal(CANONICAL_MAX_ID_LENGTH, 160);
+  assert.equal(stableId(maximum), maximum);
+  assert.throws(() => stableId(`${maximum}a`), /safe canonical ID/);
+
+  const workspace: any = createWorkspace("Canonical boundary");
+  workspace.id = maximum;
+  workspace.pages.push({ id: "page", parentId: null, title: "Page", createdAt: workspace.createdAt, updatedAt: workspace.updatedAt, blocks: [
+    { id: "future", type: "future-widget", text: "", children: [], pageId: maximum, unknownData: { preserved: true } }
+  ] });
+  assertWorkspaceValue(workspace);
+  assert.deepEqual(workspace.pages[0].blocks[0].unknownData, { preserved: true });
+  workspace.pages[0].blocks[0].pageId = `${maximum}a`;
+  assert.throws(() => assertWorkspaceValue(workspace), /safe canonical ID/);
 });
 
 test("web v1 migration is deterministic, separates UI state, preserves unknown blocks and rebuilds links", () => {

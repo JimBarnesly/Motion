@@ -79,6 +79,14 @@ test("native adapter sends versioned typed IPC envelopes", async () => {
   ]);
 });
 
+test("native adapter declaration exposes typed Phase 1 block command payloads and results", async () => {
+  const declaration = await readFile(resolve(root, "app-adapter.d.ts"), "utf8");
+  assert.match(declaration, /NativeBlockOperation/);
+  assert.match(declaration, /"block\.batch": \{ commands: readonly NativeBlockOperation\[\] \}/);
+  assert.match(declaration, /execute<C extends keyof NativeCommandPayloads>\(type: C, payload: NativeCommandPayloads\[C\]\): Promise<NativeCommandResults\[C\]>/);
+  assert.match(declaration, /type MotionUiAdapter = TauriMotionUiAdapter \| BrowserDevelopmentMotionUiAdapter/);
+});
+
 test("search and export use canonical native queries with honest browser fallbacks", async () => {
   const source = await readFile(resolve(root, "app.js"), "utf8");
   const adapter = await readFile(resolve(root, "app-adapter.js"), "utf8");

@@ -201,6 +201,8 @@ test("block command validation rejects typed-field mismatches, unsafe values and
     assert.throws(() => create(tooWide), (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
     assert.throws(() => create({ id: "future", type: "future-widget", text: "", children: [], pageId: "unsafe page id", unknownData: { preserved: true } }),
       (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    assert.throws(() => create({ id: "future-long-id", type: "future-widget", text: "", children: [], pageId: "p".repeat(161), unknownData: { preserved: true } }),
+      (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
     assert.throws(() => service.execute(null as any), (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
     assert.deepEqual(store.load(workspaceId), before);
     state = create({ id: "transform-target", type: "paragraph", text: "", children: [] });

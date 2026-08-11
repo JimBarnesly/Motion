@@ -3,7 +3,7 @@
 Owner: Engineering Director  
 Decision authority: Managing Director  
 Last reviewed: 2026-08-11
-Provisional evidence baseline: `f084a5d` (`feat/v1-phase-0-green-baseline`)
+Provisional evidence baseline: `a8e0c2f` (`feat/v1-phase-0-green-baseline`)
 
 This commit identifies the current integration point, not a frozen candidate.
 The baseline will advance before merge as documentation and separately owned
@@ -41,7 +41,7 @@ browser execution, advisory collection, or release-security acceptance.
 
 Historical 0.1 CI/package evidence predates the provisional V1 baseline. It may
 support continuity investigations, but it cannot be attributed to
-`f084a5d`, used as an immutable V1 run, or treated as installed-package
+`a8e0c2f`, used as an immutable V1 run, or treated as installed-package
 acceptance.
 
 ## Engineering priorities for Managing Director coordination

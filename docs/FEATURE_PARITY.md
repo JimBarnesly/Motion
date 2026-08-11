@@ -3,7 +3,7 @@
 Owner: Product Director
 Decision authority: Managing Director
 Last reviewed: 2026-08-11
-Provisional evidence baseline: `f084a5d` (`feat/v1-phase-0-green-baseline`)
+Provisional evidence baseline: `a8e0c2f` (`feat/v1-phase-0-green-baseline`)
 
 ## Purpose and evidence rule
 
@@ -27,7 +27,7 @@ package acceptance for this baseline.
 
 ## V1 current register
 
-| Capability area | Status | Implemented evidence at `f084a5d` | Missing V1 evidence/outcome |
+| Capability area | Status | Implemented evidence at `a8e0c2f` | Missing V1 evidence/outcome |
 | --- | --- | --- | --- |
 | Pages and navigation | Partial | Canonical create/move/reorder/favourite/trash/restore paths, nested Web navigation, restart-focused tests | Permanent deletion, robust pointer drag/drop plus equivalent keyboard commands, complete restart state, and installed-package acceptance |
 | Daily-writing editor | Partial | Web compatibility editor handles several block types and recoverable saves; canonical service now defines bounded typed create/update/transform/move/indent/outdent/duplicate/delete/batch commands | Authoritative React + Tiptap/ProseMirror path; UI adoption of fine-grained commands; selection/clipboard/IME/undo/redo; 10,000-word and packaged evidence |

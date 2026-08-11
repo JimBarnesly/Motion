@@ -42,7 +42,7 @@ test("schema-v2 typed edits use the canonical recoverable confirmation boundary"
   const build = await readFile(resolve(root, "scripts/build.mjs"), "utf8");
   assert.match(source, /createEditRecoveryController/);
   assert.match(build, /edit-recovery\.js/);
-  assert.match(source, /adapter\.execute\(candidate\.type,candidate\.payload\)/);
+  assert.match(source, /nativeCommands\.execute\(candidate\.type,candidate\.payload\)/);
   assert.match(source, /function queueCanonicalEdit/);
   assert.match(source, /function requireResolvedEdit/);
   assert.match(source, /window\.addEventListener\("beforeunload"/);
@@ -91,6 +91,50 @@ test("native execute injects authoritative workspace fields and rejects commands
   const command = calls.find(call => call.payload?.request?.payload?.type === "page.create").payload.request.payload;
   assert.deepEqual(command, { type: "page.create", title: "Page", workspaceId: "workspace-1", expectedRevision: 3 });
   await assert.rejects(adapter.execute("workspace.import-web-v1", {}), /Unsupported native command/);
+});
+
+test("native whole-snapshot save fails closed and explicit Web-v1 import uses only its privileged lane", async () => {
+  const calls = [];
+  const { createMotionUiAdapter } = await import("../app-adapter.js");
+  const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => {
+    calls.push({ command, payload });
+    if (payload?.request?.lane === "web-v1-import") return { workspace: { id: "imported", pages: [], databases: [] }, revision: 1, activePageId: null, saved: true };
+  } } } });
+  const document = { schemaVersion: 1, pages: [], activePageId: null };
+
+  await assert.rejects(adapter.save(document), /whole-workspace save is unavailable/);
+  const imported = await adapter.importWebV1(document);
+
+  assert.equal(imported.workspace.id, "imported");
+  assert.deepEqual(calls, [{ command: "app_dispatch", payload: { request: { protocolVersion: 1, lane: "web-v1-import", payload: { type: "workspace.import-web-v1", document } } } }]);
+  assert.equal(calls.some(call => call.command === "motion_ui_save"), false);
+});
+
+test("native UI-state save rejects canonical snapshots and bounds its exact ephemeral allowlist", async () => {
+  const calls = [];
+  const { createMotionUiAdapter } = await import("../app-adapter.js");
+  const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => calls.push({ command, payload }) } } });
+  await assert.rejects(adapter.saveUi({ workspaceId: "workspace-1", activePageId: null, expandedPageIds: [], pages: [] }), /Invalid UI state request/);
+  await assert.rejects(adapter.saveUi({ workspaceId: "workspace-1", activePageId: null, expandedPageIds: Array.from({ length: 257 }, (_, index) => `page-${index}`) }), /Invalid UI state request/);
+  assert.deepEqual(calls, []);
+});
+
+test("normal native page and block editing source never calls whole-document save or import", async () => {
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  const adapter = await readFile(resolve(root, "app-adapter.js"), "utf8");
+  assert.match(source, /block\.update-content/);
+  assert.match(source, /block\.transform/);
+  assert.match(source, /block\.create/);
+  assert.match(source, /block\.delete/);
+  assert.match(source, /saveLocal\(\) \{ if \(adapter\.kind !== "browser-development"\) return/);
+  const nativeCommit=source.slice(source.indexOf("async function commit"),source.indexOf("async function confirmCanonicalEdit"));
+  assert.doesNotMatch(nativeCommit, /adapter\.save/);
+  assert.doesNotMatch(source, /adapter\.execute\(["']workspace\.import-web-v1/);
+  assert.match(source, /if\(adapter\.kind==="tauri"\)\{\$\("#saveState"\)\.textContent="Native undo requires typed command support/);
+  assert.match(source, /function rebuildLinks\(\) \{ if \(adapter\.kind === "tauri"\) return;/);
+  assert.match(source, /nativeCommands\.execute\("workspace\.create"/);
+  assert.equal([...source.matchAll(/adapter\.execute\(/g)].length, 1);
+  assert.match(source, /createNativeCommandController\(\{execute:\(type,payload\)=>adapter\.execute\(type,payload\)/);
 });
 
 test("native adapter declaration exhaustively types the synchronous service surface except the privileged Web-v1 import lane", async () => {
@@ -179,7 +223,7 @@ test("hostile restores are closed-shape normalised before rendering", async () =
   assert.equal(normalized.pages[0].blocks[0].text, "<script>alert('xss')</script>");
   assert.equal("unexpectedHtml" in normalized.pages[0], false);
   const source = await readFile(resolve(root, "app.js"), "utf8");
-  assert.match(source, /migrateLoaded\(normalizeWorkspaceV1\(candidate\)\)/);
+  assert.match(source, /const legacy=normalizeWorkspaceV1\(candidate\)/);
   assert.match(source, /escapeHtml\(page\.title/);
   assert.match(source, /escapeHtml\(block\.text/);
   assert.match(source, /<span>\$\{escapeHtml\(label\)\}<\/span>/);

@@ -1,15 +1,15 @@
 # Motion desktop shell
 
-This package defines the Tauri 2 boundary for the canonical Motion application service. The UI can only call the allowlisted `motion_ui_load`, `motion_ui_save`, `motion_backup_save`, and typed `app_dispatch` commands; it has no SQL or arbitrary filesystem API.
+This package defines the Tauri 2 boundary for the canonical Motion application service. The UI can only call the allowlisted `motion_ui_load`, schema-v2 UI-state-only `motion_ui_save`, `motion_backup_save`, and typed `app_dispatch` commands; it has no SQL or arbitrary filesystem API. Canonical Web-v1 migration is confined to the explicitly privileged `web-v1-import` dispatch lane.
 
 ## IPC capability map
 
 | Native command | UI caller | Validated boundary |
 | --- | --- | --- |
-| `motion_ui_load` | `app-adapter.js` `load()` | Closed request object; schema version 1 only |
-| `motion_ui_save` | `app-adapter.js` `save()` | Closed request object; schema version 1; workspace normalization plus 16 MiB envelope limit |
+| `motion_ui_load` | `app-adapter.js` `load()` | Closed request object; schema version 1 compatibility or canonical schema version 2 |
+| `motion_ui_save` | `app-adapter.js` `saveUi()` | Closed request object; schema version 2 UI selection state only; schema-v1 whole-workspace save rejected |
 | `motion_backup_save` | `app-adapter.js` `saveBackup()` | Closed request object; native-owned save dialog; no caller path; verified private target and explicit native replacement confirmation |
-| `app_dispatch` | `app-adapter.js` search, export, attachment-write, backup and restore methods | Protocol version 1; fixed lane-to-operation allowlist; closed top-level fields; app-service domain validation |
+| `app_dispatch` | `app-adapter.js` typed edits, explicit `importWebV1`, search, export, attachment-write, backup and restore methods | Protocol version 1; fixed lane-to-operation allowlist; `web-v1-import` accepts only the import discriminator and document; closed top-level fields; app-service domain validation |
 
 Attachments cross IPC only as a checked byte envelope and are stored beneath the
 application-owned local data directory by content hash. Backups and restores

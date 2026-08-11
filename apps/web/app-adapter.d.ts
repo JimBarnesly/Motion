@@ -128,6 +128,7 @@ interface MotionUiAdapterBase {
   readonly durable: true;
   load(): Promise<WebWorkspaceV1>;
   save(workspace: WebWorkspaceV1): Promise<void>;
+  importWebV1(document: WebWorkspaceV1): Promise<unknown>;
   saveUi(uiState: unknown): Promise<void>;
   search(query: string, limit?: number): Promise<NativeSearchHit[] | null>;
   exportWorkspace(): Promise<NativeFullExport | null>;
@@ -142,6 +143,7 @@ interface MotionUiAdapterBase {
 export interface TauriMotionUiAdapter extends MotionUiAdapterBase {
   readonly kind: "tauri";
   execute<C extends keyof NativeCommandPayloads>(type: C, payload: NativeCommandPayloads[C]): Promise<NativeCommandResults[C]>;
+  importWebV1(document: WebWorkspaceV1): Promise<NativeMutationResult & { activePageId: string | null }>;
 }
 export interface BrowserDevelopmentMotionUiAdapter extends MotionUiAdapterBase { readonly kind: "browser-development" }
 export type MotionUiAdapter = TauriMotionUiAdapter | BrowserDevelopmentMotionUiAdapter;

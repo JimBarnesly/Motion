@@ -16,6 +16,21 @@ const nativeExecuteOperations = new Set(NATIVE_EXECUTE_OPERATIONS);
 const DB_NAME = "motion-web-development";
 const STORE_NAME = "workspace";
 const WORKSPACE_KEY = "default";
+const UI_STATE_FIELDS = new Set(["workspaceId", "activePageId", "expandedPageIds"]);
+const UI_STATE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
+
+function validUiState(value) {
+  const validId = id => id === null || (typeof id === "string" && UI_STATE_ID.test(id));
+  if (!value || typeof value !== "object" || Array.isArray(value)
+      || Object.keys(value).some(key => !UI_STATE_FIELDS.has(key))
+      || !validId(value.workspaceId ?? null) || !validId(value.activePageId ?? null)
+      || (value.expandedPageIds !== undefined && (!Array.isArray(value.expandedPageIds)
+        || value.expandedPageIds.length > 256 || value.expandedPageIds.some(id => typeof id !== "string" || !validId(id))
+        || new Set(value.expandedPageIds).size !== value.expandedPageIds.length))) {
+    throw new TypeError("Invalid UI state request");
+  }
+  return { workspaceId: value.workspaceId ?? null, activePageId: value.activePageId ?? null, expandedPageIds: value.expandedPageIds ?? [] };
+}
 
 function validWorkspace(value) {
   if (value === undefined) return structuredClone(EMPTY_WORKSPACE);
@@ -52,6 +67,7 @@ function browserDevelopmentAdapter() {
     durable: true,
     async load() { return validWorkspace(await transact("readonly", store => store.get(WORKSPACE_KEY))); },
     async save(workspace) { await transact("readwrite", store => store.put(validWorkspace(workspace), WORKSPACE_KEY)); },
+    async importWebV1(document) { const imported=validWorkspace(document); await transact("readwrite", store => store.put(imported, WORKSPACE_KEY)); return imported; },
     async saveUi() {},
     async search() { return null; },
     async exportWorkspace() { return null; },
@@ -66,6 +82,12 @@ function browserDevelopmentAdapter() {
 
 function tauriAdapter(invoke) {
   let workspaceSummary;
+  const advanceWorkspaceSummary = result => {
+    if (result?.workspace?.id && Number.isSafeInteger(result.revision)
+        && (!workspaceSummary || workspaceSummary.id !== result.workspace.id || result.revision > workspaceSummary.revision)) {
+      workspaceSummary = { id: result.workspace.id, revision: result.revision };
+    }
+  };
   const dispatch = (lane, payload) => invoke("app_dispatch", { request: { protocolVersion: 1, lane, payload } });
   const requiredWorkspace = async () => {
     if (workspaceSummary) return workspaceSummary;
@@ -87,20 +109,25 @@ function tauriAdapter(invoke) {
       if (!nativeExecuteOperations.has(type)) throw new Error(`Unsupported native command: ${String(type)}`);
       if (type === "workspace.create") {
         const result = await dispatch("command", { ...payload, type });
-        workspaceSummary = { id: result.workspace.id, revision: result.revision };
+        advanceWorkspaceSummary(result);
         return result;
       }
       const current = await requiredWorkspace();
       const result = await dispatch("command", { ...payload, type, workspaceId: current.id, expectedRevision: current.revision });
-      workspaceSummary = { id: current.id, revision: result.revision };
+      advanceWorkspaceSummary(result);
       return result;
     },
     async saveUi(uiState) {
-      await invoke("motion_ui_save", { request: { document: uiState, schemaVersion: 2 } });
+      await invoke("motion_ui_save", { request: { document: validUiState(uiState), schemaVersion: 2 } });
     },
-    async save(workspace) {
-      await invoke("motion_ui_save", { request: { document: validWorkspace(workspace), schemaVersion: 1 } });
-      workspaceSummary = undefined;
+    async save() {
+      throw new Error("Native whole-workspace save is unavailable; use typed commands or explicit Web-v1 import");
+    },
+    async importWebV1(document) {
+      const candidate = normalizeWorkspaceV1(document);
+      const result = await dispatch("web-v1-import", { type: "workspace.import-web-v1", document: candidate });
+      workspaceSummary = { id: result.workspace.id, revision: result.revision };
+      return result;
     },
     async search(query, limit = 50) {
       return dispatch("query", { type: "workspace.search", workspaceId: (await requiredWorkspace()).id, query, limit });
@@ -111,7 +138,7 @@ function tauriAdapter(invoke) {
     async putAttachment({ fileName, mediaType, sha256, bytes }) {
       const current = await requiredWorkspace();
       const result = await dispatch("async-command", { type: "attachment.put", workspaceId: current.id, expectedRevision: current.revision, fileName, mediaType, sha256, bytes: { $motionBytes: Array.from(bytes) } });
-      workspaceSummary = { ...current, revision: result.revision };
+      advanceWorkspaceSummary(result);
       return result;
     },
     async createBackup() { return dispatch("async-query", { type: "backup.create", workspaceId: (await requiredWorkspace()).id }); },

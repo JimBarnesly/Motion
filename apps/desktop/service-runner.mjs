@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { MotionAppService, MotionAppError } from "@motion/app-service";
 import { SqliteWorkspaceStore, ContentAddressedAttachmentStore, ensurePrivateDirectory, hardenPrivateFile } from "@motion/storage";
-import { migrateWebWorkspaceV1 } from "@motion/core";
 import { createAtomicBackupFile, inspectAtomicBackupDestination } from "./backup-file.mjs";
+import { isValidUiState } from "./ui-state-validation.mjs";
 
 const [dataRoot] = process.argv.slice(2);
 if (!dataRoot) throw new Error("Usage: service-runner <data-root>");
@@ -59,6 +59,12 @@ async function dispatch(rawRequest) {
       break;
     }
     case "command": result = service.execute(request.payload); break;
+    case "web-v1-import": {
+      if (request.payload?.type !== "workspace.import-web-v1" || !Object.hasOwn(request.payload, "document") || Object.keys(request.payload).some(key => !["type", "document"].includes(key))) throw new MotionAppError("INVALID_INPUT", "Invalid Web-v1 import request");
+      result = service.execute(request.payload);
+      writeUiState({ workspaceId: result.workspace.id, activePageId: result.activePageId });
+      break;
+    }
     case "query": result = service.query(request.payload); break;
     case "async-command": {
       result = await service.executeAsync(request.payload);
@@ -97,19 +103,14 @@ async function dispatch(rawRequest) {
     case "ui-save": {
       const candidate = request.payload?.document;
       if (request.payload?.schemaVersion === 2) {
+        if (!Object.hasOwn(request.payload, "document")
+            || Object.keys(request.payload).some(key => !["schemaVersion", "document"].includes(key))
+            || !isValidUiState(candidate)) throw new MotionAppError("INVALID_INPUT", "Invalid UI state request");
         const summaries = service.query({ type: "workspace.list" }); const current = summaries.find(summary => summary.id === candidate?.workspaceId) ?? summaries[0];
         if (current) writeUiState({ workspaceId: current.id, activePageId: candidate?.activePageId ?? null, expandedPageIds: candidate?.expandedPageIds });
         result = { saved: true }; break;
       }
-      const summaries = service.query({ type: "workspace.list" });
-      const uiState = readUiState();
-      const existing = summaries.find(summary => summary.id === uiState.workspaceId) ?? summaries[0];
-      const migrated = migrateWebWorkspaceV1(candidate, { workspaceId: existing?.id, workspaceName: existing?.name, migratedAt: new Date().toISOString() });
-      if (existing) store.saveUnitOfWork({ workspaceId: existing.id, schemaVersion: migrated.workspace.schemaVersion, document: migrated.workspace, expectedRevision: existing.revision });
-      else service.execute({ type: "workspace.import-web-v1", document: candidate, workspaceId: migrated.workspace.id, migratedAt: migrated.workspace.updatedAt });
-      writeUiState({ workspaceId: migrated.workspace.id, activePageId: migrated.uiState.activePageId });
-      result = { saved: true };
-      break;
+      throw new MotionAppError("INVALID_INPUT", "Whole-workspace UI save is not supported");
     }
     default: throw new MotionAppError("INVALID_INPUT", "Unsupported IPC lane");
   }

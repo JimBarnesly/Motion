@@ -34,3 +34,12 @@ test("a failed browser mutation cannot leak into a later successful save", async
   assert.equal(durable.workspace.pages.some(page => page.title === "failed candidate"), false);
   assert.equal(durable.revision, 4);
 });
+
+test("browser development compatibility applies the typed block edit surface", async () => {
+  let state = structuredClone(initial);
+  state.workspace.pages[0].blocks = [{ id: "block-1", type: "paragraph", text: "before", children: [] }];
+  const save = async () => {};
+  state = await confirmBrowserEdit(state, { type: "block.update-content", payload: { pageId: "page-1", blockId: "block-1", content: { text: "after", references: [] } } }, save, () => "one");
+  state = await confirmBrowserEdit(state, { type: "block.transform", payload: { pageId: "page-1", blockId: "block-1", transform: { type: "task", checked: true } } }, save, () => "two");
+  assert.deepEqual(state.workspace.pages[0].blocks[0], { id: "block-1", type: "task", text: "after", children: [], references: [], checked: true });
+});

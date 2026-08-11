@@ -10,6 +10,18 @@ export function applyLocalEdit(document, candidate, timestamp) {
     const target = page(candidate.payload.pageId);
     target.blocks = structuredClone(candidate.payload.blocks);
     target.updatedAt = timestamp;
+  } else if (candidate.type === "block.update-content") {
+    const target = page(candidate.payload.pageId);
+    const block = target.blocks.find(item => item.id === candidate.payload.blockId);
+    block.text = candidate.payload.content.text;
+    if (candidate.payload.content.references !== undefined) block.references = structuredClone(candidate.payload.content.references);
+    target.updatedAt = timestamp;
+  } else if (candidate.type === "block.transform") {
+    const target = page(candidate.payload.pageId);
+    const block = target.blocks.find(item => item.id === candidate.payload.blockId);
+    for (const key of ["checked", "language", "attachmentId", "headingLevel", "pageId", "viewId", "date", "url"]) delete block[key];
+    Object.assign(block, structuredClone(candidate.payload.transform));
+    target.updatedAt = timestamp;
   } else if (candidate.type === "database.record-update") {
     const target = page(candidate.payload.pageId);
     target.properties ??= {};

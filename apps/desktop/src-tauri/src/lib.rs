@@ -59,6 +59,49 @@ fn reject(code: &str, message: impl Into<String>) -> IpcError {
     }
 }
 
+fn valid_ui_state_id(value: &Value) -> bool {
+    match value {
+        Value::Null => true,
+        Value::String(id) => {
+            !id.is_empty()
+                && id.len() <= 160
+                && id.as_bytes()[0].is_ascii_alphanumeric()
+                && id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
+        }
+        _ => false,
+    }
+}
+
+fn validate_ui_state_document(document: &Value) -> Result<(), IpcError> {
+    let state = document
+        .as_object()
+        .ok_or_else(|| reject("INVALID_INPUT", "Invalid UI state request"))?;
+    if state
+        .keys()
+        .any(|key| !matches!(key.as_str(), "workspaceId" | "activePageId" | "expandedPageIds"))
+        || !state.get("workspaceId").map_or(true, valid_ui_state_id)
+        || !state.get("activePageId").map_or(true, valid_ui_state_id)
+    {
+        return Err(reject("INVALID_INPUT", "Invalid UI state request"));
+    }
+    if let Some(expanded) = state.get("expandedPageIds") {
+        let ids = expanded
+            .as_array()
+            .filter(|ids| ids.len() <= 256)
+            .ok_or_else(|| reject("INVALID_INPUT", "Invalid UI state request"))?;
+        let mut unique = std::collections::HashSet::new();
+        if ids.iter().any(|id| {
+            let Some(id_text) = id.as_str() else { return true; };
+            !valid_ui_state_id(id) || !unique.insert(id_text)
+        }) {
+            return Err(reject("INVALID_INPUT", "Invalid UI state request"));
+        }
+    }
+    Ok(())
+}
+
 fn validate_dispatch_request(request: &IpcRequest) -> Result<(), IpcError> {
     if request.protocol_version != 1 {
         return Err(reject("INVALID_INPUT", "Unsupported IPC protocol version"));
@@ -78,6 +121,7 @@ fn validate_dispatch_request(request: &IpcRequest) -> Result<(), IpcError> {
         ("query", "workspace.export") => &["type", "workspaceId"],
         ("query", "workspace.search") => &["type", "workspaceId", "query", "limit"],
         ("command", "workspace.create") => &["type", "name"],
+        ("web-v1-import", "workspace.import-web-v1") => &["type", "document"],
         ("command", "page.create") => &["type", "workspaceId", "expectedRevision", "title", "parentId"],
         ("command", "page.rename") => &["type", "workspaceId", "expectedRevision", "pageId", "title"],
         ("command", "page.move") => &["type", "workspaceId", "expectedRevision", "pageId", "parentId"],
@@ -237,9 +281,10 @@ async fn motion_ui_load(app: tauri::AppHandle, request: UiLoadRequest) -> Result
 
 #[tauri::command]
 async fn motion_ui_save(app: tauri::AppHandle, request: UiSaveRequest) -> Result<Value, IpcError> {
-    if request.schema_version != 1 && request.schema_version != 2 {
-        return Err(reject("INVALID_INPUT", "Unsupported UI schema version"));
+    if request.schema_version != 2 {
+        return Err(reject("INVALID_INPUT", "Whole-workspace UI save is not supported"));
     }
+    validate_ui_state_document(&request.document)?;
     run_service(app, serde_json::json!({ "lane": "ui-save", "payload": { "schemaVersion": request.schema_version, "document": request.document } })).await
 }
 
@@ -381,7 +426,10 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{select_node_binary, validate_dispatch_request, BackupSaveRequest, IpcRequest};
+    use super::{
+        select_node_binary, validate_dispatch_request, validate_ui_state_document,
+        BackupSaveRequest, IpcRequest,
+    };
     use serde_json::json;
     use std::{ffi::OsString, fs, path::PathBuf};
 
@@ -539,6 +587,25 @@ mod tests {
             }),
         };
         assert!(validate_dispatch_request(&request).is_ok());
+    }
+
+    #[test]
+    fn ui_state_boundary_accepts_only_bounded_ephemeral_fields() {
+        assert!(validate_ui_state_document(&json!({
+            "workspaceId": "workspace-1", "activePageId": null, "expandedPageIds": ["page-1"]
+        }))
+        .is_ok());
+        for invalid in [
+            json!({ "workspace": { "pages": [] }, "workspaceId": "workspace-1" }),
+            json!({ "pages": [] }),
+            json!({ "workspaceId": "workspace-1", "expandedPageIds": ["page-1", "page-1"] }),
+            json!({ "workspaceId": "workspace-1", "activePageId": "bad/id" }),
+        ] {
+            assert_eq!(
+                validate_ui_state_document(&invalid).unwrap_err().code,
+                "INVALID_INPUT"
+            );
+        }
     }
 
     #[test]

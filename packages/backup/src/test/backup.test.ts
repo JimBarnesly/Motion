@@ -103,6 +103,112 @@ test("bounded restore IDs preserve references, attachment keys and non-ID string
   assert.deepEqual(first.attachments.get(first.idMap.get(attachmentId)!), bytes);
 });
 
+test("restore remaps only schema-declared internal identities and references", () => {
+  const source = structuredClone(workspace) as any;
+  source.pages[0] = {
+    ...source.pages[0], updatedAt: source.createdAt, createdBy: "page-child", updatedBy: "page-root",
+    templateOriginId: "page-root", collectionId: "database-1",
+    permissions: { ownerId: "page-root", nested: { pageId: "page-child" } },
+    properties: {
+      "property-select": "option-open", "property-multi": ["option-tag"], "property-relation": ["page-child"],
+      "property-files": { attachmentIds: ["attachment-1"] }, "property-created-by": "page-root",
+      "property-updated-by": "page-child", "property-page": "page-child"
+    },
+    blocks: [{
+      id: "block-1", type: "future-widget", text: "Opaque", children: [
+        { id: "block-child", type: "paragraph", text: "Child", children: [], references: [{ pageId: "page-root" }] }
+      ], attachmentId: "attachment-1", pageId: "page-child", viewId: "view-1", references: [{ pageId: "page-child" }],
+      unknownData: { id: "page-root", ownerId: "page-child", nested: { pageId: "page-root" } }
+    }]
+  };
+  source.pages[1] = { ...source.pages[1], updatedAt: source.createdAt, collectionId: "database-1", properties: {} };
+  source.databases = [{
+    id: "database-1", pageId: "page-root", name: "Tasks", properties: [
+      { id: "property-select", name: "Select", type: "select", options: [{ id: "option-open", name: "Open" }] },
+      { id: "property-multi", name: "Tags", type: "multi-select", options: [{ id: "option-tag", name: "Tag" }] },
+      { id: "property-relation", name: "Relation", type: "relation", relation: { targetCollectionId: "database-1", reciprocalPropertyId: "property-relation" }, relationDatabaseId: "database-1" },
+      { id: "property-files", name: "Files", type: "files" },
+      { id: "property-created-by", name: "Creator", type: "created-by" },
+      { id: "property-updated-by", name: "Updater", type: "updated-by" },
+      { id: "property-page", name: "Page", type: "page" }
+    ],
+    rows: [{ id: "row-1", pageId: "page-child", values: {
+      "property-select": "option-open", "property-multi": ["option-tag"], "property-relation": ["page-root"],
+      "property-files": { attachmentIds: ["attachment-1"] }, "property-created-by": "page-root",
+      "property-updated-by": "page-child", "property-page": "page-child"
+    }, createdAt: source.createdAt, updatedAt: source.updatedAt }],
+    recordPageIds: ["page-child"],
+    views: [{
+      id: "view-1", collectionId: "database-1", name: "All", type: "table",
+      visiblePropertyIds: ["property-select"], propertyOrder: ["property-multi"], columnWidths: { "property-select": 200 },
+      filters: { kind: "and", children: [
+        { kind: "condition", propertyId: "property-select", operator: "equals", value: "option-open" },
+        { kind: "condition", propertyId: "property-created-by", operator: "equals", value: "page-root" }
+      ] },
+      sorts: [{ propertyId: "property-multi", direction: "asc" }], groupByPropertyId: "property-select",
+      subgroupByPropertyId: "property-multi", calendarDatePropertyId: "property-select",
+      timelineStartPropertyId: "property-select", timelineEndPropertyId: "property-multi",
+      layout: { propertyId: "property-select", nested: { viewId: "view-1", opaqueOwnerId: "page-root" } },
+      permissions: { ownerId: "page-root", pageId: "page-child" }
+    }]
+  }];
+  source.linkIndex = [{ sourcePageId: "page-root", targetPageId: "page-child", blockId: "block-1" }];
+
+  const restored = restoreIntoNewWorkspace(createBackup(source, [{ id: "attachment-1", fileName: "note.txt", bytes }]), "restored");
+  const id = (sourceId: string) => restored.idMap.get(sourceId)!;
+  const page = restored.workspace.pages[0] as any;
+  const database = restored.workspace.databases[0] as any;
+  const row = database.rows[0]; const view = database.views[0]; const block = page.blocks[0];
+
+  assert.equal(page.createdBy, "page-child"); assert.equal(page.updatedBy, "page-root");
+  assert.equal(page.templateOriginId, "page-root"); assert.deepEqual(page.permissions, source.pages[0].permissions);
+  assert.deepEqual(block.unknownData, source.pages[0].blocks[0].unknownData);
+  assert.deepEqual(view.permissions, source.databases[0].views[0].permissions);
+  assert.equal(row.values[id("property-created-by")], "page-root");
+  assert.equal(row.values[id("property-updated-by")], "page-child");
+  assert.equal(view.filters.children[1].value, "page-root");
+
+  assert.equal(page.collectionId, id("database-1")); assert.equal(page.parentId, null);
+  assert.equal(block.id, id("block-1")); assert.equal(block.children[0].id, id("block-child"));
+  assert.equal(block.attachmentId, id("attachment-1")); assert.equal(block.pageId, id("page-child"));
+  assert.equal(block.viewId, id("view-1")); assert.equal(block.references[0].pageId, id("page-child"));
+  assert.equal(block.children[0].references[0].pageId, id("page-root"));
+  assert.equal(page.properties[id("property-select")], id("option-open"));
+  assert.deepEqual(page.properties[id("property-multi")], [id("option-tag")]);
+  assert.deepEqual(page.properties[id("property-relation")], [id("page-child")]);
+  assert.deepEqual(page.properties[id("property-files")], { attachmentIds: [id("attachment-1")] });
+  assert.equal(page.properties[id("property-created-by")], "page-root");
+  assert.equal(page.properties[id("property-updated-by")], "page-child");
+  assert.equal(page.properties[id("property-page")], id("page-child"));
+  assert.equal(database.id, id("database-1")); assert.equal(database.pageId, id("page-root"));
+  assert.equal(database.properties[0].options[0].id, id("option-open"));
+  assert.equal(database.properties[2].relation.targetCollectionId, id("database-1"));
+  assert.equal(database.properties[2].relation.reciprocalPropertyId, id("property-relation"));
+  assert.equal(database.properties[2].relationDatabaseId, id("database-1"));
+  assert.equal(row.id, id("row-1")); assert.equal(row.pageId, id("page-child"));
+  assert.equal(row.values[id("property-select")], id("option-open"));
+  assert.deepEqual(row.values[id("property-multi")], [id("option-tag")]);
+  assert.deepEqual(row.values[id("property-relation")], [id("page-root")]);
+  assert.deepEqual(row.values[id("property-files")], { attachmentIds: [id("attachment-1")] });
+  assert.equal(row.values[id("property-page")], id("page-child"));
+  assert.deepEqual(database.recordPageIds, [id("page-child")]);
+  assert.equal(view.id, id("view-1")); assert.equal(view.collectionId, id("database-1"));
+  assert.deepEqual(view.visiblePropertyIds, [id("property-select")]);
+  assert.deepEqual(view.propertyOrder, [id("property-multi")]);
+  assert.deepEqual(view.columnWidths, { [id("property-select")]: 200 });
+  assert.equal(view.filters.children[0].propertyId, id("property-select"));
+  assert.equal(view.filters.children[0].value, id("option-open"));
+  assert.equal(view.sorts[0].propertyId, id("property-multi"));
+  assert.equal(view.groupByPropertyId, id("property-select")); assert.equal(view.subgroupByPropertyId, id("property-multi"));
+  assert.equal(view.calendarDatePropertyId, id("property-select")); assert.equal(view.timelineStartPropertyId, id("property-select"));
+  assert.equal(view.timelineEndPropertyId, id("property-multi"));
+  assert.equal(view.layout.propertyId, id("property-select")); assert.equal(view.layout.nested.viewId, id("view-1"));
+  assert.equal(view.layout.nested.opaqueOwnerId, "page-root");
+  assert.deepEqual(restored.workspace.linkIndex, [{ sourcePageId: id("page-root"), targetPageId: id("page-child"), blockId: id("block-1") }]);
+  assert.equal(restored.idMap.has("page-root"), true);
+  assert.equal(restored.idMap.has("page-child"), true);
+});
+
 test("restore rejects unsafe namespaces and ambiguous duplicate source identities", () => {
   const backup = createBackup({ ...workspace, attachments: [] }, [], "2026-01-02T00:00:00.000Z");
   for (const namespace of ["", "bad/id", "x".repeat(161)]) assert.throws(() => restoreIntoNewWorkspace(backup, namespace), /workspace ID/i);

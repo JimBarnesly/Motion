@@ -257,6 +257,9 @@ test("service restores boundary and migrated derived IDs into bounded canonical 
       rows: [{ id: "row", values: { property: "external text" } }] }] }, { workspaceId: "source", migratedAt: "2026-08-11T00:00:00.000Z" });
     const maximumId = "p".repeat(160);
     migrated.workspace.pages.push({ id: maximumId, parentId: null, title: maximumId, blocks: [], createdAt: migrated.workspace.createdAt, updatedAt: migrated.workspace.updatedAt });
+    migrated.workspace.pages[0]!.createdBy = maximumId;
+    migrated.workspace.pages[0]!.updatedBy = legacyId;
+    migrated.workspace.pages[0]!.permissions = { ownerId: maximumId };
     assert.equal(migrated.workspace.databases[0]!.id.length, 137);
     assert.equal(migrated.workspace.databases[0]!.views[0]!.id.length, 139);
     assertWorkspaceValue(migrated.workspace);
@@ -272,6 +275,9 @@ test("service restores boundary and migrated derived IDs into bounded canonical 
     assert.equal(new Set(ids).size, ids.length);
     assert.ok(ids.every(id => id.length <= 160));
     assert.notEqual(first.workspace.pages.find(page => page.title === maximumId)!.id, second.workspace.pages.find(page => page.title === maximumId)!.id);
+    assert.equal(first.workspace.pages[0]!.createdBy, maximumId);
+    assert.equal(first.workspace.pages[0]!.updatedBy, legacyId);
+    assert.deepEqual(first.workspace.pages[0]!.permissions, { ownerId: maximumId });
     assert.equal(first.workspace.databases[0]!.rows[0]!.values[first.workspace.databases[0]!.properties[0]!.id], "external text");
     for (const hostile of ["bad/id", "x".repeat(161)]) {
       await assert.rejects(service.executeAsync({ type: "backup.restore-new", bundle, newWorkspaceId: hostile }), (error: unknown) => error instanceof MotionAppError && error.code === "VALIDATION_FAILED");

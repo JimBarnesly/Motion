@@ -153,31 +153,131 @@ export function restoreIntoNewWorkspace(bundle: BackupBundle, newWorkspaceId: st
     }
     used.add(mapped); idMap.set(identity.source, mapped);
   }
-  const propertyTypes = new Map<string, string>();
-  for (const database of source.databases) for (const property of database.properties) {
-    if (property && typeof property === "object" && !Array.isArray(property) && typeof property.id === "string" && typeof property.type === "string") propertyTypes.set(property.id, property.type);
-  }
+  type JsonObject = { [key: string]: JsonValue };
+  const object = (value: JsonValue | undefined): JsonObject | undefined => value && typeof value === "object" && !Array.isArray(value) ? value : undefined;
+  const mapped = (value: JsonValue | undefined): JsonValue | undefined => typeof value === "string" ? idMap.get(value) ?? value : value;
+  const mappedList = (value: JsonValue | undefined): JsonValue | undefined => Array.isArray(value) ? value.map(item => mapped(item)!) : value;
+  const workspace = structuredClone(source);
+
   function remapPropertyValue(value: JsonValue, type: string): JsonValue {
-    if (new Set(["select", "status", "created-by", "updated-by", "page"]).has(type) && typeof value === "string") return idMap.get(value) ?? value;
-    if (new Set(["multi-select", "relation"]).has(type) && Array.isArray(value)) return value.map(item => typeof item === "string" ? idMap.get(item) ?? item : item);
-    return remap(value);
-  }
-  function remap(value: JsonValue, key?: string): JsonValue {
-    if (typeof value === "string" && key && (key === "id" || key.endsWith("Id") || key.endsWith("Ids")) && idMap.has(value)) return idMap.get(value)!;
-    if (Array.isArray(value)) return value.map(item => remap(item, key));
-    if (value && typeof value === "object") {
-      const filterPropertyType = typeof value.propertyId === "string" ? propertyTypes.get(value.propertyId) : undefined;
-      return Object.fromEntries(Object.entries(value).map(([childKey, child]) => [
-        new Set(["values", "properties", "columnWidths"]).has(key ?? "") && idMap.has(childKey) ? idMap.get(childKey)! : childKey,
-        childKey === "unknownData" ? structuredClone(child) : childKey === "value" && filterPropertyType
-          ? remapPropertyValue(child, filterPropertyType) : new Set(["values", "properties"]).has(key ?? "") && propertyTypes.has(childKey)
-            ? remapPropertyValue(child, propertyTypes.get(childKey)!) : remap(child, childKey)
-      ]));
+    if (new Set(["select", "status", "page"]).has(type)) return mapped(value)!;
+    if (new Set(["multi-select", "relation"]).has(type)) return mappedList(value)!;
+    if (type === "files") {
+      const result = structuredClone(value); const record = object(result);
+      if (record?.attachmentIds !== undefined) record.attachmentIds = mappedList(record.attachmentIds)!;
+      return result;
     }
-    return value;
+    // Text, principals, timestamps and every other scalar are not workspace identities.
+    return structuredClone(value);
   }
-  const workspace = remap(source as unknown as JsonValue) as WorkspaceSnapshot;
+  function remapPropertyRecord(value: JsonValue | undefined, properties: Map<string, string>): JsonValue | undefined {
+    const record = object(value);
+    if (!record) return structuredClone(value);
+    return Object.fromEntries(Object.entries(record).map(([propertyId, propertyValue]) => [
+      idMap.get(propertyId) ?? propertyId,
+      remapPropertyValue(propertyValue, properties.get(propertyId) ?? "")
+    ]));
+  }
+  function remapBlocks(blocks: JsonValue[]): void {
+    for (const blockValue of blocks) {
+      const block = object(blockValue); if (!block) continue;
+      block.id = mapped(block.id)!;
+      for (const field of ["attachmentId", "pageId", "viewId"] as const) if (block[field] !== undefined) block[field] = mapped(block[field])!;
+      if (Array.isArray(block.references)) for (const referenceValue of block.references) {
+        const reference = object(referenceValue); if (reference?.pageId !== undefined) reference.pageId = mapped(reference.pageId)!;
+      }
+      if (Array.isArray(block.children)) remapBlocks(block.children);
+      // unknownData is intentionally opaque and is never traversed.
+    }
+  }
+  function remapFilter(value: JsonValue | undefined, properties: Map<string, string>): void {
+    const filter = object(value); if (!filter) return;
+    if (filter.kind === "condition") {
+      const sourcePropertyId = filter.propertyId;
+      if (typeof sourcePropertyId === "string") {
+        if (filter.value !== undefined) filter.value = remapPropertyValue(filter.value, properties.get(sourcePropertyId) ?? "");
+        filter.propertyId = mapped(sourcePropertyId)!;
+      }
+    } else if ((filter.kind === "and" || filter.kind === "or") && Array.isArray(filter.children)) {
+      filter.children.forEach(child => remapFilter(child, properties));
+    } else if (filter.kind === "not") remapFilter(filter.child, properties);
+  }
+  const LAYOUT_ID_FIELDS = new Set(["propertyId", "viewId", "collectionId", "pageId", "attachmentId"]);
+  const LAYOUT_ID_LIST_FIELDS = new Set(["propertyIds", "viewIds", "collectionIds", "pageIds", "attachmentIds"]);
+  function remapLayout(value: JsonValue | undefined): void {
+    if (Array.isArray(value)) { value.forEach(remapLayout); return; }
+    const layout = object(value); if (!layout) return;
+    for (const [key, child] of Object.entries(layout)) {
+      if (LAYOUT_ID_FIELDS.has(key)) layout[key] = mapped(child)!;
+      else if (LAYOUT_ID_LIST_FIELDS.has(key)) layout[key] = mappedList(child)!;
+      else remapLayout(child);
+    }
+  }
+
   workspace.id = newWorkspaceId;
+  for (const attachment of workspace.attachments) attachment.id = mapped(attachment.id) as string;
+  for (const page of workspace.pages) {
+    page.id = mapped(page.id) as string;
+    if (page.parentId !== null) page.parentId = mapped(page.parentId) as string;
+    if (page.collectionId !== undefined) page.collectionId = mapped(page.collectionId)!;
+    if (Array.isArray(page.blocks)) remapBlocks(page.blocks);
+    const sourceCollection = typeof source.pages[workspace.pages.indexOf(page)]?.collectionId === "string"
+      ? source.databases.find(database => database.id === source.pages[workspace.pages.indexOf(page)]!.collectionId) : undefined;
+    const propertyTypes = new Map<string, string>();
+    for (const propertyValue of sourceCollection?.properties ?? []) {
+      const property = object(propertyValue);
+      if (typeof property?.id === "string" && typeof property.type === "string") propertyTypes.set(property.id, property.type);
+    }
+    if (page.properties !== undefined) page.properties = remapPropertyRecord(page.properties, propertyTypes)!;
+    // createdBy, updatedBy, templateOriginId and permissions are external/opaque.
+  }
+  for (const [databaseIndex, database] of workspace.databases.entries()) {
+    const sourceDatabase = source.databases[databaseIndex]!;
+    database.id = mapped(database.id) as string; database.pageId = mapped(database.pageId) as string;
+    const propertyTypes = new Map<string, string>();
+    for (const propertyValue of sourceDatabase.properties) {
+      const property = object(propertyValue);
+      if (typeof property?.id === "string" && typeof property.type === "string") propertyTypes.set(property.id, property.type);
+    }
+    for (const propertyValue of database.properties) {
+      const property = object(propertyValue); if (!property) continue;
+      property.id = mapped(property.id)!;
+      if (Array.isArray(property.options)) for (const optionValue of property.options) {
+        const option = object(optionValue); if (option) option.id = mapped(option.id)!;
+      }
+      const relation = object(property.relation);
+      if (relation?.targetCollectionId !== undefined) relation.targetCollectionId = mapped(relation.targetCollectionId)!;
+      if (relation?.reciprocalPropertyId !== undefined) relation.reciprocalPropertyId = mapped(relation.reciprocalPropertyId)!;
+      if (property.relationDatabaseId !== undefined) property.relationDatabaseId = mapped(property.relationDatabaseId)!;
+    }
+    for (const [rowIndex, row] of database.rows.entries()) {
+      row.id = mapped(row.id) as string;
+      if (row.pageId !== undefined) row.pageId = mapped(row.pageId)!;
+      const sourceValues = sourceDatabase.rows[rowIndex]?.values;
+      if (sourceValues !== undefined) row.values = remapPropertyRecord(sourceValues, propertyTypes) as JsonObject;
+    }
+    if (Array.isArray(database.recordPageIds)) database.recordPageIds = mappedList(database.recordPageIds) as JsonValue[];
+    if (Array.isArray(database.views)) for (const viewValue of database.views) {
+      const view = object(viewValue); if (!view) continue;
+      view.id = mapped(view.id)!; if (view.collectionId !== undefined) view.collectionId = mapped(view.collectionId)!;
+      for (const field of ["visiblePropertyIds", "propertyOrder"] as const) if (view[field] !== undefined) view[field] = mappedList(view[field])!;
+      const widths = object(view.columnWidths);
+      if (widths) view.columnWidths = Object.fromEntries(Object.entries(widths).map(([propertyId, width]) => [idMap.get(propertyId) ?? propertyId, width]));
+      remapFilter(view.filters, propertyTypes);
+      if (Array.isArray(view.sorts)) for (const sortValue of view.sorts) {
+        const sort = object(sortValue); if (sort?.propertyId !== undefined) sort.propertyId = mapped(sort.propertyId)!;
+      }
+      for (const field of ["groupByPropertyId", "subgroupByPropertyId", "calendarDatePropertyId", "timelineStartPropertyId", "timelineEndPropertyId"] as const) {
+        if (view[field] !== undefined) view[field] = mapped(view[field])!;
+      }
+      remapLayout(view.layout);
+      // permissions and cardPreview remain opaque.
+    }
+  }
+  if (Array.isArray(workspace.linkIndex)) for (const linkValue of workspace.linkIndex) {
+    const link = object(linkValue); if (!link) continue;
+    for (const field of ["sourcePageId", "targetPageId", "blockId"] as const) if (link[field] !== undefined) link[field] = mapped(link[field])!;
+  }
   const restored = new Map<string, Uint8Array>();
   for (const attachment of source.attachments) {
     const entry = bundle.manifest.files.find(file => file.path.startsWith(`attachments/${attachment.id}/`));

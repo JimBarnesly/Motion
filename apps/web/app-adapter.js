@@ -118,6 +118,7 @@ function tauriAdapter(invoke) {
     if (pendingUiSaves > 0) throw new Error("Native workspace selection update is running");
     const transitionEpoch = ++workspaceEpoch;
     activeTransitionEpoch = transitionEpoch;
+    selectionRecoveryPromise = null;
     workspaceSummary = undefined;
     selectionKnown = false;
     try {

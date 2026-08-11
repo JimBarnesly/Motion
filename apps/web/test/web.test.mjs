@@ -176,6 +176,45 @@ test("failed-transition selection recovery is single-flight for concurrent comma
   assert.equal(calls.includes("page.rename"), false);
 });
 
+test("a newer failed transition starts a fresh recovery instead of reusing a stale load", async () => {
+  let loadCount = 0;
+  let releaseStaleRecovery;
+  const staleRecovery = new Promise(resolve => { releaseStaleRecovery = resolve; });
+  const calls = [];
+  const { createMotionUiAdapter } = await import("../app-adapter.js");
+  const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => {
+    const operation = payload?.request?.payload;
+    calls.push(operation?.type ?? command);
+    if (command === "motion_ui_load") {
+      loadCount += 1;
+      if (loadCount === 1) return { schemaVersion: 2, workspace: { id: "workspace-A", pages: [], databases: [] }, revision: 4 };
+      if (loadCount === 2) return staleRecovery;
+      return { schemaVersion: 2, workspace: null, revision: 0, activePageId: null };
+    }
+    if (operation?.type === "workspace.import-web-v1") throw new Error("transition failed");
+    if (operation?.type === "page.rename") return { workspace: { id: "workspace-A", pages: [], databases: [] }, revision: 5, saved: true };
+    throw new Error(`Unexpected native call: ${operation?.type ?? command}`);
+  } } } });
+
+  await adapter.load();
+  await assert.rejects(adapter.importWebV1({ schemaVersion: 1, pages: [], activePageId: null }), /transition failed/);
+  const staleCommand = adapter.execute("page.rename", { pageId: "page-A", title: "Stale" });
+  const staleOutcome = staleCommand.then(() => null, error => error);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(loadCount, 2);
+
+  await assert.rejects(adapter.importWebV1({ schemaVersion: 1, pages: [], activePageId: null }), /transition failed/);
+  const freshCommand = adapter.execute("page.rename", { pageId: "page-A", title: "Fresh" });
+  const freshOutcome = freshCommand.then(() => null, error => error);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(loadCount, 3);
+  assert.match((await freshOutcome).message, /Create a workspace/);
+
+  releaseStaleRecovery({ schemaVersion: 2, workspace: { id: "workspace-A", pages: [], databases: [] }, revision: 4 });
+  assert.match((await staleOutcome).message, /workspace changed/i);
+  assert.equal(calls.includes("page.rename"), false);
+});
+
 test("failed workspace transitions reload the persisted selection before later commands", async () => {
   const calls = [];
   let loadCount = 0;

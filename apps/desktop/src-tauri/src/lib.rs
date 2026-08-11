@@ -85,6 +85,15 @@ fn validate_dispatch_request(request: &IpcRequest) -> Result<(), IpcError> {
         ("command", "page.set-favourite") => &["type", "workspaceId", "expectedRevision", "pageId", "favourite"],
         ("command", "page.trash" | "page.restore") => &["type", "workspaceId", "expectedRevision", "pageId"],
         ("command", "page.replace-blocks") => &["type", "workspaceId", "expectedRevision", "pageId", "blocks"],
+        ("command", "block.create") => &["type", "workspaceId", "expectedRevision", "pageId", "position", "block"],
+        ("command", "block.update-content") => &["type", "workspaceId", "expectedRevision", "pageId", "blockId", "content"],
+        ("command", "block.transform") => &["type", "workspaceId", "expectedRevision", "pageId", "blockId", "transform"],
+        ("command", "block.move") => &["type", "workspaceId", "expectedRevision", "pageId", "blockId", "target"],
+        ("command", "block.indent") => &["type", "workspaceId", "expectedRevision", "pageId", "blockId"],
+        ("command", "block.outdent") => &["type", "workspaceId", "expectedRevision", "pageId", "blockId"],
+        ("command", "block.duplicate") => &["type", "workspaceId", "expectedRevision", "pageId", "blockId", "newBlockId"],
+        ("command", "block.delete") => &["type", "workspaceId", "expectedRevision", "pageId", "blockId"],
+        ("command", "block.batch") => &["type", "workspaceId", "expectedRevision", "commands"],
         ("command", "database.create") => &["type", "workspaceId", "expectedRevision", "title", "parentId"],
         ("command", "database.property-add") => &["type", "workspaceId", "expectedRevision", "databaseId", "property"],
         ("command", "database.property-update") => &["type", "workspaceId", "expectedRevision", "databaseId", "propertyId", "patch"],
@@ -432,6 +441,90 @@ mod tests {
             validate_dispatch_request(&wrong_lane).unwrap_err().code,
             "INVALID_INPUT"
         );
+    }
+
+    #[test]
+    fn dispatch_accepts_block_commands_with_exact_top_level_fields() {
+        let payloads = [
+            json!({
+                "type": "block.create", "workspaceId": "workspace", "expectedRevision": 1,
+                "pageId": "page", "position": {}, "block": {}
+            }),
+            json!({
+                "type": "block.update-content", "workspaceId": "workspace", "expectedRevision": 1,
+                "pageId": "page", "blockId": "block", "content": {}
+            }),
+            json!({
+                "type": "block.transform", "workspaceId": "workspace", "expectedRevision": 1,
+                "pageId": "page", "blockId": "block", "transform": {}
+            }),
+            json!({
+                "type": "block.move", "workspaceId": "workspace", "expectedRevision": 1,
+                "pageId": "page", "blockId": "block", "target": {}
+            }),
+            json!({
+                "type": "block.indent", "workspaceId": "workspace", "expectedRevision": 1,
+                "pageId": "page", "blockId": "block"
+            }),
+            json!({
+                "type": "block.outdent", "workspaceId": "workspace", "expectedRevision": 1,
+                "pageId": "page", "blockId": "block"
+            }),
+            json!({
+                "type": "block.duplicate", "workspaceId": "workspace", "expectedRevision": 1,
+                "pageId": "page", "blockId": "block", "newBlockId": "copy"
+            }),
+            json!({
+                "type": "block.delete", "workspaceId": "workspace", "expectedRevision": 1,
+                "pageId": "page", "blockId": "block"
+            }),
+            json!({
+                "type": "block.batch", "workspaceId": "workspace", "expectedRevision": 1,
+                "commands": []
+            }),
+        ];
+
+        for payload in payloads {
+            let operation = payload["type"].as_str().unwrap().to_owned();
+            let request = IpcRequest {
+                protocol_version: 1,
+                lane: "command".into(),
+                payload: payload.clone(),
+            };
+            assert!(
+                validate_dispatch_request(&request).is_ok(),
+                "{operation} must be accepted on the command lane"
+            );
+
+            let wrong_lane = IpcRequest {
+                protocol_version: 1,
+                lane: "query".into(),
+                payload: payload.clone(),
+            };
+            assert_eq!(
+                validate_dispatch_request(&wrong_lane).unwrap_err().code,
+                "INVALID_INPUT",
+                "{operation} must be rejected on the wrong lane"
+            );
+
+            let mut injected = payload;
+            injected
+                .as_object_mut()
+                .unwrap()
+                .insert("unsupported".into(), json!(true));
+            let injected_request = IpcRequest {
+                protocol_version: 1,
+                lane: "command".into(),
+                payload: injected,
+            };
+            assert_eq!(
+                validate_dispatch_request(&injected_request)
+                    .unwrap_err()
+                    .code,
+                "INVALID_INPUT",
+                "{operation} must reject unsupported top-level fields"
+            );
+        }
     }
 
     #[test]

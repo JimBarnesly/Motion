@@ -15,8 +15,10 @@ export class WorkspaceDocument {
   public readonly data: Workspace;
   constructor(data: Workspace | unknown) { this.data = migrateWorkspace(data); assertWorkspace(this.data); this.rebuildLinkIndex(); }
   addPage(title: string, parentId: ID | null = null, metadata: Partial<Omit<Page, "id" | "title" | "parentId" | "blocks" | "createdAt" | "updatedAt">> = {}): Page {
+    if (metadata.collectionId !== undefined) throw new Error("Record pages must be created with addRecord so collection membership is registered");
     if (parentId && !this.page(parentId)) throw new Error(`Parent page not found: ${parentId}`); const timestamp = now();
-    const page: Page = { id: id(), parentId, title, blocks: [], createdAt: timestamp, updatedAt: timestamp, favourite: false, ...metadata };
+    const page: Page = { id: id(), parentId, title, blocks: [], createdAt: timestamp, updatedAt: timestamp, favourite: false, ...structuredClone(metadata) };
+    const candidate = structuredClone(this.data); candidate.pages.push(structuredClone(page)); assertWorkspace(candidate);
     this.data.pages.push(page); this.touch(); return page;
   }
   page(pageId: ID) { return this.data.pages.find(p => p.id === pageId); }
@@ -90,11 +92,19 @@ export class WorkspaceDocument {
   deleteBlock(pageId: ID, blockId: ID): Block {
     const location = this.requiredBlock(pageId, blockId); location.siblings.splice(location.index, 1); this.changedPages(location.page); return location.block;
   }
-  addDatabase(database: Omit<Database, "id"> & { id?: ID }): Database { this.requiredPage(database.pageId); const result = { ...database, id: database.id ?? id(), recordPageIds: database.recordPageIds ?? [] }; this.data.databases.push(result); this.touch(); return result; }
+  addDatabase(database: Omit<Database, "id"> & { id?: ID }): Database {
+    this.requiredPage(database.pageId); const databaseId = database.id ?? id();
+    const taggedRecordPageIds = this.data.pages.filter(page => page.collectionId === databaseId).map(page => page.id);
+    const result: Database = { ...structuredClone(database), id: databaseId, recordPageIds: structuredClone(database.recordPageIds ?? taggedRecordPageIds) };
+    const candidate = structuredClone(this.data); candidate.databases.push(structuredClone(result)); assertWorkspace(candidate);
+    this.data.databases.push(result); this.touch(); return result;
+  }
   addRecord(databaseId: ID, title: string, values: Record<ID, PropertyValue> = {}): Page {
     const db = this.requiredDatabase(databaseId); this.assertRecordPropertyIds(db, values);
-    const page = this.addPage(title, db.pageId, { collectionId: db.id, properties: values });
-    db.recordPageIds ??= []; db.recordPageIds.push(page.id); return page;
+    const timestamp = now(); const page: Page = { id: id(), parentId: db.pageId, title, blocks: [], createdAt: timestamp, updatedAt: timestamp, favourite: false, collectionId: db.id, properties: structuredClone(values) };
+    const candidate = structuredClone(this.data); const candidateDatabase = candidate.databases.find(database => database.id === db.id)!;
+    candidate.pages.push(structuredClone(page)); candidateDatabase.recordPageIds ??= []; candidateDatabase.recordPageIds.push(page.id); assertWorkspace(candidate);
+    this.data.pages.push(page); db.recordPageIds ??= []; db.recordPageIds.push(page.id); this.touch(); return page;
   }
   updateRecord(pageId: ID, title: string | undefined, values: Record<ID, PropertyValue | undefined>) {
     const page = this.requiredPage(pageId); const memberships = this.data.databases.filter(database => (database.recordPageIds ?? []).includes(page.id));
@@ -105,8 +115,8 @@ export class WorkspaceDocument {
     this.touchPage(page); return page;
   }
   addProperty(databaseId: ID, property: Omit<DatabaseProperty, "id"> & { id?: ID }) { const db = this.requiredDatabase(databaseId); const result = { ...property, id: property.id ?? id() }; db.properties.push(result); for (const view of db.views) { view.visiblePropertyIds.push(result.id); view.propertyOrder = [...(view.propertyOrder ?? view.visiblePropertyIds.filter(propertyId => propertyId !== result.id)), result.id]; } this.touch(); return result; }
-  updateProperty(databaseId: ID, propertyId: ID, patch: Partial<Omit<DatabaseProperty, "id">>) { const db = this.requiredDatabase(databaseId); const property = db.properties.find(candidate => candidate.id === propertyId); if (!property) throw new Error(`Database property not found: ${propertyId}`); if (patch.type && patch.type !== property.type) for (const page of this.records(databaseId)) delete page.properties?.[propertyId]; Object.assign(property, patch, { id: propertyId }); this.touch(); return property; }
-  deleteProperty(databaseId: ID, propertyId: ID) { const db = this.requiredDatabase(databaseId); if (db.properties.find(candidate => candidate.id === propertyId)?.type === "title") throw new Error("The title property cannot be deleted"); db.properties = db.properties.filter(candidate => candidate.id !== propertyId); for (const page of this.records(databaseId)) delete page.properties?.[propertyId]; for (const view of db.views) { view.visiblePropertyIds = view.visiblePropertyIds.filter(id => id !== propertyId); view.propertyOrder = view.propertyOrder?.filter(id => id !== propertyId); if (view.columnWidths) delete view.columnWidths[propertyId]; view.sorts = view.sorts?.filter(sort => sort.propertyId !== propertyId); if (view.filters && filterReferences(view.filters, propertyId)) delete view.filters; } this.touch(); }
+  updateProperty(databaseId: ID, propertyId: ID, patch: Partial<Omit<DatabaseProperty, "id">>) { const db = this.requiredDatabase(databaseId); const property = db.properties.find(candidate => candidate.id === propertyId); if (!property) throw new Error(`Database property not found: ${propertyId}`); if (patch.type && patch.type !== property.type) for (const page of this.indexedRecords(db)) delete page.properties?.[propertyId]; Object.assign(property, patch, { id: propertyId }); this.touch(); return property; }
+  deleteProperty(databaseId: ID, propertyId: ID) { const db = this.requiredDatabase(databaseId); if (db.properties.find(candidate => candidate.id === propertyId)?.type === "title") throw new Error("The title property cannot be deleted"); db.properties = db.properties.filter(candidate => candidate.id !== propertyId); for (const page of this.indexedRecords(db)) delete page.properties?.[propertyId]; for (const view of db.views) { view.visiblePropertyIds = view.visiblePropertyIds.filter(id => id !== propertyId); view.propertyOrder = view.propertyOrder?.filter(id => id !== propertyId); if (view.columnWidths) delete view.columnWidths[propertyId]; view.sorts = view.sorts?.filter(sort => sort.propertyId !== propertyId); if (view.filters && filterReferences(view.filters, propertyId)) delete view.filters; } this.touch(); }
   updateView(databaseId: ID, viewId: ID, patch: Partial<Omit<DatabaseView, "id" | "collectionId" | "type">>) { const db = this.requiredDatabase(databaseId); const view = db.views.find(candidate => candidate.id === viewId); if (!view) throw new Error(`Database view not found: ${viewId}`); Object.assign(view, patch, { id: viewId, collectionId: db.id, type: "table" as const }); this.touch(); return view; }
   links(): PageLink[] { return [...this.data.linkIndex]; }
   backlinks(pageId: ID) { this.requiredPage(pageId); return this.data.linkIndex.filter(link => link.targetPageId === pageId); }
@@ -182,6 +192,7 @@ export class WorkspaceDocument {
   private changedPages(...pages: Page[]): void { for (const page of new Set(pages)) { page.updatedAt = now(); this.indexPage(page); } this.touch(); }
   private requiredPage(pageId: ID) { const page = this.page(pageId); if (!page) throw new Error(`Page not found: ${pageId}`); return page; }
   private requiredDatabase(databaseId: ID) { const db = this.data.databases.find(d => d.id === databaseId); if (!db) throw new Error(`Database not found: ${databaseId}`); return db; }
+  private indexedRecords(database: Database): Page[] { return (database.recordPageIds ?? []).map(pageId => this.page(pageId)).filter((page): page is Page => page !== undefined); }
   private assertRecordPropertyIds(db: Database, values: Record<ID, PropertyValue | undefined>): void { for (const propertyId of Object.keys(values)) if (!db.properties.some(property => property.id === propertyId)) throw new Error(`Invalid record property for collection: ${propertyId}`); }
   private touchPage(page: Page) { page.updatedAt = now(); this.touch(); }
   private touch() { this.data.updatedAt = now(); }

@@ -150,6 +150,85 @@ test("record mutations only accept properties declared by their collection", () 
   assert.deepEqual(doc.data, beforeUpdate);
 });
 
+test("addPage rejects direct record construction atomically", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Direct record construction"));
+  const collectionPage = doc.addPage("Collection");
+  doc.addDatabase({ id: "db", pageId: collectionPage.id, name: "Data", properties: [], rows: [], views: [] });
+  const before = structuredClone(doc.data);
+
+  assert.throws(() => doc.addPage("Unindexed", collectionPage.id, { collectionId: "db", properties: {} }), /addRecord|record page/i);
+  assert.deepEqual(doc.data, before);
+  assert.doesNotThrow(() => assertWorkspaceValue(doc.data));
+});
+
+test("addDatabase only accepts complete matching record page membership and rejects atomically", () => {
+  const rejected = new WorkspaceDocument(createWorkspace("Rejected database membership"));
+  const databasePage = rejected.addPage("Database"); const ordinary = rejected.addPage("Ordinary");
+  const before = structuredClone(rejected.data);
+  const base = { id: "db", pageId: databasePage.id, name: "Data", properties: [], rows: [], views: [] };
+  for (const recordPageIds of [["missing"], [ordinary.id], [ordinary.id, ordinary.id]]) {
+    assert.throws(() => rejected.addDatabase({ ...base, recordPageIds }), /record|collection|missing|duplicate/i);
+    assert.deepEqual(rejected.data, before);
+  }
+
+  const wrongCollection = new WorkspaceDocument(createWorkspace("Wrong collection membership"));
+  const firstDatabasePage = wrongCollection.addPage("First database"); const secondDatabasePage = wrongCollection.addPage("Second database");
+  const firstDatabase = wrongCollection.addDatabase({ ...base, id: "first-db", pageId: firstDatabasePage.id });
+  const firstRecord = wrongCollection.addRecord(firstDatabase.id, "First record"); const beforeWrongCollection = structuredClone(wrongCollection.data);
+  assert.throws(() => wrongCollection.addDatabase({ ...base, id: "second-db", pageId: secondDatabasePage.id, recordPageIds: [firstRecord.id] }), /another collection|collection|duplicate.*membership/i);
+  assert.deepEqual(wrongCollection.data, beforeWrongCollection);
+
+  const incomplete = new WorkspaceDocument(createWorkspace("Incomplete database membership"));
+  const incompleteDatabasePage = incomplete.addPage("Database"); const included = incomplete.addPage("Included"); const omitted = incomplete.addPage("Omitted");
+  included.collectionId = "db"; omitted.collectionId = "db"; const beforeIncomplete = structuredClone(incomplete.data);
+  assert.throws(() => incomplete.addDatabase({ ...base, pageId: incompleteDatabasePage.id, recordPageIds: [included.id] }), /not indexed|membership/i);
+  assert.deepEqual(incomplete.data, beforeIncomplete);
+
+  const accepted = new WorkspaceDocument(createWorkspace("Accepted database membership"));
+  const acceptedDatabasePage = accepted.addPage("Database"); const first = accepted.addPage("First"); const second = accepted.addPage("Second");
+  first.collectionId = "db"; second.collectionId = "db";
+  const database = accepted.addDatabase({ ...base, pageId: acceptedDatabasePage.id, recordPageIds: [first.id, second.id] });
+  assert.deepEqual(database.recordPageIds, [first.id, second.id]);
+  assert.deepEqual(accepted.records(database.id).map(page => page.id), [first.id, second.id]);
+  assert.doesNotThrow(() => assertWorkspaceValue(accepted.data));
+
+  const normalized = new WorkspaceDocument(createWorkspace("Normalized database membership"));
+  const normalizedDatabasePage = normalized.addPage("Database"); const tagged = normalized.addPage("Tagged"); tagged.collectionId = "db";
+  const normalizedDatabase = normalized.addDatabase({ ...base, pageId: normalizedDatabasePage.id });
+  assert.deepEqual(normalizedDatabase.recordPageIds, [tagged.id]);
+  assert.doesNotThrow(() => assertWorkspaceValue(normalized.data));
+});
+
+test("addRecord registers membership atomically and rejected values leave all state unchanged", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Atomic records")); const collectionPage = doc.addPage("Collection");
+  const database = doc.addDatabase({ id: "db", pageId: collectionPage.id, name: "Data", properties: [{ id: "score", name: "Score", type: "number" }], rows: [], views: [] });
+  const before = structuredClone(doc.data);
+  assert.throws(() => doc.addRecord(database.id, "Invalid", { score: "not-a-number" }), /number/i);
+  assert.deepEqual(doc.data, before);
+
+  const record = doc.addRecord(database.id, "Valid", { score: 1 });
+  assert.equal(record.collectionId, database.id);
+  assert.deepEqual(database.recordPageIds, [record.id]);
+  assert.deepEqual(doc.records(database.id).map(page => page.id), [record.id]);
+  assert.doesNotThrow(() => assertWorkspaceValue(doc.data));
+});
+
+test("property mutations retain record membership and clean soft-deleted records", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Soft-deleted records")); const collectionPage = doc.addPage("Collection");
+  const database = doc.addDatabase({ id: "db", pageId: collectionPage.id, name: "Data", properties: [
+    { id: "keep", name: "Keep", type: "number" }, { id: "remove", name: "Remove", type: "number" }
+  ], rows: [], views: [] });
+  const record = doc.addRecord(database.id, "Deleted", { keep: 1, remove: 2 }); record.deletedAt = doc.data.updatedAt;
+
+  doc.updateProperty(database.id, "keep", { type: "plain-text" });
+  assert.equal(record.properties?.keep, undefined);
+  doc.deleteProperty(database.id, "remove");
+  assert.equal(record.properties?.remove, undefined);
+  assert.deepEqual(database.recordPageIds, [record.id]);
+  assert.deepEqual(doc.records(database.id), []);
+  assert.doesNotThrow(() => assertWorkspaceValue(doc.data));
+});
+
 test("workspace validation rejects record values from another collection", () => {
   const doc = new WorkspaceDocument(createWorkspace("Scoped validation"));
   const firstPage = doc.addPage("First"); const secondPage = doc.addPage("Second");

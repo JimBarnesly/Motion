@@ -3,7 +3,7 @@
 Owner: Product Director
 Decision authority: Managing Director
 Last reviewed: 2026-08-11
-Provisional evidence baseline: `fd15dbe` (`feat/v1-phase-0-green-baseline`)
+Provisional evidence baseline: `5441e1c` (`feat/v1-phase-0-green-baseline`)
 
 ## Purpose and evidence rule
 
@@ -27,14 +27,14 @@ package acceptance for this baseline.
 
 ## V1 current register
 
-| Capability area | Status | Implemented evidence at `fd15dbe` | Missing V1 evidence/outcome |
+| Capability area | Status | Implemented evidence at `5441e1c` | Missing V1 evidence/outcome |
 | --- | --- | --- | --- |
 | Pages and navigation | Partial | Canonical create/move/reorder/favourite/trash/restore paths, nested Web navigation, restart-focused tests | Permanent deletion, robust pointer drag/drop plus equivalent keyboard commands, complete restart state, and installed-package acceptance |
 | Daily-writing editor | Partial | Web compatibility editor handles several block types and recoverable saves; canonical service now defines bounded typed create/update/transform/move/indent/outdent/duplicate/delete/batch commands | Authoritative React + Tiptap/ProseMirror path; UI adoption of fine-grained commands; selection/clipboard/IME/undo/redo; 10,000-word and packaged evidence |
 | Links, mentions, backlinks, deep links | Partial | Stable page-ID links, outgoing links/backlinks, live/trashed/missing states, backlink source-block focus, and focused Web tests | Accessible `[[`/`@` chooser, previews, general block deep-link UX, lifecycle through export/backup restore, restart and packaged evidence |
 | Search | Partial | Accessible canonical search covers titles, blocks, record values and attachment filenames with safe DOM rendering, deterministic ordering, recovery states and stable result focus | Highlighting, filters, complete native/package execution and deterministic packaged performance evidence |
 | Files and media | Partial | Content-addressed attachment primitives and canonical service/backup paths | Streaming/limits, image/media/PDF block UX, interruption handling, filename search, complete backup/restore and installed-package evidence |
-| Typed database properties and records-as-pages | Partial | Canonical records-as-pages, multiple typed property editors, table editing, schema/order/width paths, restart-focused tests | Complete V1 property set, populated type-conversion preview, deletion consequences, large/edge-state evidence, packaged acceptance |
+| Typed database properties and records-as-pages | Partial | Canonical records-as-pages with bidirectional collection membership, scoped property validation, typed editors, and schema/order/width paths | Complete V1 property set, populated type-conversion preview, deletion consequences, large/edge-state evidence, packaged acceptance |
 | Saved filters, sorts, groups, and view lifecycle | Partial | Saved filter and deterministic multi-sort slices exist in table-oriented UI | Complete nested filter/group behavior and canonical create/update/reorder/delete lifecycle for all views |
 | Table view | Partial | Usable typed table slice with focused canonical/restart tests | Complete V1 configuration/edge-state behavior and installed-package acceptance |
 | List view | Missing | No usable tested list-view implementation at this baseline | Full saved list configuration, keyboard path, restart/export/restore and package evidence |

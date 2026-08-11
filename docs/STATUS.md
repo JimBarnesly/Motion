@@ -1,7 +1,7 @@
 # Status
 
 Updated: 2026-08-11
-Provisional evidence baseline: `fd15dbe` (`feat/v1-phase-0-green-baseline`)
+Provisional evidence baseline: `5441e1c` (`feat/v1-phase-0-green-baseline`)
 
 The baseline is provisional because the Phase 0 documentation and remaining
 integration work will advance the commit before merge. It is not an immutable
@@ -36,8 +36,10 @@ Integrated at the provisional baseline:
 - Every tracked Playwright spec inherits fail-closed HTTP(S)/WebSocket denial;
   service workers and unprotected extra browser contexts are prohibited.
 - Added fine-grained typed block commands and an atomic batch boundary with
-  shared canonical ID, payload-shape, depth, count, and resource limits. These
-  TypeScript paths still require supported-toolchain compilation in CI.
+  shared canonical ID, payload-shape, depth, count, and resource limits.
+- Hardened restore with schema-directed identity remapping and enforced
+  bidirectional database record membership. These paths compile and their
+  focused Core/Backup tests pass; Node 22 runtime CI remains required.
 
 ## Evidence verified locally on 2026-08-11
 
@@ -45,12 +47,12 @@ These checks ran against an identical source tree in the dependency-equipped
 integration worktree. They do not substitute for Node 22 runtime tests, actual
 Playwright/native execution, or immutable CI:
 
-| Check | Result at `fd15dbe` |
+| Check | Result at `5441e1c` |
 | --- | --- |
 | Workflow, complete-E2E-selection, and network-denial contracts | 22 passed, 0 failed |
 | Complete Web unit/source-boundary suite | 54 passed, 0 failed |
-| Core tests | 24 passed, 0 failed |
-| Backup tests | 5 passed, 0 failed |
+| Core tests | 27 passed, 0 failed |
+| Backup tests | 6 passed, 0 failed |
 | Root TypeScript typecheck | Passed with TypeScript 5.9.3 |
 | Root build | Passed |
 | First-party static-analysis scan | Passed; 80 files, 8 rules |

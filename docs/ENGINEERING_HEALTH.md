@@ -3,7 +3,7 @@
 Owner: Engineering Director  
 Decision authority: Managing Director  
 Last reviewed: 2026-08-11
-Provisional evidence baseline: `fd15dbe` (`feat/v1-phase-0-green-baseline`)
+Provisional evidence baseline: `5441e1c` (`feat/v1-phase-0-green-baseline`)
 
 This commit identifies the current integration point, not a frozen candidate.
 The baseline will advance before merge as documentation and separately owned
@@ -24,8 +24,9 @@ Phase 0 work.
 | Static-analysis base | Verified locally | Scanner passed 80 first-party files under 8 rules; 16 governance tests passed after final sink review. |
 | Link, search, and failed-edit recovery | Integrated; focused evidence only | Link lifecycle, accessible canonical search, and race-hardened retry/discard are present; complete Web suite passed 53 tests. |
 | Fine-grained block commands | Integrated and compiled locally | Create/update/transform/move/indent/outdent/duplicate/delete/batch contracts include shared identity/resource bounds and desktop IPC allowlisting. |
+| Restore and record integrity | Integrated and compiled locally | Schema-directed identity restoration preserves opaque/external fields; record membership is bidirectional; focused Backup/Core suites pass. |
 | Root typecheck and build | Verified locally | TypeScript 5.9.3 typecheck and all workspace builds passed against the exact tree. |
-| Focused package suites | Partially verified | Core 24/24, Backup 5/5, and Web 54/54 passed. App-service runtime is blocked under Node 20 because `node:sqlite` requires Node 22. |
+| Focused package suites | Partially verified | Core 27/27, Backup 6/6, and Web 54/54 passed. App-service runtime is blocked under Node 20 because `node:sqlite` requires Node 22. |
 | Complete package/unit/integration suite and offline restart | Blocked on audit host | Repository requires Node >=22; complete runtime execution awaits CI. |
 | Release-security chain | Blocked / review open | Rust/Tauri, `gitleaks`, dependency tooling, and the offline advisory database are unavailable; static-analysis success alone is insufficient. |
 | Immutable CI for V1 baseline | Missing | No complete run exists for one frozen Phase 0 commit. |
@@ -40,7 +41,7 @@ browser execution, advisory collection, or release-security acceptance.
 
 Historical 0.1 CI/package evidence predates the provisional V1 baseline. It may
 support continuity investigations, but it cannot be attributed to
-`fd15dbe`, used as an immutable V1 run, or treated as installed-package
+`5441e1c`, used as an immutable V1 run, or treated as installed-package
 acceptance.
 
 ## Engineering priorities for Managing Director coordination

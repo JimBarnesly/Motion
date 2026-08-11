@@ -1,19 +1,6 @@
 import { expect, test } from "./fixtures";
 
-test("local Web workspace persists, searches and exports without external network access", async ({ page, context, baseURL }) => {
-  const localOrigin = new URL(baseURL!).origin;
-  const externalRequests: string[] = [];
-  const externalSockets: string[] = [];
-
-  await context.route(/^https?:\/\//, async route => {
-    const url = route.request().url();
-    if (new URL(url).origin === localOrigin) await route.continue();
-    else { externalRequests.push(url); await route.abort("blockedbyclient"); }
-  });
-  page.on("websocket", socket => {
-    if (new URL(socket.url()).origin !== localOrigin) externalSockets.push(socket.url());
-  });
-
+test("local Web workspace persists, searches and exports without external network access", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Your workspace is ready" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Workspace pages" }).getByRole("button", { name: "Untitled page" })).toHaveCount(0);
@@ -92,9 +79,6 @@ test("local Web workspace persists, searches and exports without external networ
   await expect(page.getByRole("textbox", { name: "Page title" })).toHaveValue("Pump commissioning notes");
   await expect(page.locator('[contenteditable="true"][data-block]').first()).toHaveText("Verified local pressure and flow before startup.");
   await expect(trashNavigation.getByRole("button", { name: "Restore Pump commissioning notes" })).toHaveCount(0);
-
-  expect(externalRequests, `unexpected external HTTP(S) requests: ${externalRequests.join(", ")}`).toEqual([]);
-  expect(externalSockets, `unexpected external WebSockets: ${externalSockets.join(", ")}`).toEqual([]);
 });
 
 test("typed table records open as pages and retain view state", async ({ page }) => {

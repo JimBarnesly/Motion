@@ -9,6 +9,7 @@ export default defineConfig({
   reporter: process.env.CI ? [["line"], ["html", { open: "never" }]] : "line",
   use: {
     baseURL: "http://127.0.0.1:4187",
+    serviceWorkers: "block",
     trace: "retain-on-failure",
     ...devices["Desktop Chrome"]
   },

@@ -1,14 +1,15 @@
 import { expect, test as base, type Page } from "@playwright/test";
+import { isLocalWebSocketUrl } from "./network-policy.mjs";
 
 export { expect, type Page };
 
 /**
- * Every release browser test runs with external HTTP(S) requests denied and
- * fails if the application even attempts an external request or WebSocket.
- * Loopback traffic to the configured development server remains available.
+ * Every release browser test runs with external HTTP(S) and WebSocket traffic
+ * denied before transfer. BrowserContext routing covers the initial page and
+ * every additional page or popup in the fixture-owned context.
  */
 export const test = base.extend<{ denyExternalNetwork: void }>({
-  denyExternalNetwork: [async ({ context, page, baseURL }, use) => {
+  denyExternalNetwork: [async ({ context, baseURL }, use) => {
     const localOrigin = new URL(baseURL!).origin;
     const externalRequests: string[] = [];
     const externalSockets: string[] = [];
@@ -21,8 +22,13 @@ export const test = base.extend<{ denyExternalNetwork: void }>({
         await route.abort("blockedbyclient");
       }
     });
-    page.on("websocket", socket => {
-      if (new URL(socket.url()).origin !== localOrigin) externalSockets.push(socket.url());
+    await context.routeWebSocket(/^wss?:\/\//, async socket => {
+      const url = socket.url();
+      if (isLocalWebSocketUrl(url, baseURL!)) socket.connectToServer();
+      else {
+        externalSockets.push(url);
+        await socket.close({ code: 1008, reason: "External WebSocket blocked by E2E network policy" });
+      }
     });
 
     await use();

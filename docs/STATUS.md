@@ -1,7 +1,7 @@
 # Status
 
 Updated: 2026-08-11
-Provisional evidence baseline: `5441e1c` (`feat/v1-phase-0-green-baseline`)
+Provisional evidence baseline: `f084a5d` (`feat/v1-phase-0-green-baseline`)
 
 The baseline is provisional because the Phase 0 documentation and remaining
 integration work will advance the commit before merge. It is not an immutable
@@ -47,16 +47,16 @@ These checks ran against an identical source tree in the dependency-equipped
 integration worktree. They do not substitute for Node 22 runtime tests, actual
 Playwright/native execution, or immutable CI:
 
-| Check | Result at `5441e1c` |
+| Check | Result at `f084a5d` |
 | --- | --- |
 | Workflow, complete-E2E-selection, and network-denial contracts | 22 passed, 0 failed |
 | Complete Web unit/source-boundary suite | 54 passed, 0 failed |
-| Core tests | 27 passed, 0 failed |
-| Backup tests | 6 passed, 0 failed |
+| Core tests | 31 passed, 0 failed |
+| Backup tests | 9 passed, 0 failed |
 | Root TypeScript typecheck | Passed with TypeScript 5.9.3 |
 | Root build | Passed |
 | First-party static-analysis scan | Passed; 80 files, 8 rules |
-| Static-analysis governance tests | 16 passed, 0 failed |
+| Static-analysis governance tests | 19 passed, 0 failed |
 
 ## Blocked or absent evidence
 

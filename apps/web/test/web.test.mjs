@@ -125,6 +125,27 @@ test("native workspace transitions reject malformed authoritative summaries", as
   );
 });
 
+test("failed workspace transitions invalidate the cached workspace before later commands", async () => {
+  const calls = [];
+  const { createMotionUiAdapter } = await import("../app-adapter.js");
+  const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => {
+    const operation = payload?.request?.payload;
+    calls.push(operation);
+    if (command === "motion_ui_load") return { schemaVersion: 2, workspace: { id: "workspace-old", pages: [], databases: [] }, revision: 4 };
+    if (operation?.type === "workspace.import-web-v1") throw new Error("response lost after transition");
+    if (operation?.type === "workspace.list") return [{ id: "workspace-new", revision: 1 }];
+    if (operation?.type === "page.rename") return { workspace: { id: "workspace-new", pages: [], databases: [] }, revision: 2, saved: true };
+    throw new Error(`Unexpected native call: ${operation?.type ?? command}`);
+  } } } });
+
+  await adapter.load();
+  await assert.rejects(adapter.importWebV1({ schemaVersion: 1, pages: [], activePageId: null }), /response lost/);
+  await adapter.execute("page.rename", { pageId: "page-new", title: "Recovered" });
+  const rename = calls.find(call => call?.type === "page.rename");
+  assert.equal(rename.workspaceId, "workspace-new");
+  assert.equal(rename.expectedRevision, 1);
+});
+
 test("native commands cannot start while a workspace transition is in flight", async () => {
   let releaseImport;
   const importResponse = new Promise(resolve => { releaseImport = resolve; });

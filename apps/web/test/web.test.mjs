@@ -656,7 +656,7 @@ test("document editor handles multiline paste through one canonical block batch"
 test("links are materialised by stable page ID and unknown blocks are preserved", async () => {
   const source = await readFile(resolve(root, "app.js"), "utf8");
   assert.match(source, /block\.references/);
-  assert.match(source, /function refreshReferences\(block\)/);
+  assert.match(source, /reconcileTextReferences\(\{previousText:block\.text,previousReferences:block\.references,nextText:draft\.text,pages:workspace\(\)\.pages\}\)/);
   assert.match(source, /pageId:/);
   assert.match(source, /unsupported/);
   assert.match(source, /linkIndex/);

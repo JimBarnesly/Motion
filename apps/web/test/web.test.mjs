@@ -633,6 +633,14 @@ test("structural keyboard editing flushes canonical text before creating another
   );
 });
 
+test("Markdown shortcuts are persisted as one canonical block batch", async () => {
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  const build = await readFile(resolve(root, "scripts/build.mjs"), "utf8");
+  assert.match(source, /markdownShortcutCommand\(\{pageId:page\.id,block:draft\}\)/);
+  assert.match(source, /candidate:\{type:shortcut\.type,payload:\{commands:shortcut\.commands\}\}/);
+  assert.match(build, /editor-structure\.js/);
+});
+
 test("document editor handles multiline paste through one canonical block batch", async () => {
   const source = await readFile(resolve(root, "app.js"), "utf8");
   const build = await readFile(resolve(root, "scripts/build.mjs"), "utf8");

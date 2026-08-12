@@ -6,7 +6,7 @@ import { createEditRecoveryController } from "./edit-recovery.js";
 import { createOperationCoordinator } from "./operation-coordinator.js"; import { createAttachmentIngestion } from "./attachment-ingestion.js";
 import { buildBrowserSearchHits, normalizeSearchHits, resolveSearchTarget, searchStatus } from "./search-recovery.js"; import { buildInternalUrl } from "./internal-links.js";
 import { multilinePasteCommands } from "./markdown-paste.js";
-import { mergeAdjacentBlockCommands, splitBlockCommands } from "./editor-structure.js";
+import { markdownShortcutCommand, mergeAdjacentBlockCommands, splitBlockCommands } from "./editor-structure.js";
 import { confirmEditorHistory } from "./editor-history.js";
 import { normalizeWorkspaceV1 } from "./workspace-v1.js";
 
@@ -276,7 +276,7 @@ $("#verifiedBackupFile").addEventListener("change",async event=>{const[file]=eve
 
 document.addEventListener("input",event=>{const target=event.target,page=activePage();if(target.id==="searchInput"){void renderSearch(target.value);return;}if(!page)return;
   if(target.id==="pageTitle"){const descriptor={kind:"page-title",pageId:page.id};queueCanonicalEdit({key:`page:title:${page.id}`,label:"Page title",candidate:{type:"page.rename",payload:{pageId:page.id,title:target.value}},target:descriptor,rerender:true});return;}
-  if(target.dataset.block){const blockId=target.dataset.block,block=page.blocks.find(item=>item.id===blockId),draft=structuredClone(block);draft.text=target.textContent;refreshReferences(draft);queueCanonicalEdit({key:`block:text:${page.id}:${blockId}`,label:`${BLOCK_LABELS[block?.type]??"Block"} text`,candidate:{type:"block.update-content",payload:{pageId:page.id,blockId,content:{text:draft.text,references:draft.references??[]}}},target:{kind:"block-text",pageId:page.id,blockId}});return;}
+  if(target.dataset.block){const blockId=target.dataset.block,block=page.blocks.find(item=>item.id===blockId),draft=structuredClone(block);draft.text=target.textContent;refreshReferences(draft);const shortcut=markdownShortcutCommand({pageId:page.id,block:draft});if(shortcut){queueCanonicalEdit({key:`block:text:${page.id}:${blockId}`,label:"Markdown shortcut",candidate:{type:shortcut.type,payload:{commands:shortcut.commands}},target:{kind:"block-text",pageId:page.id,blockId},rerender:true});return;}queueCanonicalEdit({key:`block:text:${page.id}:${blockId}`,label:`${BLOCK_LABELS[block?.type]??"Block"} text`,candidate:{type:"block.update-content",payload:{pageId:page.id,blockId,content:{text:draft.text,references:draft.references??[]}}},target:{kind:"block-text",pageId:page.id,blockId}});return;}
   if(target.dataset.columnWidth){const database=databaseForPage(page),propertyId=target.dataset.columnWidth,widths={...database.views[0].columnWidths,[propertyId]:Number(target.value)};queueCanonicalEdit({key:`view:width:${database.views[0].id}:${propertyId}`,label:"Table column width",candidate:{type:"database.view-update",payload:{databaseId:database.id,viewId:database.views[0].id,patch:{columnWidths:widths}}},target:{kind:"view-width",pageId:page.id,propertyId}});}
 });
 document.addEventListener("change",event=>{const target=event.target,page=activePage();if(!page)return;const database=databaseForPage(page);

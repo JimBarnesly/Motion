@@ -1,7 +1,40 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { mergeAdjacentBlockCommands, splitBlockCommands } from "../editor-structure.js";
+import { markdownShortcutCommand, mergeAdjacentBlockCommands, splitBlockCommands } from "../editor-structure.js";
+
+test("typing a Markdown heading marker at the start transforms the block", () => {
+  assert.deepEqual(markdownShortcutCommand({
+    pageId: "page-1",
+    block: { id: "block-1", type: "paragraph", text: "## ", children: [] }
+  }), {
+    type: "block.batch",
+    commands: [
+      { type: "block.transform", pageId: "page-1", blockId: "block-1", transform: { type: "heading-2" } },
+      { type: "block.update-content", pageId: "page-1", blockId: "block-1", content: { text: "", references: [] } }
+    ]
+  });
+});
+
+test("typing common Markdown markers at the start transforms an empty paragraph", () => {
+  for (const [text, transform] of [
+    ["# ", { type: "heading-1" }],
+    ["### ", { type: "heading-3" }],
+    ["- ", { type: "bulleted-list" }],
+    ["1. ", { type: "numbered-list" }],
+    ["[] ", { type: "task", checked: false }],
+    ["[ ] ", { type: "task", checked: false }],
+    ["> ", { type: "quote" }],
+    ["``` ", { type: "code" }]
+  ]) {
+    const result = markdownShortcutCommand({
+      pageId: "page-1",
+      block: { id: "block-1", type: "paragraph", text, children: [] }
+    });
+    assert.deepEqual(result?.commands[0].transform, transform, text);
+    assert.equal(result?.commands[1].content.text, "", text);
+  }
+});
 
 test("Enter splits a paragraph at the caret without losing either text fragment", () => {
   assert.deepEqual(splitBlockCommands({

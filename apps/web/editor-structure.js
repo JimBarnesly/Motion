@@ -1,3 +1,26 @@
+export function markdownShortcutCommand({ pageId, block }) {
+  if (block?.type !== "paragraph") return null;
+  const transform = new Map([
+    ["# ", { type: "heading-1" }],
+    ["## ", { type: "heading-2" }],
+    ["### ", { type: "heading-3" }],
+    ["- ", { type: "bulleted-list" }],
+    ["1. ", { type: "numbered-list" }],
+    ["[] ", { type: "task", checked: false }],
+    ["[ ] ", { type: "task", checked: false }],
+    ["> ", { type: "quote" }],
+    ["``` ", { type: "code" }]
+  ]).get(block.text);
+  if (!transform) return null;
+  return {
+    type: "block.batch",
+    commands: [
+      { type: "block.transform", pageId, blockId: block.id, transform },
+      { type: "block.update-content", pageId, blockId: block.id, content: { text: "", references: [] } }
+    ]
+  };
+}
+
 export function mergeAdjacentBlockCommands({ pageId, previousBlock, currentBlock }) {
   const mergeable = new Set(["paragraph", "heading-1", "heading-2", "heading-3", "bulleted-list", "numbered-list", "task", "quote", "code"]);
   if (!mergeable.has(previousBlock?.type) || !mergeable.has(currentBlock?.type)) return null;

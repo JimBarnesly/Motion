@@ -91,6 +91,22 @@ test("promotion rejects a staged pathname replacement without a production race 
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test("same-hash promotions across store instances serialize publication and deduplicate", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-attachment-concurrent-promotion-"));
+  try {
+    const firstStore = new ContentAddressedAttachmentStore(root);
+    const secondStore = new ContentAddressedAttachmentStore(root);
+    for (let round = 0; round < 20; round += 1) {
+      const payload = Buffer.from(`same-hash concurrent publication ${round}`);
+      const [firstStaged, secondStaged] = await Promise.all([firstStore.stage(payload), secondStore.stage(payload)]);
+      const results = await Promise.all([firstStore.promote(firstStaged), secondStore.promote(secondStaged)]);
+      assert.equal(results.filter(result => result.newlyCreated).length, 1);
+      assert.deepEqual(await firstStore.get(results[0]!.sha256), payload);
+      assert.deepEqual(await secondStore.get(results[0]!.sha256), payload);
+    }
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test("forged staged objects cannot publish or delete external files", async () => {
   const root = await mkdtemp(join(tmpdir(), "motion-attachment-capability-"));
   const externalRoot = await mkdtemp(join(tmpdir(), "motion-attachment-capability-external-"));

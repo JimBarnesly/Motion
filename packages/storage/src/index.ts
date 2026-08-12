@@ -303,6 +303,7 @@ export function hardenPrivateFile(path: string): void { hardenPrivatePath(path, 
 type OpenPrivateAttachment = { handle: import("node:fs/promises").FileHandle; bytes: Uint8Array; metadata: import("node:fs").Stats };
 type InodeIdentity = Readonly<{ dev: number; ino: number }>;
 type StagedRecord = Readonly<{ sha256: string; byteLength: number; stagingPath: string; inode: InodeIdentity }>;
+const attachmentPublicationQueues = new Map<string, Promise<void>>();
 
 function inodeIdentity(metadata: import("node:fs").Stats): InodeIdentity { return { dev: metadata.dev, ino: metadata.ino }; }
 
@@ -310,6 +311,19 @@ function assertDirectoryIdentity(path: string, expected: InodeIdentity): void {
   const current = lstatSync(path);
   if (!current.isDirectory() || current.isSymbolicLink() || current.dev !== expected.dev || current.ino !== expected.ino)
     throw new Error("Attachment store directory identity changed");
+}
+
+async function serializeAttachmentPublication<T>(key: string, publish: () => Promise<T>): Promise<T> {
+  const previous = attachmentPublicationQueues.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>(resolve => { release = resolve; });
+  attachmentPublicationQueues.set(key, current);
+  await previous;
+  try { return await publish(); }
+  finally {
+    release();
+    if (attachmentPublicationQueues.get(key) === current) attachmentPublicationQueues.delete(key);
+  }
 }
 
 function assertPrivateAttachment(metadata: import("node:fs").Stats): void {
@@ -726,6 +740,12 @@ export class ContentAddressedAttachmentStore {
   }
 
   private async promoteRecord(staged: StagedRecord): Promise<StoredAttachment> {
+    this.assertStoreDirectories();
+    const publicationKey = `${this.rootIdentity.dev}:${this.rootIdentity.ino}:${staged.sha256}`;
+    return serializeAttachmentPublication(publicationKey, () => this.publishRecord(staged));
+  }
+
+  private async publishRecord(staged: StagedRecord): Promise<StoredAttachment> {
     this.assertStoreDirectories();
     const finalPath = this.pathFor(staged.sha256);
     const source = await openBoundedPrivateFile(staged.stagingPath);

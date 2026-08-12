@@ -107,6 +107,32 @@ test("same-hash promotions across store instances serialize publication and dedu
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test("a staged attachment capability is consumed atomically by promote and discard", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-attachment-capability-consumption-"));
+  const capabilityError = "Staged attachment was not issued by this attachment store";
+  try {
+    const store = new ContentAddressedAttachmentStore(root);
+    const operations = [
+      (staged: import("../index.js").StagedAttachment) => [store.promote(staged), store.promote(staged)],
+      (staged: import("../index.js").StagedAttachment) => [store.promote(staged), store.discard(staged)],
+      (staged: import("../index.js").StagedAttachment) => [store.discard(staged), store.discard(staged)]
+    ] as const;
+
+    for (const [operationIndex, race] of operations.entries()) {
+      for (let round = 0; round < 20; round += 1) {
+        const staged = await store.stage(Buffer.from(`single-use capability ${operationIndex}:${round}`));
+        const results = await Promise.allSettled(race(staged));
+        assert.equal(results.filter(result => result.status === "fulfilled").length, 1);
+        const rejected = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
+        assert.ok(rejected);
+        assert.equal(rejected.reason instanceof Error && rejected.reason.message, capabilityError);
+        assert.equal(String(rejected.reason).includes(root), false, "capability rejection disclosed a private path");
+      }
+    }
+    assert.deepEqual(await readdir(join(root, ".staging")), []);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test("forged staged objects cannot publish or delete external files", async () => {
   const root = await mkdtemp(join(tmpdir(), "motion-attachment-capability-"));
   const externalRoot = await mkdtemp(join(tmpdir(), "motion-attachment-capability-external-"));

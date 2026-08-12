@@ -702,9 +702,10 @@ export class ContentAddressedAttachmentStore {
     assertDirectoryIdentity(this.stagingRoot, this.stagingRootIdentity);
   }
 
-  private requireStaged(staged: StagedAttachment): StagedRecord {
+  private consumeStaged(staged: StagedAttachment): StagedRecord {
     const record = typeof staged === "object" && staged !== null ? this.staged.get(staged) : undefined;
     if (!record) throw new Error("Staged attachment was not issued by this attachment store");
+    this.staged.delete(staged);
     return record;
   }
 
@@ -734,9 +735,7 @@ export class ContentAddressedAttachmentStore {
   }
 
   async promote(staged: StagedAttachment): Promise<StoredAttachment> {
-    const result = await this.promoteRecord(this.requireStaged(staged));
-    this.staged.delete(staged);
-    return result;
+    return this.promoteRecord(this.consumeStaged(staged));
   }
 
   private async promoteRecord(staged: StagedRecord): Promise<StoredAttachment> {
@@ -787,18 +786,17 @@ export class ContentAddressedAttachmentStore {
   }
 
   async discard(staged: StagedAttachment): Promise<void> {
-    const record = this.requireStaged(staged);
+    const record = this.consumeStaged(staged);
     this.assertStoreDirectories();
     let current: import("node:fs").Stats;
     try { current = await lstat(record.stagingPath); }
     catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") { this.staged.delete(staged); return; }
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
       throw error;
     }
     if (current.isSymbolicLink() || current.dev !== record.inode.dev || current.ino !== record.inode.ino)
       throw new Error("Attachment staging changed before deletion");
     await rm(record.stagingPath);
-    this.staged.delete(staged);
   }
 
 

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { closeSync, constants, fchmodSync, lstatSync, mkdirSync, openSync } from "node:fs";
+import { closeSync, constants, fchmodSync, lstatSync, mkdirSync, openSync, statSync } from "node:fs";
 import { readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { platform } from "node:os";
@@ -276,11 +276,12 @@ type PrivatePathKind = "file" | "directory";
 function hardenPrivatePath(path: string, kind: PrivatePathKind): void {
   if (platform() === "win32") return;
   let metadata: ReturnType<typeof lstatSync>;
-  try { metadata = lstatSync(path); }
+  const descriptorRoot = platform() === "linux" && /^\/proc\/self\/fd\/\d+$/.test(path);
+  try { metadata = descriptorRoot ? statSync(path) : lstatSync(path); }
   catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
-  if (metadata.isSymbolicLink()) throw new Error(`Private ${kind} path must not be a symbolic link`);
+  if (!descriptorRoot && metadata.isSymbolicLink()) throw new Error(`Private ${kind} path must not be a symbolic link`);
   if (kind === "file" ? !metadata.isFile() : !metadata.isDirectory()) throw new Error(`Private ${kind} path has an unexpected type`);
-  const flags = constants.O_RDONLY | constants.O_NOFOLLOW | (kind === "directory" ? constants.O_DIRECTORY : 0);
+  const flags = constants.O_RDONLY | (descriptorRoot ? 0 : constants.O_NOFOLLOW) | (kind === "directory" ? constants.O_DIRECTORY : 0);
   const descriptor = openSync(path, flags);
   try { fchmodSync(descriptor, kind === "directory" ? 0o700 : 0o600); }
   finally { closeSync(descriptor); }
@@ -306,10 +307,11 @@ export class SqliteWorkspaceStore {
     this.databasePath = databasePath;
     const databaseDirectory = dirname(databasePath);
     let databaseDirectoryState: ReturnType<typeof lstatSync> | undefined;
-    try { databaseDirectoryState = lstatSync(databaseDirectory); }
+    const descriptorRoot = platform() === "linux" && /^\/proc\/self\/fd\/\d+\/?$/.test(databaseDirectory);
+    try { databaseDirectoryState = descriptorRoot ? statSync(databaseDirectory) : lstatSync(databaseDirectory); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     if (!databaseDirectoryState) ensurePrivateDirectory(databaseDirectory);
-    else if (!databaseDirectoryState.isDirectory() || databaseDirectoryState.isSymbolicLink()) throw new Error("Database directory has an unexpected type");
+    else if (!databaseDirectoryState.isDirectory() || (!descriptorRoot && databaseDirectoryState.isSymbolicLink())) throw new Error("Database directory has an unexpected type");
     if (platform() !== "win32") {
       const descriptor = openSync(databasePath, constants.O_CREAT | constants.O_RDWR | constants.O_NOFOLLOW, 0o600);
       try { fchmodSync(descriptor, 0o600); } finally { closeSync(descriptor); }

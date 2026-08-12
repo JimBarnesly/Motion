@@ -3,9 +3,10 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { MotionAppService, MotionAppError } from "@motion/app-service";
-import { SqliteWorkspaceStore, ContentAddressedAttachmentStore, ensurePrivateDirectory, hardenPrivateFile } from "@motion/storage";
+import { SqliteWorkspaceStore, ContentAddressedAttachmentStore, hardenPrivateFile } from "@motion/storage";
 import { createAtomicBackupFile, inspectAtomicBackupDestination } from "./backup-file.mjs";
 import { isValidUiState } from "./ui-state-validation.mjs";
+import { acquireNativeServiceLock } from "./native-service-lock.mjs";
 
 const [dataRoot] = process.argv.slice(2);
 if (!dataRoot) throw new Error("Usage: service-runner <data-root>");
@@ -26,10 +27,13 @@ const encode = value => value instanceof Uint8Array ? { $motionBytes: Array.from
   : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).map(([key, child]) => [key, encode(child)]))
   : value;
 
-ensurePrivateDirectory(dataRoot);
-const store = new SqliteWorkspaceStore(join(dataRoot, "motion.sqlite3"));
-const service = new MotionAppService(store, new ContentAddressedAttachmentStore(join(dataRoot, "attachments")));
-const uiStatePath = join(dataRoot, "ui-state.json");
+const ownership = await acquireNativeServiceLock(dataRoot);
+const mutableRoot = ownership.mutableRoot;
+let store;
+try {
+store = new SqliteWorkspaceStore(join(mutableRoot, "motion.sqlite3"));
+const service = new MotionAppService(store, new ContentAddressedAttachmentStore(join(mutableRoot, "attachments")));
+const uiStatePath = join(mutableRoot, "ui-state.json");
 const readUiState = () => { try { hardenPrivateFile(uiStatePath); return JSON.parse(readFileSync(uiStatePath, "utf8")); } catch (error) { if (error?.code === "ENOENT") return {}; throw error; } };
 const writeUiState = state => {
   const temporary = `${uiStatePath}.${randomUUID()}.tmp`;
@@ -131,4 +135,7 @@ for await (const line of lines) {
   }
   process.stdout.write(`${JSON.stringify(reply)}\n`);
 }
-store.close();
+} finally {
+  try { store?.close(); }
+  finally { await ownership.release(); }
+}

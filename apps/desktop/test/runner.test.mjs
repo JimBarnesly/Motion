@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { lstat, mkdtemp, readFile, readdir, readlink, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, readdir, readlink, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
@@ -25,6 +25,66 @@ async function listeningTcpSockets(pid) {
   }
   return listeners;
 }
+
+test("real service mutation stays on the authenticated root inode after pathname replacement", async () => {
+  if (process.platform !== "linux") return;
+  const parent = await mkdtemp(join(tmpdir(), "motion-root-replacement-"));
+  const root = join(parent, "data");
+  const displaced = join(parent, "authenticated-data");
+  await mkdir(root, { mode: 0o700 });
+  const workerPath = new URL("./fixtures/root-replacement-service-worker.mjs", import.meta.url).pathname;
+  const start = () => {
+    const child = spawn(process.execPath, [workerPath, root], { stdio: ["pipe", "pipe", "pipe"] });
+    const replies = [];
+    createInterface({ input: child.stdout, crlfDelay: Infinity }).on("line", line => replies.push(JSON.parse(line)));
+    let stderr = "";
+    child.stderr.setEncoding("utf8").on("data", chunk => { stderr += chunk; });
+    const next = async (count = 1) => {
+      const deadline = Date.now() + 5_000;
+      while (replies.length < count && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
+      assert.ok(replies.length >= count, `service worker timed out: ${stderr}`);
+      return replies[count - 1];
+    };
+    return { child, next, send: command => child.stdin.write(`${command}\n`) };
+  };
+  const owner = start();
+  let contender;
+  try {
+    assert.deepEqual(await owner.next(), { type: "owned" });
+    await rename(root, displaced);
+    await mkdir(root, { mode: 0o700 });
+    contender = start();
+    assert.deepEqual(await contender.next(), { type: "owned" });
+    owner.send("mutate");
+    contender.send("mutate");
+    assert.equal((await owner.next(2)).type, "mutated");
+    assert.equal((await contender.next(2)).type, "mutated");
+    assert.ok(await lstat(join(displaced, "motion.sqlite3")));
+    assert.ok(await lstat(join(root, "motion.sqlite3")));
+  } finally {
+    for (const worker of [contender, owner]) {
+      if (worker && worker.child.exitCode === null && worker.child.signalCode === null) {
+        worker.child.kill("SIGTERM");
+        await new Promise(resolve => worker.child.once("exit", resolve));
+      }
+    }
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("service ownership precedes every mutable store and releases through nested finally", async () => {
+  const source = await readFile(new URL("../service-runner.mjs", import.meta.url), "utf8");
+  const acquire = source.indexOf("await acquireNativeServiceLock(dataRoot)");
+  const anchored = source.indexOf("const mutableRoot = ownership.mutableRoot");
+  assert.ok(acquire >= 0, "runner does not acquire data-root ownership");
+  assert.ok(anchored > acquire, "runner does not adopt the descriptor-anchored mutable root");
+  assert.ok(anchored < source.indexOf("new SqliteWorkspaceStore"), "SQLite opens before descriptor anchoring");
+  assert.ok(anchored < source.indexOf("new ContentAddressedAttachmentStore"), "attachments open before descriptor anchoring");
+  assert.match(source, /join\(mutableRoot, "motion\.sqlite3"\)/);
+  assert.match(source, /join\(mutableRoot, "attachments"\)/);
+  assert.match(source, /join\(mutableRoot, "ui-state\.json"\)/);
+  assert.match(source, /finally\s*\{\s*try\s*\{\s*store\?\.close\(\);\s*\}\s*finally\s*\{\s*await ownership\.release\(\);\s*\}/);
+});
 
 test("one service process handles errors and multiple durable requests", async () => {
   const root = await mkdtemp(join(tmpdir(), "motion-desktop-runner-"));

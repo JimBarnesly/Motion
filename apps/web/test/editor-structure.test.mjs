@@ -147,6 +147,24 @@ test("Enter preserves an unknown heading-prefixed block type", () => {
   assert.equal(commands[1].block.type, "heading-plugin");
 });
 
+test("Enter inserts a canonical newline inside a code block", () => {
+  assert.deepEqual(splitBlockCommands({
+    pageId: "page-1",
+    block: { id: "code-1", type: "code", text: "const x = 1;return x;", language: "js", children: [] },
+    offset: 12,
+    createId: () => { throw new Error("code Enter must not create another block"); }
+  }), {
+    commands: [{
+      type: "block.update-content",
+      pageId: "page-1",
+      blockId: "code-1",
+      content: { text: "const x = 1;\nreturn x;", references: [] }
+    }],
+    focusBlockId: "code-1",
+    focusOffset: 13
+  });
+});
+
 test("Enter exits an empty Markdown list without creating another empty block", () => {
   for (const type of ["bulleted-list", "numbered-list", "task"]) {
     assert.deepEqual(splitBlockCommands({

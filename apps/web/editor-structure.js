@@ -53,6 +53,18 @@ export function mergeAdjacentBlockCommands({ pageId, previousBlock, currentBlock
 
 export function splitBlockCommands({ pageId, block, offset, beforeBlockId = null, createId }) {
   const text = String(block.text ?? "");
+  if (block.type === "code") {
+    return {
+      commands: [{
+        type: "block.update-content",
+        pageId,
+        blockId: block.id,
+        content: { text: `${text.slice(0, offset)}\n${text.slice(offset)}`, references: [] }
+      }],
+      focusBlockId: block.id,
+      focusOffset: offset + 1
+    };
+  }
   if (offset === 0 && text.length === 0 && ["bulleted-list", "numbered-list", "task"].includes(block.type)) {
     return {
       commands: [

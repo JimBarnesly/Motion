@@ -188,6 +188,24 @@ const requireSha256 = (value: string): void => {
 
 const MAX_CHANGE_SET_ENTRIES = 100_000;
 const SAFE_CHANGE_SET_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
+const MAX_CANONICAL_ID_LENGTH = 160;
+
+/** Stable linear radix order for bounded safe canonical IDs; equivalent to lexical comparison order. */
+function canonicalIdOrder<T>(items: readonly T[], keys: readonly ((item: T) => string)[]): T[] {
+  let result = [...items], scratch = new Array<T>(items.length); if (result.length < 2) return result;
+  for (let field = keys.length - 1; field >= 0; field--) {
+    let width = 0; for (const item of result) width = Math.max(width, keys[field]!(item).length);
+    if (width > MAX_CANONICAL_ID_LENGTH) throw new Error("Canonical ID exceeds bounded ordering width");
+    for (let offset = width - 1; offset >= 0; offset--) {
+      const counts = new Uint32Array(128);
+      for (const item of result) { const value = keys[field]!(item); counts[offset < value.length ? value.charCodeAt(offset) + 1 : 0]!++; }
+      let cursor = 0; for (let code = 0; code < counts.length; code++) { const count = counts[code]!; counts[code] = cursor; cursor += count; }
+      for (const item of result) { const value = keys[field]!(item); const code = offset < value.length ? value.charCodeAt(offset) + 1 : 0; scratch[counts[code]!] = item; counts[code]!++; }
+      [result, scratch] = [scratch, result];
+    }
+  }
+  return result;
+}
 
 function normalizeChangeSet(changeSet: WorkspaceChangeSet): WorkspaceChangeSet {
   if (changeSet.kind === "rebuild") return changeSet;
@@ -228,9 +246,8 @@ function workspaceParts(document: unknown): WorkspaceParts {
       throw new Error("Normalized workspace links require source, target, and block IDs");
     return { sourcePageId: link.sourcePageId, targetPageId: link.targetPageId, blockId: link.blockId };
   });
-  const compare = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0;
-  links.sort((left, right) => compare(left.sourcePageId, right.sourcePageId) || compare(left.blockId, right.blockId) || compare(left.targetPageId, right.targetPageId));
-  return { pages: entities(record.pages), databases: entities(record.databases), attachments: entities(record.attachments), links };
+  return { pages: entities(record.pages), databases: entities(record.databases), attachments: entities(record.attachments),
+    links: canonicalIdOrder(links, [link => link.sourcePageId, link => link.blockId, link => link.targetPageId]) };
 }
 
 function keyedEntities(entities: readonly Record<string, unknown>[], label: string): Map<string, string> {
@@ -250,7 +267,11 @@ function changedKeys(before: Map<string, string>, after: Map<string, string>): s
 
 function linkScopes(parts: WorkspaceParts): Map<string, string> {
   const grouped = new Map<string, { sourcePageId: string; targetPageId: string; blockId: string }[]>();
-  for (const link of parts.links) grouped.set(link.sourcePageId, [...(grouped.get(link.sourcePageId) ?? []), link]);
+  for (const link of parts.links) {
+    let bucket = grouped.get(link.sourcePageId);
+    if (!bucket) { bucket = []; grouped.set(link.sourcePageId, bucket); }
+    bucket.push(link);
+  }
   return new Map([...grouped].map(([id, links]) => [id, JSON.stringify(links)]));
 }
 

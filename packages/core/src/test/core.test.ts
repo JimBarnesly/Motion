@@ -121,12 +121,12 @@ test("ranged canonical wiki reference indexes only its selected duplicate-title 
   assert.equal(doc.backlinks(selected.id).length, 1);
 });
 
-test("legacy title-only wiki links resolve only when the title is unambiguous", () => {
+test("legacy title-only wiki links resolve only when the normalized title is unambiguous", () => {
   const doc = new WorkspaceDocument(createWorkspace("Legacy links"));
   const source = doc.addPage("Source");
   const unique = doc.addPage("Unique");
-  doc.addPage("Duplicate"); doc.addPage("Duplicate");
-  doc.addBlock(source.id, { id: "legacy-links", type: "paragraph", text: "[[Unique]] [[Duplicate]]" });
+  doc.addPage("DUP"); doc.addPage(" dup ");
+  doc.addBlock(source.id, { id: "legacy-links", type: "paragraph", text: "[[Unique]] [[DUP]]" });
 
   assert.deepEqual(doc.outgoingLinks(source.id), [{ sourcePageId: source.id, targetPageId: unique.id, blockId: "legacy-links" }]);
 });
@@ -141,6 +141,35 @@ test("link rebuild reports deterministic work statistics", () => {
 
   assert.deepEqual(stats, { pagesVisited: 4, blocksVisited: 1, referencesVisited: 1, wikiTokensVisited: 2, idLookups: 2,
     titleLookups: 1, linkFilterChecks: 0, linksEmitted: 1 });
+});
+
+test("link rebuild uses bounded canonical-ID passes without comparison sorting", () => {
+  const timestamp = "2026-01-01T00:00:00.000Z";
+  const pages: Page[] = [{ id: "source", parentId: null, title: "Source", favourite: false, createdAt: timestamp, updatedAt: timestamp,
+    blocks: Array.from({ length: 1_000 }, (_, index) => ({ id: `block-${index}`, type: "paragraph", text: "", references: [{ pageId: "target" }], children: [] })) },
+  { id: "target", parentId: null, title: "Target", favourite: false, createdAt: timestamp, updatedAt: timestamp, blocks: [] }];
+  const doc = new WorkspaceDocument({ schemaVersion: 2, id: "no-comparison-sort", name: "No comparison sort", pages, databases: [], attachments: [], linkIndex: [], createdAt: timestamp, updatedAt: timestamp });
+  let comparisons = 0; const originalSort = Array.prototype.sort;
+  Array.prototype.sort = function(this: unknown[], compareFn?: (left: unknown, right: unknown) => number) {
+    if (compareFn) { const counted = (left: unknown, right: unknown) => { comparisons++; return compareFn(left, right); }; return originalSort.call(this, counted); }
+    return originalSort.call(this);
+  } as typeof Array.prototype.sort;
+  try { doc.rebuildLinkIndex(); } finally { Array.prototype.sort = originalSort; }
+
+  assert.equal(comparisons, 0);
+  assert.deepEqual(doc.links().map(link => link.blockId).slice(0, 3), ["block-0", "block-1", "block-10"]);
+});
+
+test("link rebuild stays linear for one hundred thousand links", () => {
+  const timestamp = "2026-01-01T00:00:00.000Z"; const linkCount = 100_000;
+  const target: Page = { id: "target", parentId: null, title: "Target", favourite: false, createdAt: timestamp, updatedAt: timestamp, blocks: [] };
+  const source: Page = { id: "source", parentId: null, title: "Source", favourite: false, createdAt: timestamp, updatedAt: timestamp,
+    blocks: [{ id: "many-links", type: "paragraph", text: "", references: Array.from({ length: linkCount }, (_, index) => ({ pageId: `missing-${index}` })), children: [] }] };
+  const workspace: Workspace = { schemaVersion: 2, id: "linear-links", name: "Linear links", pages: [source, target], databases: [], attachments: [], linkIndex: [], createdAt: timestamp, updatedAt: timestamp };
+  const doc = new WorkspaceDocument(workspace); const started = performance.now(); doc.rebuildLinkIndex(); const elapsedMs = performance.now() - started;
+
+  assert.equal(doc.links().length, linkCount);
+  assert.ok(elapsedMs < 2_000, `100k-link rebuild took ${elapsedMs.toFixed(1)}ms`);
 });
 
 test("link rebuild stays linear for ten thousand pages", () => {
@@ -495,7 +524,24 @@ test("canonical ID length is centralized at 160 for entities and typed block ref
   assert.throws(() => assertWorkspaceValue(workspace), /safe canonical ID/);
 });
 
-test("web v1 migration is deterministic, separates UI state, preserves unknown blocks and rebuilds links", () => {
+test("web v1 migration orders stable links without comparison sorting", () => {
+  const input = { schemaVersion: 1, pages: [
+    { id: "z", title: "Z", blocks: [{ id: "z-block", type: "paragraph", text: "", links: [{ pageId: "a" }] }] },
+    { id: "a", title: "A", blocks: [{ id: "a-block", type: "paragraph", text: "", links: [{ pageId: "z" }] }] }
+  ] };
+  let comparisons = 0; const originalSort = Array.prototype.sort;
+  Array.prototype.sort = function(this: unknown[], compareFn?: (left: unknown, right: unknown) => number) {
+    if (compareFn) return originalSort.call(this, (left, right) => { comparisons++; return compareFn(left, right); });
+    return originalSort.call(this);
+  } as typeof Array.prototype.sort;
+  let migrated: ReturnType<typeof migrateWebWorkspaceV1>;
+  try { migrated = migrateWebWorkspaceV1(input); } finally { Array.prototype.sort = originalSort; }
+
+  assert.equal(comparisons, 0);
+  assert.deepEqual(migrated.workspace.linkIndex.map(link => link.sourcePageId), ["a", "z"]);
+});
+
+test("web v1 migration is deterministic, separates UI state, preserves unknown blocks and rebuilds links", async () => {
   const fixture = JSON.parse(readFileSync(new URL("../../../../fixtures/web-workspace-v1.json", import.meta.url), "utf8"));
   const first = migrateWebWorkspaceV1(fixture); const second = migrateWebWorkspaceV1(structuredClone(fixture));
   assert.deepEqual(first, second);

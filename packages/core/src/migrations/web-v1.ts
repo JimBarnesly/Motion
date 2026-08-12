@@ -1,4 +1,4 @@
-import { WEB_V1_MAX_ID_LENGTH, WORKSPACE_SCHEMA_VERSION, type Block, type Database, type Page, type PageLink, type Workspace } from "../model.js";
+import { CANONICAL_MAX_ID_LENGTH, WEB_V1_MAX_ID_LENGTH, WORKSPACE_SCHEMA_VERSION, type Block, type Database, type Page, type PageLink, type Workspace } from "../model.js";
 import { assertWorkspaceValue } from "../validation.js";
 
 const EPOCH = "1970-01-01T00:00:00.000Z";
@@ -11,6 +11,22 @@ const requiredString = (value: unknown, path: string) => { if (typeof value !== 
 const WEB_V1_ID = new RegExp(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,${WEB_V1_MAX_ID_LENGTH - 1}}$`);
 const stableId = (value: unknown, path: string) => { const result = requiredString(value, path); if (!WEB_V1_ID.test(result)) throw new Error(`Invalid web v1 workspace: ${path} must be a safe stable ID`); return result; };
 const aliases: Record<string, Block["type"]> = { heading1: "heading-1", heading2: "heading-2", heading3: "heading-3", bullet: "bulleted-list", number: "numbered-list" };
+const canonicalLinkOrder = (items: readonly PageLink[]): PageLink[] => {
+  const keys = [(link: PageLink) => link.sourcePageId, (link: PageLink) => link.blockId, (link: PageLink) => link.targetPageId];
+  let result = [...items], scratch = new Array<PageLink>(items.length);
+  for (let field = keys.length - 1; field >= 0; field--) {
+    let width = 0; for (const item of result) width = Math.max(width, keys[field]!(item).length);
+    if (width > CANONICAL_MAX_ID_LENGTH) throw new Error("Canonical ID exceeds bounded ordering width");
+    for (let offset = width - 1; offset >= 0; offset--) {
+      const counts = new Uint32Array(128);
+      for (const item of result) { const value = keys[field]!(item); counts[offset < value.length ? value.charCodeAt(offset) + 1 : 0]!++; }
+      let cursor = 0; for (let code = 0; code < counts.length; code++) { const count = counts[code]!; counts[code] = cursor; cursor += count; }
+      for (const item of result) { const value = keys[field]!(item); const code = offset < value.length ? value.charCodeAt(offset) + 1 : 0; scratch[counts[code]!] = item; counts[code]!++; }
+      [result, scratch] = [scratch, result];
+    }
+  }
+  return result;
+};
 
 export function migrateWebWorkspaceV1(input: unknown, options: WebV1MigrationOptions = {}): WebV1MigrationResult {
   if (!plain(input) || input.schemaVersion !== 1 || !Array.isArray(input.pages)) throw new Error("Invalid web v1 workspace root");
@@ -42,9 +58,9 @@ export function migrateWebWorkspaceV1(input: unknown, options: WebV1MigrationOpt
   });
   const linkIndex: PageLink[] = [];
   for (const page of pages) for (const block of page.blocks) for (const ref of block.references ?? []) linkIndex.push({ sourcePageId: page.id, targetPageId: ref.pageId, blockId: block.id });
-  linkIndex.sort((a, b) => a.sourcePageId.localeCompare(b.sourcePageId) || a.blockId.localeCompare(b.blockId) || a.targetPageId.localeCompare(b.targetPageId));
+  const orderedLinkIndex = canonicalLinkOrder(linkIndex);
   const migratedAt = options.migratedAt ?? EPOCH;
-  const workspace: Workspace = { schemaVersion: WORKSPACE_SCHEMA_VERSION, id: options.workspaceId ?? "web-workspace-v1", name: options.workspaceName ?? "Motion Workspace", pages, databases, attachments: [], linkIndex, createdAt: migratedAt, updatedAt: migratedAt };
+  const workspace: Workspace = { schemaVersion: WORKSPACE_SCHEMA_VERSION, id: options.workspaceId ?? "web-workspace-v1", name: options.workspaceName ?? "Motion Workspace", pages, databases, attachments: [], linkIndex: orderedLinkIndex, createdAt: migratedAt, updatedAt: migratedAt };
   assertWorkspaceValue(workspace);
   const activePageId = typeof input.activePageId === "string" && pageIds.has(input.activePageId) && !rawPages.find(page => page.id === input.activePageId)?.deleted ? input.activePageId : null;
   return { workspace, uiState: { activePageId } };

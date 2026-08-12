@@ -307,6 +307,35 @@ test("FTS indexes persisted table row values by stable row ID", async () => {
   } finally { store.close(); await rm(root, { recursive: true, force: true }); }
 });
 
+test("incremental link scope validation groups one hundred thousand links from one source linearly", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-linear-link-validation-"));
+  const store = new SqliteWorkspaceStore(join(root, "motion.sqlite3"));
+  const linkCount = 100_000;
+  const original = { id: "ws", pages: [{ id: "source", title: "Source", blocks: [] }], databases: [], attachments: [], linkIndex: [] as { sourcePageId: string; targetPageId: string; blockId: string }[] };
+  try {
+    store.save("ws", 2, original, 0);
+    const changed = structuredClone(original); changed.linkIndex = Array.from({ length: linkCount }, (_, index) => ({ sourcePageId: "source", targetPageId: `target-${index}`, blockId: "links" }));
+    let arrayElementsIterated = 0; let comparisons = 0; const originalIterator = Array.prototype[Symbol.iterator]; const originalSort = Array.prototype.sort;
+    Array.prototype[Symbol.iterator] = function(this: unknown[]) {
+      const iterator = originalIterator.call(this); return { next() { const result = iterator.next(); if (!result.done) arrayElementsIterated++; return result; }, [Symbol.iterator]() { return this; } };
+    };
+    Array.prototype.sort = function(this: unknown[], compareFn?: (left: unknown, right: unknown) => number) {
+      if (compareFn) return originalSort.call(this, (left, right) => { comparisons++; return compareFn(left, right); });
+      return originalSort.call(this);
+    } as typeof Array.prototype.sort;
+    const started = performance.now();
+    try {
+      store.saveUnitOfWork({ workspaceId: "ws", schemaVersion: 2, document: changed, expectedRevision: 1,
+        changeSet: { kind: "incremental", pages: [], databases: [], attachments: [], linkSourcePageIds: ["source"], fts: [] } });
+    } finally { Array.prototype[Symbol.iterator] = originalIterator; Array.prototype.sort = originalSort; }
+    const elapsedMs = performance.now() - started;
+
+    assert.ok(arrayElementsIterated < linkCount * 500, `bounded radix/grouping passes iterated ${arrayElementsIterated} array elements for ${linkCount} links`);
+    assert.equal(comparisons, 0);
+    assert.ok(elapsedMs < 4_000, `100k single-source validation/write took ${elapsedMs.toFixed(1)}ms`);
+  } finally { store.close(); await rm(root, { recursive: true, force: true }); }
+});
+
 test("incremental change sets rewrite only dirty normalized, link, and FTS scopes", async () => {
   const root = await mkdtemp(join(tmpdir(), "motion-incremental-"));
   const path = join(root, "motion.sqlite3");

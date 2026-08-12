@@ -1,8 +1,27 @@
-import { WORKSPACE_SCHEMA_VERSION, assertWorkspace, migrateWorkspace, type Block, type Database, type DatabaseProperty, type DatabaseRow, type DatabaseView, type FilterExpression, type ID, type Page, type PageLink, type PropertyValue, type SortClause, type Workspace } from "./model.js";
+import { CANONICAL_MAX_ID_LENGTH, WORKSPACE_SCHEMA_VERSION, assertWorkspace, migrateWorkspace, type Block, type Database, type DatabaseProperty, type DatabaseRow, type DatabaseView, type FilterExpression, type ID, type Page, type PageLink, type PropertyValue, type SortClause, type Workspace } from "./model.js";
 import { DEFAULT_VALIDATION_LIMITS, assertBlockTypePayload, stableId } from "./validation.js";
 const now = () => new Date().toISOString();
 const id = () => globalThis.crypto.randomUUID();
 const walk = (blocks: Block[], fn: (block: Block) => void) => blocks.forEach(b => { fn(b); walk(b.children, fn); });
+const normalizeLegacyTitle = (title: string): string => title.trim().toLocaleLowerCase();
+/** Stable LSD counting order over bounded canonical IDs: O(items * ID fields * 160), with no comparison sort. */
+function canonicalIdOrder<T>(items: readonly T[], keys: readonly ((item: T) => ID)[]): T[] {
+  let result = [...items], scratch = new Array<T>(items.length); if (result.length < 2) return result;
+  for (let field = keys.length - 1; field >= 0; field--) {
+    let width = 0; for (const item of result) width = Math.max(width, keys[field]!(item).length);
+    if (width > CANONICAL_MAX_ID_LENGTH) throw new Error("Canonical ID exceeds bounded ordering width");
+    for (let offset = width - 1; offset >= 0; offset--) {
+      const counts = new Uint32Array(128);
+      for (const item of result) { const value = keys[field]!(item); counts[offset < value.length ? value.charCodeAt(offset) + 1 : 0]!++; }
+      let cursor = 0; for (let code = 0; code < counts.length; code++) { const count = counts[code]!; counts[code] = cursor; cursor += count; }
+      for (const item of result) { const value = keys[field]!(item); scratch[counts[offset < value.length ? value.charCodeAt(offset) + 1 : 0]!] = item; counts[offset < value.length ? value.charCodeAt(offset) + 1 : 0]!++; }
+      [result, scratch] = [scratch, result];
+    }
+  }
+  return result;
+}
+const canonicalLinkOrder = (links: readonly PageLink[]): PageLink[] => canonicalIdOrder(links,
+  [link => link.sourcePageId, link => link.blockId, link => link.targetPageId]);
 const linkScopes = (links: readonly PageLink[]): Map<ID, string> => {
   const grouped = new Map<ID, PageLink[]>();
   for (const link of links) { const scoped = grouped.get(link.sourcePageId); if (scoped) scoped.push(link); else grouped.set(link.sourcePageId, [link]); }
@@ -135,9 +154,9 @@ export class WorkspaceDocument {
     const before = linkScopes(this.data.linkIndex);
     const lookup = this.linkLookup(stats); const links: PageLink[] = [];
     for (const page of this.data.pages) { if (stats) stats.pagesVisited++; links.push(...this.pageLinks(page, lookup, stats)); }
-    links.sort(compareLinks); this.data.linkIndex = links;
+    this.data.linkIndex = canonicalLinkOrder(links);
     const after = linkScopes(this.data.linkIndex);
-    return [...new Set([...before.keys(), ...after.keys()])].filter(pageId => before.get(pageId) !== after.get(pageId)).sort();
+    return canonicalIdOrder([...new Set([...before.keys(), ...after.keys()])].filter(pageId => before.get(pageId) !== after.get(pageId)), [pageId => pageId]);
   }
   search(query: string) { const terms = query.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean); if (!terms.length) return []; return this.data.pages.map(page => { const texts: string[] = []; walk(page.blocks, b => texts.push(b.text)); const haystack = `${page.title}\n${texts.join("\n")}`.toLocaleLowerCase(); const score = terms.reduce((n, term) => n + (page.title.toLocaleLowerCase().includes(term) ? 5 : 0) + haystack.split(term).length - 1, 0); return { page, score, snippets: texts.filter(t => terms.some(term => t.toLocaleLowerCase().includes(term))).slice(0, 3) }; }).filter(r => r.score > 0).sort((a, b) => b.score - a.score || b.page.updatedAt.localeCompare(a.page.updatedAt)); }
   records(databaseId: ID): Page[] { const db = this.requiredDatabase(databaseId); return (db.recordPageIds ?? []).map(pid => this.page(pid)).filter((p): p is Page => !!p && !p.deletedAt); }
@@ -146,7 +165,7 @@ export class WorkspaceDocument {
     const pagesById = new Map<ID, Page>(), uniquePagesByTitle = new Map<string, Page | null>();
     for (const page of this.data.pages) {
       if (stats) stats.pagesVisited++;
-      pagesById.set(page.id, page); const title = page.title.toLocaleLowerCase();
+      pagesById.set(page.id, page); const title = normalizeLegacyTitle(page.title);
       uniquePagesByTitle.set(title, uniquePagesByTitle.has(title) ? null : page);
     }
     return { pagesById, uniquePagesByTitle };
@@ -165,7 +184,7 @@ export class WorkspaceDocument {
         if (rangedReferences.has(`${start}:${end}`)) continue;
         if (stats) stats.idLookups++; const byId = lookup.pagesById.get(match[1]);
         if (!byId && stats) stats.titleLookups++;
-        const target = byId ?? lookup.uniquePagesByTitle.get(match[1].trim().toLocaleLowerCase()) ?? undefined;
+        const target = byId ?? lookup.uniquePagesByTitle.get(normalizeLegacyTitle(match[1])) ?? undefined;
         if (target) targets.add(target.id);
       }
       for (const targetPageId of targets) links.push({ sourcePageId: page.id, targetPageId, blockId: block.id });
@@ -176,7 +195,7 @@ export class WorkspaceDocument {
   private indexPage(page: Page) {
     this.data.linkIndex = this.data.linkIndex.filter(link => link.sourcePageId !== page.id);
     this.data.linkIndex.push(...this.pageLinks(page, this.linkLookup()));
-    this.data.linkIndex.sort(compareLinks);
+    this.data.linkIndex = canonicalLinkOrder(this.data.linkIndex);
   }
   private blockLocation(page: Page, blockId: ID, blocks: Block[] = page.blocks, parent: Block | null = null): BlockLocation | undefined {
     for (let index = 0; index < blocks.length; index++) {
@@ -250,8 +269,6 @@ export class WorkspaceDocument {
 }
 
 function filterReferences(filter: FilterExpression, propertyId: ID): boolean { if (filter.kind === "condition") return filter.propertyId === propertyId; if (filter.kind === "not") return filterReferences(filter.child, propertyId); return filter.children.some(child => filterReferences(child, propertyId)); }
-function compareLinks(a: PageLink, b: PageLink): number { return a.sourcePageId.localeCompare(b.sourcePageId) || a.blockId.localeCompare(b.blockId) || a.targetPageId.localeCompare(b.targetPageId); }
-
 function evaluateFilter(node: FilterExpression, values: Record<ID, PropertyValue>): boolean {
   if ("children" in node && node.kind === "and") return node.children.every(n => evaluateFilter(n, values));
   if ("children" in node && node.kind === "or") return node.children.some(n => evaluateFilter(n, values));

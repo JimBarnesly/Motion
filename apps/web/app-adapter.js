@@ -19,6 +19,15 @@ const WORKSPACE_KEY = "default";
 const UI_STATE_FIELDS = new Set(["workspaceId", "activePageId", "expandedPageIds"]);
 const UI_STATE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
 
+function decodeBinary(value) {
+  if (Array.isArray(value)) return value.map(decodeBinary);
+  if (value && typeof value === "object") {
+    if (Object.keys(value).length === 1 && Array.isArray(value.$motionBytes)) return Uint8Array.from(value.$motionBytes);
+    return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, decodeBinary(child)]));
+  }
+  return value;
+}
+
 function validUiState(value) {
   const validId = id => id === null || (typeof id === "string" && UI_STATE_ID.test(id));
   if (!value || typeof value !== "object" || Array.isArray(value)
@@ -104,7 +113,7 @@ function tauriAdapter(invoke) {
     }
     workspaceSummary = { id: current.id, revision: result.revision };
   };
-  const dispatch = (lane, payload) => invoke("app_dispatch", { request: { protocolVersion: 1, lane, payload } });
+  const dispatch = async (lane, payload) => decodeBinary(await invoke("app_dispatch", { request: { protocolVersion: 1, lane, payload } }));
   const validSummary = summary => typeof summary?.id === "string" && UI_STATE_ID.test(summary.id)
     && Number.isSafeInteger(summary.revision) && summary.revision >= 0;
   const transitionSummary = (result, allowEmpty) => {

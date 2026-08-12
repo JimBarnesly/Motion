@@ -522,6 +522,7 @@ test("native attachment and verified backup operations use revisioned typed lane
     calls.push({ command, payload });
     if (command === "app_dispatch" && payload.request.payload.type === "workspace.list") return [{ id: "workspace-1", revision: 7 }];
     if (payload?.request?.payload?.type === "attachment.ingest-block") return { revision: 8, workspace: { id: "workspace-1", attachments: [{ id: "attachment-1", fileName: "proof.txt", byteLength: 3, sha256: "a".repeat(64) }] } };
+    if (payload?.request?.payload?.type === "attachment.read") return { attachment: { id: "attachment-1" }, bytes: { $motionBytes: [1, 2, 3] } };
     if (payload?.request?.payload?.type === "backup.create") return { manifest: { files: [] }, files: {} };
     if (payload?.request?.payload?.type === "backup.verify") return { valid: true, errors: [] };
     if (payload?.request?.payload?.type === "backup.preview") return { valid: true, pages: 1, attachments: 1, totalBytes: 3 };
@@ -529,6 +530,9 @@ test("native attachment and verified backup operations use revisioned typed lane
   };
   const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke } } });
   const bundle = await adapter.createBackup();
+  const attachment = await adapter.readAttachment("attachment-1");
+  assert.ok(attachment.bytes instanceof Uint8Array);
+  assert.deepEqual([...attachment.bytes], [1, 2, 3]);
   await adapter.ingestAttachmentBlock({ pageId: "page-1", position: { parentBlockId: null, beforeBlockId: null }, fileName: "proof.txt", mediaType: "text/plain", sha256: "a".repeat(64), bytes: Uint8Array.from([1, 2, 3]) });
   await adapter.verifyBackup(bundle); await adapter.previewBackup(bundle); await adapter.restoreBackup(bundle);
   const requests = calls.filter(call => call.command === "app_dispatch").map(call => call.payload.request);

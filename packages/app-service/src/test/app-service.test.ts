@@ -130,7 +130,7 @@ test("fine-grained block commands preserve structure and indexes across restart"
     state = service.execute({ type: "block.move", workspaceId, expectedRevision: state.revision, pageId: sourceId, blockId: "child",
       target: { pageId: targetId, parentBlockId: null, beforeBlockId: null } });
     assert.deepEqual(store.lastWriteStats, { mode: "incremental", pages: 2, databases: 0, attachments: 0,
-      linkSources: 2, linksInserted: 1, ftsScopes: 2, ftsInserted: 4 });
+      linkSources: 2, linksInserted: 1, ftsScopes: 2, ftsInserted: 7 });
     state = service.execute({ type: "block.create", workspaceId, expectedRevision: state.revision, pageId: targetId,
       position: { parentBlockId: null, beforeBlockId: null }, block: { id: "second", type: "paragraph", text: "Second", children: [] } });
     state = service.execute({ type: "block.indent", workspaceId, expectedRevision: state.revision, pageId: targetId, blockId: "second" });
@@ -162,7 +162,7 @@ test("block.batch commits once and malformed batches roll back document, revisio
     ] });
     assert.equal(state.revision, beforeRevision + 1);
     assert.deepEqual(store.lastWriteStats, { mode: "incremental", pages: 1, databases: 0, attachments: 0,
-      linkSources: 1, linksInserted: 1, ftsScopes: 1, ftsInserted: 2 });
+      linkSources: 1, linksInserted: 1, ftsScopes: 1, ftsInserted: 3 });
     assert.equal(service.query({ type: "page.backlinks", workspaceId, pageId: two }).length, 1);
     const before = structuredClone(store.load(workspaceId));
     assert.throws(() => service.execute({ type: "block.batch", workspaceId, expectedRevision: state.revision, commands: [

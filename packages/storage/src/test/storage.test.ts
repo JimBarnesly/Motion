@@ -172,8 +172,9 @@ test("incremental change sets rewrite only dirty normalized, link, and FTS scope
       linkSourcePageIds: ["p1"], fts: [{ scope: "page", id: "p1" }] };
     assert.equal(store.saveUnitOfWork({ workspaceId: "ws", schemaVersion: 2, document: changed, expectedRevision: 1, changeSet }), 2);
 
-    assert.deepEqual(store.database.prepare("SELECT table_name, entity_id FROM write_audit ORDER BY table_name, entity_id").all(),
-      [{ table_name: "page", entity_id: "p1" }]);
+    const auditedWrites = store.database.prepare("SELECT table_name, entity_id FROM write_audit ORDER BY table_name, entity_id").all()
+      .map(row => ({ ...row }));
+    assert.deepEqual(auditedWrites, [{ table_name: "page", entity_id: "p1" }]);
     assert.deepEqual(store.lastWriteStats, { mode: "incremental", pages: 1, databases: 0, attachments: 0,
       linkSources: 1, linksInserted: 0, ftsScopes: 1, ftsInserted: 2 });
     assert.equal(store.search("old token", "ws").length, 0);

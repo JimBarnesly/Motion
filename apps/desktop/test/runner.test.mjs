@@ -68,10 +68,12 @@ test("one service process handles errors and multiple durable requests", async (
     send({ lane: "ui-load", payload: { schemaVersion: 2 } });
     const loaded = await waitFor(6);
     assert.equal(loaded.value.workspace.pages[0].blocks[0].text, "same process");
-    send({ lane: "async-query", payload: { type: "backup.create", workspaceId: "web-workspace-v1" } });
+    const workspaceId = loaded.value.workspace.id;
+    send({ lane: "async-query", payload: { type: "backup.create", workspaceId } });
     const backup = (await waitFor(7)).value;
-    send({ lane: "command", payload: { type: "block.update-content", workspaceId: "web-workspace-v1", expectedRevision: loaded.value.revision, pageId: "page-1", blockId: "block-1", content: { text: "changed after backup" } } });
-    assert.equal((await waitFor(8)).value.saved, true);
+    send({ lane: "command", payload: { type: "block.update-content", workspaceId, expectedRevision: loaded.value.revision, pageId: "page-1", blockId: "block-1", content: { text: "changed after backup" } } });
+    const updated = await waitFor(8);
+    assert.equal(updated.value?.saved, true, `typed mutation failed: ${JSON.stringify(updated)}`);
     send({ lane: "async-command", payload: { type: "backup.restore-new", bundle: backup, newWorkspaceId: "restored-workspace" } });
     assert.equal((await waitFor(9)).value.workspace.id, "restored-workspace");
     send({ lane: "ui-load", payload: { schemaVersion: 1 } });

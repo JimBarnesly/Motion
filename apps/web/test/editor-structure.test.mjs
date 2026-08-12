@@ -16,6 +16,29 @@ test("typing a Markdown heading marker at the start transforms the block", () =>
   });
 });
 
+test("typing a Markdown divider marker transforms the paragraph", () => {
+  assert.deepEqual(markdownShortcutCommand({
+    pageId: "page-1",
+    block: { id: "block-1", type: "paragraph", text: "---", children: [] }
+  }), {
+    type: "block.batch",
+    commands: [
+      { type: "block.transform", pageId: "page-1", blockId: "block-1", transform: { type: "divider" } },
+      { type: "block.update-content", pageId: "page-1", blockId: "block-1", content: { text: "", references: [] } }
+    ]
+  });
+});
+
+test("typing a divider marker preserves a paragraph that contains nested blocks", () => {
+  assert.equal(markdownShortcutCommand({
+    pageId: "page-1",
+    block: {
+      id: "block-1", type: "paragraph", text: "---",
+      children: [{ id: "child-1", type: "paragraph", text: "Nested", children: [] }]
+    }
+  }), null);
+});
+
 test("typing common Markdown markers at the start transforms an empty paragraph", () => {
   for (const [text, transform] of [
     ["# ", { type: "heading-1" }],

@@ -1,5 +1,6 @@
 export function markdownShortcutCommand({ pageId, block }) {
   if (block?.type !== "paragraph") return null;
+  if (block.text === "---" && (block.children?.length ?? 0) > 0) return null;
   const transform = new Map([
     ["# ", { type: "heading-1" }],
     ["## ", { type: "heading-2" }],
@@ -9,7 +10,8 @@ export function markdownShortcutCommand({ pageId, block }) {
     ["[] ", { type: "task", checked: false }],
     ["[ ] ", { type: "task", checked: false }],
     ["> ", { type: "quote" }],
-    ["``` ", { type: "code" }]
+    ["``` ", { type: "code" }],
+    ["---", { type: "divider" }]
   ]).get(block.text);
   if (!transform) return null;
   return {

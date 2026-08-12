@@ -18,6 +18,7 @@ export function createEditRecoveryController({ confirm, onChange = () => {}, acq
   let pending = null;
   let generation = 0;
   let saved = false;
+  let inFlightCommit = null;
 
   const snapshot = () => pending
     ? publicPending(pending)
@@ -42,8 +43,9 @@ export function createEditRecoveryController({ confirm, onChange = () => {}, acq
     return true;
   }
 
-  async function commit() {
-    if (!pending || pending.status === "saving") return false;
+  function commit() {
+    if (!pending) return Promise.resolve(false);
+    if (pending.status === "saving") return inFlightCommit ?? Promise.resolve(false);
     const current = pending;
     const attempt = {
       key: current.key,
@@ -54,27 +56,32 @@ export function createEditRecoveryController({ confirm, onChange = () => {}, acq
     const attemptGeneration = current.generation;
     current.status = "saving";
     changed();
-    try {
-      await confirm(attempt);
-      if (!pending) return true;
-      if (pending.generation !== attemptGeneration) {
-        pending.status = "editing";
+    const operation = (async () => {
+      try {
+        await confirm(attempt);
+        if (!pending) return true;
+        if (pending.generation !== attemptGeneration) {
+          pending.status = "editing";
+          changed();
+          return true;
+        }
+        pending = null;
+        saved = true;
+        releaseEdit();
         changed();
         return true;
+      } catch {
+        if (pending) {
+          pending.status = "failed";
+          saved = false;
+          changed();
+        }
+        return false;
       }
-      pending = null;
-      saved = true;
-      releaseEdit();
-      changed();
-      return true;
-    } catch {
-      if (pending) {
-        pending.status = "failed";
-        saved = false;
-        changed();
-      }
-      return false;
-    }
+    })();
+    inFlightCommit = operation;
+    void operation.then(() => { if (inFlightCommit === operation) inFlightCommit = null; });
+    return operation;
   }
 
   function retry() {

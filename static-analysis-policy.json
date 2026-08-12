@@ -5,7 +5,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:e977be1fc3eac1b8bfd4f15d7cea8b2561421da829a82645a6cc6b01eaff5a59",
+      "fingerprint": "sha256:6afcbfc64574896d78a349c116db219b17fad68076043f11122afaa10ce37041",
       "evidence": "apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
       "owner": "Operations & Security Director",
       "rationale": "Page-tree templates attribute-escape every persisted page ID and HTML-escape every persisted title; remaining interpolations are internal booleans/numeric depth.",
@@ -14,7 +14,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:d7582fb160ce60e0ac35047d3e44207b59ae85e59b1ce836833483eaa6970ae3",
+      "fingerprint": "sha256:7338c4aac8f826d0a2af346cce8932b47ba85c66ee9bcbe8ea307cdc4bb289bd",
       "evidence": "apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
       "owner": "Operations & Security Director",
       "rationale": "Favourite navigation attribute-escapes persisted page IDs and HTML-escapes persisted titles before template composition.",
@@ -23,7 +23,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:db7cccd9f17b0b2e6ee40de22a02cc10e20fcc49633f47c2592e23ea947e1324",
+      "fingerprint": "sha256:66db6a43b3a5ac1a5983a0d671071774d61009129a35e97a08bf5d852884f8a4",
       "evidence": "apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
       "owner": "Operations & Security Director",
       "rationale": "Trash navigation attribute-escapes persisted page IDs and HTML-escapes persisted titles in text and aria-label contexts.",
@@ -32,7 +32,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:d70bf81dc0dc96edf56dfc0a551872f9ea84e2cdfd6bc2d2141fb94c582eeb6b",
+      "fingerprint": "sha256:4b48acae96cf5a0312448849f0b367018796e2bd51a75622a1e1124eba67cf25",
       "evidence": "apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
       "owner": "Operations & Security Director",
       "rationale": "The empty-workspace renderer contains fixed application markup only and has no persisted dynamic values.",
@@ -41,7 +41,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:6f3bda97a4e6035e7434db0cecce3d7bc53d61f2c5484a277987f08697b074e9",
+      "fingerprint": "sha256:cbe69c3db1d716bbc3223a6d0dc99a334d2df1633d3c7ced8ce440e3ae0dcbec",
       "evidence": "apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
       "owner": "Operations & Security Director",
       "rationale": "Breadcrumb controls attribute-escape each persisted page ID and HTML-escape each persisted page title.",
@@ -50,7 +50,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:b16b750f093883af71a433e496e69f5ecf6841604987f4e9ceb3a7b89e64696a",
+      "fingerprint": "sha256:b19a0a6f4a07ba843d21f99e65720bd80ceb848fa726269740f2d9b247a0c359",
       "evidence": "apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
       "owner": "Operations & Security Director",
       "rationale": "Document composition delegates persisted values to pageHeader, propertyInput, and renderBlocks, whose attribute contexts escape IDs/values and whose text contexts HTML-escape content; block-type controls use renderBlockTypeSelect's closed escaping boundary.",
@@ -59,7 +59,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:5bc73d1d8e79660aa35700fb1ade5289163f076f67a87f764877b6f11b3961c8",
+      "fingerprint": "sha256:e3bf0948bcfbf079ab90a603b565aa1d42a9b88bd5715269bf1e87f109871921",
       "evidence": "apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
       "owner": "Operations & Security Director",
       "rationale": "Database table composition attribute-escapes persisted property, option, view-width, page, and record values and HTML-escapes all persisted visible text.",
@@ -68,7 +68,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:ec3a18dfc5f1507096a58353e02de001bebaf36f7da40b7af787ed0e7c6e3ac0",
+      "fingerprint": "sha256:f0c475049327b0f50b94f819306c75bd9e1693cfb313135ef4170c40cdb47154",
       "evidence": "apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
       "owner": "Operations & Security Director",
       "rationale": "The legacy no-page context branch assigns fixed application markup only.",
@@ -77,7 +77,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:efc93652f40114ab203192b82df5a368fa23a1f7ed823a7449c21e19c3d90dc2",
+      "fingerprint": "sha256:7f2585dd96633944fa78ba76e8c0bf34438f8b1797bb22817ea54fb43a4576ca",
       "evidence": "apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
       "owner": "Operations & Security Director",
       "rationale": "The legacy no-page context branch assigns fixed application markup only; this second chained sink has no dynamic values.",
@@ -86,7 +86,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:00428a71c92b385d37bc2d22d35b2b1b3cbb036f82c81b55802bda22c9aeba23",
+      "fingerprint": "sha256:8d512e7d3711a98ecc541e604eebb322608152a369412b2a5d5d9088b96bf0c9",
       "evidence": "apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
       "owner": "Operations & Security Director",
       "rationale": "Legacy outgoing-link composition attribute-escapes persisted page IDs and HTML-escapes titles before assignment.",
@@ -95,7 +95,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:54532f2f228e64a06682c6ce6a7d886a048d22cb9bc6593a818a9570f8ef1eb9",
+      "fingerprint": "sha256:3c98cddd30ae9ff8ac2f36fb000bdb7e6c4aeed3171d1ff01f331434d4d1c3c5",
       "evidence": "apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
       "owner": "Operations & Security Director",
       "rationale": "Legacy backlink composition attribute-escapes persisted page IDs and HTML-escapes titles before assignment.",
@@ -104,7 +104,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:92cec6476696d1a8e7266ff7d9f6372bc89291fdb3c0f98813d2a8b2212ba9b8",
+      "fingerprint": "sha256:63e35d728e0e419c7dac29a6f775b4f4e9cc52906bdc539c1e601f37f04a62f1",
       "evidence": "apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
       "owner": "Operations & Security Director",
       "rationale": "Legacy attachment context fallback assigns fixed application markup only.",
@@ -113,7 +113,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:efd36f06e622b4211b458a5a341eab8a56f88ee11b09e092e3c24db4b1dd6105",
+      "fingerprint": "sha256:9946d11d41cd5bacfd54921674f73862f328c81addf69393c015969687c58fe0",
       "evidence": "apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
       "owner": "Operations & Security Director",
       "rationale": "Page-menu insertion attribute-escapes every persisted page ID and HTML-escapes every persisted page title/aria label.",
@@ -122,7 +122,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:82b140506c3608bfd83dc45d37d39f8cb1e0648f434ab185cbe53e316eb8ed1d",
+      "fingerprint": "sha256:3b44bc06646cb051091f2b7282c52540a75e9c8fc0fab2b13a45b8101bec2e8f",
       "evidence": "apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
       "owner": "Operations & Security Director",
       "rationale": "Property-menu composition attribute-escapes persisted property IDs, HTML-escapes names/options, and uses fixed property-type choices.",
@@ -131,7 +131,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:0f37a58498da34cbd5989689e3530a4cb0c9cfdd9a33c12d7ce72ecc252c3212",
+      "fingerprint": "sha256:172cc06d8b3d51db4bdfbe0aaa52ec17066c3fa7c82a63d1791ef77f08695b4a",
       "evidence": "apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
       "owner": "Operations & Security Director",
       "rationale": "Filter controls compose filterRow output, which attribute-escapes property IDs and filter values while operators and indexes are fixed/internal.",
@@ -140,7 +140,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:11e07abf2a133e30be0a3cd32a746e559dc4694aea29c93f331b79060d6c4e51",
+      "fingerprint": "sha256:059bc6d3a698f514ba7b6693c61309e307f45f2a70b539ae7035f590d99b42a5",
       "evidence": "apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
       "owner": "Operations & Security Director",
       "rationale": "Sort controls compose sortRow output, which attribute-escapes property IDs while directions and indexes are fixed/internal.",
@@ -149,7 +149,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:06293500649c8dd324582e162f89dd32858cc8a97b93301d6d7e86747ed65572",
+      "fingerprint": "sha256:16c7e737883dd065c17756d2d4244862cf04adefe02b419946bb1d04624e7a4a",
       "evidence": "apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
       "owner": "Operations & Security Director",
       "rationale": "Dynamically added filter rows use filterRow's reviewed attribute escaping for persisted property IDs and values.",
@@ -158,7 +158,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:b94b7cf83838700fe3f9b275bd032f0297ff1b8b1a74a490616e1fb0b59d4d17",
+      "fingerprint": "sha256:556e96c276d78b696f5f8172d3b1c4f0cb27583d267f9e1caaf010be01846b28",
       "evidence": "apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
       "owner": "Operations & Security Director",
       "rationale": "Dynamically added sort rows use sortRow's reviewed attribute escaping for persisted property IDs and fixed direction choices.",

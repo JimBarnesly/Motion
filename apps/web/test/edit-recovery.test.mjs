@@ -125,3 +125,17 @@ test("the edit lease spans failure and retry and releases only after resolution"
   controller.discard();
   assert.equal(releases, 2);
 });
+
+test("a keyboard action can join the in-flight canonical save before continuing", async () => {
+  const saving = deferred();
+  const controller = createEditRecoveryController({ confirm: () => saving.promise });
+  controller.update(edit("draft before Enter"));
+
+  const debounceCommit = controller.commit();
+  const keyboardCommit = controller.commit();
+  saving.resolve();
+
+  assert.equal(await debounceCommit, true);
+  assert.equal(await keyboardCommit, true);
+  assert.deepEqual(controller.snapshot(), { status: "idle", saved: true, blocked: false });
+});

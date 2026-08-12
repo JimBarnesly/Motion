@@ -599,6 +599,22 @@ test("document editor supports substantial block types and keyboard operations",
   assert.match(source, /future/);
 });
 
+test("structural keyboard editing flushes canonical text before creating another block", async () => {
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  const keydown = source.slice(
+    source.indexOf('document.addEventListener("keydown",async event=>'),
+    source.indexOf("async function renderSearch")
+  );
+
+  assert.match(source, /async function flushCanonicalEdit[\s\S]*await editRecovery\.commit\(\)/);
+  assert.match(keydown, /await flushCanonicalEdit\("continuing"\)/);
+  assert.match(keydown, /if\(!await flushCanonicalEdit\("continuing"\)\)return;page=activePage\(\);at=page\.blocks\.findIndex\(candidate=>candidate\.id===input\.dataset\.block\);block=page\.blocks\[at\]/);
+  assert.ok(
+    keydown.indexOf('await flushCanonicalEdit("continuing")') < keydown.indexOf('commit("block.create"'),
+    "the current text must be confirmed before the next block is created"
+  );
+});
+
 test("document editor handles multiline paste through one canonical block batch", async () => {
   const source = await readFile(resolve(root, "app.js"), "utf8");
   const build = await readFile(resolve(root, "scripts/build.mjs"), "utf8");

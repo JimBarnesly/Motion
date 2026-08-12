@@ -15,7 +15,7 @@ test("M2 packaged acceptance is a declared, release-gated contract", () => {
   assert.match(ci, /^\s*run:\s+npm run acceptance:m2:packaged -- apps\/desktop\/src-tauri\/target\/release\/bundle\/appimage\/\*\.AppImage\s*$/m);
 });
 
-test("the packaged lane is fail-diagnostic and denies network in its extracted runtime", () => {
+test("the packaged lane is fail-diagnostic and does not overclaim OS-level network denial", () => {
   assert.match(lane, /M2_ACCEPTANCE_REPORT/);
   assert.match(lane, /scripts\/deny-network\.cjs/);
   assert.match(lane, /source-test/);
@@ -31,6 +31,9 @@ test("the packaged lane is fail-diagnostic and denies network in its extracted r
   assert.match(lane, /attachment\.ingest-block/);
   assert.match(lane, /page\.backlinks/);
   assert.match(lane, /backup\.restore-new/);
+  assert.match(lane, /process-level JavaScript network guard/i);
+  assert.match(lane, /OS-level network denial remains external acceptance evidence/i);
+  assert.doesNotMatch(lane, /"network-denied packaged service execution"/);
 });
 
 test("packaged acceptance subprocesses fail diagnostically instead of hanging", async () => {

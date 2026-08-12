@@ -12,7 +12,7 @@ const report = {
   candidate: process.env.GITHUB_SHA ?? null,
   evidence: {
     "source-test": { status: "not-run", checks: [] },
-    "packaged-local": { status: "not-run", checks: [], networkPolicy: "scripts/deny-network.cjs injected into packaged Node runtime" },
+    "packaged-local": { status: "not-run", checks: [], networkPolicy: "process-level JavaScript network guard injected into packaged Node runtime; OS-level network denial remains external acceptance evidence" },
     "external-graphical": {
       status: "blocked",
       checks: [],
@@ -132,7 +132,7 @@ try {
   report.evidence["packaged-local"].status = "passed";
   report.evidence["packaged-local"].checks = [
     "AppImage extraction and bundled Node 24 runtime",
-    "network-denied packaged service execution",
+    "packaged service execution with the process-level JavaScript network guard",
     "stable-ID backlink after target rename and move",
     "durable attachment ingestion and byte readback",
     "full backup restore into a new workspace",

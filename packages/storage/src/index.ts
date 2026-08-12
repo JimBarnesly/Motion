@@ -469,12 +469,10 @@ export class SqliteWorkspaceStore {
       deleteFts.run(workspaceId, scope.scope, scope.id);
       const candidates = scope.scope === "page" ? parts.pages : scope.scope === "database" ? parts.databases : scope.scope === "attachment" ? parts.attachments : [];
       const entity = scope.scope === "workspace" ? document : candidates.find(value => entityId(value) === scope.id);
-      if (entity === undefined || (scope.scope === "page" && (entity as Record<string, unknown>).deletedAt !== undefined)
-        || (scope.scope === "database" && databaseOwnerIsTrashed(entity as Record<string, unknown>, parts.pages))) continue;
+      if (entity === undefined) continue;
       const entries = scope.scope === "workspace"
         ? extractWorkspaceRootSearchEntries(document, workspaceId)
-        : extractSearchEntries(scope.scope === "database" ? databaseWithoutTrashedRows(entity as Record<string, unknown>, parts.pages) : entity,
-          scope.id, scope.scope, scope.id);
+        : extractSearchEntries(entity, scope.id, scope.scope, scope.id);
       this.insertSearchEntries(workspaceId, entries); ftsInserted += entries.length;
     }
     return { mode: "incremental", pages: changeSet.pages.length, databases: changeSet.databases.length,
@@ -543,22 +541,11 @@ function extractWorkspaceSearchEntries(document: unknown, fallbackId: string): S
   }
   const result = extractWorkspaceRootSearchEntries(document, fallbackId);
   const parts = workspaceParts(document);
-  for (const page of parts.pages) if (page.deletedAt === undefined) result.push(...extractSearchEntries(page, entityId(page), "page", entityId(page)));
-  for (const database of parts.databases) if (!databaseOwnerIsTrashed(database, parts.pages)) result.push(...extractSearchEntries(databaseWithoutTrashedRows(database, parts.pages), entityId(database), "database", entityId(database)));
+  for (const page of parts.pages) result.push(...extractSearchEntries(page, entityId(page), "page", entityId(page)));
+  for (const database of parts.databases) result.push(...extractSearchEntries(database, entityId(database), "database", entityId(database)));
   for (const attachment of parts.attachments) result.push(...extractSearchEntries(attachment, entityId(attachment), "attachment", entityId(attachment)));
   if (result.length === 0) result.push({ entityId: fallbackId, entityType: "entity", title: "", body: JSON.stringify(document), scopeType: "workspace", scopeId: fallbackId });
   return result;
-}
-
-function databaseOwnerIsTrashed(database: Record<string, unknown>, pages: readonly Record<string, unknown>[]): boolean {
-  return typeof database.pageId === "string" && pages.find(page => entityId(page) === database.pageId)?.deletedAt !== undefined;
-}
-
-function databaseWithoutTrashedRows(database: Record<string, unknown>, pages: readonly Record<string, unknown>[]): Record<string, unknown> {
-  const trashedPageIds = new Set(pages.filter(page => page.deletedAt !== undefined).map(entityId));
-  return { ...database, rows: Array.isArray(database.rows)
-    ? database.rows.filter(row => !row || typeof row !== "object" || Array.isArray(row) || !trashedPageIds.has(String((row as Record<string, unknown>).pageId)))
-    : database.rows };
 }
 
 function extractSearchEntries(document: unknown, fallbackId: string, scopeType: SearchEntry["scopeType"], scopeId: string): SearchEntry[] {

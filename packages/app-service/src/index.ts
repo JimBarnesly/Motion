@@ -443,13 +443,13 @@ export class MotionAppService {
       case "page.reorder": { const pageId = requiredText(command.pageId, "pageId"); document.reorderPage(pageId, command.beforePageId); changes.page(pageId); break; }
       case "page.set-favourite": { const page = requiredPage(document, command.pageId); page.favourite = Boolean(command.favourite); page.updatedAt = new Date().toISOString(); document.data.updatedAt = page.updatedAt; changes.page(page.id); break; }
       case "page.trash": {
-        const page = requiredPage(document, command.pageId); const timestamp = new Date().toISOString(); for (const target of [page, ...document.descendants(page.id)]) { target.deletedAt = timestamp; target.updatedAt = timestamp; changes.page(target.id, { fts: true }); if (target.collectionId) changes.database(target.collectionId); for (const database of document.data.databases) if (database.pageId === target.id) changes.database(database.id); } document.data.updatedAt = timestamp; break;
+        const page = requiredPage(document, command.pageId); const timestamp = new Date().toISOString(); for (const target of [page, ...document.descendants(page.id)]) { target.deletedAt = timestamp; target.updatedAt = timestamp; changes.page(target.id); } document.data.updatedAt = timestamp; break;
       }
       case "page.restore": {
         const page = requiredPage(document, command.pageId); const timestamp = new Date().toISOString(); const targets = new Set([page]); let changed = true;
         while (changed) { changed = false; for (const candidate of document.data.pages) if (candidate.parentId && [...targets].some(target => target.id === candidate.parentId) && !targets.has(candidate)) { targets.add(candidate); changed = true; } }
         for (const target of [...targets]) { for (let parent = target.parentId ? document.page(target.parentId) : undefined; parent; parent = parent.parentId ? document.page(parent.parentId) : undefined) targets.add(parent); }
-        for (const target of targets) { delete target.deletedAt; target.updatedAt = timestamp; changes.page(target.id, { fts: true }); if (target.collectionId) changes.database(target.collectionId); for (const database of document.data.databases) if (database.pageId === target.id) changes.database(database.id); } document.data.updatedAt = timestamp; break;
+        for (const target of targets) { delete target.deletedAt; target.updatedAt = timestamp; changes.page(target.id); } document.data.updatedAt = timestamp; break;
       }
       case "page.replace-blocks": {
         const page = requiredPage(document, command.pageId); page.blocks = clone(command.blocks) as Block[]; page.updatedAt = new Date().toISOString(); document.data.updatedAt = page.updatedAt;

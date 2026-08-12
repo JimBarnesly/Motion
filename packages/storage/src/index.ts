@@ -178,7 +178,9 @@ const migrations = [
   CREATE INDEX workspace_links_target_idx ON workspace_links(workspace_id, target_page_id, source_page_id);
   INSERT INTO reindex_jobs(workspace_id, workspace_revision, status, created_at)
     SELECT workspace_id, revision, 'pending', updated_at FROM workspaces WHERE true
-    ON CONFLICT(workspace_id, workspace_revision) DO UPDATE SET status='pending', completed_at=NULL;`
+    ON CONFLICT(workspace_id, workspace_revision) DO UPDATE SET status='pending', completed_at=NULL;`,
+  `CREATE INDEX IF NOT EXISTS workspace_links_backlinks_idx
+    ON workspace_links(workspace_id, target_page_id, source_page_id, block_id);`
 ];
 
 const digest = (input: string | Uint8Array) => createHash("sha256").update(input).digest("hex");

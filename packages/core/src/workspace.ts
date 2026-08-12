@@ -3,7 +3,8 @@ import { DEFAULT_VALIDATION_LIMITS, assertBlockTypePayload, stableId } from "./v
 const now = () => new Date().toISOString();
 const id = () => globalThis.crypto.randomUUID();
 const walk = (blocks: Block[], fn: (block: Block) => void) => blocks.forEach(b => { fn(b); walk(b.children, fn); });
-const normalizeLegacyTitle = (title: string): string => title.trim().toLocaleLowerCase();
+/** Legacy title matching uses NFC plus locale-independent Unicode default casing. */
+const normalizeLegacyTitle = (title: string): string => title.trim().normalize("NFC").toLowerCase();
 /** Stable LSD counting order over bounded canonical IDs: O(items * ID fields * 160), with no comparison sort. */
 export function canonicalIdOrder<T>(items: readonly T[], keys: readonly ((item: T) => ID)[]): T[] {
   let result = [...items], scratch = new Array<T>(items.length); if (result.length < 2) return result;
@@ -178,11 +179,21 @@ export class WorkspaceDocument {
       const targets = new Set(references.map(reference => reference.pageId));
       if (block.pageId && (block.type === "page-mention" || block.type === "child-page")) targets.add(block.pageId);
       const rangedReferences = new Set(references.filter(reference => Number.isInteger(reference.start) && Number.isInteger(reference.end)).map(reference => `${reference.start}:${reference.end}`));
-      for (const match of block.text.matchAll(/\[\[([^\]]+)\]\]/g)) {
+      const wikiTokens = [...block.text.matchAll(/\[\[([^\]]+)\]\]/g)];
+      const tokenRanges = new Set(wikiTokens.map(match => `${match.index}:${match.index + match[0].length}`));
+      const explicitTokenTitles = new Set(wikiTokens.filter(match => rangedReferences.has(`${match.index}:${match.index + match[0].length}`))
+        .map(match => normalizeLegacyTitle(match[1])));
+      // A stale explicit range cannot safely be associated with a title token. Fail closed for
+      // legacy title fallback in this block; canonical explicit page IDs remain authoritative.
+      const staleExplicitRange = [...rangedReferences].some(range => !tokenRanges.has(range));
+      for (const match of wikiTokens) {
         if (stats) stats.wikiTokensVisited++;
         const start = match.index; const end = start + match[0].length;
         if (rangedReferences.has(`${start}:${end}`)) continue;
+        // Duplicate tokens cannot prove which occurrence retained an explicit identity after an edit.
+        if (explicitTokenTitles.has(normalizeLegacyTitle(match[1]))) continue;
         if (stats) stats.idLookups++; const byId = lookup.pagesById.get(match[1]);
+        if (staleExplicitRange && !byId) continue;
         if (!byId && stats) stats.titleLookups++;
         const target = byId ?? lookup.uniquePagesByTitle.get(normalizeLegacyTitle(match[1])) ?? undefined;
         if (target) targets.add(target.id);

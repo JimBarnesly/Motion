@@ -1,6 +1,9 @@
 import { CANONICAL_MAX_ID_LENGTH, WEB_V1_MAX_ID_LENGTH, WORKSPACE_SCHEMA_VERSION, type Block, type Database, type Page, type PageLink, type Workspace } from "../model.js";
 import { assertWorkspaceValue } from "../validation.js";
 
+/** NFC plus locale-independent Unicode default casing keeps persisted links host-stable. */
+const normalizeLegacyTitle = (title: string): string => title.trim().normalize("NFC").toLowerCase();
+
 const EPOCH = "1970-01-01T00:00:00.000Z";
 export interface WebV1UiState { activePageId: string | null }
 export interface WebV1MigrationResult { workspace: Workspace; uiState: WebV1UiState }
@@ -36,7 +39,7 @@ export function migrateWebWorkspaceV1(input: unknown, options: WebV1MigrationOpt
   const titleMap = new Map<string, string | null>();
   for (const page of rawPages) {
     if (typeof page.title !== "string") continue;
-    const title = page.title.trim().toLocaleLowerCase();
+    const title = normalizeLegacyTitle(page.title);
     titleMap.set(title, titleMap.has(title) ? null : page.id);
   }
   const databases: Database[] = [];
@@ -55,7 +58,7 @@ export function migrateWebWorkspaceV1(input: unknown, options: WebV1MigrationOpt
         if (!plain(link) || typeof link.pageId !== "string" || !pageIds.has(link.pageId) || targets.has(link.pageId)) continue;
         targets.add(link.pageId); references.push({ pageId: link.pageId });
       }
-      for (const match of text.matchAll(/\[\[([^\]]+)\]\]/g)) { const target = titleMap.get(match[1].trim().toLocaleLowerCase()); if (target && !targets.has(target)) { targets.add(target); references.push({ pageId: target }); } }
+      for (const match of text.matchAll(/\[\[([^\]]+)\]\]/g)) { const target = titleMap.get(normalizeLegacyTitle(match[1])); if (target && !targets.has(target)) { targets.add(target); references.push({ pageId: target }); } }
       blocks.push({ id: stableId(source.id, `pages[${pageIndex}].blocks[${blockIndex}].id`), type: known.has(originalType) ? (aliases[originalType] ?? originalType) : "unsupported", text, children: [], checked: originalType === "task" ? Boolean(source.checked) : undefined, references: references.length ? references : undefined, unknownData: known.has(originalType) ? undefined : { importedType: originalType, source: structuredClone(source) } });
     }
     if (raw.type === "database") {

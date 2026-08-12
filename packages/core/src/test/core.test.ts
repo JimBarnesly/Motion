@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { CANONICAL_MAX_ID_LENGTH, DEFAULT_VALIDATION_LIMITS, MemoryWorkspaceStore, WorkspaceDocument, assertWorkspaceValue, createWorkspace, exportDatabaseCsv, exportFullWorkspace, exportPageMarkdown, exportWorkspaceJson, migrateWebWorkspaceV1, migrateWorkspace, stableId, type Block, type Page, type Workspace } from "../index.js";
 
@@ -130,6 +131,54 @@ test("legacy title-only wiki links resolve only when the normalized title is una
   doc.addBlock(source.id, { id: "legacy-links", type: "paragraph", text: "[[Unique]] [[DUP]]" });
 
   assert.deepEqual(doc.outgoingLinks(source.id), [{ sourcePageId: source.id, targetPageId: unique.id, blockId: "legacy-links" }]);
+});
+
+test("legacy title normalization is deterministic across child-process locales and NFC-equivalent input", () => {
+  const moduleUrl = new URL("../index.js", import.meta.url).href;
+  const script = `import { createWorkspace, migrateWebWorkspaceV1, WorkspaceDocument } from ${JSON.stringify(moduleUrl)};
+    const doc = new WorkspaceDocument(createWorkspace("Locale"));
+    const source = doc.addPage("Source");
+    const dotted = doc.addPage("İ");
+    const composed = doc.addPage("Café");
+    doc.addBlock(source.id, { id: "links", type: "paragraph", text: "[[i]] [[Cafe\\u0301]]" });
+    const migrated = migrateWebWorkspaceV1({ schemaVersion: 1, pages: [
+      { id: "migration-source", title: "Source", blocks: [{ id: "migration-links", type: "paragraph", text: "[[i]] [[Cafe\\u0301]]" }] },
+      { id: "migration-dotted", title: "İ", blocks: [] }, { id: "migration-composed", title: "Café", blocks: [] }
+    ] });
+    process.stdout.write(JSON.stringify({ runtime: doc.outgoingLinks(source.id).map(link => link.targetPageId === dotted.id ? "dotted" : link.targetPageId === composed.id ? "composed" : "other"),
+      migration: migrated.workspace.linkIndex.map(link => link.targetPageId) }));`;
+  const run = (locale: string) => spawnSync(process.execPath, ["--input-type=module", "--eval", script], {
+    encoding: "utf8", env: { ...process.env, LANG: locale, LC_ALL: locale }
+  });
+  const english = run("en_US.UTF-8"); const turkish = run("tr_TR.UTF-8");
+  assert.equal(english.status, 0, english.stderr); assert.equal(turkish.status, 0, turkish.stderr);
+  assert.equal(english.stdout, turkish.stdout);
+  assert.deepEqual(JSON.parse(english.stdout), { runtime: ["composed"], migration: ["migration-composed"] });
+});
+
+test("stale ranged references fail closed for title fallback without losing canonical explicit targets", () => {
+  const scenarios = [
+    { label: "edit before", text: "x[[Alpha]] [[ALPHA]]", references: [{ pageId: "beta", start: 0, end: 9 }] },
+    { label: "edit inside", text: "[[AlXpha]]", references: [{ pageId: "beta", start: 0, end: 9 }] },
+    { label: "edit after", text: "[[Alpha]]x", references: [{ pageId: "beta", start: 0, end: 9 }] },
+    { label: "duplicate tokens", text: "x[[Alpha]] [[Alpha]]", references: [{ pageId: "beta", start: 10, end: 19 }] },
+    { label: "duplicate exact token identity", text: "[[Alpha]] [[Alpha]]", references: [{ pageId: "beta", start: 0, end: 9 }] },
+    { label: "overlapping duplicate references", text: "x[[Alpha]]", references: [{ pageId: "beta", start: 0, end: 9 }, { pageId: "gamma", start: 0, end: 9 }] }
+  ] as const;
+  for (const scenario of scenarios) {
+    const workspace = createWorkspace(scenario.label); const timestamp = workspace.createdAt;
+    workspace.pages = [
+      { id: "source", parentId: null, title: "Source", createdAt: timestamp, updatedAt: timestamp,
+        blocks: [{ id: "stale", type: "paragraph", text: scenario.text, children: [], references: structuredClone(scenario.references) as unknown as Block["references"] }] },
+      { id: "alpha", parentId: null, title: "Alpha", createdAt: timestamp, updatedAt: timestamp, blocks: [] },
+      { id: "beta", parentId: null, title: "Beta", createdAt: timestamp, updatedAt: timestamp, blocks: [] },
+      { id: "gamma", parentId: null, title: "Gamma", createdAt: timestamp, updatedAt: timestamp, blocks: [] }
+    ];
+    const links = new WorkspaceDocument(workspace).outgoingLinks("source").map(link => link.targetPageId);
+    assert.equal(links.includes("alpha"), false, scenario.label);
+    assert.equal(links.includes("beta"), true, scenario.label);
+    if (scenario.label === "overlapping duplicate references") assert.equal(links.includes("gamma"), true);
+  }
 });
 
 test("link rebuild reports deterministic work statistics", () => {

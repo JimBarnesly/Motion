@@ -496,10 +496,35 @@ test("hostile FTS syntax is tokenized and migrations are idempotent", async () =
     first.close();
     const second = new SqliteWorkspaceStore(path);
     const migrations = second.database.prepare("SELECT version FROM motion_migrations ORDER BY version").all() as { version: number }[];
-    assert.deepEqual(migrations.map(({ version }) => version), [1, 2, 3, 4]);
+    assert.deepEqual(migrations.map(({ version }) => version), [1, 2, 3, 4, 5]);
+    const indexes = second.database.prepare("PRAGMA index_list('workspace_links')").all() as { name: string }[];
+    assert.equal(indexes.filter(index => index.name === "workspace_links_backlinks_idx").length, 1);
     assert.throws(() => second.save("ws", 1, { id: "p", title: "stale" }, 0), /Revision conflict/);
     second.close();
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("SQLite backlinks use the covering target-order index and return deterministic order", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-backlink-plan-"));
+  const store = new SqliteWorkspaceStore(join(root, "motion.sqlite3"));
+  try {
+    store.save("ws", 2, { pages: [], databases: [], attachments: [], linkIndex: [
+      { sourcePageId: "z", targetPageId: "target", blockId: "b" },
+      { sourcePageId: "a", targetPageId: "target", blockId: "z" },
+      { sourcePageId: "a", targetPageId: "target", blockId: "a" }
+    ] }, 0);
+    assert.deepEqual(store.backlinks("ws", "target"), [
+      { sourcePageId: "a", targetPageId: "target", blockId: "a" },
+      { sourcePageId: "a", targetPageId: "target", blockId: "z" },
+      { sourcePageId: "z", targetPageId: "target", blockId: "b" }
+    ]);
+    const plan = store.database.prepare(`EXPLAIN QUERY PLAN SELECT source_page_id, target_page_id, block_id
+      FROM workspace_links WHERE workspace_id = ? AND target_page_id = ?
+      ORDER BY source_page_id, block_id`).all("ws", "target") as { detail: string }[];
+    const detail = plan.map(row => row.detail).join("\n");
+    assert.match(detail, /workspace_links_backlinks_idx/);
+    assert.doesNotMatch(detail, /USE TEMP B-TREE/);
+  } finally { store.close(); await rm(root, { recursive: true, force: true }); }
 });
 
 test("private runtime paths ignore permissive and restrictive umasks without following symlinks", async (context) => {

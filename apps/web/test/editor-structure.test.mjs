@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { splitBlockCommands } from "../editor-structure.js";
+import { mergeAdjacentBlockCommands, splitBlockCommands } from "../editor-structure.js";
 
 test("Enter splits a paragraph at the caret without losing either text fragment", () => {
   assert.deepEqual(splitBlockCommands({
@@ -62,4 +62,50 @@ test("Enter creates a valid task continuation", () => {
   assert.deepEqual(commands[1].block, {
     id: "task-2", type: "task", text: "next", checked: false, children: []
   });
+});
+
+test("Backspace at the start merges adjacent text blocks and preserves stable mentions", () => {
+  assert.deepEqual(mergeAdjacentBlockCommands({
+    pageId: "page-1",
+    previousBlock: {
+      id: "block-1", type: "paragraph", text: "See [[Alpha]] ", children: [],
+      references: [{ pageId: "page-alpha", start: 4, end: 13 }]
+    },
+    currentBlock: {
+      id: "block-2", type: "paragraph", text: "and [[Beta]]", children: [],
+      references: [{ pageId: "page-beta", start: 4, end: 12 }]
+    }
+  }), {
+    commands: [
+      {
+        type: "block.update-content", pageId: "page-1", blockId: "block-1",
+        content: {
+          text: "See [[Alpha]] and [[Beta]]",
+          references: [
+            { pageId: "page-alpha", start: 4, end: 13 },
+            { pageId: "page-beta", start: 18, end: 26 }
+          ]
+        }
+      },
+      { type: "block.delete", pageId: "page-1", blockId: "block-2" }
+    ],
+    focusBlockId: "block-1",
+    focusOffset: 14
+  });
+});
+
+test("Backspace refuses to merge structured blocks that cannot be combined losslessly", () => {
+  assert.equal(mergeAdjacentBlockCommands({
+    pageId: "page-1",
+    previousBlock: { id: "block-1", type: "paragraph", text: "Before", children: [] },
+    currentBlock: { id: "block-2", type: "future-callout", text: "After", unknownData: { tone: "blue" }, children: [] }
+  }), null);
+});
+
+test("Backspace refuses to merge known blocks carrying opaque extension data", () => {
+  assert.equal(mergeAdjacentBlockCommands({
+    pageId: "page-1",
+    previousBlock: { id: "block-1", type: "paragraph", text: "Before", children: [] },
+    currentBlock: { id: "block-2", type: "paragraph", text: "After", unknownData: { plugin: { stable: true } }, children: [] }
+  }), null);
 });

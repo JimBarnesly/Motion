@@ -1,3 +1,31 @@
+export function mergeAdjacentBlockCommands({ pageId, previousBlock, currentBlock }) {
+  const mergeable = new Set(["paragraph", "heading-1", "heading-2", "heading-3", "bulleted-list", "numbered-list", "task", "quote", "code"]);
+  if (!mergeable.has(previousBlock?.type) || !mergeable.has(currentBlock?.type)) return null;
+  if (previousBlock.unknownData !== undefined || currentBlock.unknownData !== undefined) return null;
+  if ((previousBlock.children?.length ?? 0) || (currentBlock.children?.length ?? 0)) return null;
+  const previousText = String(previousBlock.text ?? "");
+  const currentText = String(currentBlock.text ?? "");
+  const references = [
+    ...(previousBlock.references ?? []).map(reference => structuredClone(reference)),
+    ...(currentBlock.references ?? []).map(reference => reference.start === undefined || reference.end === undefined
+      ? structuredClone(reference)
+      : { ...structuredClone(reference), start: reference.start + previousText.length, end: reference.end + previousText.length })
+  ];
+  return {
+    commands: [
+      {
+        type: "block.update-content",
+        pageId,
+        blockId: previousBlock.id,
+        content: { text: previousText + currentText, references }
+      },
+      { type: "block.delete", pageId, blockId: currentBlock.id }
+    ],
+    focusBlockId: previousBlock.id,
+    focusOffset: previousText.length
+  };
+}
+
 export function splitBlockCommands({ pageId, block, offset, beforeBlockId = null, createId }) {
   const text = String(block.text ?? "");
   const nextBlockId = createId();

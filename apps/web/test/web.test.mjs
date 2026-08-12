@@ -607,6 +607,11 @@ test("document editor supports substantial block types and keyboard operations",
   assert.match(source, /splitBlockCommands\(\{pageId:page\.id,block,offset,/);
   assert.match(source, /candidate:\{type:"block\.batch",payload:\{commands:split\.commands\}\}/);
   assert.match(source, /if\(await flushCanonicalEdit\("focusing the new block"\)\)requestAnimationFrame/);
+  assert.match(source, /event\.key==="Backspace"/);
+  assert.match(source, /selectionIsCollapsedIn\(input\)/);
+  assert.match(source, /mergeAdjacentBlockCommands\(\{pageId:page\.id,previousBlock:page\.blocks\[at-1\],currentBlock:block\}\)/);
+  assert.match(source, /candidate:\{type:"block\.batch",payload:\{commands:merge\.commands\}\}/);
+  assert.match(source, /focusBlockAtOffset\(merge\.focusBlockId,merge\.focusOffset\)/);
   assert.match(source, /structuredClone\(block\)/);
   assert.match(source, /history/);
   assert.match(source, /future/);

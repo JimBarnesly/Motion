@@ -28,8 +28,20 @@ const linkScopes = (links: readonly PageLink[]): Map<ID, string> => {
   for (const link of links) { const scoped = grouped.get(link.sourcePageId); if (scoped) scoped.push(link); else grouped.set(link.sourcePageId, [link]); }
   return new Map([...grouped].map(([pageId, scoped]) => [pageId, JSON.stringify(scoped)]));
 };
-export interface LinkRebuildStats { pagesVisited: number; blocksVisited: number; referencesVisited: number; wikiTokensVisited: number; idLookups: number; titleLookups: number; linkFilterChecks: number; linksEmitted: number }
+export interface LinkRebuildStats { pagesVisited: number; blocksVisited: number; referencesVisited: number; wikiTokensVisited: number; idLookups: number; titleLookups: number; linkFilterChecks: number; linksEmitted: number; associationCandidatesVisited?: number }
 interface LinkLookup { pagesById: ReadonlyMap<ID, Page>; uniquePagesByTitle: ReadonlyMap<string, Page | null> }
+interface WikiToken { text: string; start: number; end: number }
+const radixNumberOrder = <T>(items: readonly T[], key: (item: T) => number): T[] => {
+  let result = [...items], scratch = new Array<T>(items.length);
+  for (let byte = 0; byte < 7; byte++) {
+    const divisor = 2 ** (byte * 8), counts = new Uint32Array(256);
+    for (const item of result) counts[Math.floor(key(item) / divisor) % 256]!++;
+    let cursor = 0; for (let value = 0; value < counts.length; value++) { const count = counts[value]!; counts[value] = cursor; cursor += count; }
+    for (const item of result) { const value = Math.floor(key(item) / divisor) % 256; scratch[counts[value]!] = item; counts[value]!++; }
+    [result, scratch] = [scratch, result];
+  }
+  return result;
+};
 export interface BlockPosition { pageId: ID; parentBlockId: ID | null; beforeBlockId: ID | null }
 export interface BlockContent { text: string; references?: Block["references"] }
 export type BlockTransform = Pick<Block, "type"> & Partial<Pick<Block, "checked" | "language" | "attachmentId" | "headingLevel" | "pageId" | "viewId" | "date" | "url">>;
@@ -178,24 +190,76 @@ export class WorkspaceDocument {
       if (stats) { stats.blocksVisited++; stats.referencesVisited += references.length; }
       const targets = new Set(references.map(reference => reference.pageId));
       if (block.pageId && (block.type === "page-mention" || block.type === "child-page")) targets.add(block.pageId);
-      const rangedReferences = new Set(references.filter(reference => Number.isInteger(reference.start) && Number.isInteger(reference.end)).map(reference => `${reference.start}:${reference.end}`));
-      const wikiTokens = [...block.text.matchAll(/\[\[([^\]]+)\]\]/g)];
-      const tokenRanges = new Set(wikiTokens.map(match => `${match.index}:${match.index + match[0].length}`));
-      const explicitTokenTitles = new Set(wikiTokens.filter(match => rangedReferences.has(`${match.index}:${match.index + match[0].length}`))
-        .map(match => normalizeLegacyTitle(match[1])));
-      // A stale explicit range cannot safely be associated with a title token. Fail closed for
-      // legacy title fallback in this block; canonical explicit page IDs remain authoritative.
-      const staleExplicitRange = [...rangedReferences].some(range => !tokenRanges.has(range));
-      for (const match of wikiTokens) {
+      const wikiTokens: WikiToken[] = [...block.text.matchAll(/\[\[([^\]]+)\]\]/g)].map(match =>
+        ({ text: match[1]!, start: match.index, end: match.index + match[0].length }));
+      if (!wikiTokens.length) { for (const targetPageId of targets) links.push({ sourcePageId: page.id, targetPageId, blockId: block.id }); return; }
+      const exactTokens = new Map<string, number>();
+      for (let index = 0; index < wikiTokens.length; index++) { const token = wikiTokens[index]!; exactTokens.set(`${token.start}:${token.end}`, index); }
+      const associated = new Uint8Array(wikiTokens.length), matchedReferences = new Uint8Array(references.length);
+      const protectedTexts = new Set<string>();
+      const associate = (referenceIndex: number, tokenIndex: number) => {
+        associated[tokenIndex] = 1; matchedReferences[referenceIndex] = 1;
+        protectedTexts.add(normalizeLegacyTitle(wikiTokens[tokenIndex]!.text));
+      };
+      // Exact ranges are authoritative and consume at most one token.
+      for (let index = 0; index < references.length; index++) {
+        const reference = references[index]!;
+        if (reference.start === undefined || reference.end === undefined) continue;
+        const tokenIndex = exactTokens.get(`${reference.start}:${reference.end}`);
+        if (tokenIndex !== undefined && !associated[tokenIndex]) associate(index, tokenIndex);
+      }
+      // Stale ranged references are ordered by prior coordinates with a bounded radix pass, then
+      // greedily consume the nearest remaining token (overlap, start displacement, token offset).
+      let staleRanges = references.map((reference, index) => ({ reference, index })).filter(item =>
+        !matchedReferences[item.index] && item.reference.start !== undefined && item.reference.end !== undefined);
+      staleRanges = radixNumberOrder(radixNumberOrder(radixNumberOrder(staleRanges, item => item.index), item => item.reference.end!), item => item.reference.start!);
+      const previous = new Int32Array(wikiTokens.length), next = new Int32Array(wikiTokens.length);
+      let available = -1, tail = -1; for (let index = 0; index < wikiTokens.length; index++) { previous[index] = available; if (!associated[index]) { available = index; tail = index; } }
+      available = -1; for (let index = wikiTokens.length - 1; index >= 0; index--) { next[index] = available; if (!associated[index]) available = index; }
+      const removeToken = (index: number) => { const left = previous[index]!, right = next[index]!; if (left >= 0) next[left] = right; if (right >= 0) previous[right] = left; else tail = left; associated[index] = 1; };
+      let cursor = available;
+      for (const { reference, index: referenceIndex } of staleRanges) {
+        while (cursor >= 0 && wikiTokens[cursor]!.start < reference.start!) cursor = next[cursor]!;
+        const left = cursor >= 0 ? previous[cursor]! : tail;
+        const candidates = [left, cursor].filter(index => index >= 0);
+        let best = -1, bestGap = Number.POSITIVE_INFINITY, bestShift = Number.POSITIVE_INFINITY;
+        for (const tokenIndex of candidates) {
+          if (stats?.associationCandidatesVisited !== undefined) stats.associationCandidatesVisited++;
+          const token = wikiTokens[tokenIndex]!;
+          const gap = token.end <= reference.start! ? reference.start! - token.end : token.start >= reference.end! ? token.start - reference.end! : 0;
+          const shift = Math.abs(token.start - reference.start!);
+          if (gap < bestGap || (gap === bestGap && (shift < bestShift || (shift === bestShift && token.start < wikiTokens[best]?.start!)))) { best = tokenIndex; bestGap = gap; bestShift = shift; }
+        }
+        if (best >= 0) { associate(referenceIndex, best); const successor = next[best]!; removeToken(best); if (cursor === best) cursor = successor; }
+      }
+      // Unranged references associate only through unique identity, or when exactly one reference
+      // and one token remain. Ambiguous references consume nothing; unrelated tokens stay visible.
+      const uniqueTokenByText = new Map<string, number | null>();
+      for (let index = 0; index < wikiTokens.length; index++) if (!associated[index]) {
+        const key = normalizeLegacyTitle(wikiTokens[index]!.text); uniqueTokenByText.set(key, uniqueTokenByText.has(key) ? null : index);
+      }
+      for (let index = 0; index < references.length; index++) if (!matchedReferences[index] && references[index]!.start === undefined) {
+        const reference = references[index]!, target = lookup.pagesById.get(reference.pageId);
+        const keys = new Set([normalizeLegacyTitle(reference.pageId), ...(target ? [normalizeLegacyTitle(target.title)] : [])]);
+        const candidates = [...keys].map(key => uniqueTokenByText.get(key)).filter((value): value is number => value !== undefined && value !== null && !associated[value]);
+        if (stats?.associationCandidatesVisited !== undefined) stats.associationCandidatesVisited += keys.size;
+        if (candidates.length === 1) associate(index, candidates[0]!);
+      }
+      const remainingReferences = references.map((reference, index) => ({ reference, index })).filter(item => !matchedReferences[item.index] && item.reference.start === undefined);
+      const remainingTokens = wikiTokens.map((token, index) => ({ token, index })).filter(item => !associated[item.index]);
+      if (remainingReferences.length === 1 && remainingTokens.length === 1) associate(remainingReferences[0]!.index, remainingTokens[0]!.index);
+      else if (remainingReferences.length && remainingTokens.length) for (const item of remainingTokens) {
+        // A canonical stable-ID token proves its own unrelated identity even when legacy-title
+        // association is ambiguous; fail closed only for tokens that could be stale labels.
+        if (!lookup.pagesById.has(item.token.text)) associated[item.index] = 1;
+      }
+      for (let tokenIndex = 0; tokenIndex < wikiTokens.length; tokenIndex++) {
+        const token = wikiTokens[tokenIndex]!;
         if (stats) stats.wikiTokensVisited++;
-        const start = match.index; const end = start + match[0].length;
-        if (rangedReferences.has(`${start}:${end}`)) continue;
-        // Duplicate tokens cannot prove which occurrence retained an explicit identity after an edit.
-        if (explicitTokenTitles.has(normalizeLegacyTitle(match[1]))) continue;
-        if (stats) stats.idLookups++; const byId = lookup.pagesById.get(match[1]);
-        if (staleExplicitRange && !byId) continue;
+        if (associated[tokenIndex] || protectedTexts.has(normalizeLegacyTitle(token.text))) continue;
+        if (stats) stats.idLookups++; const byId = lookup.pagesById.get(token.text);
         if (!byId && stats) stats.titleLookups++;
-        const target = byId ?? lookup.uniquePagesByTitle.get(normalizeLegacyTitle(match[1])) ?? undefined;
+        const target = byId ?? lookup.uniquePagesByTitle.get(normalizeLegacyTitle(token.text)) ?? undefined;
         if (target) targets.add(target.id);
       }
       for (const targetPageId of targets) links.push({ sourcePageId: page.id, targetPageId, blockId: block.id });

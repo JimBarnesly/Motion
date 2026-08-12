@@ -181,6 +181,75 @@ test("stale ranged references fail closed for title fallback without losing cano
   }
 });
 
+test("stale ranges suppress only their associated token and preserve unrelated title links", () => {
+  const workspace = createWorkspace("Stale association"); const timestamp = workspace.createdAt;
+  workspace.pages = [
+    { id: "source", parentId: null, title: "Source", createdAt: timestamp, updatedAt: timestamp, blocks: [
+      { id: "stale", type: "paragraph", text: "x[[Alpha]] [[Gamma]]", children: [], references: [{ pageId: "beta", start: 0, end: 9 }] }
+    ] },
+    { id: "alpha", parentId: null, title: "Alpha", createdAt: timestamp, updatedAt: timestamp, blocks: [] },
+    { id: "beta", parentId: null, title: "Beta", createdAt: timestamp, updatedAt: timestamp, blocks: [] },
+    { id: "gamma", parentId: null, title: "Gamma", createdAt: timestamp, updatedAt: timestamp, blocks: [] }
+  ];
+
+  assert.deepEqual(new WorkspaceDocument(workspace).outgoingLinks("source").map(link => link.targetPageId), ["beta", "gamma"]);
+});
+
+test("a sole wiki token is conservatively associated with an unranged explicit reference", () => {
+  const workspace = createWorkspace("Unranged association"); const timestamp = workspace.createdAt;
+  workspace.pages = [
+    { id: "source", parentId: null, title: "Source", createdAt: timestamp, updatedAt: timestamp, blocks: [
+      { id: "unranged", type: "paragraph", text: "[[Alpha]]", children: [], references: [{ pageId: "beta" }] }
+    ] },
+    { id: "alpha", parentId: null, title: "Alpha", createdAt: timestamp, updatedAt: timestamp, blocks: [] },
+    { id: "beta", parentId: null, title: "Beta", createdAt: timestamp, updatedAt: timestamp, blocks: [] }
+  ];
+
+  assert.deepEqual(new WorkspaceDocument(workspace).outgoingLinks("source").map(link => link.targetPageId), ["beta"]);
+});
+
+test("reference-token association is deterministic across range, identity, and cardinality edge cases", () => {
+  const scenarios: { label: string; text: string; references: NonNullable<Block["references"]>; expected: string[] }[] = [
+    { label: "exact range", text: "[[Alpha]] [[Gamma]]", references: [{ pageId: "beta", start: 0, end: 9 }], expected: ["beta", "gamma"] },
+    { label: "insert before", text: "xx[[Alpha]] [[Gamma]]", references: [{ pageId: "beta", start: 0, end: 9 }], expected: ["beta", "gamma"] },
+    { label: "insert inside", text: "[[AlXpha]] [[Gamma]]", references: [{ pageId: "beta", start: 0, end: 9 }], expected: ["beta", "gamma"] },
+    { label: "delete before", text: "[[Alpha]] [[Gamma]]", references: [{ pageId: "beta", start: 2, end: 11 }], expected: ["beta", "gamma"] },
+    { label: "out of bounds", text: "[[Alpha]] [[Gamma]]", references: [{ pageId: "beta", start: 999, end: 1008 }], expected: ["alpha", "beta"] },
+    { label: "crossed stale ranges", text: "[[Alpha]] [[Gamma]]", references: [{ pageId: "beta", start: 10, end: 19 }, { pageId: "delta", start: 0, end: 9 }], expected: ["beta", "delta"] },
+    { label: "identity by title", text: "[[Beta]] [[Gamma]]", references: [{ pageId: "beta" }], expected: ["beta", "gamma"] },
+    { label: "identity by stable id", text: "[[beta]] [[Gamma]]", references: [{ pageId: "beta" }], expected: ["beta", "gamma"] },
+    { label: "ambiguous unranged", text: "[[Alpha]] [[Gamma]]", references: [{ pageId: "beta" }], expected: ["beta"] },
+    { label: "unrelated stable id survives ambiguity", text: "[[alpha]] [[Gamma]]", references: [{ pageId: "beta" }], expected: ["alpha", "beta"] },
+    { label: "more refs than tokens", text: "[[Alpha]]", references: [{ pageId: "beta" }, { pageId: "delta" }], expected: ["beta", "delta"] },
+    { label: "no tokens", text: "plain", references: [{ pageId: "beta" }, { pageId: "delta" }], expected: ["beta", "delta"] },
+    { label: "duplicate identity tokens", text: "[[Beta]] [[Beta]] [[Gamma]]", references: [{ pageId: "beta" }], expected: ["beta"] }
+  ];
+  for (const scenario of scenarios) {
+    const workspace = createWorkspace(scenario.label), timestamp = workspace.createdAt;
+    workspace.pages = [
+      { id: "source", parentId: null, title: "Source", createdAt: timestamp, updatedAt: timestamp,
+        blocks: [{ id: "case", type: "paragraph", text: scenario.text, children: [], references: scenario.references }] },
+      ...["alpha", "beta", "gamma", "delta"].map(pageId => ({ id: pageId, parentId: null, title: pageId[0]!.toUpperCase() + pageId.slice(1), createdAt: timestamp, updatedAt: timestamp, blocks: [] }))
+    ];
+    assert.deepEqual(new WorkspaceDocument(workspace).outgoingLinks("source").map(link => link.targetPageId), scenario.expected, scenario.label);
+  }
+});
+
+test("one hundred thousand stale associations visit only bounded adjacent candidates", () => {
+  const count = 100_000, token = "[[Alpha]]", text = Array.from({ length: count }, () => token).join(" ");
+  const workspace = createWorkspace("Bounded association"), timestamp = workspace.createdAt;
+  workspace.pages = [
+    { id: "source", parentId: null, title: "Source", createdAt: timestamp, updatedAt: timestamp, blocks: [{ id: "many", type: "paragraph", text, children: [],
+      references: Array.from({ length: count }, (_, index) => ({ pageId: `target-${index}`, start: index * (token.length + 1) + 1, end: index * (token.length + 1) + token.length + 1 })) }] },
+    { id: "alpha", parentId: null, title: "Alpha", createdAt: timestamp, updatedAt: timestamp, blocks: [] }
+  ];
+  const doc = new WorkspaceDocument(workspace);
+  const stats = { pagesVisited: 0, blocksVisited: 0, referencesVisited: 0, wikiTokensVisited: 0, idLookups: 0, titleLookups: 0, linkFilterChecks: 0, linksEmitted: 0, associationCandidatesVisited: 0 };
+  doc.rebuildLinkIndex(stats);
+  assert.equal(stats.referencesVisited, count); assert.equal(stats.wikiTokensVisited, count);
+  assert.ok(stats.associationCandidatesVisited <= count * 2, String(stats.associationCandidatesVisited));
+});
+
 test("link rebuild reports deterministic work statistics", () => {
   const doc = new WorkspaceDocument(createWorkspace("Measured links"));
   const source = doc.addPage("Source"); const target = doc.addPage("Target");
@@ -189,8 +258,8 @@ test("link rebuild reports deterministic work statistics", () => {
 
   doc.rebuildLinkIndex(stats);
 
-  assert.deepEqual(stats, { pagesVisited: 4, blocksVisited: 1, referencesVisited: 1, wikiTokensVisited: 2, idLookups: 2,
-    titleLookups: 1, linkFilterChecks: 0, linksEmitted: 1 });
+  assert.deepEqual(stats, { pagesVisited: 4, blocksVisited: 1, referencesVisited: 1, wikiTokensVisited: 2, idLookups: 1,
+    titleLookups: 0, linkFilterChecks: 0, linksEmitted: 1 });
 });
 
 test("link rebuild uses bounded canonical-ID passes without comparison sorting", () => {
@@ -233,8 +302,8 @@ test("link rebuild stays linear for ten thousand pages", () => {
   const started = performance.now(); doc.rebuildLinkIndex(stats); const elapsedMs = performance.now() - started;
 
   assert.deepEqual(stats, { pagesVisited: pageCount * 2, blocksVisited: pageCount, referencesVisited: pageCount, wikiTokensVisited: pageCount,
-    idLookups: pageCount, titleLookups: pageCount, linkFilterChecks: 0, linksEmitted: pageCount * 2 });
-  assert.equal(doc.links().length, pageCount * 2);
+    idLookups: 0, titleLookups: 0, linkFilterChecks: 0, linksEmitted: pageCount });
+  assert.equal(doc.links().length, pageCount);
   assert.ok(elapsedMs < 2_000, `10k-page rebuild took ${elapsedMs.toFixed(1)}ms`);
 });
 

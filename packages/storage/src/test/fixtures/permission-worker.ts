@@ -21,7 +21,6 @@ await chmod(databasePath, 0o666);
 await chmod(attachmentsRoot, 0o777);
 await chmod(join(attachmentsRoot, ".staging"), 0o777);
 await chmod(join(attachmentsRoot, stored.sha256.slice(0, 2)), 0o777);
-await chmod(stored.path, 0o666);
 store.save("workspace", 1, { title: "tightened" }, 1);
 await attachments.get(stored.sha256);
 const staged = await attachments.stage(new TextEncoder().encode("restore staging"));

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { closeSync, constants, fchmodSync, lstatSync, mkdirSync, openSync, statSync } from "node:fs";
 import { lstat, open, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { platform } from "node:os";
 import { DatabaseSync } from "node:sqlite";
@@ -298,16 +299,25 @@ export function ensurePrivateDirectory(path: string): void {
 
 export function hardenPrivateFile(path: string): void { hardenPrivatePath(path, "file"); }
 
-async function readBoundedPrivateFile(path: string): Promise<Uint8Array> {
+type OpenPrivateAttachment = { handle: import("node:fs/promises").FileHandle; bytes: Uint8Array; metadata: import("node:fs").Stats };
+
+function assertPrivateAttachment(metadata: import("node:fs").Stats): void {
+  if (!metadata.isFile() || metadata.nlink !== 1) throw new Error("Attachment storage contains invalid content");
+  if (platform() !== "win32" && (metadata.uid !== process.geteuid!() || (metadata.mode & 0o777) !== 0o600))
+    throw new Error("Attachment storage contains invalid content");
+}
+
+async function openBoundedPrivateFile(path: string): Promise<OpenPrivateAttachment> {
   const before = await lstat(path);
-  if (!before.isFile() || before.isSymbolicLink()) throw new Error("Attachment storage contains invalid content");
+  if (before.isSymbolicLink()) throw new Error("Attachment storage contains invalid content");
+  assertPrivateAttachment(before);
   const handle = await open(path, constants.O_RDONLY | (platform() === "win32" ? 0 : constants.O_NOFOLLOW));
   try {
     const metadata = await handle.stat();
-    if (!metadata.isFile() || metadata.dev !== before.dev || metadata.ino !== before.ino)
+    assertPrivateAttachment(metadata);
+    if (metadata.dev !== before.dev || metadata.ino !== before.ino)
       throw new Error("Attachment storage contains invalid content");
     if (metadata.size > MAX_ATTACHMENT_BYTES) throw new Error("Attachment storage content exceeds 3 MiB limit");
-    if (platform() !== "win32") await handle.chmod(0o600);
     const bytes = Buffer.alloc(metadata.size + 1);
     let bytesRead = 0;
     while (bytesRead < bytes.byteLength) {
@@ -318,10 +328,33 @@ async function readBoundedPrivateFile(path: string): Promise<Uint8Array> {
     }
     if (bytesRead !== metadata.size) throw new Error("Attachment storage changed during read");
     const after = await handle.stat();
-    if (!after.isFile() || after.size !== metadata.size || after.dev !== metadata.dev || after.ino !== metadata.ino)
+    assertPrivateAttachment(after);
+    if (after.size !== metadata.size || after.dev !== metadata.dev || after.ino !== metadata.ino)
       throw new Error("Attachment storage changed during read");
-    return bytes.subarray(0, bytesRead);
-  } finally { await handle.close(); }
+    return { handle, bytes: bytes.subarray(0, bytesRead), metadata };
+  } catch (error) { await handle.close(); throw error; }
+}
+
+async function readBoundedPrivateFile(path: string): Promise<Uint8Array> {
+  const opened = await openBoundedPrivateFile(path);
+  try { return opened.bytes; } finally { await opened.handle.close(); }
+}
+
+async function sameInode(path: string, metadata: import("node:fs").Stats): Promise<boolean> {
+  try { const current = await lstat(path); return !current.isSymbolicLink() && current.dev === metadata.dev && current.ino === metadata.ino; }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return false; throw error; }
+}
+
+function linkOpenDescriptorNoReplace(descriptor: number, finalPath: string): void {
+  if (platform() !== "linux") throw new Error("Secure attachment publication is unavailable on this platform");
+  const result = spawnSync("ln", ["--no-target-directory", "-L", "/proc/self/fd/3", finalPath],
+    { stdio: ["ignore", "ignore", "pipe", descriptor] });
+  if (result.error) throw new Error(`Secure attachment publication is unavailable: ${result.error.message}`);
+  if (result.status !== 0) {
+    const error = new Error(`Secure attachment publication failed: ${String(result.stderr).trim()}`) as NodeJS.ErrnoException;
+    if (String(result.stderr).includes("File exists")) error.code = "EEXIST";
+    throw error;
+  }
 }
 
 /** Durable local repository. UI/domain entities cross this boundary as versioned JSON, never SQLite rows. */
@@ -624,7 +657,9 @@ export class AsyncSqliteWorkspaceStore<T extends { id: string; name: string; upd
 
 /** Files are immutable and addressed by content hash; metadata remains in the workspace database. */
 export class ContentAddressedAttachmentStore {
-  constructor(private readonly root: string) { ensurePrivateDirectory(root); }
+  constructor(private readonly root: string, private readonly diagnostics?: { beforeAttachmentPublish?: () => void | Promise<void> }) {
+    ensurePrivateDirectory(root);
+  }
 
   pathFor(sha256: string): string { requireSha256(sha256); return join(this.root, sha256.slice(0, 2), sha256); }
 
@@ -636,31 +671,60 @@ export class ContentAddressedAttachmentStore {
     ensurePrivateDirectory(this.root);
     ensurePrivateDirectory(stagingRoot);
     const stagingPath = join(stagingRoot, `${sha256}.${crypto.randomUUID()}.staging`);
-    await writeFile(stagingPath, bytes, { flag: "wx", mode: 0o600 });
+    const handle = await open(stagingPath, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY
+      | (platform() === "win32" ? 0 : constants.O_NOFOLLOW), 0o600);
+    try {
+      const metadata = await handle.stat();
+      if (!metadata.isFile() || metadata.nlink !== 1 || (platform() !== "win32" && metadata.uid !== process.geteuid!()))
+        throw new Error("Attachment staging contains invalid content");
+      if (platform() !== "win32") await handle.chmod(0o600);
+      await handle.writeFile(bytes);
+      await handle.sync();
+    } catch (error) { await handle.close(); await rm(stagingPath, { force: true }); throw error; }
+    await handle.close();
     return { sha256, byteLength: bytes.byteLength, path: finalPath, stagingPath };
   }
 
   async promote(staged: StagedAttachment): Promise<StoredAttachment> {
     requireSha256(staged.sha256);
     if (staged.byteLength > MAX_ATTACHMENT_BYTES) throw new Error(ATTACHMENT_SIZE_LIMIT_ERROR);
-    const bytes = await readBoundedPrivateFile(staged.stagingPath);
-    if (bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new Error(ATTACHMENT_SIZE_LIMIT_ERROR);
-    if (bytes.byteLength !== staged.byteLength || digest(bytes) !== staged.sha256) {
-      throw new Error(`Staged attachment integrity check failed: ${staged.sha256}`);
-    }
-    hardenPrivateFile(staged.stagingPath);
-    ensurePrivateDirectory(dirname(staged.path));
+    const source = await openBoundedPrivateFile(staged.stagingPath);
     try {
-      hardenPrivateFile(staged.path);
-      const current = await readBoundedPrivateFile(staged.path);
-      if (current.byteLength !== staged.byteLength || digest(current) !== staged.sha256) throw new Error(`Attachment hash collision at ${staged.path}`);
-      await this.discard(staged);
-      return { sha256: staged.sha256, byteLength: staged.byteLength, path: staged.path, newlyCreated: false };
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      await rename(staged.stagingPath, staged.path);
+      if (source.bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new Error(ATTACHMENT_SIZE_LIMIT_ERROR);
+      if (source.bytes.byteLength !== staged.byteLength || digest(source.bytes) !== staged.sha256)
+        throw new Error(`Staged attachment integrity check failed: ${staged.sha256}`);
+      ensurePrivateDirectory(dirname(staged.path));
+      try {
+        const current = await readBoundedPrivateFile(staged.path);
+        if (current.byteLength !== staged.byteLength || digest(current) !== staged.sha256) throw new Error(`Attachment hash collision at ${staged.path}`);
+        if (!await sameInode(staged.stagingPath, source.metadata)) throw new Error("Attachment staging changed before publication");
+        await rm(staged.stagingPath);
+        return { sha256: staged.sha256, byteLength: staged.byteLength, path: staged.path, newlyCreated: false };
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+      await this.diagnostics?.beforeAttachmentPublish?.();
+      if (!await sameInode(staged.stagingPath, source.metadata)) throw new Error("Attachment staging changed before publication");
+      try { linkOpenDescriptorNoReplace(source.handle.fd, staged.path); }
+      catch (publicationError) {
+        try {
+          const current = await readBoundedPrivateFile(staged.path);
+          if (current.byteLength !== staged.byteLength || digest(current) !== staged.sha256) throw new Error(`Attachment hash collision at ${staged.path}`);
+          if (!await sameInode(staged.stagingPath, source.metadata)) throw new Error("Attachment staging changed before publication");
+          await rm(staged.stagingPath);
+          return { sha256: staged.sha256, byteLength: staged.byteLength, path: staged.path, newlyCreated: false };
+        } catch (dedupeError) {
+          if ((dedupeError as NodeJS.ErrnoException).code === "ENOENT") throw publicationError;
+          throw dedupeError;
+        }
+      }
+      if (!await sameInode(staged.stagingPath, source.metadata)) {
+        throw new Error("Attachment staging changed during publication");
+      }
+      await rm(staged.stagingPath);
+      const published = await lstat(staged.path); assertPrivateAttachment(published);
       return { sha256: staged.sha256, byteLength: staged.byteLength, path: staged.path, newlyCreated: true };
-    }
+    } finally { await source.handle.close(); }
   }
 
   async discard(staged: StagedAttachment): Promise<void> {
@@ -734,7 +798,6 @@ export class ContentAddressedAttachmentStore {
     const bucket = join(this.root, sha256.slice(0, 2));
     ensurePrivateDirectory(bucket);
     const path = join(bucket, sha256);
-    hardenPrivateFile(path);
     const bytes = await readBoundedPrivateFile(path);
     if (digest(bytes) !== sha256) throw new Error(`Attachment integrity check failed: ${sha256}`);
     return bytes;

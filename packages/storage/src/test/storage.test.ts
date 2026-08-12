@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { chmod, chown, link, mkdir, mkdtemp, readFile, readdir, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -43,6 +43,51 @@ test("attachment storage is content-addressed, deduplicated, and verified", asyn
     assert.deepEqual(Buffer.from(await store.get(first.sha256)), Buffer.from(bytes));
     assert.deepEqual(await readFile(first.path), Buffer.from(bytes));
     await assert.rejects(store.get("../../workspace.json"), /64 lowercase hexadecimal/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("attachment reads reject external hardlinks without mutating their bytes or mode", async (context) => {
+  if (process.platform === "win32") { context.skip("POSIX hard-link ownership and modes are not enforceable on Windows"); return; }
+  const root = await mkdtemp(join(tmpdir(), "motion-attachment-hardlink-"));
+  const externalRoot = await mkdtemp(join(tmpdir(), "motion-attachment-external-"));
+  try {
+    const store = new ContentAddressedAttachmentStore(root);
+    const payload = Buffer.from("external boundary content");
+    const sha256 = (await import("node:crypto")).createHash("sha256").update(payload).digest("hex");
+    const externalPath = join(externalRoot, "owned-elsewhere.bin");
+    await writeFile(externalPath, payload, { mode: 0o644 });
+    await chmod(externalPath, 0o644);
+    await mkdir(join(root, sha256.slice(0, 2)), { recursive: true, mode: 0o700 });
+    await link(externalPath, store.pathFor(sha256));
+
+    await assert.rejects(store.get(sha256), /invalid content|private attachment/i);
+    assert.deepEqual(await readFile(externalPath), payload);
+    assert.equal((await stat(externalPath)).mode & 0o777, 0o644, "rejected external inode was chmodded");
+
+    if (process.geteuid?.() === 0) {
+      await unlink(store.pathFor(sha256));
+      const foreignPayload = Buffer.from("foreign-owned attachment");
+      const foreignHash = (await import("node:crypto")).createHash("sha256").update(foreignPayload).digest("hex");
+      const foreignPath = store.pathFor(foreignHash);
+      await mkdir(join(root, foreignHash.slice(0, 2)), { recursive: true, mode: 0o700 });
+      await writeFile(foreignPath, foreignPayload, { mode: 0o600 });
+      await chown(foreignPath, 65534, 65534);
+      await assert.rejects(store.get(foreignHash), /invalid content|private attachment/i);
+      assert.equal((await stat(foreignPath)).uid, 65534, "rejected foreign inode ownership was mutated");
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(externalRoot, { recursive: true, force: true });
+  }
+});
+
+test("promotion never publishes a staged pathname replacement after descriptor validation", async (context) => {
+  if (process.platform !== "linux") { context.skip("the descriptor-publication race fixture is Linux-specific"); return; }
+  const root = await mkdtemp(join(tmpdir(), "motion-attachment-promotion-race-"));
+  try {
+    const worker = new URL("./fixtures/promotion-race-worker.js", import.meta.url);
+    const result = spawnSync(process.execPath, [worker.pathname, root], { encoding: "utf8" });
+    assert.equal(result.status, 0, `promotion race worker failed:\n${result.stdout}\n${result.stderr}`);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

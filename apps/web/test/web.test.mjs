@@ -54,6 +54,16 @@ test("schema-v2 typed edits use the canonical recoverable confirmation boundary"
   assert.match(html, /id="discardEdit"/);
 });
 
+test("native editor undo and redo use canonical page block replacement", async () => {
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  const build = await readFile(resolve(root, "scripts/build.mjs"), "utf8");
+  assert.match(source, /from "\.\/editor-history\.js"/);
+  assert.match(build, /"editor-history\.js"/);
+  assert.match(source, /confirmEditorHistory\(\{current:state,target/);
+  assert.match(source, /nativeCommands\.execute\(type,payload\)/);
+  assert.doesNotMatch(source, /Native undo requires typed command support and was not applied/);
+});
+
 test("native adapter sends versioned typed IPC envelopes", async () => {
   const calls = [];
   const { createMotionUiAdapter } = await import("../app-adapter.js");
@@ -452,7 +462,8 @@ test("normal native page and block editing source never calls whole-document sav
   const nativeCommit=source.slice(source.indexOf("async function commit"),source.indexOf("async function confirmCanonicalEdit"));
   assert.doesNotMatch(nativeCommit, /adapter\.save/);
   assert.doesNotMatch(source, /adapter\.execute\(["']workspace\.import-web-v1/);
-  assert.match(source, /if\(adapter\.kind==="tauri"\)\{\$\("#saveState"\)\.textContent="Native undo requires typed command support/);
+  assert.match(source, /confirmEditorHistory\(\{current:state,target/);
+  assert.match(source, /nativeCommands\.execute\(type,payload\)/);
   assert.match(source, /function rebuildLinks\(\) \{ if \(adapter\.kind === "tauri"\) return;/);
   assert.match(source, /nativeCommands\.execute\("workspace\.create"/);
   assert.equal([...source.matchAll(/adapter\.execute\(/g)].length, 1);

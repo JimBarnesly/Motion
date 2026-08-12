@@ -307,14 +307,16 @@ test("FTS indexes persisted table row values by stable row ID", async () => {
   } finally { store.close(); await rm(root, { recursive: true, force: true }); }
 });
 
-test("incremental link scope validation groups one hundred thousand links from one source linearly", async () => {
+test("incremental validation groups one hundred thousand same-scope FTS entries and links linearly without comparison sorting", async () => {
   const root = await mkdtemp(join(tmpdir(), "motion-linear-link-validation-"));
   const store = new SqliteWorkspaceStore(join(root, "motion.sqlite3"));
-  const linkCount = 100_000;
-  const original = { id: "ws", pages: [{ id: "source", title: "Source", blocks: [] }], databases: [], attachments: [], linkIndex: [] as { sourcePageId: string; targetPageId: string; blockId: string }[] };
+  const entryCount = 100_000;
+  const original = { id: "ws", pages: [{ id: "source", title: "Source", blocks: [] as { id: string; text: string; children: unknown[] }[] }], databases: [], attachments: [], linkIndex: [] as { sourcePageId: string; targetPageId: string; blockId: string }[] };
   try {
     store.save("ws", 2, original, 0);
-    const changed = structuredClone(original); changed.linkIndex = Array.from({ length: linkCount }, (_, index) => ({ sourcePageId: "source", targetPageId: `target-${index}`, blockId: "links" }));
+    const changed = structuredClone(original);
+    changed.pages[0]!.blocks = Array.from({ length: entryCount }, (_, index) => ({ id: `block-${index}`, text: `token-${index}`, children: [] }));
+    changed.linkIndex = Array.from({ length: entryCount }, (_, index) => ({ sourcePageId: "source", targetPageId: `target-${index}`, blockId: "links" }));
     let arrayElementsIterated = 0; let comparisons = 0; const originalIterator = Array.prototype[Symbol.iterator]; const originalSort = Array.prototype.sort;
     Array.prototype[Symbol.iterator] = function(this: unknown[]) {
       const iterator = originalIterator.call(this); return { next() { const result = iterator.next(); if (!result.done) arrayElementsIterated++; return result; }, [Symbol.iterator]() { return this; } };
@@ -323,16 +325,17 @@ test("incremental link scope validation groups one hundred thousand links from o
       if (compareFn) return originalSort.call(this, (left, right) => { comparisons++; return compareFn(left, right); });
       return originalSort.call(this);
     } as typeof Array.prototype.sort;
-    const started = performance.now();
+    const started = performance.now(); const heapBefore = process.memoryUsage().heapUsed;
     try {
       store.saveUnitOfWork({ workspaceId: "ws", schemaVersion: 2, document: changed, expectedRevision: 1,
-        changeSet: { kind: "incremental", pages: [], databases: [], attachments: [], linkSourcePageIds: ["source"], fts: [] } });
+        changeSet: { kind: "incremental", pages: ["source"], databases: [], attachments: [], linkSourcePageIds: ["source"], fts: [{ scope: "page", id: "source" }] } });
     } finally { Array.prototype[Symbol.iterator] = originalIterator; Array.prototype.sort = originalSort; }
-    const elapsedMs = performance.now() - started;
+    const elapsedMs = performance.now() - started; const heapGrowth = process.memoryUsage().heapUsed - heapBefore;
 
-    assert.ok(arrayElementsIterated < linkCount * 500, `bounded radix/grouping passes iterated ${arrayElementsIterated} array elements for ${linkCount} links`);
+    assert.ok(arrayElementsIterated < entryCount * 1_000, `bounded grouping/radix passes iterated ${arrayElementsIterated} array elements for ${entryCount} FTS entries and links`);
     assert.equal(comparisons, 0);
-    assert.ok(elapsedMs < 4_000, `100k single-source validation/write took ${elapsedMs.toFixed(1)}ms`);
+    assert.ok(heapGrowth < 512 * 1024 * 1024, `100k combined validation/write grew heap by ${(heapGrowth / 1024 / 1024).toFixed(1)}MiB`);
+    assert.ok(elapsedMs < 8_000, `100k combined validation/write took ${elapsedMs.toFixed(1)}ms`);
   } finally { store.close(); await rm(root, { recursive: true, force: true }); }
 });
 

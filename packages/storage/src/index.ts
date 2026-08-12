@@ -262,7 +262,7 @@ function keyedEntities(entities: readonly Record<string, unknown>[], label: stri
 
 function changedKeys(before: Map<string, string>, after: Map<string, string>): string[] {
   const keys = new Set([...before.keys(), ...after.keys()]);
-  return [...keys].filter(key => before.get(key) !== after.get(key)).sort();
+  return canonicalIdOrder([...keys].filter(key => before.get(key) !== after.get(key)), [key => key]);
 }
 
 function linkScopes(parts: WorkspaceParts): Map<string, string> {
@@ -280,7 +280,9 @@ function searchScopes(document: unknown, workspaceId: string): Map<string, strin
   const grouped = new Map<string, SearchEntry[]>();
   for (const entry of entries) {
     const key = `${entry.scopeType}\u0000${entry.scopeId}`;
-    grouped.set(key, [...(grouped.get(key) ?? []), entry]);
+    let bucket = grouped.get(key);
+    if (!bucket) { bucket = []; grouped.set(key, bucket); }
+    bucket.push(entry);
   }
   return new Map([...grouped].map(([key, values]) => [key, JSON.stringify(values)]));
 }

@@ -18,6 +18,7 @@ test("hierarchy, links, backlinks and search", async () => {
   assert.equal((await store.load(ws.id))!.name, "Private notes");
 });
 
+
 test("canonical block placement recursively creates and moves blocks across pages", () => {
   const doc = new WorkspaceDocument(createWorkspace("Blocks"));
   const source = doc.addPage("Source"); const target = doc.addPage("Target");
@@ -539,6 +540,21 @@ test("web v1 migration orders stable links without comparison sorting", () => {
 
   assert.equal(comparisons, 0);
   assert.deepEqual(migrated.workspace.linkIndex.map(link => link.sourcePageId), ["a", "z"]);
+});
+
+test("web v1 migration deduplicates repeated explicit references in one source block", () => {
+  const migrated = migrateWebWorkspaceV1({ schemaVersion: 1, pages: [
+    { id: "source", title: "Source", blocks: [{ id: "repeated", type: "paragraph", text: "", links: [
+      { pageId: "target" }, { pageId: "target" }, { pageId: "other" }, { pageId: "target" }, { pageId: "other" }
+    ] }] },
+    { id: "target", title: "Target", blocks: [] }, { id: "other", title: "Other", blocks: [] }
+  ] });
+
+  assert.deepEqual(migrated.workspace.pages[0]?.blocks[0]?.references, [{ pageId: "target" }, { pageId: "other" }]);
+  assert.deepEqual(migrated.workspace.linkIndex, [
+    { sourcePageId: "source", targetPageId: "other", blockId: "repeated" },
+    { sourcePageId: "source", targetPageId: "target", blockId: "repeated" }
+  ]);
 });
 
 test("web v1 migration is deterministic, separates UI state, preserves unknown blocks and rebuilds links", async () => {

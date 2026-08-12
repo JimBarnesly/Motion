@@ -5,7 +5,7 @@ const id = () => globalThis.crypto.randomUUID();
 const walk = (blocks: Block[], fn: (block: Block) => void) => blocks.forEach(b => { fn(b); walk(b.children, fn); });
 const normalizeLegacyTitle = (title: string): string => title.trim().toLocaleLowerCase();
 /** Stable LSD counting order over bounded canonical IDs: O(items * ID fields * 160), with no comparison sort. */
-function canonicalIdOrder<T>(items: readonly T[], keys: readonly ((item: T) => ID)[]): T[] {
+export function canonicalIdOrder<T>(items: readonly T[], keys: readonly ((item: T) => ID)[]): T[] {
   let result = [...items], scratch = new Array<T>(items.length); if (result.length < 2) return result;
   for (let field = keys.length - 1; field >= 0; field--) {
     let width = 0; for (const item of result) width = Math.max(width, keys[field]!(item).length);

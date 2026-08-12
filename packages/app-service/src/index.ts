@@ -7,6 +7,7 @@ import {
   createWorkspace,
   exportFullWorkspace,
   migrateWebWorkspaceV1,
+  canonicalIdOrder,
   stableId,
   ATTACHMENT_SIZE_LIMIT_ERROR,
   MAX_ATTACHMENT_BYTES,
@@ -277,9 +278,9 @@ class MutationChangeSet {
     if (operation.type === "block.move") this.page(operation.target.pageId, { links: true, fts: true });
   }
   build(): Extract<WorkspaceChangeSet, { kind: "incremental" }> {
-    const ordered = (values: Set<string>) => [...values].sort();
+    const ordered = (values: Set<string>) => canonicalIdOrder([...values], [value => value]);
     return { kind: "incremental", pages: ordered(this.pageIds), databases: ordered(this.databaseIds), attachments: ordered(this.attachmentIds),
-      linkSourcePageIds: ordered(this.linkSourceIds), fts: [...this.ftsScopes.entries()].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0).map(([, scope]) => scope) };
+      linkSourcePageIds: ordered(this.linkSourceIds), fts: canonicalIdOrder([...this.ftsScopes.values()], [scope => scope.scope, scope => scope.id]) };
   }
 }
 

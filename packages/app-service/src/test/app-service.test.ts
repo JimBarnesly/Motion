@@ -22,6 +22,21 @@ test("private database path failures map to stable storage errors without intern
   assert.equal(mapped.message.includes(privatePath), false);
   assert.equal(mapped.details, undefined);
 });
+
+test("mutation change sets use comparator-free deterministic ordering", async () => {
+  const path = databasePath("comparator-free-change-set"); const store = new SqliteWorkspaceStore(path); const service = new MotionAppService(store);
+  try {
+    const created = service.execute({ type: "workspace.create", name: "Ordering" });
+    let mutationSortCalls = 0; const originalSort = Array.prototype.sort;
+    Array.prototype.sort = function(this: unknown[], compareFn?: (left: unknown, right: unknown) => number) {
+      if (new Error().stack?.includes("MutationChangeSet.build")) mutationSortCalls++;
+      return originalSort.call(this, compareFn);
+    } as typeof Array.prototype.sort;
+    try { service.execute({ type: "page.create", workspaceId: created.workspace.id, expectedRevision: created.revision, title: "Page" }); }
+    finally { Array.prototype.sort = originalSort; }
+    assert.equal(mutationSortCalls, 0);
+  } finally { store.close(); await removeDatabase(path); }
+});
 const integrityHash = async (database: string, attachmentRoot: string): Promise<string> => {
   const digest = createHash("sha256");
   for (const file of [database, `${database}-wal`, `${database}-shm`]) {

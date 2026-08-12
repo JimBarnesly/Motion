@@ -146,6 +146,80 @@ test("stable duplicate-title backlink identity survives rename, move, trash, res
   } finally { await removeDatabase(path); }
 });
 
+test("legacy title backlinks follow unique and ambiguous title changes transactionally", async () => {
+  const path = databasePath("legacy-title-link-uniqueness");
+  try {
+    const store = new SqliteWorkspaceStore(path); const service = new MotionAppService(store);
+    let state = service.execute({ type: "workspace.create", name: "Legacy title links" }); const workspaceId = state.workspace.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Source" }); const sourceId = state.workspace.pages[0]!.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Unique" }); const firstId = state.workspace.pages[1]!.id;
+    state = service.execute({ type: "page.replace-blocks", workspaceId, expectedRevision: state.revision, pageId: sourceId,
+      blocks: [{ id: "legacy-link", type: "paragraph", text: "See [[Unique]]", children: [] }] });
+    assert.equal(service.query({ type: "page.backlinks", workspaceId, pageId: firstId }).length, 1);
+
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Unique" }); const duplicateId = state.workspace.pages[2]!.id;
+    assert.equal(service.query({ type: "page.backlinks", workspaceId, pageId: firstId }).length, 0,
+      "creating an ambiguity must remove the formerly unique backlink");
+    assert.deepEqual(store.lastWriteStats, { mode: "incremental", pages: 1, databases: 0, attachments: 0,
+      linkSources: 2, linksInserted: 0, ftsScopes: 1, ftsInserted: 1 });
+
+    state = service.execute({ type: "page.rename", workspaceId, expectedRevision: state.revision, pageId: duplicateId, title: "Other" });
+    assert.equal(service.query({ type: "page.backlinks", workspaceId, pageId: firstId }).length, 1,
+      "renaming the duplicate away must restore the unique backlink without INTERNAL_ERROR");
+
+    state = service.execute({ type: "page.rename", workspaceId, expectedRevision: state.revision, pageId: firstId, title: "Renamed" });
+    assert.equal(service.query({ type: "page.backlinks", workspaceId, pageId: firstId }).length, 0,
+      "renaming the unique target away must remove the persisted backlink");
+    assert.equal(service.query({ type: "workspace.get", workspaceId }).workspace.linkIndex.length, 0);
+    store.close();
+  } finally { await removeDatabase(path); }
+});
+
+test("title changes rewrite only affected legacy link sources and leave canonical references stable", async () => {
+  const path = databasePath("bounded-title-link-reindex");
+  try {
+    const store = new SqliteWorkspaceStore(path); const service = new MotionAppService(store);
+    let state = service.execute({ type: "workspace.create", name: "Bounded title links" }); const workspaceId = state.workspace.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Legacy source" }); const legacySourceId = state.workspace.pages[0]!.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Canonical source" }); const canonicalSourceId = state.workspace.pages[1]!.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Unrelated" }); const unrelatedId = state.workspace.pages[2]!.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Target" }); const targetId = state.workspace.pages[3]!.id;
+    state = service.execute({ type: "page.replace-blocks", workspaceId, expectedRevision: state.revision, pageId: legacySourceId,
+      blocks: [{ id: "legacy", type: "paragraph", text: "[[Target]]", children: [] }] });
+    state = service.execute({ type: "page.replace-blocks", workspaceId, expectedRevision: state.revision, pageId: canonicalSourceId,
+      blocks: [{ id: "canonical", type: "paragraph", text: "[[Target]]", children: [], references: [{ pageId: targetId, start: 0, end: 10 }] }] });
+
+    state = service.execute({ type: "page.rename", workspaceId, expectedRevision: state.revision, pageId: targetId, title: "Renamed" });
+    assert.deepEqual(service.query({ type: "page.backlinks", workspaceId, pageId: targetId }).map(link => link.sourcePageId), [canonicalSourceId]);
+    assert.deepEqual(store.lastWriteStats, { mode: "incremental", pages: 1, databases: 0, attachments: 0,
+      linkSources: 1, linksInserted: 0, ftsScopes: 1, ftsInserted: 1 });
+    assert.equal(state.workspace.pages.find(page => page.id === unrelatedId)?.title, "Unrelated");
+    store.close();
+  } finally { await removeDatabase(path); }
+});
+
+test("record title changes update legacy backlinks with the same unique-title semantics", async () => {
+  const path = databasePath("record-title-link-uniqueness");
+  try {
+    const store = new SqliteWorkspaceStore(path); const service = new MotionAppService(store);
+    let state = service.execute({ type: "workspace.create", name: "Record title links" }); const workspaceId = state.workspace.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Source" }); const sourceId = state.workspace.pages[0]!.id;
+    state = service.execute({ type: "database.create", workspaceId, expectedRevision: state.revision, title: "Table" }); const databaseId = state.workspace.databases[0]!.id;
+    state = service.execute({ type: "database.record-create", workspaceId, expectedRevision: state.revision, databaseId, title: "Record", values: {} });
+    const recordId = state.workspace.pages.find(page => page.collectionId === databaseId)!.id;
+    state = service.execute({ type: "page.replace-blocks", workspaceId, expectedRevision: state.revision, pageId: sourceId,
+      blocks: [{ id: "record-legacy", type: "paragraph", text: "[[Record]]", children: [] }] });
+    assert.equal(service.query({ type: "page.backlinks", workspaceId, pageId: recordId }).length, 1);
+
+    state = service.execute({ type: "database.record-create", workspaceId, expectedRevision: state.revision, databaseId, title: "Record", values: {} });
+    assert.equal(service.query({ type: "page.backlinks", workspaceId, pageId: recordId }).length, 0);
+    const duplicateId = state.workspace.pages.filter(page => page.collectionId === databaseId && page.id !== recordId)[0]!.id;
+    state = service.execute({ type: "database.record-update", workspaceId, expectedRevision: state.revision, pageId: duplicateId, title: "Other", values: {} });
+    assert.equal(service.query({ type: "page.backlinks", workspaceId, pageId: recordId }).length, 1);
+    store.close();
+  } finally { await removeDatabase(path); }
+});
+
 test("fine-grained block commands preserve structure and indexes across restart", async () => {
   const path = databasePath("block-commands");
   try {

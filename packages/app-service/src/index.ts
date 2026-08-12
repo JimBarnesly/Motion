@@ -271,6 +271,7 @@ class MutationChangeSet {
     if (fts) this.ftsScopes.set(`database\u0000${id}`, { scope: "database", id });
   }
   attachment(id: string): void { this.attachmentIds.add(id); this.ftsScopes.set(`attachment\u0000${id}`, { scope: "attachment", id }); }
+  links(pageIds: readonly string[]): void { for (const pageId of pageIds) this.linkSourceIds.add(pageId); }
   block(operation: BlockOperation): void {
     this.page(operation.pageId, { links: true, fts: true });
     if (operation.type === "block.move") this.page(operation.target.pageId, { links: true, fts: true });
@@ -494,9 +495,9 @@ export class MotionAppService {
       case "block.indent": case "block.outdent": case "block.duplicate": case "block.delete": {
         const operation = operationFromCommand(command); applyBlockOperation(document, operation); changes.block(operation); break;
       }
-      case "page.create": { const page = document.addPage(requiredText(command.title, "title", true), command.parentId ?? null); changes.page(page.id, { links: true, fts: true }); break; }
+      case "page.create": { const page = document.addPage(requiredText(command.title, "title", true), command.parentId ?? null); changes.page(page.id, { links: true, fts: true }); changes.links(document.rebuildLinkIndex()); break; }
       case "page.rename": {
-        const page = requiredPage(document, command.pageId); page.title = requiredText(command.title, "title", true); const database = document.data.databases.find(candidate => candidate.pageId === page.id); if (database) { database.name = page.title; changes.database(database.id); } page.updatedAt = new Date().toISOString(); document.data.updatedAt = page.updatedAt; changes.page(page.id, { fts: true }); break;
+        const page = requiredPage(document, command.pageId); page.title = requiredText(command.title, "title", true); const database = document.data.databases.find(candidate => candidate.pageId === page.id); if (database) { database.name = page.title; changes.database(database.id); } page.updatedAt = new Date().toISOString(); document.data.updatedAt = page.updatedAt; changes.page(page.id, { fts: true }); changes.links(document.rebuildLinkIndex()); break;
       }
       case "page.move": { const pageId = requiredText(command.pageId, "pageId"); document.movePage(pageId, command.parentId); changes.page(pageId); break; }
       case "page.reorder": { const pageId = requiredText(command.pageId, "pageId"); document.reorderPage(pageId, command.beforePageId); changes.page(pageId); break; }
@@ -519,7 +520,7 @@ export class MotionAppService {
         const page = document.addPage(requiredText(command.title, "title", true), command.parentId ?? null);
         const titleId = crypto.randomUUID(); const databaseId = crypto.randomUUID();
         document.addDatabase({ id: databaseId, pageId: page.id, name: page.title, properties: [{ id: titleId, name: "Name", type: "title" }], rows: [], recordPageIds: [], views: [{ id: crypto.randomUUID(), collectionId: databaseId, name: "Table", type: "table", visiblePropertyIds: [titleId], propertyOrder: [titleId], columnWidths: { [titleId]: 280 }, sorts: [] }] });
-        changes.page(page.id, { links: true, fts: true }); changes.database(databaseId); break;
+        changes.page(page.id, { links: true, fts: true }); changes.database(databaseId); changes.links(document.rebuildLinkIndex()); break;
       }
       case "database.property-add": { const databaseId = requiredText(command.databaseId, "databaseId"); document.addProperty(databaseId, clone(command.property)); changes.database(databaseId); break; }
       case "database.property-update": {
@@ -534,12 +535,13 @@ export class MotionAppService {
       }
       case "database.record-create": {
         const databaseId = requiredText(command.databaseId, "databaseId"); const page = document.addRecord(databaseId, requiredText(command.title, "title", true), clone(command.values ?? {}));
-        changes.database(databaseId); changes.page(page.id, { links: true, fts: true }); break;
+        changes.database(databaseId); changes.page(page.id, { links: true, fts: true }); changes.links(document.rebuildLinkIndex()); break;
       }
       case "database.record-update": {
         const pageId = requiredText(command.pageId, "pageId"); const page = requiredPage(document, pageId);
         document.updateRecord(pageId, command.title === undefined ? undefined : requiredText(command.title, "title", true), clone(command.values));
-        if (page.collectionId) changes.database(page.collectionId); changes.page(pageId, { fts: true }); break;
+        if (page.collectionId) changes.database(page.collectionId); changes.page(pageId, { fts: true });
+        if (command.title !== undefined) changes.links(document.rebuildLinkIndex()); break;
       }
       case "database.view-update": { const databaseId = requiredText(command.databaseId, "databaseId"); document.updateView(databaseId, requiredText(command.viewId, "viewId"), clone(command.patch)); changes.database(databaseId); break; }
     }

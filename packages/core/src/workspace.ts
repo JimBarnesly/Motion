@@ -3,6 +3,11 @@ import { DEFAULT_VALIDATION_LIMITS, assertBlockTypePayload, stableId } from "./v
 const now = () => new Date().toISOString();
 const id = () => globalThis.crypto.randomUUID();
 const walk = (blocks: Block[], fn: (block: Block) => void) => blocks.forEach(b => { fn(b); walk(b.children, fn); });
+const linkScopes = (links: readonly PageLink[]): Map<ID, string> => {
+  const grouped = new Map<ID, PageLink[]>();
+  for (const link of links) grouped.set(link.sourcePageId, [...(grouped.get(link.sourcePageId) ?? []), link]);
+  return new Map([...grouped].map(([pageId, scoped]) => [pageId, JSON.stringify(scoped)]));
+};
 export interface BlockPosition { pageId: ID; parentBlockId: ID | null; beforeBlockId: ID | null }
 export interface BlockContent { text: string; references?: Block["references"] }
 export type BlockTransform = Pick<Block, "type"> & Partial<Pick<Block, "checked" | "language" | "attachmentId" | "headingLevel" | "pageId" | "viewId" | "date" | "url">>;
@@ -124,7 +129,13 @@ export class WorkspaceDocument {
   backlinks(pageId: ID) { this.requiredPage(pageId); return this.data.linkIndex.filter(link => link.targetPageId === pageId); }
   outgoingLinks(pageId: ID) { this.requiredPage(pageId); return this.data.linkIndex.filter(link => link.sourcePageId === pageId); }
   brokenLinks(pageId?: ID) { return this.data.linkIndex.filter(link => (!pageId || link.sourcePageId === pageId) && !this.page(link.targetPageId)); }
-  rebuildLinkIndex() { this.data.linkIndex = []; for (const page of this.data.pages) this.indexPage(page); }
+  rebuildLinkIndex(): ID[] {
+    const before = linkScopes(this.data.linkIndex);
+    this.data.linkIndex = [];
+    for (const page of this.data.pages) this.indexPage(page);
+    const after = linkScopes(this.data.linkIndex);
+    return [...new Set([...before.keys(), ...after.keys()])].filter(pageId => before.get(pageId) !== after.get(pageId)).sort();
+  }
   search(query: string) { const terms = query.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean); if (!terms.length) return []; return this.data.pages.map(page => { const texts: string[] = []; walk(page.blocks, b => texts.push(b.text)); const haystack = `${page.title}\n${texts.join("\n")}`.toLocaleLowerCase(); const score = terms.reduce((n, term) => n + (page.title.toLocaleLowerCase().includes(term) ? 5 : 0) + haystack.split(term).length - 1, 0); return { page, score, snippets: texts.filter(t => terms.some(term => t.toLocaleLowerCase().includes(term))).slice(0, 3) }; }).filter(r => r.score > 0).sort((a, b) => b.score - a.score || b.page.updatedAt.localeCompare(a.page.updatedAt)); }
   records(databaseId: ID): Page[] { const db = this.requiredDatabase(databaseId); return (db.recordPageIds ?? []).map(pid => this.page(pid)).filter((p): p is Page => !!p && !p.deletedAt); }
   queryRecords(databaseId: ID, filter?: FilterExpression, sorts: SortClause[] = []): Page[] { let pages = this.records(databaseId); if (filter) pages = pages.filter(p => evaluateFilter(filter, p.properties ?? {})); return stableSort(pages, sorts); }

@@ -9,15 +9,25 @@ function diagnostic(command, code, stderr, stdout) {
   return `${basename(command)} exited ${code}\n${[stderr, stdout].filter(Boolean).join("\n")}`;
 }
 
+function killProcessTree(child) {
+  if (!child.pid) return;
+  if (process.platform !== "win32") {
+    try { process.kill(-child.pid, "SIGKILL"); return; }
+    catch (error) { if (error?.code !== "ESRCH") throw error; }
+  }
+  child.kill("SIGKILL");
+}
+
 export function runWithTimeout(command, args, options = {}) {
   const { timeoutMs = DEFAULT_PROCESS_TIMEOUT_MS, ...spawnOptions } = options;
   return new Promise((accept, reject) => {
-    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"], ...spawnOptions });
+    const child = spawn(command, args, { ...spawnOptions, detached: process.platform !== "win32", stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "", stderr = "", settled = false;
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
-      child.kill("SIGKILL");
+      try { killProcessTree(child); }
+      catch (error) { reject(error); return; }
       reject(new Error(`${basename(command)} timed out after ${timeoutMs}ms\n${[stderr, stdout].filter(Boolean).join("\n")}`));
     }, timeoutMs);
     child.stdout.on("data", chunk => { stdout += chunk; });

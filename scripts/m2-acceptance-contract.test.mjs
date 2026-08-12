@@ -49,6 +49,23 @@ test("packaged acceptance subprocesses fail diagnostically instead of hanging", 
   await stalled.terminate();
 });
 
+test("timed subprocess cleanup terminates descendant processes", async () => {
+  let error;
+  try {
+    await runWithTimeout(process.execPath, ["-e", `
+      const { spawn } = require("node:child_process");
+      const descendant = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
+      console.log(` + "`DESCENDANT=${descendant.pid}`" + `);
+      setInterval(() => {}, 1000);
+    `], { timeoutMs: 100 });
+  } catch (caught) { error = caught; }
+  assert.match(error?.message ?? "", /timed out after 100ms/);
+  const descendantPid = Number(error.message.match(/DESCENDANT=(\d+)/)?.[1]);
+  assert.ok(Number.isSafeInteger(descendantPid));
+  await new Promise(resolve => setTimeout(resolve, 25));
+  assert.throws(() => process.kill(descendantPid, 0), error => error?.code === "ESRCH");
+});
+
 test("packaged service cleanup survives spawn errors and unsolicited malformed output", async () => {
   const missing = startJsonLineService("/definitely/missing/motion-node", [], { requestTimeoutMs: 25 });
   await assert.rejects(missing.request("query", {}), /ENOENT/);

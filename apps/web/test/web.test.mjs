@@ -604,7 +604,9 @@ test("document editor supports substantial block types and keyboard operations",
   const source = await readFile(resolve(root, "app.js"), "utf8");
   for (const type of ["heading-1", "heading-2", "heading-3", "bulleted-list", "numbered-list", "task", "quote", "code", "divider"]) assert.match(source, new RegExp(type));
   assert.match(source, /event\.key==="Enter"/);
-  assert.match(source, /event\.key==="Enter"/);
+  assert.match(source, /splitBlockCommands\(\{pageId:page\.id,block,offset,/);
+  assert.match(source, /candidate:\{type:"block\.batch",payload:\{commands:split\.commands\}\}/);
+  assert.match(source, /if\(await flushCanonicalEdit\("focusing the new block"\)\)requestAnimationFrame/);
   assert.match(source, /structuredClone\(block\)/);
   assert.match(source, /history/);
   assert.match(source, /future/);
@@ -621,8 +623,8 @@ test("structural keyboard editing flushes canonical text before creating another
   assert.match(keydown, /await flushCanonicalEdit\("continuing"\)/);
   assert.match(keydown, /if\(!await flushCanonicalEdit\("continuing"\)\)return;page=activePage\(\);at=page\.blocks\.findIndex\(candidate=>candidate\.id===input\.dataset\.block\);block=page\.blocks\[at\]/);
   assert.ok(
-    keydown.indexOf('await flushCanonicalEdit("continuing")') < keydown.indexOf('commit("block.create"'),
-    "the current text must be confirmed before the next block is created"
+    keydown.indexOf('await flushCanonicalEdit("continuing")') < keydown.indexOf("splitBlockCommands("),
+    "the current text must be confirmed before the block is split"
   );
 });
 

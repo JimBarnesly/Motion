@@ -22,9 +22,10 @@ export interface StoredAttachment {
   newlyCreated?: boolean;
 }
 
+declare const stagedAttachmentCapability: unique symbol;
+/** Opaque, store-issued capability. Its staging location is never exposed to callers. */
 export interface StagedAttachment extends StoredAttachment {
-  /** Opaque private path; callers must use promote/discard rather than persisting it. */
-  stagingPath: string;
+  readonly [stagedAttachmentCapability]: true;
 }
 
 export interface AttachmentRecoveryReport {
@@ -300,6 +301,16 @@ export function ensurePrivateDirectory(path: string): void {
 export function hardenPrivateFile(path: string): void { hardenPrivatePath(path, "file"); }
 
 type OpenPrivateAttachment = { handle: import("node:fs/promises").FileHandle; bytes: Uint8Array; metadata: import("node:fs").Stats };
+type InodeIdentity = Readonly<{ dev: number; ino: number }>;
+type StagedRecord = Readonly<{ sha256: string; byteLength: number; stagingPath: string; inode: InodeIdentity }>;
+
+function inodeIdentity(metadata: import("node:fs").Stats): InodeIdentity { return { dev: metadata.dev, ino: metadata.ino }; }
+
+function assertDirectoryIdentity(path: string, expected: InodeIdentity): void {
+  const current = lstatSync(path);
+  if (!current.isDirectory() || current.isSymbolicLink() || current.dev !== expected.dev || current.ino !== expected.ino)
+    throw new Error("Attachment store directory identity changed");
+}
 
 function assertPrivateAttachment(metadata: import("node:fs").Stats): void {
   if (!metadata.isFile() || metadata.nlink !== 1) throw new Error("Attachment storage contains invalid content");
@@ -657,24 +668,45 @@ export class AsyncSqliteWorkspaceStore<T extends { id: string; name: string; upd
 
 /** Files are immutable and addressed by content hash; metadata remains in the workspace database. */
 export class ContentAddressedAttachmentStore {
-  constructor(private readonly root: string, private readonly diagnostics?: { beforeAttachmentPublish?: () => void | Promise<void> }) {
+  private readonly stagingRoot: string;
+  private readonly rootIdentity: InodeIdentity;
+  private readonly stagingRootIdentity: InodeIdentity;
+  private readonly staged = new WeakMap<object, StagedRecord>();
+
+  constructor(private readonly root: string) {
     ensurePrivateDirectory(root);
+    this.stagingRoot = join(root, ".staging");
+    ensurePrivateDirectory(this.stagingRoot);
+    this.rootIdentity = inodeIdentity(lstatSync(root));
+    this.stagingRootIdentity = inodeIdentity(lstatSync(this.stagingRoot));
   }
 
   pathFor(sha256: string): string { requireSha256(sha256); return join(this.root, sha256.slice(0, 2), sha256); }
 
+  private assertStoreDirectories(): void {
+    assertDirectoryIdentity(this.root, this.rootIdentity);
+    assertDirectoryIdentity(this.stagingRoot, this.stagingRootIdentity);
+  }
+
+  private requireStaged(staged: StagedAttachment): StagedRecord {
+    const record = typeof staged === "object" && staged !== null ? this.staged.get(staged) : undefined;
+    if (!record) throw new Error("Staged attachment was not issued by this attachment store");
+    return record;
+  }
+
   async stage(bytes: Uint8Array): Promise<StagedAttachment> {
     if (bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new Error(ATTACHMENT_SIZE_LIMIT_ERROR);
     const sha256 = digest(bytes);
-    const finalPath = join(this.root, sha256.slice(0, 2), sha256);
-    const stagingRoot = join(this.root, ".staging");
+    const finalPath = this.pathFor(sha256);
     ensurePrivateDirectory(this.root);
-    ensurePrivateDirectory(stagingRoot);
-    const stagingPath = join(stagingRoot, `${sha256}.${crypto.randomUUID()}.staging`);
+    ensurePrivateDirectory(this.stagingRoot);
+    this.assertStoreDirectories();
+    const stagingPath = join(this.stagingRoot, `${sha256}.${crypto.randomUUID()}.staging`);
     const handle = await open(stagingPath, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY
       | (platform() === "win32" ? 0 : constants.O_NOFOLLOW), 0o600);
+    let metadata: import("node:fs").Stats;
     try {
-      const metadata = await handle.stat();
+      metadata = await handle.stat();
       if (!metadata.isFile() || metadata.nlink !== 1 || (platform() !== "win32" && metadata.uid !== process.geteuid!()))
         throw new Error("Attachment staging contains invalid content");
       if (platform() !== "win32") await handle.chmod(0o600);
@@ -682,53 +714,71 @@ export class ContentAddressedAttachmentStore {
       await handle.sync();
     } catch (error) { await handle.close(); await rm(stagingPath, { force: true }); throw error; }
     await handle.close();
-    return { sha256, byteLength: bytes.byteLength, path: finalPath, stagingPath };
+    const capability = Object.freeze({ sha256, byteLength: bytes.byteLength, path: finalPath }) as StagedAttachment;
+    this.staged.set(capability, { sha256, byteLength: bytes.byteLength, stagingPath, inode: inodeIdentity(metadata) });
+    return capability;
   }
 
   async promote(staged: StagedAttachment): Promise<StoredAttachment> {
-    requireSha256(staged.sha256);
-    if (staged.byteLength > MAX_ATTACHMENT_BYTES) throw new Error(ATTACHMENT_SIZE_LIMIT_ERROR);
+    const result = await this.promoteRecord(this.requireStaged(staged));
+    this.staged.delete(staged);
+    return result;
+  }
+
+  private async promoteRecord(staged: StagedRecord): Promise<StoredAttachment> {
+    this.assertStoreDirectories();
+    const finalPath = this.pathFor(staged.sha256);
     const source = await openBoundedPrivateFile(staged.stagingPath);
     try {
+      if (source.metadata.dev !== staged.inode.dev || source.metadata.ino !== staged.inode.ino)
+        throw new Error("Attachment staging changed before publication");
       if (source.bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new Error(ATTACHMENT_SIZE_LIMIT_ERROR);
       if (source.bytes.byteLength !== staged.byteLength || digest(source.bytes) !== staged.sha256)
         throw new Error(`Staged attachment integrity check failed: ${staged.sha256}`);
-      ensurePrivateDirectory(dirname(staged.path));
+      ensurePrivateDirectory(dirname(finalPath));
       try {
-        const current = await readBoundedPrivateFile(staged.path);
-        if (current.byteLength !== staged.byteLength || digest(current) !== staged.sha256) throw new Error(`Attachment hash collision at ${staged.path}`);
+        const current = await readBoundedPrivateFile(finalPath);
+        if (current.byteLength !== staged.byteLength || digest(current) !== staged.sha256) throw new Error(`Attachment hash collision at ${finalPath}`);
         if (!await sameInode(staged.stagingPath, source.metadata)) throw new Error("Attachment staging changed before publication");
         await rm(staged.stagingPath);
-        return { sha256: staged.sha256, byteLength: staged.byteLength, path: staged.path, newlyCreated: false };
+        return { sha256: staged.sha256, byteLength: staged.byteLength, path: finalPath, newlyCreated: false };
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       }
-      await this.diagnostics?.beforeAttachmentPublish?.();
       if (!await sameInode(staged.stagingPath, source.metadata)) throw new Error("Attachment staging changed before publication");
-      try { linkOpenDescriptorNoReplace(source.handle.fd, staged.path); }
+      try { linkOpenDescriptorNoReplace(source.handle.fd, finalPath); }
       catch (publicationError) {
         try {
-          const current = await readBoundedPrivateFile(staged.path);
-          if (current.byteLength !== staged.byteLength || digest(current) !== staged.sha256) throw new Error(`Attachment hash collision at ${staged.path}`);
+          const current = await readBoundedPrivateFile(finalPath);
+          if (current.byteLength !== staged.byteLength || digest(current) !== staged.sha256) throw new Error(`Attachment hash collision at ${finalPath}`);
           if (!await sameInode(staged.stagingPath, source.metadata)) throw new Error("Attachment staging changed before publication");
           await rm(staged.stagingPath);
-          return { sha256: staged.sha256, byteLength: staged.byteLength, path: staged.path, newlyCreated: false };
+          return { sha256: staged.sha256, byteLength: staged.byteLength, path: finalPath, newlyCreated: false };
         } catch (dedupeError) {
           if ((dedupeError as NodeJS.ErrnoException).code === "ENOENT") throw publicationError;
           throw dedupeError;
         }
       }
-      if (!await sameInode(staged.stagingPath, source.metadata)) {
-        throw new Error("Attachment staging changed during publication");
-      }
+      if (!await sameInode(staged.stagingPath, source.metadata)) throw new Error("Attachment staging changed during publication");
       await rm(staged.stagingPath);
-      const published = await lstat(staged.path); assertPrivateAttachment(published);
-      return { sha256: staged.sha256, byteLength: staged.byteLength, path: staged.path, newlyCreated: true };
+      const published = await lstat(finalPath); assertPrivateAttachment(published);
+      return { sha256: staged.sha256, byteLength: staged.byteLength, path: finalPath, newlyCreated: true };
     } finally { await source.handle.close(); }
   }
 
   async discard(staged: StagedAttachment): Promise<void> {
-    await rm(staged.stagingPath, { force: true });
+    const record = this.requireStaged(staged);
+    this.assertStoreDirectories();
+    let current: import("node:fs").Stats;
+    try { current = await lstat(record.stagingPath); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") { this.staged.delete(staged); return; }
+      throw error;
+    }
+    if (current.isSymbolicLink() || current.dev !== record.inode.dev || current.ino !== record.inode.ino)
+      throw new Error("Attachment staging changed before deletion");
+    await rm(record.stagingPath);
+    this.staged.delete(staged);
   }
 
 
@@ -738,11 +788,12 @@ export class ContentAddressedAttachmentStore {
    */
   async recover(referencedHashes: Iterable<string>): Promise<AttachmentRecoveryReport> {
     ensurePrivateDirectory(this.root);
-    ensurePrivateDirectory(join(this.root, ".staging"));
+    ensurePrivateDirectory(this.stagingRoot);
+    this.assertStoreDirectories();
     const referenced = new Set(referencedHashes);
     for (const sha256 of referenced) requireSha256(sha256);
     const report: AttachmentRecoveryReport = { promoted: [], removedStaging: [], missingReferenced: [], unreferencedBlobs: [], oversizedBlobs: [], corruptBlobs: [] };
-    const stagingRoot = join(this.root, ".staging");
+    const stagingRoot = this.stagingRoot;
     let entries: import("node:fs").Dirent[] = [];
     try { entries = await readdir(stagingRoot, { withFileTypes: true }); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
@@ -752,14 +803,15 @@ export class ContentAddressedAttachmentStore {
       const match = /^([0-9a-f]{64})\.[0-9a-f-]+\.staging$/.exec(entry.name);
       if (!entry.isFile() || !match) { await rm(stagingPath, { recursive: true, force: true }); report.removedStaging.push(entry.name); continue; }
       const sha256 = match[1]!;
-      let bytes: Uint8Array;
-      try { bytes = await readBoundedPrivateFile(stagingPath); }
+      let opened: OpenPrivateAttachment;
+      try { opened = await openBoundedPrivateFile(stagingPath); }
       catch { await rm(stagingPath, { force: true }); report.removedStaging.push(entry.name); continue; }
+      const bytes = opened.bytes;
+      await opened.handle.close();
       if (bytes.byteLength > MAX_ATTACHMENT_BYTES || digest(bytes) !== sha256 || !referenced.has(sha256)) {
         await rm(stagingPath, { force: true }); report.removedStaging.push(entry.name); continue;
       }
-      const staged = { sha256, byteLength: bytes.byteLength, path: join(this.root, sha256.slice(0, 2), sha256), stagingPath };
-      await this.promote(staged);
+      await this.promoteRecord({ sha256, byteLength: bytes.byteLength, stagingPath, inode: inodeIdentity(opened.metadata) });
       if (!report.promoted.includes(sha256)) report.promoted.push(sha256);
     }
     let buckets: import("node:fs").Dirent[] = [];

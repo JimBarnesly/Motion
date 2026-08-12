@@ -81,7 +81,7 @@ test("attachment reads reject external hardlinks without mutating their bytes or
   }
 });
 
-test("promotion never publishes a staged pathname replacement after descriptor validation", async (context) => {
+test("promotion rejects a staged pathname replacement without a production race hook", async (context) => {
   if (process.platform !== "linux") { context.skip("the descriptor-publication race fixture is Linux-specific"); return; }
   const root = await mkdtemp(join(tmpdir(), "motion-attachment-promotion-race-"));
   try {
@@ -89,6 +89,38 @@ test("promotion never publishes a staged pathname replacement after descriptor v
     const result = spawnSync(process.execPath, [worker.pathname, root], { encoding: "utf8" });
     assert.equal(result.status, 0, `promotion race worker failed:\n${result.stdout}\n${result.stderr}`);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("forged staged objects cannot publish or delete external files", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-attachment-capability-"));
+  const externalRoot = await mkdtemp(join(tmpdir(), "motion-attachment-capability-external-"));
+  try {
+    const store = new ContentAddressedAttachmentStore(root);
+    const otherStore = new ContentAddressedAttachmentStore(root);
+    const issued = await store.stage(Buffer.from("store-bound capability"));
+    assert.equal("stagingPath" in issued, false, "capability disclosed its private staging pathname");
+    await assert.rejects(otherStore.promote(issued), /not issued by this attachment store/i);
+    await store.discard(issued);
+
+    const payload = Buffer.from("external matching attachment");
+    const sha256 = (await import("node:crypto")).createHash("sha256").update(payload).digest("hex");
+    const externalPath = join(externalRoot, "matching.bin");
+    await writeFile(externalPath, payload, { mode: 0o600 });
+    await chmod(externalPath, 0o600);
+    const forged = { sha256, byteLength: payload.byteLength, path: store.pathFor(sha256), stagingPath: externalPath } as unknown as import("../index.js").StagedAttachment;
+
+    await assert.rejects(store.promote(forged), /not issued by this attachment store/i);
+    assert.deepEqual(await readFile(externalPath), payload);
+    assert.equal((await stat(externalPath)).mode & 0o777, 0o600);
+    await assert.rejects(readFile(store.pathFor(sha256)), error => (error as NodeJS.ErrnoException).code === "ENOENT");
+
+    await assert.rejects(store.discard(forged), /not issued by this attachment store/i);
+    assert.deepEqual(await readFile(externalPath), payload);
+    assert.equal((await stat(externalPath)).mode & 0o777, 0o600);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(externalRoot, { recursive: true, force: true });
+  }
 });
 
 test("attachment storage accepts exactly 3 MiB and rejects 3 MiB plus one before staging", async () => {

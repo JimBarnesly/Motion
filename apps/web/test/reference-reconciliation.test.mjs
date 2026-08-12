@@ -15,6 +15,45 @@ test("removing a visible mention removes its stable reference", () => {
   assert.deepEqual(references, []);
 });
 
+test("selected at-mentions create a stable page reference", () => {
+  const references = reconcileTextReferences({
+    previousText: "",
+    previousReferences: [],
+    nextText: "Discuss @[Target]",
+    pages
+  });
+
+  assert.deepEqual(references, [{ pageId: "target-1" }]);
+});
+
+test("escaped mention delimiters preserve the selected stable page reference", () => {
+  const references = reconcileTextReferences({
+    previousText: "Discuss @[A\\]B]",
+    previousReferences: [{ pageId: "selected-bracket", start: 8, end: 15 }],
+    nextText: "Discuss @[A\\]B]!",
+    pages: [{ id: "selected-bracket", title: "A]B" }]
+  });
+
+  assert.deepEqual(references, [{ pageId: "selected-bracket" }]);
+});
+
+test("ranged selected mentions remain stable beside positionless legacy references", () => {
+  const references = reconcileTextReferences({
+    previousText: "Legacy @[Same]",
+    previousReferences: [
+      { pageId: "legacy-positionless" },
+      { pageId: "selected", start: 7, end: 14 }
+    ],
+    nextText: "Legacy @[Same]!",
+    pages: [
+      { id: "first", title: "Same" },
+      { id: "selected", title: "Same" }
+    ]
+  });
+
+  assert.deepEqual(references, [{ pageId: "selected" }]);
+});
+
 test("inserting a mention before a renamed stable mention preserves both targets", () => {
   const references = reconcileTextReferences({
     previousText: "See [[Old title]]",

@@ -1,7 +1,7 @@
 function mentions(text) {
-  return [...String(text).matchAll(/\[\[([^\]]+)\]\]/g)].map(match => ({
+  return [...String(text).matchAll(/\[\[((?:\\.|[^\]])+)\]\]|@\[((?:\\.|[^\]])+)\]/g)].map(match => ({
     token: match[0],
-    title: match[1],
+    title: (match[1] ?? match[2]).replace(/\\(.)/g, "$1"),
     start: match.index,
     end: match.index + match[0].length
   }));
@@ -18,7 +18,13 @@ function unchangedEdges(previousText, nextText) {
 export function reconcileTextReferences({ previousText = "", previousReferences = [], nextText = "", pages = [] }) {
   const before = mentions(previousText);
   const after = mentions(nextText);
+  const rangedReferences = previousReferences.filter(reference => Number.isInteger(reference.start) && Number.isInteger(reference.end));
   const stableByRange = new Map();
+
+  for (const reference of rangedReferences) {
+    const mention = before.find(candidate => candidate.start === reference.start && candidate.end === reference.end);
+    if (mention) stableByRange.set(`${mention.start}:${mention.token}`, reference.pageId);
+  }
 
   if (before.length === previousReferences.length) {
     const { prefix, suffix } = unchangedEdges(previousText, nextText);

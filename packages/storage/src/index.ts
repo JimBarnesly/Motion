@@ -174,10 +174,15 @@ const requireSha256 = (value: string): void => {
   if (!/^[0-9a-f]{64}$/.test(value)) throw new Error("Attachment hash must be 64 lowercase hexadecimal characters");
 };
 
+const MAX_CHANGE_SET_ENTRIES = 100_000;
+const SAFE_CHANGE_SET_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
+
 function normalizeChangeSet(changeSet: WorkspaceChangeSet): WorkspaceChangeSet {
   if (changeSet.kind === "rebuild") return changeSet;
   const assertOrdered = (values: readonly string[], label: string): void => {
-    if (values.some(value => typeof value !== "string" || !value)) throw new Error(`${label} must contain non-empty IDs`);
+    if (!Array.isArray(values) || values.length > MAX_CHANGE_SET_ENTRIES) throw new Error(`${label} must be an array within limits`);
+    if (values.some(value => typeof value !== "string" || !SAFE_CHANGE_SET_ID.test(value)))
+      throw new Error(`${label} must contain safe canonical IDs`);
     for (let index = 1; index < values.length; index++) if (values[index - 1]! >= values[index]!)
       throw new Error(`${label} must be sorted and duplicate-free`);
   };
@@ -185,10 +190,14 @@ function normalizeChangeSet(changeSet: WorkspaceChangeSet): WorkspaceChangeSet {
   assertOrdered(changeSet.databases, "changeSet.databases");
   assertOrdered(changeSet.attachments, "changeSet.attachments");
   assertOrdered(changeSet.linkSourcePageIds, "changeSet.linkSourcePageIds");
+  if (!Array.isArray(changeSet.fts) || changeSet.fts.length > MAX_CHANGE_SET_ENTRIES)
+    throw new Error("changeSet.fts must be an array within limits");
+  if (changeSet.fts.some(scope => !scope || typeof scope !== "object" || !SAFE_CHANGE_SET_ID.test(scope.id)
+      || !(["workspace", "page", "database", "attachment"] as const).includes(scope.scope)))
+    throw new Error("changeSet.fts contains an invalid scope or ID");
   const ftsKeys = changeSet.fts.map(scope => `${scope.scope}\u0000${scope.id}`);
-  if (changeSet.fts.some(scope => !scope.id || !(["workspace", "page", "database", "attachment"] as const).includes(scope.scope)))
-    throw new Error("changeSet.fts contains an invalid scope");
-  assertOrdered(ftsKeys, "changeSet.fts");
+  for (let index = 1; index < ftsKeys.length; index++) if (ftsKeys[index - 1]! >= ftsKeys[index]!)
+    throw new Error("changeSet.fts must be sorted and duplicate-free");
   return changeSet;
 }
 

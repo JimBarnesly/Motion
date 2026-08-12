@@ -230,6 +230,26 @@ test("incremental scope validation rejects omissions and deletes removed entitie
   } finally { store.close(); await rm(root, { recursive: true, force: true }); }
 });
 
+test("incremental change sets reject oversized work sets and non-canonical IDs before mutation", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-incremental-bounds-"));
+  const store = new SqliteWorkspaceStore(join(root, "motion.sqlite3"));
+  const original = { id: "ws", pages: [], databases: [], attachments: [], linkIndex: [] };
+  try {
+    store.save("ws", 1, original, 0);
+    const base = { kind: "incremental" as const, pages: [] as string[], databases: [] as string[], attachments: [] as string[],
+      linkSourcePageIds: [] as string[], fts: [] as { scope: "page"; id: string }[] };
+    assert.throws(() => store.saveUnitOfWork({ workspaceId: "ws", schemaVersion: 1, document: original, expectedRevision: 1,
+      changeSet: { ...base, pages: new Array(100_001).fill("p") } }), /changeSet.pages must be an array within limits/);
+    assert.throws(() => store.saveUnitOfWork({ workspaceId: "ws", schemaVersion: 1, document: original, expectedRevision: 1,
+      changeSet: { ...base, pages: ["p".repeat(161)] } }), /changeSet.pages must contain safe canonical IDs/);
+    assert.throws(() => store.saveUnitOfWork({ workspaceId: "ws", schemaVersion: 1, document: original, expectedRevision: 1,
+      changeSet: { ...base, fts: new Array(100_001).fill({ scope: "page", id: "p" }) } }), /changeSet.fts must be an array within limits/);
+    assert.throws(() => store.saveUnitOfWork({ workspaceId: "ws", schemaVersion: 1, document: original, expectedRevision: 1,
+      changeSet: { ...base, fts: [{ scope: "page", id: "unsafe id" }] } }), /changeSet.fts contains an invalid scope or ID/);
+    assert.equal(store.load("ws")?.revision, 1);
+  } finally { store.close(); await rm(root, { recursive: true, force: true }); }
+});
+
 test("incremental rollback preserves canonical and normalized rows, FTS, links, and revision", async () => {
   const root = await mkdtemp(join(tmpdir(), "motion-incremental-rollback-"));
   const store = new SqliteWorkspaceStore(join(root, "motion.sqlite3"));

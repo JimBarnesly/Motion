@@ -70,12 +70,9 @@ export function acquireNativeServiceLock(dataRoot, options = {}) {
   const value = { schemaVersion: 1, pid: process.pid, processStartToken: identity.token, nonce: randomUUID(), createdAt: new Date().toISOString() };
   for (let attempt = 0; attempt < 2; attempt += 1) {
     let descriptor;
-    let created;
     try {
       descriptor = openSync(lockPath, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW, 0o600);
-      created = fstatSync(descriptor);
       fchmodSync(descriptor, 0o600);
-      options.afterCreate?.();
       writeFileSync(descriptor, `${JSON.stringify(value)}\n`);
       fsyncSync(descriptor);
       const owned = fstatSync(descriptor);
@@ -96,14 +93,6 @@ export function acquireNativeServiceLock(dataRoot, options = {}) {
       };
     } catch (error) {
       if (descriptor !== undefined) closeSync(descriptor);
-      if (created) {
-        try {
-          const current = lstatSync(lockPath);
-          if (current.isFile() && !current.isSymbolicLink() && current.dev === created.dev && current.ino === created.ino) unlinkSync(lockPath);
-        } catch (cleanupError) {
-          if (cleanupError?.code !== "ENOENT") throw new NativeServiceLockError();
-        }
-      }
       if (error?.code !== "EEXIST" || attempt > 0) {
         if (error instanceof NativeServiceLockError) throw error;
         throw new NativeServiceLockError();

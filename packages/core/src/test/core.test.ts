@@ -109,6 +109,36 @@ test("Markdown export preserves heading levels and task state", () => {
   assert.match(markdown, /- \[x\] Complete/);
 });
 
+test("ranged canonical wiki reference indexes only its selected duplicate-title target", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Duplicate titles"));
+  const source = doc.addPage("Source");
+  const first = doc.addPage("Project");
+  const selected = doc.addPage("Project");
+  doc.addBlock(source.id, { id: "selected-link", type: "paragraph", text: "See [[Project]]", references: [{ pageId: selected.id, start: 4, end: 15 }] });
+
+  assert.deepEqual(doc.outgoingLinks(source.id), [{ sourcePageId: source.id, targetPageId: selected.id, blockId: "selected-link" }]);
+  assert.deepEqual(doc.backlinks(first.id), []);
+  assert.equal(doc.backlinks(selected.id).length, 1);
+});
+
+test("legacy title-only wiki links resolve only when the title is unambiguous", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Legacy links"));
+  const source = doc.addPage("Source");
+  const unique = doc.addPage("Unique");
+  doc.addPage("Duplicate"); doc.addPage("Duplicate");
+  doc.addBlock(source.id, { id: "legacy-links", type: "paragraph", text: "[[Unique]] [[Duplicate]]" });
+
+  assert.deepEqual(doc.outgoingLinks(source.id), [{ sourcePageId: source.id, targetPageId: unique.id, blockId: "legacy-links" }]);
+});
+
+test("explicit page mention and child-page IDs remain canonical link sources", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Typed links"));
+  const source = doc.addPage("Source"); const mention = doc.addPage("Same"); const child = doc.addPage("Same");
+  doc.addBlock(source.id, { id: "mention", type: "page-mention", text: "Same", pageId: mention.id });
+  doc.addBlock(source.id, { id: "child", type: "child-page", text: "Same", pageId: child.id });
+  assert.deepEqual(doc.outgoingLinks(source.id).map(link => [link.blockId, link.targetPageId]), [["child", child.id], ["mention", mention.id]]);
+});
+
 test("materialized stable-ID links update without scans at read time", () => {
   const doc = new WorkspaceDocument(createWorkspace("Links"));
   const source = doc.addPage("Source"); const target = doc.addPage("Target");

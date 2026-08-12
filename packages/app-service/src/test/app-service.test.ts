@@ -111,6 +111,41 @@ test("committed vertical slice survives restart and supports search, backlinks, 
   } finally { await removeDatabase(path); }
 });
 
+test("stable duplicate-title backlink identity survives rename, move, trash, restore, restart and rebuild", async () => {
+  const path = databasePath("stable-link-lifecycle");
+  try {
+    let store = new SqliteWorkspaceStore(path); let service = new MotionAppService(store);
+    let state = service.execute({ type: "workspace.create", name: "Stable links" }); const workspaceId = state.workspace.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Source" }); const sourceId = state.workspace.pages[0]!.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Project" }); const firstId = state.workspace.pages[1]!.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Project" }); const selectedId = state.workspace.pages[2]!.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Folder" }); const folderId = state.workspace.pages[3]!.id;
+    state = service.execute({ type: "page.replace-blocks", workspaceId, expectedRevision: state.revision, pageId: sourceId, blocks: [
+      { id: "selected-link", type: "paragraph", text: "See [[Project]]", children: [], references: [{ pageId: selectedId, start: 4, end: 15 }] }
+    ] });
+    assert.equal(service.query({ type: "page.backlinks", workspaceId, pageId: firstId }).length, 0);
+    assert.equal(service.query({ type: "page.backlinks", workspaceId, pageId: selectedId }).length, 1);
+
+    state = service.execute({ type: "page.rename", workspaceId, expectedRevision: state.revision, pageId: selectedId, title: "Renamed" });
+    state = service.execute({ type: "page.move", workspaceId, expectedRevision: state.revision, pageId: selectedId, parentId: folderId });
+    state = service.execute({ type: "page.trash", workspaceId, expectedRevision: state.revision, pageId: selectedId });
+    assert.equal(service.query({ type: "page.backlinks", workspaceId, pageId: selectedId }).length, 1);
+    state = service.execute({ type: "page.restore", workspaceId, expectedRevision: state.revision, pageId: selectedId });
+    store.close(); store = new SqliteWorkspaceStore(path); service = new MotionAppService(store);
+    assert.equal(service.query({ type: "page.backlinks", workspaceId, pageId: selectedId }).length, 1);
+    assert.equal(service.query({ type: "page.backlinks", workspaceId, pageId: firstId }).length, 0);
+
+    store.database.prepare("DELETE FROM workspace_links WHERE workspace_id=?").run(workspaceId);
+    assert.equal(service.query({ type: "page.backlinks", workspaceId, pageId: selectedId }).length, 0,
+      "backlink query must read the materialized table rather than scan canonical page blocks");
+    store.database.prepare("UPDATE reindex_jobs SET status='pending', completed_at=NULL WHERE workspace_id=? AND workspace_revision=?").run(workspaceId, state.revision);
+    assert.equal(store.runPendingReindexJobs(), 1);
+    assert.equal(service.query({ type: "page.backlinks", workspaceId, pageId: selectedId }).length, 1);
+    assert.equal(service.query({ type: "page.backlinks", workspaceId, pageId: firstId }).length, 0);
+    store.close();
+  } finally { await removeDatabase(path); }
+});
+
 test("fine-grained block commands preserve structure and indexes across restart", async () => {
   const path = databasePath("block-commands");
   try {

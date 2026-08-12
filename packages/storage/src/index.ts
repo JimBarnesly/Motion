@@ -46,6 +46,12 @@ export interface SearchHit {
   snippet: string;
 }
 
+export interface StoredPageLink {
+  sourcePageId: string;
+  targetPageId: string;
+  blockId: string;
+}
+
 export type FtsScopeType = "workspace" | "page" | "database" | "attachment";
 export type FtsChangeScope = Readonly<{ scope: FtsScopeType; id: string }>;
 
@@ -491,6 +497,13 @@ export class SqliteWorkspaceStore {
       this.database.prepare("DELETE FROM workspaces WHERE workspace_id = ?").run(workspaceId);
       this.database.exec("COMMIT");
     } catch (error) { this.database.exec("ROLLBACK"); throw error; }
+  }
+
+  backlinks(workspaceId: string, targetPageId: string): StoredPageLink[] {
+    const rows = this.database.prepare(`SELECT source_page_id, target_page_id, block_id
+      FROM workspace_links WHERE workspace_id = ? AND target_page_id = ?
+      ORDER BY source_page_id, block_id`).all(workspaceId, targetPageId) as Record<string, unknown>[];
+    return rows.map(row => ({ sourcePageId: String(row.source_page_id), targetPageId: String(row.target_page_id), blockId: String(row.block_id) }));
   }
 
   search(query: string, workspaceId?: string, limit = 50): SearchHit[] {

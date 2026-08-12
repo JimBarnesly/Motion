@@ -128,7 +128,25 @@ export class WorkspaceDocument {
   search(query: string) { const terms = query.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean); if (!terms.length) return []; return this.data.pages.map(page => { const texts: string[] = []; walk(page.blocks, b => texts.push(b.text)); const haystack = `${page.title}\n${texts.join("\n")}`.toLocaleLowerCase(); const score = terms.reduce((n, term) => n + (page.title.toLocaleLowerCase().includes(term) ? 5 : 0) + haystack.split(term).length - 1, 0); return { page, score, snippets: texts.filter(t => terms.some(term => t.toLocaleLowerCase().includes(term))).slice(0, 3) }; }).filter(r => r.score > 0).sort((a, b) => b.score - a.score || b.page.updatedAt.localeCompare(a.page.updatedAt)); }
   records(databaseId: ID): Page[] { const db = this.requiredDatabase(databaseId); return (db.recordPageIds ?? []).map(pid => this.page(pid)).filter((p): p is Page => !!p && !p.deletedAt); }
   queryRecords(databaseId: ID, filter?: FilterExpression, sorts: SortClause[] = []): Page[] { let pages = this.records(databaseId); if (filter) pages = pages.filter(p => evaluateFilter(filter, p.properties ?? {})); return stableSort(pages, sorts); }
-  private indexPage(page: Page) { this.data.linkIndex = this.data.linkIndex.filter(l => l.sourcePageId !== page.id); walk(page.blocks, block => { const targets = new Set((block.references ?? []).map(r => r.pageId)); if (block.pageId && (block.type === "page-mention" || block.type === "child-page")) targets.add(block.pageId); for (const match of block.text.matchAll(/\[\[([^\]]+)\]\]/g)) { const target = this.page(match[1]) ?? this.data.pages.find(p => p.title.toLocaleLowerCase() === match[1].toLocaleLowerCase()); if (target) targets.add(target.id); } for (const targetPageId of targets) this.data.linkIndex.push({ sourcePageId: page.id, targetPageId, blockId: block.id }); }); this.data.linkIndex.sort((a,b) => a.sourcePageId.localeCompare(b.sourcePageId) || a.blockId.localeCompare(b.blockId) || a.targetPageId.localeCompare(b.targetPageId)); }
+  private indexPage(page: Page) {
+    this.data.linkIndex = this.data.linkIndex.filter(link => link.sourcePageId !== page.id);
+    walk(page.blocks, block => {
+      const references = block.references ?? [];
+      const targets = new Set(references.map(reference => reference.pageId));
+      if (block.pageId && (block.type === "page-mention" || block.type === "child-page")) targets.add(block.pageId);
+      const rangedReferences = references.filter((reference): reference is typeof reference & { start: number; end: number } => Number.isInteger(reference.start) && Number.isInteger(reference.end));
+      for (const match of block.text.matchAll(/\[\[([^\]]+)\]\]/g)) {
+        const start = match.index; const end = start + match[0].length;
+        if (rangedReferences.some(reference => reference.start === start && reference.end === end)) continue;
+        const byId = this.page(match[1]);
+        const byTitle = byId ? [] : this.data.pages.filter(candidate => candidate.title.toLocaleLowerCase() === match[1].trim().toLocaleLowerCase());
+        const target = byId ?? (byTitle.length === 1 ? byTitle[0] : undefined);
+        if (target) targets.add(target.id);
+      }
+      for (const targetPageId of targets) this.data.linkIndex.push({ sourcePageId: page.id, targetPageId, blockId: block.id });
+    });
+    this.data.linkIndex.sort((a,b) => a.sourcePageId.localeCompare(b.sourcePageId) || a.blockId.localeCompare(b.blockId) || a.targetPageId.localeCompare(b.targetPageId));
+  }
   private blockLocation(page: Page, blockId: ID, blocks: Block[] = page.blocks, parent: Block | null = null): BlockLocation | undefined {
     for (let index = 0; index < blocks.length; index++) {
       const block = blocks[index]!; if (block.id === blockId) return { page, parent, siblings: blocks, index, block };

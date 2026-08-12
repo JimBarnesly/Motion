@@ -554,10 +554,14 @@ export class MotionAppService {
       return { id: workspace.id, name: workspace.name, updatedAt: workspace.updatedAt, revision: row.revision };
     }));
     const loaded = this.required(query.workspaceId);
+    if (query.type === "page.backlinks") {
+      const pageId = requiredText(query.pageId, "pageId");
+      if (!loaded.document.pages.some(page => page.id === pageId)) throw new MotionAppError("NOT_FOUND", "Page not found");
+      return immutable(this.store.backlinks(query.workspaceId, pageId));
+    }
     const document = new WorkspaceDocument(clone(loaded.document));
     switch (query.type) {
       case "workspace.get": return immutable({ workspace: document.data, revision: loaded.revision });
-      case "page.backlinks": return immutable(document.backlinks(requiredText(query.pageId, "pageId")));
       case "workspace.search": {
         requiredText(query.query, "query", true);
         if (query.limit !== undefined && (!Number.isSafeInteger(query.limit) || query.limit < 1 || query.limit > 200)) throw new MotionAppError("INVALID_INPUT", "limit must be an integer from 1 to 200");

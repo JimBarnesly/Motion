@@ -1,3 +1,16 @@
+const PREVIEW_LIMIT = 180;
+
+function previewForPage(page) {
+  if (!page) return null;
+  const text = (page.blocks ?? [])
+    .map(block => typeof block.text === "string" ? block.text.trim() : "")
+    .find(Boolean) ?? "No preview available";
+  return {
+    text: text.length > PREVIEW_LIMIT ? `${text.slice(0, PREVIEW_LIMIT - 1)}…` : text,
+    blockCount: (page.blocks ?? []).length
+  };
+}
+
 export function buildLinkEntries({ pages, links, pageId, direction }) {
   if (direction !== "incoming" && direction !== "outgoing") throw new Error("Link direction must be incoming or outgoing");
   const pagesById = new Map(pages.map(page => [page.id, page]));
@@ -15,7 +28,8 @@ export function buildLinkEntries({ pages, links, pageId, direction }) {
       pageId: linkedPageId,
       blockId: link.blockId,
       title: page?.title || (page ? "Untitled" : "Missing page"),
-      status: page ? (page.deletedAt ? "trashed" : "live") : "missing"
+      status: page ? (page.deletedAt ? "trashed" : "live") : "missing",
+      preview: previewForPage(page)
     };
   });
 }

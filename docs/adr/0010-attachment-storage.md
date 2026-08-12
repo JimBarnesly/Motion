@@ -11,7 +11,9 @@ Attachments must survive restart, deduplicate safely, stream at useful sizes, ex
 
 Store attachment bytes outside SQLite under a SHA-256 content address; store original display name, media type, byte length, hash, stable attachment-reference identity, and lifecycle state in SQLite. The current write path creates a private same-root staging file, validates its hash, commits metadata referencing the final hash path, then atomically renames staging to that path. If promotion is interrupted after metadata commit, the next attachment operation scans all workspace references and promotes matching staging. Rolled-back/unreferenced staging is removed deterministically. Referenced missing blobs and unreferenced final blobs are reported; final blobs are not automatically deleted until retention and concurrent-process rules exist. Never use user file names as storage paths.
 
-The current API buffers bytes in memory and does not yet prove no-follow opens, file/directory fsync, streamed size enforcement, or coordination between multiple application processes. Those remain acceptance work rather than implied properties of the implementation.
+The current API buffers bytes in memory. The storage package is an internal same-process component, not a supported multi-process writer API. Production access is through the desktop service, which acquires exclusive data-root ownership before constructing SQLite, attachment, or UI-state stores and retains that ownership for their complete lifetime. A second service process is rejected before it can dispatch attachment put or promotion work. Cross-process locking must remain at this integrated service boundary rather than being duplicated or weakened inside attachment storage.
+
+Staged attachment objects are opaque, store-bound, single-use capabilities. Promotion or discard consumes the capability synchronously before publication queues or filesystem access. Publication continues from an immutable internal record detached from the caller's token; concurrent reuse receives the stable capability error without disclosing the staging pathname. Once consumed, a token is never restored. Interrupted bytes remain authenticated staging evidence for service recovery; pre-consumption failures may be cleaned up by a best-effort discard.
 
 ## Alternatives considered
 
@@ -33,7 +35,7 @@ Full exports include a versioned attachment manifest and original names alongsid
 
 ## Revisit conditions
 
-Accept fully only after interruption tests cover process termination at every staging/rename/commit boundary, multi-process coordination is defined, fsync/no-follow handling is verified on supported filesystems, and large files are streamed without full buffering.
+Accept fully only after interruption tests cover process termination at every staging/publication/commit boundary, fsync/no-follow handling is verified on supported filesystems, and large files are streamed without full buffering. Multi-process coordination is defined only for the production desktop-service ownership boundary; direct multi-process storage-package use remains unsupported.
 
 ## Spike evidence
 

@@ -372,8 +372,12 @@ async function sameInode(path: string, metadata: import("node:fs").Stats): Promi
 
 function linkOpenDescriptorNoReplace(descriptor: number, finalPath: string): void {
   if (platform() !== "linux") throw new Error("Secure attachment publication is unavailable on this platform");
-  const result = spawnSync("ln", ["--no-target-directory", "-L", "/proc/self/fd/3", finalPath],
-    { stdio: ["ignore", "ignore", "pipe", descriptor] });
+  const descriptorRoot = /^\/proc\/self\/fd\/(\d+)\/(.*)$/.exec(finalPath);
+  const childFinalPath = descriptorRoot ? `/proc/self/fd/4/${descriptorRoot[2]}` : finalPath;
+  const stdio = (descriptorRoot
+    ? ["ignore", "ignore", "pipe", descriptor, Number(descriptorRoot[1])]
+    : ["ignore", "ignore", "pipe", descriptor]) as import("node:child_process").SpawnSyncOptions["stdio"];
+  const result = spawnSync("ln", ["--no-target-directory", "-L", "/proc/self/fd/3", childFinalPath], { stdio });
   if (result.error) throw new Error(`Secure attachment publication is unavailable: ${result.error.message}`);
   if (result.status !== 0) {
     const error = new Error(`Secure attachment publication failed: ${String(result.stderr).trim()}`) as NodeJS.ErrnoException;
@@ -859,7 +863,12 @@ export class ContentAddressedAttachmentStore {
   async put(bytes: Uint8Array): Promise<StoredAttachment> {
     const staged = await this.stage(bytes);
     try { return await this.promote(staged); }
-    catch (error) { await this.discard(staged); throw error; }
+    catch (error) {
+      // A production promotion consumes its capability before any I/O. A failure
+      // injected before that boundary may leave it valid, so cleanup is best-effort.
+      await this.discard(staged).catch(() => undefined);
+      throw error;
+    }
   }
 
   async get(sha256: string): Promise<Uint8Array> {

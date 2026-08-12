@@ -3,6 +3,7 @@ import { lstat, mkdir, mkdtemp, readFile, readdir, readlink, rename, rm, writeFi
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { createInterface } from "node:readline";
 import test from "node:test";
 
@@ -84,6 +85,55 @@ test("service ownership precedes every mutable store and releases through nested
   assert.match(source, /join\(mutableRoot, "attachments"\)/);
   assert.match(source, /join\(mutableRoot, "ui-state\.json"\)/);
   assert.match(source, /finally\s*\{\s*try\s*\{\s*store\?\.close\(\);\s*\}\s*finally\s*\{\s*await ownership\.release\(\);\s*\}/);
+});
+
+test("production service ownership excludes a second attachment writer before request dispatch", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-attachment-service-owner-"));
+  const bundle = new URL("../dist/service-bundle.mjs", import.meta.url).pathname;
+  const owner = spawn(process.execPath, [bundle, root], { stdio: ["pipe", "pipe", "pipe"] });
+  const replies = [];
+  createInterface({ input: owner.stdout, crlfDelay: Infinity }).on("line", line => replies.push(JSON.parse(line)));
+  let ownerStderr = ""; owner.stderr.setEncoding("utf8").on("data", chunk => { ownerStderr += chunk; });
+  const send = request => owner.stdin.write(`${JSON.stringify(request)}\n`);
+  const waitFor = async count => {
+    const deadline = Date.now() + 5_000;
+    while (replies.length < count && owner.exitCode === null && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
+    assert.ok(replies.length >= count, `owner did not reply: ${ownerStderr}`);
+    return replies[count - 1];
+  };
+  let contender;
+  try {
+    send({ lane: "command", payload: { type: "workspace.create", name: "Attachment owner" } });
+    const created = (await waitFor(1)).value;
+    const bytes = [1, 2, 3, 4];
+    const put = { lane: "async-command", payload: { type: "attachment.put", workspaceId: created.workspace.id,
+      expectedRevision: created.revision, id: "owner-attachment", fileName: "owner.bin", mediaType: "application/octet-stream",
+      sha256: createHash("sha256").update(Uint8Array.from(bytes)).digest("hex"), bytes: { $motionBytes: bytes } } };
+
+    contender = spawn(process.execPath, [bundle, root], { stdio: ["pipe", "pipe", "pipe"] });
+    let contenderStdout = ""; let contenderStderr = "";
+    contender.stdout.setEncoding("utf8").on("data", chunk => { contenderStdout += chunk; });
+    contender.stderr.setEncoding("utf8").on("data", chunk => { contenderStderr += chunk; });
+    contender.stdin.write(`${JSON.stringify(put)}\n`);
+    const contenderExit = await Promise.race([
+      new Promise(resolve => contender.once("exit", code => resolve(code))),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("second service did not reject ownership in time")), 5_000))
+    ]);
+    assert.notEqual(contenderExit, 0);
+    assert.equal(contenderStdout, "", "second service dispatched an attachment request");
+    assert.match(contenderStderr, /already open|ownership/i);
+
+    send(put);
+    const published = await waitFor(2);
+    assert.equal(published.ok, true, JSON.stringify(published));
+    assert.equal(published.value.workspace.attachments[0].id, "owner-attachment");
+    assert.equal((await readdir(join(root, "attachments", ".staging"))).length, 0);
+  } finally {
+    if (contender && contender.exitCode === null && contender.signalCode === null) contender.kill("SIGKILL");
+    owner.stdin.end();
+    if (owner.exitCode === null && owner.signalCode === null) await new Promise(resolve => owner.once("exit", resolve));
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 for (const mask of ["0022", "0777"]) {

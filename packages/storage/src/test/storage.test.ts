@@ -104,6 +104,12 @@ test("same-hash promotions across store instances serialize publication and dedu
       assert.deepEqual(await firstStore.get(results[0]!.sha256), payload);
       assert.deepEqual(await secondStore.get(results[0]!.sha256), payload);
     }
+    const stores = Array.from({ length: 100 }, () => new ContentAddressedAttachmentStore(root));
+    const payload = Buffer.from("same-process 100-way publication");
+    const staged = await Promise.all(stores.map(store => store.stage(payload)));
+    const results = await Promise.all(stores.map((store, index) => store.promote(staged[index]!)));
+    assert.equal(results.filter(result => result.newlyCreated).length, 1);
+    assert.deepEqual(await firstStore.get(results[0]!.sha256), payload);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

@@ -355,7 +355,7 @@ export class MotionAppService {
       try {
         await this.attachmentStore().promote(staged);
       } catch {
-        await this.attachmentStore().discard(staged);
+        await this.attachmentStore().discard(staged).catch(() => undefined);
         throw new MotionAppError("STORAGE_FAILURE", "Attachment ingestion failed before publication; no attachment or block was created");
       }
       try {
@@ -401,7 +401,7 @@ export class MotionAppService {
       } catch (error) {
         const committed = Boolean((this.store.load(document.id)?.document as Workspace | undefined)?.attachments
           .some(attachment => attachment.id === id && attachment.sha256 === sha256));
-        if (!committed) await this.attachmentStore().discard(staged);
+        if (!committed) await this.attachmentStore().discard(staged).catch(() => undefined);
         throw new MotionAppError(error instanceof Error && error.message.startsWith("Revision conflict") ? "REVISION_CONFLICT" : "STORAGE_FAILURE", committed
           ? "Attachment storage failed after metadata commit; recovery will retry content promotion."
           : "Attachment storage failed before metadata commit; staged content was discarded.", { metadataCommitted: committed });
@@ -437,7 +437,7 @@ export class MotionAppService {
       return immutable({ workspace: document, revision: savedRevision, saved: true as const }) as MutationDto;
     } catch (error) {
       const committed = Boolean(this.store.load(document.id));
-      if (!committed) await Promise.all(stagedAttachments.map(staged => this.attachmentStore().discard(staged)));
+      if (!committed) await Promise.all(stagedAttachments.map(staged => this.attachmentStore().discard(staged).catch(() => undefined)));
       throw new MotionAppError("STORAGE_FAILURE", committed
         ? "Backup restore storage failed after metadata commit; recovery will retry content promotion."
         : "Backup restore storage failed before metadata commit; staged content was discarded.", { metadataCommitted: committed });

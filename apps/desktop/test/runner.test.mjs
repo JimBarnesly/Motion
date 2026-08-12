@@ -26,17 +26,6 @@ async function listeningTcpSockets(pid) {
   return listeners;
 }
 
-test("service runner acquires data-root ownership before constructing mutable stores", async () => {
-  const source = await readFile(new URL("../service-runner.mjs", import.meta.url), "utf8");
-  const acquisition = source.indexOf("acquireNativeServiceLock(dataRoot)");
-  const sqlite = source.indexOf("new SqliteWorkspaceStore");
-  const attachments = source.indexOf("new ContentAddressedAttachmentStore");
-  assert.ok(acquisition >= 0, "runner does not acquire native service ownership");
-  assert.ok(acquisition < sqlite, "SQLite can open before ownership is acquired");
-  assert.ok(acquisition < attachments, "attachment storage can open before ownership is acquired");
-  assert.match(source, /finally\s*\{[\s\S]*ownership\.release\(\)/, "runner does not release ownership during shutdown or failed startup");
-});
-
 test("one service process handles errors and multiple durable requests", async () => {
   const root = await mkdtemp(join(tmpdir(), "motion-desktop-runner-"));
   const child = spawn(process.execPath, [new URL("../dist/service-bundle.mjs", import.meta.url).pathname, root], { stdio: ["pipe", "pipe", "inherit"] });

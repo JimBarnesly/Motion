@@ -52,7 +52,9 @@ export function splitBlockCommands({ pageId, block, offset, beforeBlockId = null
         : { pageId: reference.pageId });
     }
   });
-  const nextType = block.type === "divider" ? "paragraph" : block.type;
+  const nextType = block.type === "divider" || (["heading-1", "heading-2", "heading-3"].includes(block.type) && offset === text.length)
+    ? "paragraph"
+    : block.type;
   const nextBlock = {
     id: nextBlockId,
     type: nextType,

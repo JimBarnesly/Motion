@@ -64,6 +64,33 @@ test("Enter creates a valid task continuation", () => {
   });
 });
 
+test("Enter at the end of a heading continues in a paragraph", () => {
+  const { commands } = splitBlockCommands({
+    pageId: "page-1",
+    block: { id: "heading-1", type: "heading-2", text: "Section", children: [] },
+    offset: 7,
+    createId: () => "paragraph-1"
+  });
+
+  assert.deepEqual(commands[1].block, {
+    id: "paragraph-1", type: "paragraph", text: "", children: []
+  });
+});
+
+test("Enter preserves an unknown heading-prefixed block type", () => {
+  const { commands } = splitBlockCommands({
+    pageId: "page-1",
+    block: {
+      id: "future-1", type: "heading-plugin", text: "Plugin heading", children: [],
+      unknownData: { plugin: "stable" }
+    },
+    offset: 14,
+    createId: () => "future-2"
+  });
+
+  assert.equal(commands[1].block.type, "heading-plugin");
+});
+
 test("Enter exits an empty Markdown list without creating another empty block", () => {
   for (const type of ["bulleted-list", "numbered-list", "task"]) {
     assert.deepEqual(splitBlockCommands({

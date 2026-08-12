@@ -64,6 +64,24 @@ test("Enter creates a valid task continuation", () => {
   });
 });
 
+test("Enter exits an empty Markdown list without creating another empty block", () => {
+  for (const type of ["bulleted-list", "numbered-list", "task"]) {
+    assert.deepEqual(splitBlockCommands({
+      pageId: "page-1",
+      block: { id: "item-1", type, text: "", ...(type === "task" ? { checked: false } : {}), children: [] },
+      offset: 0,
+      beforeBlockId: "block-2",
+      createId: () => "unused"
+    }), {
+      commands: [
+        { type: "block.transform", pageId: "page-1", blockId: "item-1", transform: { type: "paragraph" } }
+      ],
+      focusBlockId: "item-1",
+      focusOffset: 0
+    });
+  }
+});
+
 test("Backspace at the start merges adjacent text blocks and preserves stable mentions", () => {
   assert.deepEqual(mergeAdjacentBlockCommands({
     pageId: "page-1",

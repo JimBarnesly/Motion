@@ -28,6 +28,15 @@ export function mergeAdjacentBlockCommands({ pageId, previousBlock, currentBlock
 
 export function splitBlockCommands({ pageId, block, offset, beforeBlockId = null, createId }) {
   const text = String(block.text ?? "");
+  if (offset === 0 && text.length === 0 && ["bulleted-list", "numbered-list", "task"].includes(block.type)) {
+    return {
+      commands: [
+        { type: "block.transform", pageId, blockId: block.id, transform: { type: "paragraph" } }
+      ],
+      focusBlockId: block.id,
+      focusOffset: 0
+    };
+  }
   const nextBlockId = createId();
   const beforeReferences = [], afterReferences = [];
   const mentions = [...text.matchAll(/\[\[([^\]]+)\]\]/g)];

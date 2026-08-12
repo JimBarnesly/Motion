@@ -557,6 +557,49 @@ test("web v1 migration deduplicates repeated explicit references in one source b
   ]);
 });
 
+test("web v1 migration leaves normalized duplicate titles unresolved", () => {
+  const migrated = migrateWebWorkspaceV1({ schemaVersion: 1, pages: [
+    { id: "source", title: "Source", blocks: [{ id: "ambiguous", type: "paragraph", text: "[[DUP]]" }] },
+    { id: "first", title: "DUP", blocks: [] },
+    { id: "second", title: " dup ", blocks: [] }
+  ] });
+
+  assert.equal(migrated.workspace.pages[0]?.blocks[0]?.references, undefined);
+  assert.deepEqual(migrated.workspace.linkIndex, []);
+});
+
+test("web v1 migration bounds reference membership work across 8k explicit refs and 100k wiki tokens", () => {
+  const targetCount = 8_000; const tokenCount = 100_000;
+  const pages = Array.from({ length: targetCount }, (_, index) => ({ id: `target-${index}`, title: `Target ${index}`, blocks: [] }));
+  const links = pages.map(page => ({ pageId: page.id }));
+  const input = { schemaVersion: 1, pages: [
+    { id: "source", title: "Source", blocks: [{ id: "large", type: "paragraph", text: "[[Target 7999]]".repeat(tokenCount), links }] },
+    ...pages
+  ] };
+  const originalSome = Array.prototype.some; let predicateCalls = 0;
+  Array.prototype.some = function<T>(this: T[], predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: unknown) {
+    return originalSome.call(this, (value, index, array) => { predicateCalls++; return predicate.call(thisArg, value, index, array); });
+  } as typeof Array.prototype.some;
+  try { migrateWebWorkspaceV1(input); } finally { Array.prototype.some = originalSome; }
+
+  assert.ok(predicateCalls < 100_000, `reference membership performed ${predicateCalls} predicate calls`);
+});
+
+test("workspace construction handles 150k links without argument spread overflow", () => {
+  const blockCount = 150_000;
+  const workspace: Workspace = {
+    ...createWorkspace("Large links"),
+    pages: [
+      { id: "source", parentId: null, title: "Source", createdAt: "1970-01-01T00:00:00.000Z", updatedAt: "1970-01-01T00:00:00.000Z",
+        blocks: Array.from({ length: blockCount }, (_, index) => ({ id: `block-${index}`, type: "paragraph" as const, text: "", children: [], references: [{ pageId: "target" }] })) },
+      { id: "target", parentId: null, title: "Target", createdAt: "1970-01-01T00:00:00.000Z", updatedAt: "1970-01-01T00:00:00.000Z", blocks: [] }
+    ]
+  };
+
+  const document = new WorkspaceDocument(workspace);
+  assert.equal(document.links().length, blockCount);
+});
+
 test("web v1 migration is deterministic, separates UI state, preserves unknown blocks and rebuilds links", async () => {
   const fixture = JSON.parse(readFileSync(new URL("../../../../fixtures/web-workspace-v1.json", import.meta.url), "utf8"));
   const first = migrateWebWorkspaceV1(fixture); const second = migrateWebWorkspaceV1(structuredClone(fixture));

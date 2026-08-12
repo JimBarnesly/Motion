@@ -153,7 +153,7 @@ export class WorkspaceDocument {
   rebuildLinkIndex(stats?: LinkRebuildStats): ID[] {
     const before = linkScopes(this.data.linkIndex);
     const lookup = this.linkLookup(stats); const links: PageLink[] = [];
-    for (const page of this.data.pages) { if (stats) stats.pagesVisited++; links.push(...this.pageLinks(page, lookup, stats)); }
+    for (const page of this.data.pages) { if (stats) stats.pagesVisited++; for (const link of this.pageLinks(page, lookup, stats)) links.push(link); }
     this.data.linkIndex = canonicalLinkOrder(links);
     const after = linkScopes(this.data.linkIndex);
     return canonicalIdOrder([...new Set([...before.keys(), ...after.keys()])].filter(pageId => before.get(pageId) !== after.get(pageId)), [pageId => pageId]);
@@ -194,7 +194,7 @@ export class WorkspaceDocument {
   }
   private indexPage(page: Page) {
     this.data.linkIndex = this.data.linkIndex.filter(link => link.sourcePageId !== page.id);
-    this.data.linkIndex.push(...this.pageLinks(page, this.linkLookup()));
+    for (const link of this.pageLinks(page, this.linkLookup())) this.data.linkIndex.push(link);
     this.data.linkIndex = canonicalLinkOrder(this.data.linkIndex);
   }
   private blockLocation(page: Page, blockId: ID, blocks: Block[] = page.blocks, parent: Block | null = null): BlockLocation | undefined {

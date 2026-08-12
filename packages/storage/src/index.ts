@@ -671,9 +671,9 @@ function extractWorkspaceSearchEntries(document: unknown, fallbackId: string): S
   }
   const result = extractWorkspaceRootSearchEntries(document, fallbackId);
   const parts = workspaceParts(document);
-  for (const page of parts.pages) result.push(...extractSearchEntries(page, entityId(page), "page", entityId(page)));
-  for (const database of parts.databases) result.push(...extractSearchEntries(database, entityId(database), "database", entityId(database)));
-  for (const attachment of parts.attachments) result.push(...extractSearchEntries(attachment, entityId(attachment), "attachment", entityId(attachment)));
+  for (const page of parts.pages) for (const entry of extractSearchEntries(page, entityId(page), "page", entityId(page))) result.push(entry);
+  for (const database of parts.databases) for (const entry of extractSearchEntries(database, entityId(database), "database", entityId(database))) result.push(entry);
+  for (const attachment of parts.attachments) for (const entry of extractSearchEntries(attachment, entityId(attachment), "attachment", entityId(attachment))) result.push(entry);
   if (result.length === 0) result.push({ entityId: fallbackId, entityType: "entity", title: "", body: JSON.stringify(document), scopeType: "workspace", scopeId: fallbackId });
   return result;
 }

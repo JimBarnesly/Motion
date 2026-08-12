@@ -317,7 +317,7 @@ export class MotionAppService {
     const hashes: string[] = [];
     for (const stored of this.store.list()) {
       assertWorkspaceValue(stored.document);
-      hashes.push(...stored.document.attachments.map(attachment => validSha256(attachment.sha256)));
+      for (const attachment of stored.document.attachments) hashes.push(validSha256(attachment.sha256));
     }
     await this.attachments.recover(hashes);
   }

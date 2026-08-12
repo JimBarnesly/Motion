@@ -33,8 +33,12 @@ export function migrateWebWorkspaceV1(input: unknown, options: WebV1MigrationOpt
   const rawPages = input.pages as JsonObject[];
   const pageIds = new Set(rawPages.map((page, index) => stableId(page?.id, `pages[${index}].id`)));
   if (pageIds.size !== rawPages.length) throw new Error("Invalid web v1 workspace: duplicate page ID");
-  const titleMap = new Map<string, string>();
-  for (const page of rawPages) if (typeof page.title === "string" && !titleMap.has(page.title.trim().toLocaleLowerCase())) titleMap.set(page.title.trim().toLocaleLowerCase(), page.id);
+  const titleMap = new Map<string, string | null>();
+  for (const page of rawPages) {
+    if (typeof page.title !== "string") continue;
+    const title = page.title.trim().toLocaleLowerCase();
+    titleMap.set(title, titleMap.has(title) ? null : page.id);
+  }
   const databases: Database[] = [];
   const pages: Page[] = rawPages.map((raw, pageIndex) => {
     if (!plain(raw)) throw new Error(`Invalid web v1 workspace: pages[${pageIndex}]`);
@@ -46,12 +50,12 @@ export function migrateWebWorkspaceV1(input: unknown, options: WebV1MigrationOpt
       const originalType = requiredString(source.type, `pages[${pageIndex}].blocks[${blockIndex}].type`);
       const known = new Set(["paragraph", "heading1", "heading2", "heading3", "bullet", "number", "task", "toggle", "quote", "code", "divider"]);
       const text = typeof source.text === "string" ? source.text : "";
-      const references: { pageId: string }[] = []; const explicitTargets = new Set<string>();
+      const references: { pageId: string }[] = []; const targets = new Set<string>();
       for (const link of Array.isArray(source.links) ? source.links : []) {
-        if (!plain(link) || typeof link.pageId !== "string" || !pageIds.has(link.pageId) || explicitTargets.has(link.pageId)) continue;
-        explicitTargets.add(link.pageId); references.push({ pageId: link.pageId });
+        if (!plain(link) || typeof link.pageId !== "string" || !pageIds.has(link.pageId) || targets.has(link.pageId)) continue;
+        targets.add(link.pageId); references.push({ pageId: link.pageId });
       }
-      for (const match of text.matchAll(/\[\[([^\]]+)\]\]/g)) { const target = titleMap.get(match[1].trim().toLocaleLowerCase()); if (target && !references.some(ref => ref.pageId === target)) references.push({ pageId: target }); }
+      for (const match of text.matchAll(/\[\[([^\]]+)\]\]/g)) { const target = titleMap.get(match[1].trim().toLocaleLowerCase()); if (target && !targets.has(target)) { targets.add(target); references.push({ pageId: target }); } }
       blocks.push({ id: stableId(source.id, `pages[${pageIndex}].blocks[${blockIndex}].id`), type: known.has(originalType) ? (aliases[originalType] ?? originalType) : "unsupported", text, children: [], checked: originalType === "task" ? Boolean(source.checked) : undefined, references: references.length ? references : undefined, unknownData: known.has(originalType) ? undefined : { importedType: originalType, source: structuredClone(source) } });
     }
     if (raw.type === "database") {

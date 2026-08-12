@@ -473,6 +473,19 @@ test("incremental rollback preserves canonical and normalized rows, FTS, links, 
   } finally { store.close(); await rm(root, { recursive: true, force: true }); }
 });
 
+test("SQLite rebuild saves a page with 150k searchable blocks without argument spread overflow", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-large-fts-"));
+  const store = new SqliteWorkspaceStore(join(root, "motion.sqlite3"));
+  const blockCount = 150_000;
+  const document = { id: "ws", name: "Large", updatedAt: "1970-01-01T00:00:00.000Z", pages: [
+    { id: "page", title: "Large page", blocks: Array.from({ length: blockCount }, (_, index) => ({ id: `block-${index}`, text: `term-${index}`, children: [] })) }
+  ], databases: [], attachments: [], linkIndex: [] };
+  try {
+    assert.equal(store.save("ws", 2, document, 0), 1);
+    assert.equal(store.lastWriteStats?.ftsInserted, blockCount + 2);
+  } finally { store.close(); await rm(root, { recursive: true, force: true }); }
+});
+
 test("hostile FTS syntax is tokenized and migrations are idempotent", async () => {
   const root = await mkdtemp(join(tmpdir(), "motion-migrations-"));
   const path = join(root, "motion.sqlite3");

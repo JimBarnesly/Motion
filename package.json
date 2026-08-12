@@ -17,6 +17,8 @@
     "test:e2e": "playwright test",
     "test:e2e-release-gate": "node --test scripts/e2e-release-gate.test.mjs",
     "test:e2e-offline-fixture": "node --test scripts/e2e-offline-fixture.test.mjs",
+    "test:m2-acceptance-contract": "node --test scripts/m2-acceptance-contract.test.mjs",
+    "acceptance:m2:packaged": "node scripts/m2-packaged-acceptance.mjs",
     "test:workflow-script-contracts": "node --test scripts/workflow-npm-script-contracts.test.mjs",
     "test:linux-runtime-contract": "node --test scripts/linux-runtime-contract.test.mjs",
     "test:destructive-accessibility": "playwright test e2e/destructive-accessibility.spec.ts",

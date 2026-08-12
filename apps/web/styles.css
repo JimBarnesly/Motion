@@ -75,6 +75,10 @@ kbd { margin-left:auto; color:var(--muted); font-size:11px; background:var(--sur
 .block-row:hover .block-handle,.block-row:focus-within .block-handle { opacity:.55; }
 .block-input { flex:1; min-height:39px; padding:8px 4px; outline:none; font-size:16px; line-height:1.55; }
 .block-input:empty::before { content:attr(data-placeholder); color:#aaa; pointer-events:none; }
+.link-picker { position:fixed; z-index:20; left:50%; top:35%; width:min(360px,calc(100vw - 32px)); transform:translateX(-50%); display:grid; max-height:280px; overflow:auto; padding:6px; border:1px solid var(--line); border-radius:8px; background:var(--surface); box-shadow:0 12px 36px rgba(0,0,0,.2); }
+.link-picker[hidden] { display:none; }
+.link-picker button { border:0; background:transparent; color:inherit; padding:9px 10px; text-align:left; border-radius:5px; }
+.link-picker button[aria-selected="true"],.link-picker button:hover { background:var(--bg); color:var(--accent); }
 .delete-block { opacity:0; margin:5px; color:var(--muted); }
 .block-row:hover .delete-block,.delete-block:focus { opacity:1; }
 .add-block,.add-row { border:0; background:none; color:var(--muted); padding:9px 29px; border-radius:7px; }

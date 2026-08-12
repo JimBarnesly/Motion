@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { closeSync, constants, fchmodSync, lstatSync, mkdirSync, openSync, statSync } from "node:fs";
-import { readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { lstat, open, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { platform } from "node:os";
 import { DatabaseSync } from "node:sqlite";
@@ -31,6 +31,8 @@ export interface AttachmentRecoveryReport {
   removedStaging: string[];
   missingReferenced: string[];
   unreferencedBlobs: string[];
+  oversizedBlobs: string[];
+  corruptBlobs: string[];
 }
 
 export interface SearchHit {
@@ -295,6 +297,32 @@ export function ensurePrivateDirectory(path: string): void {
 }
 
 export function hardenPrivateFile(path: string): void { hardenPrivatePath(path, "file"); }
+
+async function readBoundedPrivateFile(path: string): Promise<Uint8Array> {
+  const before = await lstat(path);
+  if (!before.isFile() || before.isSymbolicLink()) throw new Error("Attachment storage contains invalid content");
+  const handle = await open(path, constants.O_RDONLY | (platform() === "win32" ? 0 : constants.O_NOFOLLOW));
+  try {
+    const metadata = await handle.stat();
+    if (!metadata.isFile() || metadata.dev !== before.dev || metadata.ino !== before.ino)
+      throw new Error("Attachment storage contains invalid content");
+    if (metadata.size > MAX_ATTACHMENT_BYTES) throw new Error("Attachment storage content exceeds 3 MiB limit");
+    if (platform() !== "win32") await handle.chmod(0o600);
+    const bytes = Buffer.alloc(metadata.size + 1);
+    let bytesRead = 0;
+    while (bytesRead < bytes.byteLength) {
+      const result = await handle.read(bytes, bytesRead, bytes.byteLength - bytesRead, bytesRead);
+      if (result.bytesRead === 0) break;
+      bytesRead += result.bytesRead;
+      if (bytesRead > MAX_ATTACHMENT_BYTES) throw new Error("Attachment storage content exceeds 3 MiB limit");
+    }
+    if (bytesRead !== metadata.size) throw new Error("Attachment storage changed during read");
+    const after = await handle.stat();
+    if (!after.isFile() || after.size !== metadata.size || after.dev !== metadata.dev || after.ino !== metadata.ino)
+      throw new Error("Attachment storage changed during read");
+    return bytes.subarray(0, bytesRead);
+  } finally { await handle.close(); }
+}
 
 /** Durable local repository. UI/domain entities cross this boundary as versioned JSON, never SQLite rows. */
 export class SqliteWorkspaceStore {
@@ -615,7 +643,7 @@ export class ContentAddressedAttachmentStore {
   async promote(staged: StagedAttachment): Promise<StoredAttachment> {
     requireSha256(staged.sha256);
     if (staged.byteLength > MAX_ATTACHMENT_BYTES) throw new Error(ATTACHMENT_SIZE_LIMIT_ERROR);
-    const bytes = await readFile(staged.stagingPath);
+    const bytes = await readBoundedPrivateFile(staged.stagingPath);
     if (bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new Error(ATTACHMENT_SIZE_LIMIT_ERROR);
     if (bytes.byteLength !== staged.byteLength || digest(bytes) !== staged.sha256) {
       throw new Error(`Staged attachment integrity check failed: ${staged.sha256}`);
@@ -624,7 +652,7 @@ export class ContentAddressedAttachmentStore {
     ensurePrivateDirectory(dirname(staged.path));
     try {
       hardenPrivateFile(staged.path);
-      const current = await readFile(staged.path);
+      const current = await readBoundedPrivateFile(staged.path);
       if (current.byteLength !== staged.byteLength || digest(current) !== staged.sha256) throw new Error(`Attachment hash collision at ${staged.path}`);
       await this.discard(staged);
       return { sha256: staged.sha256, byteLength: staged.byteLength, path: staged.path, newlyCreated: false };
@@ -649,7 +677,7 @@ export class ContentAddressedAttachmentStore {
     ensurePrivateDirectory(join(this.root, ".staging"));
     const referenced = new Set(referencedHashes);
     for (const sha256 of referenced) requireSha256(sha256);
-    const report: AttachmentRecoveryReport = { promoted: [], removedStaging: [], missingReferenced: [], unreferencedBlobs: [] };
+    const report: AttachmentRecoveryReport = { promoted: [], removedStaging: [], missingReferenced: [], unreferencedBlobs: [], oversizedBlobs: [], corruptBlobs: [] };
     const stagingRoot = join(this.root, ".staging");
     let entries: import("node:fs").Dirent[] = [];
     try { entries = await readdir(stagingRoot, { withFileTypes: true }); }
@@ -660,7 +688,9 @@ export class ContentAddressedAttachmentStore {
       const match = /^([0-9a-f]{64})\.[0-9a-f-]+\.staging$/.exec(entry.name);
       if (!entry.isFile() || !match) { await rm(stagingPath, { recursive: true, force: true }); report.removedStaging.push(entry.name); continue; }
       const sha256 = match[1]!;
-      const bytes = await readFile(stagingPath);
+      let bytes: Uint8Array;
+      try { bytes = await readBoundedPrivateFile(stagingPath); }
+      catch { await rm(stagingPath, { force: true }); report.removedStaging.push(entry.name); continue; }
       if (bytes.byteLength > MAX_ATTACHMENT_BYTES || digest(bytes) !== sha256 || !referenced.has(sha256)) {
         await rm(stagingPath, { force: true }); report.removedStaging.push(entry.name); continue;
       }
@@ -675,11 +705,20 @@ export class ContentAddressedAttachmentStore {
     for (const bucket of buckets) {
       if (!bucket.isDirectory() || !/^[0-9a-f]{2}$/.test(bucket.name)) continue;
       for (const blob of await readdir(join(this.root, bucket.name), { withFileTypes: true })) {
-        if (blob.isFile() && /^[0-9a-f]{64}$/.test(blob.name)) present.add(blob.name);
+        if (!/^[0-9a-f]{64}$/.test(blob.name)) continue;
+        const sha256 = blob.name; const path = join(this.root, bucket.name, sha256);
+        try {
+          const bytes = await readBoundedPrivateFile(path);
+          if (digest(bytes) === sha256) present.add(sha256); else report.corruptBlobs.push(sha256);
+        } catch (error) {
+          if (error instanceof Error && /storage content exceeds 3 MiB limit/i.test(error.message)) report.oversizedBlobs.push(sha256);
+          else report.corruptBlobs.push(sha256);
+        }
       }
     }
     report.missingReferenced = [...referenced].filter(sha256 => !present.has(sha256)).sort();
     report.unreferencedBlobs = [...present].filter(sha256 => !referenced.has(sha256)).sort();
+    report.oversizedBlobs.sort(); report.corruptBlobs.sort();
     return report;
   }
 
@@ -696,7 +735,7 @@ export class ContentAddressedAttachmentStore {
     ensurePrivateDirectory(bucket);
     const path = join(bucket, sha256);
     hardenPrivateFile(path);
-    const bytes = await readFile(path);
+    const bytes = await readBoundedPrivateFile(path);
     if (digest(bytes) !== sha256) throw new Error(`Attachment integrity check failed: ${sha256}`);
     return bytes;
   }

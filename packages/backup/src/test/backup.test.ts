@@ -304,6 +304,14 @@ test("public backup verification accepts exactly 3 MiB and rejects 3 MiB plus on
     && /Backup attachment exceeds per-file size limit/.test(error.message) && !/private-attachment-id|private-name/.test(error.message));
 });
 
+test("backup creation rejects oversized workspace metadata before emitting a bundle", () => {
+  const source = structuredClone(workspace);
+  source.attachments[0]!.byteLength = 3 * 1024 * 1024 + 1;
+  assert.throws(() => createBackup(source, []), error => error instanceof Error
+    && /Backup attachment exceeds per-file size limit/.test(error.message)
+    && !error.message.includes(source.attachments[0]!.id) && !error.message.includes(source.attachments[0]!.fileName));
+});
+
 test("public verification enforces canonical record membership before restore without mutation", () => {
   const original = createBackup(workspace, [{ id: "attachment-1", fileName: "note.txt", bytes }]);
   const mutations: Array<[string, (value: WorkspaceSnapshot) => void]> = [

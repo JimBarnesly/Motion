@@ -593,6 +593,7 @@ export function toAppError(error: unknown): MotionAppError {
   if (/Invalid record property for collection/i.test(message)) return new MotionAppError("INVALID_INPUT", "Record values must use properties from their collection");
   if (/Invalid record target/i.test(message)) return new MotionAppError("INVALID_INPUT", "Record updates require a page indexed by exactly one matching collection");
   if (/not found/i.test(message)) return new MotionAppError("NOT_FOUND", "Requested local resource was not found");
+  if (/Attachment storage (?:content exceeds|contains|changed)/i.test(message)) return new MotionAppError("STORAGE_FAILURE", "Local attachment storage operation failed");
   if (/Invalid workspace|Invalid web v1|Unsupported workspace|cycle|cannot contain children|cannot be (?:positioned|outdented)|no previous sibling|Backup verification|JSON|duplicate ID|exceeds .*limit|schemaVersion/i.test(message)) return new MotionAppError("VALIDATION_FAILED", "Workspace data failed validation");
   if (/SQLITE|database|Private (?:file|directory) path/i.test(message)) return new MotionAppError("STORAGE_FAILURE", "Local database operation failed");
   return new MotionAppError("INTERNAL_ERROR", "Unexpected local application failure");

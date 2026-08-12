@@ -70,6 +70,8 @@ function safeFileName(name: string): string {
 }
 
 export function createBackup(workspace: WorkspaceSnapshot, attachments: readonly AttachmentInput[], createdAt = new Date().toISOString()): BackupBundle {
+  if (workspace.attachments.some(item => Number.isSafeInteger(item.byteLength) && item.byteLength > MAX_ATTACHMENT_BYTES))
+    throw new Error(BACKUP_ATTACHMENT_SIZE_LIMIT_ERROR);
   const files: Record<string, Uint8Array> = { "workspace.json": encoder.encode(canonicalJson(workspace)) };
   const metadata = new Map(workspace.attachments.map(item => [item.id, item]));
   for (const input of attachments) {

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, readdir, rm, stat } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -573,6 +573,31 @@ test("restore rejects a 3 MiB plus one attachment before any destination mutatio
     assert.deepEqual(store.load(existing.workspace.id), beforeWorkspace, "restore changed existing workspace or UI state");
     assert.equal(await integrityHash(path, files), beforeHash, "restore created staging/final blobs or changed destination bytes");
     assert.deepEqual(await readdir(`${files}/.staging`), [], "restore left staged attachment content");
+    store.close();
+  } finally { await Promise.all([removeDatabase(path), rm(files, { recursive: true, force: true })]); }
+});
+
+test("read and backup creation reject a preexisting oversized final attachment blob", async () => {
+  const path = databasePath("oversized-final-read"); const files = `${path}.attachments`;
+  try {
+    const store = new SqliteWorkspaceStore(path); const attachments = new ContentAddressedAttachmentStore(files);
+    const service = new MotionAppService(store, attachments);
+    const created = service.execute({ type: "workspace.create", name: "Oversized final" });
+    const payload = new Uint8Array(3 * 1024 * 1024 + 1); payload[payload.length - 1] = 1;
+    const sha256 = hash(payload); const document = structuredClone(created.workspace) as any;
+    document.attachments = [{ id: "private-attachment-id", fileName: "private-name.bin", mediaType: "application/octet-stream",
+      byteLength: 1, sha256, path: attachments.pathFor(sha256), createdAt: document.createdAt }];
+    store.save(document.id, document.schemaVersion, document, created.revision);
+    await mkdir(join(files, sha256.slice(0, 2)), { recursive: true, mode: 0o700 });
+    await writeFile(attachments.pathFor(sha256), payload, { mode: 0o600 });
+
+    for (const query of [
+      { type: "attachment.read", workspaceId: document.id, attachmentId: "private-attachment-id" },
+      { type: "backup.create", workspaceId: document.id }
+    ] as const) await assert.rejects(service.queryAsync(query as any), error => error instanceof MotionAppError
+      && error.code === "STORAGE_FAILURE" && !error.message.includes(sha256)
+      && !error.message.includes("private-attachment-id") && !error.message.includes("private-name.bin"));
+    assert.equal((await readFile(attachments.pathFor(sha256))).byteLength, payload.byteLength);
     store.close();
   } finally { await Promise.all([removeDatabase(path), rm(files, { recursive: true, force: true })]); }
 });

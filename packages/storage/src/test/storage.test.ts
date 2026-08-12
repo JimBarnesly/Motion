@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -51,9 +51,35 @@ test("attachment storage accepts exactly 3 MiB and rejects 3 MiB plus one before
   try {
     const store = new ContentAddressedAttachmentStore(root);
     const boundary = await store.stage(new Uint8Array(3 * 1024 * 1024));
-    assert.equal(boundary.byteLength, 3 * 1024 * 1024); await store.discard(boundary);
+    assert.equal(boundary.byteLength, 3 * 1024 * 1024); await store.promote(boundary);
+    assert.equal((await store.get(boundary.sha256)).byteLength, 3 * 1024 * 1024);
     await assert.rejects(store.stage(new Uint8Array(3 * 1024 * 1024 + 1)), /3 MiB/);
     assert.deepEqual(await readdir(join(root, ".staging")), []);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("preexisting oversized final blobs are rejected and explicitly reported without deletion", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-attachment-oversized-final-"));
+  try {
+    const store = new ContentAddressedAttachmentStore(root);
+    const payload = new Uint8Array(3 * 1024 * 1024 + 1); payload[payload.length - 1] = 1;
+    const sha256 = (await import("node:crypto")).createHash("sha256").update(payload).digest("hex");
+    const path = store.pathFor(sha256);
+    await mkdir(join(root, sha256.slice(0, 2)), { recursive: true, mode: 0o700 });
+    await writeFile(path, payload, { mode: 0o600 });
+
+    await assert.rejects(store.get(sha256), error => error instanceof Error
+      && /attachment storage content exceeds 3 MiB limit/i.test(error.message) && !error.message.includes(sha256) && !error.message.includes(path));
+    const referenced = await store.recover([sha256]);
+    assert.deepEqual(referenced.oversizedBlobs, [sha256]);
+    assert.deepEqual(referenced.missingReferenced, [sha256]);
+    assert.deepEqual(referenced.unreferencedBlobs, []);
+    assert.equal((await readFile(path)).byteLength, payload.byteLength, "recovery deleted oversized evidence");
+
+    const unreferenced = await store.recover([]);
+    assert.deepEqual(unreferenced.oversizedBlobs, [sha256]);
+    assert.deepEqual(unreferenced.unreferencedBlobs, []);
+    assert.equal((await readFile(path)).byteLength, payload.byteLength, "unreferenced recovery deleted oversized evidence");
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

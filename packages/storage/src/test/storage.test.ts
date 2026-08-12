@@ -46,6 +46,17 @@ test("attachment storage is content-addressed, deduplicated, and verified", asyn
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test("attachment storage accepts exactly 3 MiB and rejects 3 MiB plus one before staging", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-attachment-size-"));
+  try {
+    const store = new ContentAddressedAttachmentStore(root);
+    const boundary = await store.stage(new Uint8Array(3 * 1024 * 1024));
+    assert.equal(boundary.byteLength, 3 * 1024 * 1024); await store.discard(boundary);
+    await assert.rejects(store.stage(new Uint8Array(3 * 1024 * 1024 + 1)), /3 MiB/);
+    assert.deepEqual(await readdir(join(root, ".staging")), []);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test("attachment staging recovery promotes referenced content and removes abandoned staging", async () => {
   const root = await mkdtemp(join(tmpdir(), "motion-attachment-recovery-"));
   try {

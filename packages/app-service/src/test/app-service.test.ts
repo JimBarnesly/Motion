@@ -539,6 +539,44 @@ test("attachment validation, revision conflict and corrupt restore write no meta
   } finally { await Promise.all([removeDatabase(path), rm(files, { recursive: true, force: true })]); }
 });
 
+test("restore rejects a 3 MiB plus one attachment before any destination mutation", async () => {
+  const path = databasePath("restore-oversized-attachment"); const files = `${path}.attachments`;
+  try {
+    const store = new SqliteWorkspaceStore(path); const attachments = new ContentAddressedAttachmentStore(files);
+    const service = new MotionAppService(store, attachments);
+    await attachments.recover([]);
+    const existing = service.execute({ type: "workspace.create", name: "Destination remains unchanged" });
+    const payload = new Uint8Array(3 * 1024 * 1024 + 1); payload[payload.length - 1] = 1;
+    const sha256 = hash(payload); const source = structuredClone(existing.workspace) as any;
+    source.id = "oversized-source"; source.name = "Oversized source"; source.attachments = [{
+      id: "oversized-attachment", fileName: "oversized.bin", mediaType: "application/octet-stream",
+      byteLength: payload.byteLength, sha256, path: "/untrusted/oversized.bin", createdAt: source.createdAt
+    }];
+    const workspacePayload = new TextEncoder().encode(JSON.stringify(source));
+    const attachmentPath = "attachments/oversized-attachment/oversized.bin";
+    const bundle = { manifest: { format: "motion-workspace-backup" as const, schemaVersion: 1 as const,
+      createdAt: "2026-08-12T00:00:00.000Z", workspaceId: source.id, workspaceSchemaVersion: source.schemaVersion,
+      files: [
+        { path: "workspace.json", byteLength: workspacePayload.byteLength, sha256: hash(workspacePayload), mediaType: "application/json" },
+        { path: attachmentPath, byteLength: payload.byteLength, sha256, mediaType: "application/octet-stream" }
+      ] }, files: { "workspace.json": workspacePayload, [attachmentPath]: payload } };
+    const beforeWorkspace = structuredClone(store.load(existing.workspace.id));
+    const beforeHash = await integrityHash(path, files);
+
+    assert.deepEqual(await service.queryAsync({ type: "backup.verify", bundle }), {
+      valid: false, errors: ["Backup attachment exceeds per-file size limit"]
+    });
+    await assert.rejects(service.executeAsync({ type: "backup.restore-new", bundle, newWorkspaceId: "oversized-destination" }),
+      (error: unknown) => error instanceof MotionAppError && error.code === "VALIDATION_FAILED"
+        && /invalid, oversized, or unsafe/i.test(error.message) && !error.message.includes("oversized-attachment"));
+    assert.equal(store.load("oversized-destination"), undefined, "restore created destination metadata");
+    assert.deepEqual(store.load(existing.workspace.id), beforeWorkspace, "restore changed existing workspace or UI state");
+    assert.equal(await integrityHash(path, files), beforeHash, "restore created staging/final blobs or changed destination bytes");
+    assert.deepEqual(await readdir(`${files}/.staging`), [], "restore left staged attachment content");
+    store.close();
+  } finally { await Promise.all([removeDatabase(path), rm(files, { recursive: true, force: true })]); }
+});
+
 test("restore database interruption discards staging and preserves the original store", async () => {
   const path = databasePath("restore-db-interruption"); const files = `${path}.attachments`;
   class InterruptedStore extends SqliteWorkspaceStore {

@@ -10,7 +10,7 @@ use std::{
 use tauri::Manager;
 
 const MAX_REQUEST_BYTES: usize = 16 * 1024 * 1024;
-const MAX_ATTACHMENT_BYTES: usize = 3 * 1024 * 1024;
+include!(concat!(env!("OUT_DIR"), "/attachment_policy.rs"));
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

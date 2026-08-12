@@ -7,9 +7,13 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
+    "prebuild": "npm run build --workspace @motion/core",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test dist/test/*.test.js"
+  },
+  "dependencies": {
+    "@motion/core": "0.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

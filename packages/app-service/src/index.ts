@@ -8,6 +8,8 @@ import {
   exportFullWorkspace,
   migrateWebWorkspaceV1,
   stableId,
+  ATTACHMENT_SIZE_LIMIT_ERROR,
+  MAX_ATTACHMENT_BYTES,
   type Block,
   type BlockContent,
   type BlockPosition,
@@ -24,7 +26,7 @@ import {
 import { ContentAddressedAttachmentStore, SqliteWorkspaceStore, type FtsScopeType, type SearchHit, type StagedAttachment, type StoredWorkspace, type WorkspaceChangeSet } from "@motion/storage";
 import { createBackup, previewRestore, restoreIntoNewWorkspace, verifyBackup, type BackupBundle, type RestorePreview, type VerificationResult } from "@motion/backup";
 
-export const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024;
+export { MAX_ATTACHMENT_BYTES } from "@motion/core";
 
 export type AppErrorCode =
   | "INVALID_INPUT" | "NOT_FOUND" | "REVISION_CONFLICT" | "VALIDATION_FAILED"
@@ -330,7 +332,7 @@ export class MotionAppService {
       const mediaType = requiredText(command.mediaType, "mediaType");
       const sha256 = validSha256(command.sha256);
       if (!(command.bytes instanceof Uint8Array)) throw new MotionAppError("INVALID_INPUT", "bytes must be a Uint8Array");
-      if (command.bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new MotionAppError("INVALID_INPUT", "Attachment bytes must not exceed 3 MiB");
+      if (command.bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new MotionAppError("INVALID_INPUT", ATTACHMENT_SIZE_LIMIT_ERROR);
       const attachmentId = command.attachmentId ? inputId(command.attachmentId, "attachmentId") : crypto.randomUUID();
       const blockId = command.blockId ? inputId(command.blockId, "blockId") : crypto.randomUUID();
       if (loaded.document.attachments.some(item => item.id === attachmentId)) throw new MotionAppError("ALREADY_EXISTS", "Attachment already exists");
@@ -378,7 +380,7 @@ export class MotionAppService {
       const mediaType = requiredText(command.mediaType, "mediaType");
       const sha256 = validSha256(command.sha256);
       if (!(command.bytes instanceof Uint8Array)) throw new MotionAppError("INVALID_INPUT", "bytes must be a Uint8Array");
-      if (command.bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new MotionAppError("INVALID_INPUT", "Attachment bytes must not exceed 3 MiB");
+      if (command.bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new MotionAppError("INVALID_INPUT", ATTACHMENT_SIZE_LIMIT_ERROR);
       const document = clone(loaded.document);
       const id = command.id ? requiredText(command.id, "id") : crypto.randomUUID();
       if (document.attachments.some(item => item.id === id)) throw new MotionAppError("ALREADY_EXISTS", "Attachment already exists");

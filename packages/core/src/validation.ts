@@ -1,4 +1,5 @@
 import { CANONICAL_MAX_ID_LENGTH, type Attachment, type Block, type Database, type DatabaseProperty, type ID, type Page, type PropertyValue, type Workspace } from "./model.js";
+import { MAX_ATTACHMENT_BYTES } from "./attachment-policy.js";
 
 export interface ValidationLimits {
   maxPages: number; maxBlocks: number; maxBlockDepth: number; maxDatabases: number;
@@ -189,7 +190,7 @@ export function assertWorkspaceValue(value: unknown, overrides: Partial<Validati
     const id = unique(attachment.id, `${path}.id`, limits, allIds); attachmentIds.add(id);
     string(attachment.fileName, `${path}.fileName`, limits); string(attachment.mediaType, `${path}.mediaType`, limits);
     string(attachment.path, `${path}.path`, limits); timestamp(attachment.createdAt, `${path}.createdAt`, limits);
-    if (!Number.isSafeInteger(attachment.byteLength) || attachment.byteLength < 0) fail(`${path}.byteLength must be a non-negative safe integer`);
+    if (!Number.isSafeInteger(attachment.byteLength) || attachment.byteLength < 0 || attachment.byteLength > MAX_ATTACHMENT_BYTES) fail(`${path}.byteLength must be a non-negative safe integer no greater than 3 MiB`);
     if (typeof attachment.sha256 !== "string" || !/^[a-f0-9]{64}$/i.test(attachment.sha256)) fail(`${path}.sha256 must be a SHA-256 hex digest`);
   }
   for (const [index, item] of w.pages.entries()) {

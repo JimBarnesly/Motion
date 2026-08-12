@@ -282,6 +282,28 @@ test("public verification rejects safe checksummed attachment payloads not owned
   assert.throws(() => restoreIntoNewWorkspace(bundle, "restored"), /Backup verification failed/);
 });
 
+test("public backup verification accepts exactly 3 MiB and rejects 3 MiB plus one without exposing attachment identity", () => {
+  const bundleWithSize = (size: number): BackupBundle => {
+    const payload = new Uint8Array(size); payload[payload.length - 1] = 1;
+    const payloadHash = createHash("sha256").update(payload).digest("hex");
+    const source = structuredClone(workspace); source.attachments[0] = {
+      ...source.attachments[0]!, id: "private-attachment-id", fileName: "private-name.bin", byteLength: size, sha256: payloadHash
+    };
+    const workspaceBytes = encoder.encode(canonicalJson(source)); const path = "attachments/private-attachment-id/private-name.bin";
+    return { manifest: { format: "motion-workspace-backup", schemaVersion: 1, createdAt: "2026-08-12T00:00:00.000Z",
+      workspaceId: source.id, workspaceSchemaVersion: source.schemaVersion, files: [
+        { path: "workspace.json", byteLength: workspaceBytes.byteLength, sha256: createHash("sha256").update(workspaceBytes).digest("hex"), mediaType: "application/json" },
+        { path, byteLength: size, sha256: payloadHash, mediaType: "application/octet-stream" }
+      ] }, files: { "workspace.json": workspaceBytes, [path]: payload } };
+  };
+  assert.deepEqual(verifyBackup(bundleWithSize(3 * 1024 * 1024)), { valid: true, errors: [] });
+  const oversized = bundleWithSize(3 * 1024 * 1024 + 1);
+  assert.deepEqual(verifyBackup(oversized), { valid: false, errors: ["Backup attachment exceeds per-file size limit"] });
+  assert.equal(previewRestore(oversized).valid, false);
+  assert.throws(() => restoreIntoNewWorkspace(oversized, "restored"), error => error instanceof Error
+    && /Backup attachment exceeds per-file size limit/.test(error.message) && !/private-attachment-id|private-name/.test(error.message));
+});
+
 test("public verification enforces canonical record membership before restore without mutation", () => {
   const original = createBackup(workspace, [{ id: "attachment-1", fileName: "note.txt", bytes }]);
   const mutations: Array<[string, (value: WorkspaceSnapshot) => void]> = [

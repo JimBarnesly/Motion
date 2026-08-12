@@ -1,4 +1,5 @@
-export const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024;
+import { MAX_ATTACHMENT_BYTES } from "./attachment-policy.js";
+export { MAX_ATTACHMENT_BYTES } from "./attachment-policy.js";
 
 export function createAttachmentIngestion({ activePage, authority, runCanonical, ingest, digest, confirm, status }) {
   const fromFiles = async files => {

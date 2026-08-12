@@ -79,3 +79,12 @@ test("oversized attachments fail before file allocation or dispatch", async () =
   assert.deepEqual({ reads, calls }, { reads: 0, calls: 0 });
   assert.match(statuses[0], /Attachment failed/);
 });
+
+test("attachment ingestion accepts the exact 3 MiB boundary", async () => {
+  let calls = 0;
+  const ingestion = createAttachmentIngestion({ activePage: () => ({ id: "page-1" }), authority: () => ({ workspaceId: "workspace-1", pageId: "page-1", revision: 1 }),
+    runCanonical: async (_action, operation) => operation(), digest: async () => "a".repeat(64), ingest: async payload => { calls += 1; assert.equal(payload.bytes.byteLength, 3 * 1024 * 1024); return { revision: 2 }; }, confirm() {}, status() {} });
+  const boundary = { name: "boundary.bin", type: "application/octet-stream", size: 3 * 1024 * 1024,
+    async arrayBuffer() { return new ArrayBuffer(this.size); } };
+  assert.equal(await ingestion.fromSelection([boundary]), true); assert.equal(calls, 1);
+});

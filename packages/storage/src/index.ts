@@ -4,6 +4,7 @@ import { readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { platform } from "node:os";
 import { DatabaseSync } from "node:sqlite";
+import { ATTACHMENT_SIZE_LIMIT_ERROR, MAX_ATTACHMENT_BYTES } from "@motion/core";
 
 export interface StoredWorkspace {
   workspaceId: string;
@@ -600,6 +601,7 @@ export class ContentAddressedAttachmentStore {
   pathFor(sha256: string): string { requireSha256(sha256); return join(this.root, sha256.slice(0, 2), sha256); }
 
   async stage(bytes: Uint8Array): Promise<StagedAttachment> {
+    if (bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new Error(ATTACHMENT_SIZE_LIMIT_ERROR);
     const sha256 = digest(bytes);
     const finalPath = join(this.root, sha256.slice(0, 2), sha256);
     const stagingRoot = join(this.root, ".staging");
@@ -612,7 +614,9 @@ export class ContentAddressedAttachmentStore {
 
   async promote(staged: StagedAttachment): Promise<StoredAttachment> {
     requireSha256(staged.sha256);
+    if (staged.byteLength > MAX_ATTACHMENT_BYTES) throw new Error(ATTACHMENT_SIZE_LIMIT_ERROR);
     const bytes = await readFile(staged.stagingPath);
+    if (bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new Error(ATTACHMENT_SIZE_LIMIT_ERROR);
     if (bytes.byteLength !== staged.byteLength || digest(bytes) !== staged.sha256) {
       throw new Error(`Staged attachment integrity check failed: ${staged.sha256}`);
     }
@@ -657,7 +661,7 @@ export class ContentAddressedAttachmentStore {
       if (!entry.isFile() || !match) { await rm(stagingPath, { recursive: true, force: true }); report.removedStaging.push(entry.name); continue; }
       const sha256 = match[1]!;
       const bytes = await readFile(stagingPath);
-      if (digest(bytes) !== sha256 || !referenced.has(sha256)) {
+      if (bytes.byteLength > MAX_ATTACHMENT_BYTES || digest(bytes) !== sha256 || !referenced.has(sha256)) {
         await rm(stagingPath, { force: true }); report.removedStaging.push(entry.name); continue;
       }
       const staged = { sha256, byteLength: bytes.byteLength, path: join(this.root, sha256.slice(0, 2), sha256), stagingPath };

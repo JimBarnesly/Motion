@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { posix } from "node:path";
+import { BACKUP_ATTACHMENT_SIZE_LIMIT_ERROR, MAX_ATTACHMENT_BYTES } from "@motion/core";
 
 export const BACKUP_SCHEMA_VERSION = 1 as const;
 export type JsonScalar = string | number | boolean | null;
@@ -72,6 +73,7 @@ export function createBackup(workspace: WorkspaceSnapshot, attachments: readonly
   const files: Record<string, Uint8Array> = { "workspace.json": encoder.encode(canonicalJson(workspace)) };
   const metadata = new Map(workspace.attachments.map(item => [item.id, item]));
   for (const input of attachments) {
+    if (input.bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new Error(BACKUP_ATTACHMENT_SIZE_LIMIT_ERROR);
     const expected = metadata.get(input.id);
     if (!expected) throw new Error(`Attachment ${input.id} is not referenced by the workspace`);
     if (input.fileName !== expected.fileName) throw new Error(`Attachment ${input.id} file name does not match workspace metadata`);
@@ -97,6 +99,9 @@ export function verifyBackup(bundle: BackupBundle): VerificationResult {
     if (!file || typeof file !== "object" || Object.keys(file).some(key => !allowedKeys.has(key))) { errors.push(`Unsupported link-like or metadata field at manifest file ${index}`); continue; }
     if (typeof file.path !== "string" || file.path.length > MAX_BACKUP_METADATA_STRING || typeof file.mediaType !== "string" || file.mediaType.length > MAX_BACKUP_METADATA_STRING) errors.push(`Manifest file ${index} metadata exceeds limit`);
     if (!Number.isSafeInteger(file.byteLength) || file.byteLength < 0 || !/^[0-9a-f]{64}$/.test(file.sha256)) errors.push(`Manifest file ${index} has invalid size or checksum metadata`);
+    const attachmentOversized = file.path !== "workspace.json" && ((Number.isSafeInteger(file.byteLength) && file.byteLength > MAX_ATTACHMENT_BYTES)
+      || bundle.files[file.path]?.byteLength !== undefined && bundle.files[file.path]!.byteLength > MAX_ATTACHMENT_BYTES);
+    if (attachmentOversized && !errors.includes(BACKUP_ATTACHMENT_SIZE_LIMIT_ERROR)) errors.push(BACKUP_ATTACHMENT_SIZE_LIMIT_ERROR);
     totalBytes += Number.isSafeInteger(file.byteLength) ? file.byteLength : 0;
     try { safeArchivePath(file.path); } catch { errors.push(`Unsafe archive path at manifest file ${index}`); }
     if (declared.has(file.path)) errors.push(`Duplicate manifest path at file ${index}`);
@@ -190,7 +195,7 @@ function assertBackupWorkspaceSemantics(bundle: BackupBundle, workspace: Workspa
   for (const [index, attachment] of workspace.attachments.entries()) {
     if (!plainObject(attachment) || typeof attachment.fileName !== "string" || typeof attachment.path !== "string"
       || typeof attachment.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(attachment.sha256)
-      || !Number.isSafeInteger(attachment.byteLength) || attachment.byteLength < 0) {
+      || !Number.isSafeInteger(attachment.byteLength) || attachment.byteLength < 0 || attachment.byteLength > MAX_ATTACHMENT_BYTES) {
       throw new Error(`Invalid workspace attachment metadata at index ${index}`);
     }
     assertCanonicalId(attachment.id, `Attachment ${index} ID`);

@@ -34,6 +34,7 @@ function originAllowed(origin, authority) {
   catch { return false; }
 }
 const securityHeaders = { "content-security-policy": CSP, "x-content-type-options": "nosniff", "referrer-policy": "no-referrer", "cache-control": "no-store" };
+const sharedAttachmentPolicy = resolve(root, "../../packages/core/dist/attachment-policy.js");
 
 const server = createServer(async (request, response) => {
   if (!parseAuthority(request.headers.host) || !originAllowed(request.headers.origin, request.headers.host)) { response.writeHead(403, securityHeaders).end("Forbidden"); return; }
@@ -45,6 +46,15 @@ const server = createServer(async (request, response) => {
     pathname = decodeURIComponent(target.split(/[?#]/, 1)[0]);
   }
   catch { response.writeHead(400, securityHeaders).end("Bad request"); return; }
+  if (pathname === "/packages/core/dist/attachment-policy.js") {
+    try {
+      const policyFile = await realpath(sharedAttachmentPolicy);
+      if (policyFile !== sharedAttachmentPolicy || !(await stat(policyFile)).isFile()) throw new Error("invalid shared policy");
+      response.writeHead(200, { ...securityHeaders, "content-type": mime[".js"] });
+      if (request.method === "HEAD") response.end(); else createReadStream(policyFile).pipe(response);
+    } catch { response.writeHead(404, securityHeaders).end("Not found"); }
+    return;
+  }
   const candidate = resolve(canonicalRoot, `.${pathname === "/" ? "/index.html" : pathname}`);
   if (!candidate.startsWith(`${canonicalRoot}${sep}`)) { response.writeHead(403, securityHeaders).end("Forbidden"); return; }
   try {

@@ -3,7 +3,7 @@ import { extname, join, relative } from "node:path";
 
 const root = new URL("../apps/", import.meta.url);
 const textExtensions = new Set([".html", ".css", ".js", ".mjs", ".ts", ".tsx", ".json"]);
-const networkReference = /(?:https?:)?\/\/[^\s'"`)]+/gi;
+const networkReference = /(?:https?:\/\/|(?<!:)\/\/)[^\s'"`)]+/gi;
 // The Tauri JSON schema is editor/build metadata, not a fetched runtime asset.
 const allowedRuntimeMetadata = /^(?:http:\/\/www\.w3\.org\/2000\/svg|https:\/\/schema\.tauri\.app\/config\/2|http:\/\/(?:localhost|127\.0\.0\.1)(?::|\/|$))/;
 const pinnedBuildToolUrls = new Set([
@@ -14,6 +14,7 @@ const failures = [];
 
 function allowed(reference, sourcePath) {
   if (allowedRuntimeMetadata.test(reference)) return true;
+  if (sourcePath === "web/test/internal-links.test.mjs" && reference.startsWith("https://example.test/")) return true;
   return sourcePath === "desktop/scripts/prepare-node-runtime.mjs" && pinnedBuildToolUrls.has(reference);
 }
 

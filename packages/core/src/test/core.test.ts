@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { CANONICAL_MAX_ID_LENGTH, DEFAULT_VALIDATION_LIMITS, MemoryWorkspaceStore, WorkspaceDocument, assertWorkspaceValue, createWorkspace, exportDatabaseCsv, exportFullWorkspace, exportPageMarkdown, exportWorkspaceJson, migrateWebWorkspaceV1, migrateWorkspace, stableId, type Block, type Page } from "../index.js";
+import { CANONICAL_MAX_ID_LENGTH, DEFAULT_VALIDATION_LIMITS, MemoryWorkspaceStore, WorkspaceDocument, assertWorkspaceValue, createWorkspace, exportDatabaseCsv, exportFullWorkspace, exportPageMarkdown, exportWorkspaceJson, migrateWebWorkspaceV1, migrateWorkspace, stableId, type Block, type Page, type Workspace } from "../index.js";
 
 test("hierarchy, links, backlinks and search", async () => {
   const ws = createWorkspace("Private notes");
@@ -129,6 +129,34 @@ test("legacy title-only wiki links resolve only when the title is unambiguous", 
   doc.addBlock(source.id, { id: "legacy-links", type: "paragraph", text: "[[Unique]] [[Duplicate]]" });
 
   assert.deepEqual(doc.outgoingLinks(source.id), [{ sourcePageId: source.id, targetPageId: unique.id, blockId: "legacy-links" }]);
+});
+
+test("link rebuild reports deterministic work statistics", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Measured links"));
+  const source = doc.addPage("Source"); const target = doc.addPage("Target");
+  doc.addBlock(source.id, { id: "measured", type: "paragraph", text: `[[Target]] [[${target.id}]]`, references: [{ pageId: target.id }] });
+  const stats = { pagesVisited: 0, blocksVisited: 0, referencesVisited: 0, wikiTokensVisited: 0, idLookups: 0, titleLookups: 0, linkFilterChecks: 0, linksEmitted: 0 };
+
+  doc.rebuildLinkIndex(stats);
+
+  assert.deepEqual(stats, { pagesVisited: 4, blocksVisited: 1, referencesVisited: 1, wikiTokensVisited: 2, idLookups: 2,
+    titleLookups: 1, linkFilterChecks: 0, linksEmitted: 1 });
+});
+
+test("link rebuild stays linear for ten thousand pages", () => {
+  const timestamp = "2026-01-01T00:00:00.000Z"; const pageCount = 10_000;
+  const pages: Page[] = Array.from({ length: pageCount }, (_, index) => ({ id: `page-${index}`, parentId: null, title: `Title ${index}`, favourite: false,
+    createdAt: timestamp, updatedAt: timestamp, blocks: [{ id: `block-${index}`, type: "paragraph", text: `[[Title ${(index + 1) % pageCount}]]`,
+      references: [{ pageId: `page-${(index + 2) % pageCount}` }], children: [] }] }));
+  const workspace: Workspace = { schemaVersion: 2, id: "linear-links", name: "Linear links", pages, databases: [], attachments: [], linkIndex: [], createdAt: timestamp, updatedAt: timestamp };
+  const doc = new WorkspaceDocument(workspace);
+  const stats = { pagesVisited: 0, blocksVisited: 0, referencesVisited: 0, wikiTokensVisited: 0, idLookups: 0, titleLookups: 0, linkFilterChecks: 0, linksEmitted: 0 };
+  const started = performance.now(); doc.rebuildLinkIndex(stats); const elapsedMs = performance.now() - started;
+
+  assert.deepEqual(stats, { pagesVisited: pageCount * 2, blocksVisited: pageCount, referencesVisited: pageCount, wikiTokensVisited: pageCount,
+    idLookups: pageCount, titleLookups: pageCount, linkFilterChecks: 0, linksEmitted: pageCount * 2 });
+  assert.equal(doc.links().length, pageCount * 2);
+  assert.ok(elapsedMs < 2_000, `10k-page rebuild took ${elapsedMs.toFixed(1)}ms`);
 });
 
 test("explicit page mention and child-page IDs remain canonical link sources", () => {

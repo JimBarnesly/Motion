@@ -5,9 +5,11 @@ const id = () => globalThis.crypto.randomUUID();
 const walk = (blocks: Block[], fn: (block: Block) => void) => blocks.forEach(b => { fn(b); walk(b.children, fn); });
 const linkScopes = (links: readonly PageLink[]): Map<ID, string> => {
   const grouped = new Map<ID, PageLink[]>();
-  for (const link of links) grouped.set(link.sourcePageId, [...(grouped.get(link.sourcePageId) ?? []), link]);
+  for (const link of links) { const scoped = grouped.get(link.sourcePageId); if (scoped) scoped.push(link); else grouped.set(link.sourcePageId, [link]); }
   return new Map([...grouped].map(([pageId, scoped]) => [pageId, JSON.stringify(scoped)]));
 };
+export interface LinkRebuildStats { pagesVisited: number; blocksVisited: number; referencesVisited: number; wikiTokensVisited: number; idLookups: number; titleLookups: number; linkFilterChecks: number; linksEmitted: number }
+interface LinkLookup { pagesById: ReadonlyMap<ID, Page>; uniquePagesByTitle: ReadonlyMap<string, Page | null> }
 export interface BlockPosition { pageId: ID; parentBlockId: ID | null; beforeBlockId: ID | null }
 export interface BlockContent { text: string; references?: Block["references"] }
 export type BlockTransform = Pick<Block, "type"> & Partial<Pick<Block, "checked" | "language" | "attachmentId" | "headingLevel" | "pageId" | "viewId" | "date" | "url">>;
@@ -129,34 +131,52 @@ export class WorkspaceDocument {
   backlinks(pageId: ID) { this.requiredPage(pageId); return this.data.linkIndex.filter(link => link.targetPageId === pageId); }
   outgoingLinks(pageId: ID) { this.requiredPage(pageId); return this.data.linkIndex.filter(link => link.sourcePageId === pageId); }
   brokenLinks(pageId?: ID) { return this.data.linkIndex.filter(link => (!pageId || link.sourcePageId === pageId) && !this.page(link.targetPageId)); }
-  rebuildLinkIndex(): ID[] {
+  rebuildLinkIndex(stats?: LinkRebuildStats): ID[] {
     const before = linkScopes(this.data.linkIndex);
-    this.data.linkIndex = [];
-    for (const page of this.data.pages) this.indexPage(page);
+    const lookup = this.linkLookup(stats); const links: PageLink[] = [];
+    for (const page of this.data.pages) { if (stats) stats.pagesVisited++; links.push(...this.pageLinks(page, lookup, stats)); }
+    links.sort(compareLinks); this.data.linkIndex = links;
     const after = linkScopes(this.data.linkIndex);
     return [...new Set([...before.keys(), ...after.keys()])].filter(pageId => before.get(pageId) !== after.get(pageId)).sort();
   }
   search(query: string) { const terms = query.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean); if (!terms.length) return []; return this.data.pages.map(page => { const texts: string[] = []; walk(page.blocks, b => texts.push(b.text)); const haystack = `${page.title}\n${texts.join("\n")}`.toLocaleLowerCase(); const score = terms.reduce((n, term) => n + (page.title.toLocaleLowerCase().includes(term) ? 5 : 0) + haystack.split(term).length - 1, 0); return { page, score, snippets: texts.filter(t => terms.some(term => t.toLocaleLowerCase().includes(term))).slice(0, 3) }; }).filter(r => r.score > 0).sort((a, b) => b.score - a.score || b.page.updatedAt.localeCompare(a.page.updatedAt)); }
   records(databaseId: ID): Page[] { const db = this.requiredDatabase(databaseId); return (db.recordPageIds ?? []).map(pid => this.page(pid)).filter((p): p is Page => !!p && !p.deletedAt); }
   queryRecords(databaseId: ID, filter?: FilterExpression, sorts: SortClause[] = []): Page[] { let pages = this.records(databaseId); if (filter) pages = pages.filter(p => evaluateFilter(filter, p.properties ?? {})); return stableSort(pages, sorts); }
-  private indexPage(page: Page) {
-    this.data.linkIndex = this.data.linkIndex.filter(link => link.sourcePageId !== page.id);
+  private linkLookup(stats?: LinkRebuildStats): LinkLookup {
+    const pagesById = new Map<ID, Page>(), uniquePagesByTitle = new Map<string, Page | null>();
+    for (const page of this.data.pages) {
+      if (stats) stats.pagesVisited++;
+      pagesById.set(page.id, page); const title = page.title.toLocaleLowerCase();
+      uniquePagesByTitle.set(title, uniquePagesByTitle.has(title) ? null : page);
+    }
+    return { pagesById, uniquePagesByTitle };
+  }
+  private pageLinks(page: Page, lookup: LinkLookup, stats?: LinkRebuildStats): PageLink[] {
+    const links: PageLink[] = [];
     walk(page.blocks, block => {
       const references = block.references ?? [];
+      if (stats) { stats.blocksVisited++; stats.referencesVisited += references.length; }
       const targets = new Set(references.map(reference => reference.pageId));
       if (block.pageId && (block.type === "page-mention" || block.type === "child-page")) targets.add(block.pageId);
-      const rangedReferences = references.filter((reference): reference is typeof reference & { start: number; end: number } => Number.isInteger(reference.start) && Number.isInteger(reference.end));
+      const rangedReferences = new Set(references.filter(reference => Number.isInteger(reference.start) && Number.isInteger(reference.end)).map(reference => `${reference.start}:${reference.end}`));
       for (const match of block.text.matchAll(/\[\[([^\]]+)\]\]/g)) {
+        if (stats) stats.wikiTokensVisited++;
         const start = match.index; const end = start + match[0].length;
-        if (rangedReferences.some(reference => reference.start === start && reference.end === end)) continue;
-        const byId = this.page(match[1]);
-        const byTitle = byId ? [] : this.data.pages.filter(candidate => candidate.title.toLocaleLowerCase() === match[1].trim().toLocaleLowerCase());
-        const target = byId ?? (byTitle.length === 1 ? byTitle[0] : undefined);
+        if (rangedReferences.has(`${start}:${end}`)) continue;
+        if (stats) stats.idLookups++; const byId = lookup.pagesById.get(match[1]);
+        if (!byId && stats) stats.titleLookups++;
+        const target = byId ?? lookup.uniquePagesByTitle.get(match[1].trim().toLocaleLowerCase()) ?? undefined;
         if (target) targets.add(target.id);
       }
-      for (const targetPageId of targets) this.data.linkIndex.push({ sourcePageId: page.id, targetPageId, blockId: block.id });
+      for (const targetPageId of targets) links.push({ sourcePageId: page.id, targetPageId, blockId: block.id });
     });
-    this.data.linkIndex.sort((a,b) => a.sourcePageId.localeCompare(b.sourcePageId) || a.blockId.localeCompare(b.blockId) || a.targetPageId.localeCompare(b.targetPageId));
+    if (stats) stats.linksEmitted += links.length;
+    return links;
+  }
+  private indexPage(page: Page) {
+    this.data.linkIndex = this.data.linkIndex.filter(link => link.sourcePageId !== page.id);
+    this.data.linkIndex.push(...this.pageLinks(page, this.linkLookup()));
+    this.data.linkIndex.sort(compareLinks);
   }
   private blockLocation(page: Page, blockId: ID, blocks: Block[] = page.blocks, parent: Block | null = null): BlockLocation | undefined {
     for (let index = 0; index < blocks.length; index++) {
@@ -230,6 +250,7 @@ export class WorkspaceDocument {
 }
 
 function filterReferences(filter: FilterExpression, propertyId: ID): boolean { if (filter.kind === "condition") return filter.propertyId === propertyId; if (filter.kind === "not") return filterReferences(filter.child, propertyId); return filter.children.some(child => filterReferences(child, propertyId)); }
+function compareLinks(a: PageLink, b: PageLink): number { return a.sourcePageId.localeCompare(b.sourcePageId) || a.blockId.localeCompare(b.blockId) || a.targetPageId.localeCompare(b.targetPageId); }
 
 function evaluateFilter(node: FilterExpression, values: Record<ID, PropertyValue>): boolean {
   if ("children" in node && node.kind === "and") return node.children.every(n => evaluateFilter(n, values));

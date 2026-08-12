@@ -72,6 +72,7 @@ function browserDevelopmentAdapter() {
     async search() { return null; },
     async exportWorkspace() { return null; },
     ingestAttachmentBlock: nativeOnly,
+    readAttachment: nativeOnly,
     createBackup: nativeOnly,
     saveBackup: nativeOnly,
     verifyBackup: nativeOnly,
@@ -237,6 +238,7 @@ function tauriAdapter(invoke) {
       return dispatchCurrentWorkspace("query", { type: "workspace.export" });
     },
     async ingestAttachmentBlock({ pageId, position, fileName, mediaType, sha256, bytes }) {
+      if (!(bytes instanceof Uint8Array) || bytes.byteLength > 3 * 1024 * 1024) throw new Error("Attachments must not exceed 3 MiB");
       const operationEpoch = workspaceEpoch;
       const current = await requiredWorkspace();
       assertCurrentWorkspace(operationEpoch, current.id);
@@ -247,6 +249,7 @@ function tauriAdapter(invoke) {
       advanceWorkspaceSummary(result, current);
       return result;
     },
+    async readAttachment(attachmentId) { return dispatchCurrentWorkspace("async-query", { type: "attachment.read", attachmentId }); },
     async createBackup() { return dispatchCurrentWorkspace("async-query", { type: "backup.create" }); },
     async saveBackup(bundle) { return invoke("motion_backup_save", { request: { schemaVersion: 1, bundle } }); },
     async verifyBackup(bundle) { return dispatch("async-query", { type: "backup.verify", bundle }); },

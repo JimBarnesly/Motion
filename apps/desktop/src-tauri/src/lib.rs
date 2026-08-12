@@ -10,6 +10,7 @@ use std::{
 use tauri::Manager;
 
 const MAX_REQUEST_BYTES: usize = 16 * 1024 * 1024;
+const MAX_ATTACHMENT_BYTES: usize = 3 * 1024 * 1024;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -114,6 +115,11 @@ fn validate_dispatch_request(request: &IpcRequest) -> Result<(), IpcError> {
         .get("type")
         .and_then(Value::as_str)
         .ok_or_else(|| reject("INVALID_INPUT", "IPC payload requires an operation type"))?;
+    if operation == "attachment.ingest-block" {
+        let byte_count = payload.get("bytes").and_then(|value| value.get("$motionBytes")).and_then(Value::as_array)
+            .ok_or_else(|| reject("INVALID_INPUT", "Attachment bytes require an explicit byte envelope"))?.len();
+        if byte_count > MAX_ATTACHMENT_BYTES { return Err(reject("INVALID_INPUT", "Attachments must not exceed 3 MiB")); }
+    }
     // Keep this list aligned with production callers in apps/web/app-adapter.js.
     let allowed: &[&str] = match (request.lane.as_str(), operation) {
         ("query", "workspace.list") => &["type"],
@@ -170,6 +176,7 @@ fn validate_dispatch_request(request: &IpcRequest) -> Result<(), IpcError> {
         ],
         ("async-command", "backup.restore-new") => &["type", "bundle", "newWorkspaceId"],
         ("async-query", "backup.create") => &["type", "workspaceId", "createdAt"],
+        ("async-query", "attachment.read") => &["type", "workspaceId", "attachmentId"],
         ("async-query", "backup.verify" | "backup.preview") => &["type", "bundle"],
         _ => {
             return Err(reject(
@@ -503,6 +510,24 @@ mod tests {
             }),
         };
         assert!(validate_dispatch_request(&attachment_block).is_ok());
+        let extra_attachment_field = IpcRequest {
+            protocol_version: 1,
+            lane: "async-command".into(),
+            payload: json!({
+                "type": "attachment.ingest-block", "workspaceId": "w", "expectedRevision": 1, "pageId": "page-1",
+                "position": { "parentBlockId": null, "beforeBlockId": null }, "fileName": "x", "mediaType": "text/plain",
+                "sha256": "0".repeat(64), "bytes": { "$motionBytes": [] }, "unsupported": true
+            }),
+        };
+        assert_eq!(validate_dispatch_request(&extra_attachment_field).unwrap_err().code, "INVALID_INPUT");
+        let wrong_attachment_lane = IpcRequest { protocol_version: 1, lane: "command".into(), payload: attachment_block.payload.clone() };
+        assert_eq!(validate_dispatch_request(&wrong_attachment_lane).unwrap_err().code, "INVALID_INPUT");
+        let oversized_attachment = IpcRequest { protocol_version: 1, lane: "async-command".into(), payload: json!({
+            "type": "attachment.ingest-block", "workspaceId": "w", "expectedRevision": 1, "pageId": "page-1",
+            "position": { "parentBlockId": null, "beforeBlockId": null }, "fileName": "x", "mediaType": "text/plain",
+            "sha256": "0".repeat(64), "bytes": { "$motionBytes": vec![0; MAX_ATTACHMENT_BYTES + 1] }
+        }) };
+        assert_eq!(validate_dispatch_request(&oversized_attachment).unwrap_err().code, "INVALID_INPUT");
         let wrong_lane = IpcRequest {
             protocol_version: 1,
             lane: "query".into(),

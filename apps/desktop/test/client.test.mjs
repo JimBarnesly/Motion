@@ -39,6 +39,8 @@ test("native boundary rejects unauthorized command and path fields before servic
   const source = await (await import("node:fs/promises")).readFile(new URL("../src-tauri/src/lib.rs", import.meta.url), "utf8");
   assert.match(source, /IPC operation is not allowed on this lane/);
   assert.match(source, /IPC payload contains an unsupported field/);
+  assert.match(source, /\("async-command", "attachment\.ingest-block"\)/);
+  assert.match(source, /MAX_ATTACHMENT_BYTES/);
   assert.match(source, /"shell\.execute"/);
   assert.match(source, /"path": "\/etc\/passwd"/);
   assert.match(source, /backup_save_request_cannot_supply_a_path_or_confirmation/);

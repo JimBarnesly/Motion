@@ -363,6 +363,20 @@ test("attachment block is published only after durable ingestion and survives re
     await assert.rejects(service.executeAsync(command()), (error: unknown) => error instanceof MotionAppError && error.code === "STORAGE_FAILURE" && /no attachment or block/i.test(error.message));
     canonical = service.query({ type: "workspace.get", workspaceId }).workspace;
     assert.deepEqual({ attachments: canonical.attachments.length, blocks: canonical.pages[0]!.blocks.length }, { attachments: 0, blocks: 0 });
+    assert.deepEqual((await attachments.recover([])).unreferencedBlobs, [], "failed SQLite publication must compensate a newly promoted blob");
+
+    const invalidBytes = new TextEncoder().encode("invalid-position-payload");
+    await assert.rejects(service.executeAsync(command({ attachmentId: "invalid-position-attachment", blockId: "invalid-position-block",
+      position: { parentBlockId: null, beforeBlockId: "missing-sibling" }, bytes: invalidBytes, sha256: hash(invalidBytes) })),
+    (error: unknown) => error instanceof MotionAppError && error.code === "NOT_FOUND");
+    assert.deepEqual((await attachments.recover([])).unreferencedBlobs, [], "invalid position must fail before promotion");
+
+    await assert.rejects(service.executeAsync(command({ unsupported: "capability" })),
+      (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT" && /shape/i.test(error.message));
+
+    const oversized = new Uint8Array(3 * 1024 * 1024 + 1);
+    await assert.rejects(service.executeAsync(command({ bytes: oversized, sha256: hash(oversized) })),
+      (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT" && /3 MiB/i.test(error.message));
 
     const ingested = await service.executeAsync(command());
     assert.equal(ingested.workspace.pages[0]!.blocks[0]!.attachmentId, "attachment-proof");
@@ -370,6 +384,12 @@ test("attachment block is published only after durable ingestion and survives re
     canonical = service.query({ type: "workspace.get", workspaceId }).workspace;
     assert.deepEqual(canonical.attachments.map(item => item.id), ["attachment-proof"]);
     assert.deepEqual(canonical.pages[0]!.blocks.map(block => block.id), ["block-proof"]);
+
+    failingStore.failNext = true;
+    await assert.rejects(service.executeAsync(command({ expectedRevision: ingested.revision, attachmentId: "dedup-failure", blockId: "dedup-failure-block" })),
+      (error: unknown) => error instanceof MotionAppError && error.code === "STORAGE_FAILURE");
+    assert.deepEqual((await attachments.recover([hash(bytes)])).unreferencedBlobs, [], "failed deduplicated publication must preserve referenced content");
+    assert.deepEqual(new Uint8Array(await attachments.get(hash(bytes))), bytes);
 
     store.close();
     store = new SqliteWorkspaceStore(sourcePath); service = new MotionAppService(store, new ContentAddressedAttachmentStore(sourceFiles));

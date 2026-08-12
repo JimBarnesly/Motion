@@ -337,6 +337,15 @@ test("late attachment response cannot reactivate its old workspace after import"
   assert.equal(calls.find(call => call?.type === "workspace.search").workspaceId, "workspace-new");
 });
 
+test("attachment ingestion is wired through the canonical lease and explicit file rendering", async () => {
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  assert.match(source, /runCanonical:runCanonicalOperation/);
+  assert.match(source, /authority:\(\)=>\(\{workspaceId:workspace\(\)\?\.id,pageId:activePage\(\)\?\.id,revision:state\.revision\}\)/);
+  assert.match(source, /block\.type==="file"/);
+  assert.match(source, /Attachment unavailable/);
+  assert.doesNotMatch(source, /block\.type==="file"[\s\S]{0,500}contenteditable="true"/);
+});
+
 test("older concurrent import cannot overwrite the workspace selected by the newer import", async () => {
   const releases = [];
   const calls = [];

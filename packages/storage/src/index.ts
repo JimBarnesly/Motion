@@ -17,6 +17,7 @@ export interface StoredAttachment {
   sha256: string;
   byteLength: number;
   path: string;
+  newlyCreated?: boolean;
 }
 
 export interface StagedAttachment extends StoredAttachment {
@@ -596,6 +597,8 @@ export class AsyncSqliteWorkspaceStore<T extends { id: string; name: string; upd
 export class ContentAddressedAttachmentStore {
   constructor(private readonly root: string) { ensurePrivateDirectory(root); }
 
+  pathFor(sha256: string): string { requireSha256(sha256); return join(this.root, sha256.slice(0, 2), sha256); }
+
   async stage(bytes: Uint8Array): Promise<StagedAttachment> {
     const sha256 = digest(bytes);
     const finalPath = join(this.root, sha256.slice(0, 2), sha256);
@@ -620,15 +623,20 @@ export class ContentAddressedAttachmentStore {
       const current = await readFile(staged.path);
       if (current.byteLength !== staged.byteLength || digest(current) !== staged.sha256) throw new Error(`Attachment hash collision at ${staged.path}`);
       await this.discard(staged);
+      return { sha256: staged.sha256, byteLength: staged.byteLength, path: staged.path, newlyCreated: false };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       await rename(staged.stagingPath, staged.path);
+      return { sha256: staged.sha256, byteLength: staged.byteLength, path: staged.path, newlyCreated: true };
     }
-    return { sha256: staged.sha256, byteLength: staged.byteLength, path: staged.path };
   }
 
   async discard(staged: StagedAttachment): Promise<void> {
     await rm(staged.stagingPath, { force: true });
+  }
+
+  async removeNewlyCreated(stored: StoredAttachment): Promise<void> {
+    if (stored.newlyCreated) await rm(stored.path, { force: true });
   }
 
   /**

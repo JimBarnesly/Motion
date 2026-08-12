@@ -363,13 +363,14 @@ test("attachment block is published only after durable ingestion and survives re
     await assert.rejects(service.executeAsync(command()), (error: unknown) => error instanceof MotionAppError && error.code === "STORAGE_FAILURE" && /no attachment or block/i.test(error.message));
     canonical = service.query({ type: "workspace.get", workspaceId }).workspace;
     assert.deepEqual({ attachments: canonical.attachments.length, blocks: canonical.pages[0]!.blocks.length }, { attachments: 0, blocks: 0 });
-    assert.deepEqual((await attachments.recover([])).unreferencedBlobs, [], "failed SQLite publication must compensate a newly promoted blob");
+    assert.deepEqual((await attachments.recover([])).unreferencedBlobs, [hash(bytes)],
+      "failed SQLite publication must retain a final blob rather than race a concurrent metadata commit");
 
     const invalidBytes = new TextEncoder().encode("invalid-position-payload");
     await assert.rejects(service.executeAsync(command({ attachmentId: "invalid-position-attachment", blockId: "invalid-position-block",
       position: { parentBlockId: null, beforeBlockId: "missing-sibling" }, bytes: invalidBytes, sha256: hash(invalidBytes) })),
     (error: unknown) => error instanceof MotionAppError && error.code === "NOT_FOUND");
-    assert.deepEqual((await attachments.recover([])).unreferencedBlobs, [], "invalid position must fail before promotion");
+    assert.deepEqual((await attachments.recover([])).unreferencedBlobs, [hash(bytes)], "invalid position must fail before promotion and must not create another final blob");
 
     await assert.rejects(service.executeAsync(command({ unsupported: "capability" })),
       (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT" && /shape/i.test(error.message));
@@ -408,6 +409,48 @@ test("attachment block is published only after durable ingestion and survives re
     target.close();
   } finally {
     await Promise.all([removeDatabase(sourcePath), removeDatabase(targetPath), rm(sourceFiles, { recursive: true, force: true }), rm(targetFiles, { recursive: true, force: true })]);
+  }
+});
+
+test("failed ingestion compensation cannot delete content concurrently committed by another service", async () => {
+  const path = databasePath("attachment-compensation-race"); const files = `${path}.attachments`;
+  let storeA: SqliteWorkspaceStore | undefined; let storeB: SqliteWorkspaceStore | undefined;
+  try {
+    const setupStore = new SqliteWorkspaceStore(path); const setup = new MotionAppService(setupStore, new ContentAddressedAttachmentStore(files));
+    let state = setup.execute({ type: "workspace.create", name: "Compensation race" });
+    state = setup.execute({ type: "page.create", workspaceId: state.workspace.id, expectedRevision: state.revision, title: "Evidence" });
+    setupStore.close();
+    const workspaceId = state.workspace.id; const pageId = state.workspace.pages[0]!.id; const expectedRevision = state.revision;
+    const bytes = new TextEncoder().encode("shared concurrent payload"); const sha256 = hash(bytes);
+    let releaseB!: () => void; const beginB = new Promise<void>(resolve => { releaseB = resolve; });
+    let bDone!: Promise<unknown>;
+    class FailingWorkspaceStore extends SqliteWorkspaceStore {
+      failed = false;
+      override saveUnitOfWork(write: import("@motion/storage").WorkspaceWrite): number {
+        if (!this.failed) { this.failed = true; throw new Error("injected database failure"); }
+        return super.saveUnitOfWork(write);
+      }
+      override list() { const rows = super.list(); if (this.failed) releaseB(); return rows; }
+    }
+    storeA = new FailingWorkspaceStore(path); storeB = new SqliteWorkspaceStore(path);
+    const attachmentsA = new ContentAddressedAttachmentStore(files);
+    (attachmentsA as any).removeNewlyCreated = async (stored: { path: string; newlyCreated: boolean }) => {
+      releaseB(); await bDone; if (stored.newlyCreated) await rm(stored.path, { force: true });
+    };
+    const serviceA = new MotionAppService(storeA, attachmentsA);
+    const serviceB = new MotionAppService(storeB, new ContentAddressedAttachmentStore(files));
+    const command = (attachmentId: string, blockId: string) => ({ type: "attachment.ingest-block", workspaceId, expectedRevision,
+      pageId, position: { parentBlockId: null, beforeBlockId: null }, attachmentId, blockId,
+      fileName: "shared.txt", mediaType: "text/plain", sha256, bytes } as const);
+    bDone = (async () => { await beginB; return serviceB.executeAsync(command("b-attachment", "b-block")); })();
+    const aResult = assert.rejects(serviceA.executeAsync(command("a-attachment", "a-block")),
+      (error: unknown) => error instanceof MotionAppError && error.code === "STORAGE_FAILURE");
+    await aResult; releaseB();
+    await bDone;
+    assert.deepEqual((await serviceB.queryAsync({ type: "attachment.read", workspaceId, attachmentId: "b-attachment" })).bytes, bytes);
+  } finally {
+    storeA?.close(); storeB?.close();
+    await Promise.all([removeDatabase(path), rm(files, { recursive: true, force: true })]);
   }
 });
 
@@ -455,6 +498,13 @@ test("attachment validation, revision conflict and corrupt restore write no meta
     const store = new SqliteWorkspaceStore(path); const service = new MotionAppService(store, new ContentAddressedAttachmentStore(files));
     const created = service.execute({ type: "workspace.create", name: "Failures" });
     const bytes = new Uint8Array([1, 2, 3]);
+    const oversizedPut = new Uint8Array(3 * 1024 * 1024 + 1);
+    await assert.rejects(service.executeAsync({ type: "attachment.put", workspaceId: created.workspace.id, expectedRevision: created.revision,
+      fileName: "oversized.bin", mediaType: "application/octet-stream", sha256: hash(oversizedPut), bytes: oversizedPut }),
+      (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT" && /3 MiB/i.test(error.message));
+    await assert.rejects(service.executeAsync({ type: "attachment.put", workspaceId: created.workspace.id, expectedRevision: created.revision,
+      fileName: "x", mediaType: "application/octet-stream", sha256: hash(bytes), bytes, unsupported: true } as any),
+      (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT" && /shape/i.test(error.message));
     await assert.rejects(service.executeAsync({ type: "attachment.put", workspaceId: created.workspace.id, expectedRevision: created.revision, fileName: "x", mediaType: "application/octet-stream", sha256: "missing", bytes }), (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
     await assert.rejects(service.executeAsync({ type: "attachment.put", workspaceId: created.workspace.id, expectedRevision: created.revision, fileName: "x", mediaType: "application/octet-stream", sha256: "0".repeat(64), bytes }), (error: unknown) => error instanceof MotionAppError && error.code === "VALIDATION_FAILED");
     const first = await service.executeAsync({ type: "attachment.put", workspaceId: created.workspace.id, expectedRevision: created.revision, fileName: "x", mediaType: "application/octet-stream", sha256: hash(bytes), bytes });

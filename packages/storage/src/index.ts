@@ -635,9 +635,6 @@ export class ContentAddressedAttachmentStore {
     await rm(staged.stagingPath, { force: true });
   }
 
-  async removeNewlyCreated(stored: StoredAttachment): Promise<void> {
-    if (stored.newlyCreated) await rm(stored.path, { force: true });
-  }
 
   /**
    * Repairs interrupted metadata-then-promote writes and removes abandoned staging.

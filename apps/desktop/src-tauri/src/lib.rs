@@ -115,7 +115,7 @@ fn validate_dispatch_request(request: &IpcRequest) -> Result<(), IpcError> {
         .get("type")
         .and_then(Value::as_str)
         .ok_or_else(|| reject("INVALID_INPUT", "IPC payload requires an operation type"))?;
-    if operation == "attachment.ingest-block" {
+    if matches!(operation, "attachment.ingest-block" | "attachment.put") {
         let byte_count = payload.get("bytes").and_then(|value| value.get("$motionBytes")).and_then(Value::as_array)
             .ok_or_else(|| reject("INVALID_INPUT", "Attachment bytes require an explicit byte envelope"))?.len();
         if byte_count > MAX_ATTACHMENT_BYTES { return Err(reject("INVALID_INPUT", "Attachments must not exceed 3 MiB")); }
@@ -528,6 +528,11 @@ mod tests {
             "sha256": "0".repeat(64), "bytes": { "$motionBytes": vec![0; MAX_ATTACHMENT_BYTES + 1] }
         }) };
         assert_eq!(validate_dispatch_request(&oversized_attachment).unwrap_err().code, "INVALID_INPUT");
+        let oversized_put = IpcRequest { protocol_version: 1, lane: "async-command".into(), payload: json!({
+            "type": "attachment.put", "workspaceId": "w", "expectedRevision": 1, "fileName": "x", "mediaType": "text/plain",
+            "sha256": "0".repeat(64), "bytes": { "$motionBytes": vec![0; MAX_ATTACHMENT_BYTES + 1] }
+        }) };
+        assert_eq!(validate_dispatch_request(&oversized_put).unwrap_err().code, "INVALID_INPUT");
         let wrong_lane = IpcRequest {
             protocol_version: 1,
             lane: "query".into(),

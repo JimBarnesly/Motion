@@ -350,9 +350,8 @@ export class MotionAppService {
         await this.attachmentStore().discard(staged);
         throw new MotionAppError("VALIDATION_FAILED", "Attachment bytes do not match declared sha256");
       }
-      let promoted;
       try {
-        promoted = await this.attachmentStore().promote(staged);
+        await this.attachmentStore().promote(staged);
       } catch {
         await this.attachmentStore().discard(staged);
         throw new MotionAppError("STORAGE_FAILURE", "Attachment ingestion failed before publication; no attachment or block was created");
@@ -363,19 +362,23 @@ export class MotionAppService {
           document: document.data, expectedRevision, changeSet: changes.build() });
         return immutable({ workspace: document.data, revision: savedRevision, saved: true as const }) as MutationDto;
       } catch (error) {
-        const referenced = this.store.list().some(stored => (stored.document as Workspace).attachments?.some(attachment => attachment.sha256 === sha256));
-        if (!referenced) await this.attachmentStore().removeNewlyCreated(promoted);
+        // Final content is shared by hash across workspaces and service instances. Never
+        // delete it here: a reference check cannot be atomic with another SQLite commit.
+        // Exclusive, reference-aware GC may reclaim the conservatively retained blob later.
         throw new MotionAppError(error instanceof Error && error.message.startsWith("Revision conflict") ? "REVISION_CONFLICT" : "STORAGE_FAILURE",
           "Attachment publication failed; no attachment or block was created");
       }
     }
     if (command.type === "attachment.put") {
+      const input = exactObject(command, "attachment.put", ["type", "workspaceId", "expectedRevision", "id", "fileName", "mediaType", "sha256", "bytes"],
+        ["type", "workspaceId", "expectedRevision", "fileName", "mediaType", "sha256", "bytes"]);
       const expectedRevision = revision(command.expectedRevision);
-      const loaded = this.required(command.workspaceId);
+      const loaded = this.required(inputId(input.workspaceId, "workspaceId"));
       const fileName = requiredText(command.fileName, "fileName");
       const mediaType = requiredText(command.mediaType, "mediaType");
       const sha256 = validSha256(command.sha256);
       if (!(command.bytes instanceof Uint8Array)) throw new MotionAppError("INVALID_INPUT", "bytes must be a Uint8Array");
+      if (command.bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new MotionAppError("INVALID_INPUT", "Attachment bytes must not exceed 3 MiB");
       const document = clone(loaded.document);
       const id = command.id ? requiredText(command.id, "id") : crypto.randomUUID();
       if (document.attachments.some(item => item.id === id)) throw new MotionAppError("ALREADY_EXISTS", "Attachment already exists");

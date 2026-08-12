@@ -28,7 +28,7 @@ const linkScopes = (links: readonly PageLink[]): Map<ID, string> => {
   for (const link of links) { const scoped = grouped.get(link.sourcePageId); if (scoped) scoped.push(link); else grouped.set(link.sourcePageId, [link]); }
   return new Map([...grouped].map(([pageId, scoped]) => [pageId, JSON.stringify(scoped)]));
 };
-export interface LinkRebuildStats { pagesVisited: number; blocksVisited: number; referencesVisited: number; wikiTokensVisited: number; idLookups: number; titleLookups: number; linkFilterChecks: number; linksEmitted: number; associationCandidatesVisited?: number }
+export interface LinkRebuildStats { pagesVisited: number; blocksVisited: number; referencesVisited: number; wikiTokensVisited: number; idLookups: number; titleLookups: number; linkFilterChecks: number; linksEmitted: number; associationCandidatesVisited?: number; conflictGroupOperations?: number }
 interface LinkLookup { pagesById: ReadonlyMap<ID, Page>; uniquePagesByTitle: ReadonlyMap<string, Page | null> }
 interface WikiToken { text: string; start: number; end: number }
 const radixNumberOrder = <T>(items: readonly T[], key: (item: T) => number): T[] => {
@@ -201,36 +201,52 @@ export class WorkspaceDocument {
         associated[tokenIndex] = 1; matchedReferences[referenceIndex] = 1;
         protectedTexts.add(normalizeLegacyTitle(wikiTokens[tokenIndex]!.text));
       };
-      // Exact ranges are authoritative and consume at most one token.
-      for (let index = 0; index < references.length; index++) {
-        const reference = references[index]!;
-        if (reference.start === undefined || reference.end === undefined) continue;
-        const tokenIndex = exactTokens.get(`${reference.start}:${reference.end}`);
-        if (tokenIndex !== undefined && !associated[tokenIndex]) associate(index, tokenIndex);
+      // Sweep half-open prior ranges into transitive overlap groups. A group is one historical
+      // association claim: all of its explicit IDs remain authoritative, but the group may consume
+      // at most one current token. This prevents a losing duplicate/overlap from escaping into a
+      // distant token. Merely touching ranges remain independent.
+      let rangedReferences = references.map((reference, index) => ({ reference, index })).filter(item =>
+        item.reference.start !== undefined && item.reference.end !== undefined);
+      rangedReferences = radixNumberOrder(radixNumberOrder(radixNumberOrder(rangedReferences, item => item.index), item => item.reference.end!), item => item.reference.start!);
+      const rangeGroups: { members: typeof rangedReferences; start: number; end: number }[] = [];
+      for (const item of rangedReferences) {
+        if (stats?.conflictGroupOperations !== undefined) stats.conflictGroupOperations++;
+        const group = rangeGroups[rangeGroups.length - 1];
+        if (group && item.reference.start! < group.end) { group.members.push(item); group.end = Math.max(group.end, item.reference.end!); }
+        else rangeGroups.push({ members: [item], start: item.reference.start!, end: item.reference.end! });
       }
-      // Stale ranged references are ordered by prior coordinates with a bounded radix pass, then
-      // greedily consume the nearest remaining token (overlap, start displacement, token offset).
-      let staleRanges = references.map((reference, index) => ({ reference, index })).filter(item =>
-        !matchedReferences[item.index] && item.reference.start !== undefined && item.reference.end !== undefined);
-      staleRanges = radixNumberOrder(radixNumberOrder(radixNumberOrder(staleRanges, item => item.index), item => item.reference.end!), item => item.reference.start!);
+      for (const group of rangeGroups) {
+        let exactReference = -1, exactToken = -1;
+        for (const item of group.members) {
+          if (stats?.conflictGroupOperations !== undefined) stats.conflictGroupOperations++;
+          const tokenIndex = exactTokens.get(`${item.reference.start}:${item.reference.end}`);
+          if (tokenIndex !== undefined && (exactToken < 0 || tokenIndex < exactToken)) { exactReference = item.index; exactToken = tokenIndex; }
+        }
+        if (exactToken >= 0) associate(exactReference, exactToken);
+        if (exactToken >= 0) for (const item of group.members) matchedReferences[item.index] = 1;
+      }
+      // Non-exact groups are ordered by prior coordinates and greedily consume one nearest
+      // remaining token (overlap, start displacement, token offset).
+      const staleRanges = rangeGroups.filter(group => !group.members.some(item => matchedReferences[item.index]));
       const previous = new Int32Array(wikiTokens.length), next = new Int32Array(wikiTokens.length);
       let available = -1, tail = -1; for (let index = 0; index < wikiTokens.length; index++) { previous[index] = available; if (!associated[index]) { available = index; tail = index; } }
       available = -1; for (let index = wikiTokens.length - 1; index >= 0; index--) { next[index] = available; if (!associated[index]) available = index; }
       const removeToken = (index: number) => { const left = previous[index]!, right = next[index]!; if (left >= 0) next[left] = right; if (right >= 0) previous[right] = left; else tail = left; associated[index] = 1; };
       let cursor = available;
-      for (const { reference, index: referenceIndex } of staleRanges) {
-        while (cursor >= 0 && wikiTokens[cursor]!.start < reference.start!) cursor = next[cursor]!;
+      for (const group of staleRanges) {
+        while (cursor >= 0 && wikiTokens[cursor]!.start < group.start) cursor = next[cursor]!;
         const left = cursor >= 0 ? previous[cursor]! : tail;
         const candidates = [left, cursor].filter(index => index >= 0);
         let best = -1, bestGap = Number.POSITIVE_INFINITY, bestShift = Number.POSITIVE_INFINITY;
         for (const tokenIndex of candidates) {
           if (stats?.associationCandidatesVisited !== undefined) stats.associationCandidatesVisited++;
           const token = wikiTokens[tokenIndex]!;
-          const gap = token.end <= reference.start! ? reference.start! - token.end : token.start >= reference.end! ? token.start - reference.end! : 0;
-          const shift = Math.abs(token.start - reference.start!);
+          const gap = token.end <= group.start ? group.start - token.end : token.start >= group.end ? token.start - group.end : 0;
+          const shift = Math.abs(token.start - group.start);
           if (gap < bestGap || (gap === bestGap && (shift < bestShift || (shift === bestShift && token.start < wikiTokens[best]?.start!)))) { best = tokenIndex; bestGap = gap; bestShift = shift; }
         }
-        if (best >= 0) { associate(referenceIndex, best); const successor = next[best]!; removeToken(best); if (cursor === best) cursor = successor; }
+        for (const item of group.members) matchedReferences[item.index] = 1;
+        if (best >= 0) { associate(group.members[0]!.index, best); const successor = next[best]!; removeToken(best); if (cursor === best) cursor = successor; }
       }
       // Unranged references associate only through unique identity, or when exactly one reference
       // and one token remain. Ambiguous references consume nothing; unrelated tokens stay visible.

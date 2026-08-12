@@ -235,6 +235,57 @@ test("reference-token association is deterministic across range, identity, and c
   }
 });
 
+test("overlapping ranged-reference groups consume at most their competed token regardless of reference order", () => {
+  const scenarios: { label: string; references: NonNullable<Block["references"]>; expected: string[] }[] = [
+    { label: "identical exact then conflicting", references: [{ pageId: "beta", start: 0, end: 9 }, { pageId: "delta", start: 0, end: 9 }], expected: ["beta", "delta", "gamma"] },
+    { label: "identical conflicting then exact", references: [{ pageId: "delta", start: 0, end: 9 }, { pageId: "beta", start: 0, end: 9 }], expected: ["beta", "delta", "gamma"] },
+    { label: "nested exact then conflicting", references: [{ pageId: "beta", start: 0, end: 9 }, { pageId: "delta", start: 0, end: 8 }], expected: ["beta", "delta", "gamma"] },
+    { label: "nested conflicting then exact", references: [{ pageId: "delta", start: 0, end: 8 }, { pageId: "beta", start: 0, end: 9 }], expected: ["beta", "delta", "gamma"] },
+    { label: "overlap through exact token", references: [{ pageId: "delta", start: 1, end: 10 }, { pageId: "beta", start: 0, end: 9 }], expected: ["beta", "delta", "gamma"] },
+    { label: "duplicate same target", references: [{ pageId: "beta", start: 0, end: 9 }, { pageId: "beta", start: 0, end: 8 }], expected: ["beta", "gamma"] }
+  ];
+  for (const scenario of scenarios) {
+    const workspace = createWorkspace(scenario.label), timestamp = workspace.createdAt;
+    workspace.pages = [
+      { id: "source", parentId: null, title: "Source", createdAt: timestamp, updatedAt: timestamp,
+        blocks: [{ id: "conflict", type: "paragraph", text: "[[Alpha]] [[Gamma]]", children: [], references: scenario.references }] },
+      ...["alpha", "beta", "gamma", "delta"].map(pageId => ({ id: pageId, parentId: null, title: pageId[0]!.toUpperCase() + pageId.slice(1), createdAt: timestamp, updatedAt: timestamp, blocks: [] }))
+    ];
+    assert.deepEqual(new WorkspaceDocument(workspace).outgoingLinks("source").map(link => link.targetPageId), scenario.expected, scenario.label);
+  }
+});
+
+test("touching prior ranges remain separate while transitively overlapping ranges form one conflict group", () => {
+  const scenarios: { label: string; references: NonNullable<Block["references"]>; expected: string[] }[] = [
+    { label: "half-open touching ranges", references: [{ pageId: "beta", start: 0, end: 9 }, { pageId: "delta", start: 9, end: 18 }], expected: ["beta", "delta"] },
+    { label: "transitive overlap group", references: [{ pageId: "beta", start: 0, end: 9 }, { pageId: "delta", start: 8, end: 10 }, { pageId: "epsilon", start: 9, end: 10 }], expected: ["beta", "delta", "epsilon", "gamma"] }
+  ];
+  for (const scenario of scenarios) {
+    const workspace = createWorkspace(scenario.label), timestamp = workspace.createdAt;
+    workspace.pages = [
+      { id: "source", parentId: null, title: "Source", createdAt: timestamp, updatedAt: timestamp,
+        blocks: [{ id: "conflict", type: "paragraph", text: "[[Alpha]] [[Gamma]]", children: [], references: scenario.references }] },
+      ...["alpha", "beta", "gamma", "delta", "epsilon"].map(pageId => ({ id: pageId, parentId: null, title: pageId[0]!.toUpperCase() + pageId.slice(1), createdAt: timestamp, updatedAt: timestamp, blocks: [] }))
+    ];
+    assert.deepEqual(new WorkspaceDocument(workspace).outgoingLinks("source").map(link => link.targetPageId), scenario.expected, scenario.label);
+  }
+});
+
+test("one hundred thousand conflicting references use a bounded interval sweep", () => {
+  const count = 100_000, workspace = createWorkspace("Bounded conflict groups"), timestamp = workspace.createdAt;
+  workspace.pages = [
+    { id: "source", parentId: null, title: "Source", createdAt: timestamp, updatedAt: timestamp, blocks: [{ id: "many-conflicts", type: "paragraph", text: "[[Alpha]] [[Gamma]]", children: [],
+      references: Array.from({ length: count }, (_, index) => ({ pageId: `target-${index}`, start: 0, end: index % 2 ? 8 : 9 })) }] },
+    { id: "alpha", parentId: null, title: "Alpha", createdAt: timestamp, updatedAt: timestamp, blocks: [] },
+    { id: "gamma", parentId: null, title: "Gamma", createdAt: timestamp, updatedAt: timestamp, blocks: [] }
+  ];
+  const stats = { pagesVisited: 0, blocksVisited: 0, referencesVisited: 0, wikiTokensVisited: 0, idLookups: 0, titleLookups: 0, linkFilterChecks: 0, linksEmitted: 0,
+    associationCandidatesVisited: 0, conflictGroupOperations: 0 };
+  new WorkspaceDocument(workspace).rebuildLinkIndex(stats);
+  assert.ok(stats.conflictGroupOperations >= count, String(stats.conflictGroupOperations));
+  assert.ok(stats.conflictGroupOperations <= count * 2, String(stats.conflictGroupOperations));
+});
+
 test("one hundred thousand stale associations visit only bounded adjacent candidates", () => {
   const count = 100_000, token = "[[Alpha]]", text = Array.from({ length: count }, () => token).join(" ");
   const workspace = createWorkspace("Bounded association"), timestamp = workspace.createdAt;

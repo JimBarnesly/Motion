@@ -124,6 +124,26 @@ test("FTS survives restart and follows rename and deletion", async () => {
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test("full FTS rebuild omits trashed page and database-owned content", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-fts-trash-rebuild-"));
+  const store = new SqliteWorkspaceStore(join(root, "motion.sqlite3"));
+  try {
+    store.save("ws", 1, { id: "ws", pages: [
+      { id: "visible", title: "Visible canary", blocks: [] },
+      { id: "trashed", title: "Buried canary", deletedAt: "2026-08-12T00:00:00.000Z", blocks: [] },
+      { id: "owner", title: "Hidden database", deletedAt: "2026-08-12T00:00:00.000Z", blocks: [] },
+      { id: "record", title: "Hidden record", collectionId: "visible-db", deletedAt: "2026-08-12T00:00:00.000Z", blocks: [] }
+    ], databases: [
+      { id: "hidden-db", pageId: "owner", name: "owner-database-canary", rows: [] },
+      { id: "visible-db", pageId: "visible", name: "Visible database", rows: [{ id: "row", pageId: "record", values: { value: "record-row-canary" } }] }
+    ], attachments: [], linkIndex: [] }, 0);
+    assert.ok(store.search("Visible", "ws").length > 0);
+    assert.equal(store.search("Buried", "ws").length, 0);
+    assert.equal(store.search("owner-database-canary", "ws").length, 0);
+    assert.equal(store.search("record-row-canary", "ws").length, 0);
+  } finally { store.close(); await rm(root, { recursive: true, force: true }); }
+});
+
 test("FTS indexes persisted table row values by stable row ID", async () => {
   const root = await mkdtemp(join(tmpdir(), "motion-table-search-"));
   const path = join(root, "motion.sqlite3");

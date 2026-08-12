@@ -111,6 +111,76 @@ test("committed vertical slice survives restart and supports search, backlinks, 
   } finally { await removeDatabase(path); }
 });
 
+test("trashed page subtrees leave FTS and restoring them reindexes their content", async () => {
+  const path = databasePath("trashed-page-fts");
+  try {
+    const store = new SqliteWorkspaceStore(path); const service = new MotionAppService(store);
+    let state = service.execute({ type: "workspace.create", name: "Search lifecycle" }); const workspaceId = state.workspace.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Parent" });
+    const parentId = state.workspace.pages[0]!.id;
+    state = service.execute({ type: "page.create", workspaceId, expectedRevision: state.revision, title: "Child", parentId });
+    const childId = state.workspace.pages.find(page => page.parentId === parentId)!.id;
+    state = service.execute({ type: "page.replace-blocks", workspaceId, expectedRevision: state.revision, pageId: childId,
+      blocks: [{ id: "hidden-block", type: "paragraph", text: "buried canary", children: [] }] });
+    assert.equal(service.query({ type: "workspace.search", workspaceId, query: "buried" }).length, 1);
+
+    state = service.execute({ type: "page.trash", workspaceId, expectedRevision: state.revision, pageId: parentId });
+    assert.equal(service.query({ type: "workspace.search", workspaceId, query: "buried" }).length, 0);
+
+    service.execute({ type: "page.restore", workspaceId, expectedRevision: state.revision, pageId: childId });
+    assert.equal(service.query({ type: "workspace.search", workspaceId, query: "buried" }).length, 1);
+    store.close();
+  } finally { await removeDatabase(path); }
+});
+
+test("trashing a database owner page suppresses its database-scoped FTS until restore", async () => {
+  const path = databasePath("trashed-database-owner-fts");
+  try {
+    const store = new SqliteWorkspaceStore(path); const service = new MotionAppService(store);
+    let state = service.execute({ type: "workspace.create", name: "Database search lifecycle" }); const workspaceId = state.workspace.id;
+    state = service.execute({ type: "database.create", workspaceId, expectedRevision: state.revision, title: "Inventory" });
+    const database = state.workspace.databases[0]!;
+    state = service.execute({ type: "database.property-add", workspaceId, expectedRevision: state.revision, databaseId: database.id,
+      property: { name: "owner-scope-canary", type: "plain-text" } });
+    assert.ok(service.query({ type: "workspace.search", workspaceId, query: "owner-scope-canary" }).length > 0);
+
+    state = service.execute({ type: "page.trash", workspaceId, expectedRevision: state.revision, pageId: database.pageId });
+    assert.equal(service.query({ type: "workspace.search", workspaceId, query: "owner-scope-canary" }).length, 0);
+
+    service.execute({ type: "page.restore", workspaceId, expectedRevision: state.revision, pageId: database.pageId });
+    assert.ok(service.query({ type: "workspace.search", workspaceId, query: "owner-scope-canary" }).length > 0);
+    store.close();
+  } finally { await removeDatabase(path); }
+});
+
+test("trashing a record page suppresses its database row values until restore", async () => {
+  const path = databasePath("trashed-record-database-fts");
+  try {
+    const store = new SqliteWorkspaceStore(path); const service = new MotionAppService(store);
+    let state = service.execute({ type: "workspace.create", name: "Record search lifecycle" }); const workspaceId = state.workspace.id;
+    state = service.execute({ type: "database.create", workspaceId, expectedRevision: state.revision, title: "Inventory" });
+    const databaseId = state.workspace.databases[0]!.id;
+    state = service.execute({ type: "database.property-add", workspaceId, expectedRevision: state.revision, databaseId,
+      property: { name: "Serial", type: "plain-text" } });
+    const propertyId = state.workspace.databases[0]!.properties.find(property => property.name === "Serial")!.id;
+    state = service.execute({ type: "database.record-create", workspaceId, expectedRevision: state.revision, databaseId,
+      title: "Pump", values: { [propertyId]: "record-value-canary" } });
+    const recordId = state.workspace.pages.find(page => page.collectionId === databaseId)!.id;
+    const withPersistedRow = structuredClone(state.workspace);
+    withPersistedRow.databases[0]!.rows.push({ id: crypto.randomUUID(), pageId: recordId, values: { [propertyId]: "record-value-canary" },
+      createdAt: withPersistedRow.createdAt, updatedAt: withPersistedRow.updatedAt });
+    const rowRevision = store.saveUnitOfWork({ workspaceId, schemaVersion: withPersistedRow.schemaVersion, document: withPersistedRow, expectedRevision: state.revision });
+    assert.ok(service.query({ type: "workspace.search", workspaceId, query: "record-value-canary" }).length > 0);
+
+    state = service.execute({ type: "page.trash", workspaceId, expectedRevision: rowRevision, pageId: recordId });
+    assert.equal(service.query({ type: "workspace.search", workspaceId, query: "record-value-canary" }).length, 0);
+
+    service.execute({ type: "page.restore", workspaceId, expectedRevision: state.revision, pageId: recordId });
+    assert.ok(service.query({ type: "workspace.search", workspaceId, query: "record-value-canary" }).length > 0);
+    store.close();
+  } finally { await removeDatabase(path); }
+});
+
 test("fine-grained block commands preserve structure and indexes across restart", async () => {
   const path = databasePath("block-commands");
   try {

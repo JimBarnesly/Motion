@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { runWithTimeout, startJsonLineService } from "./m2-process-control.mjs";
 
 const root = JSON.parse(await readFile("package.json", "utf8"));
 const ci = await readFile(".github/workflows/ci.yml", "utf8");
 const lane = await readFile("scripts/m2-packaged-acceptance.mjs", "utf8").catch(() => "");
+const processControl = await readFile("scripts/m2-process-control.mjs", "utf8").catch(() => "");
 
 test("M2 packaged acceptance is a declared, release-gated contract", () => {
   assert.equal(root.scripts?.["test:m2-acceptance-contract"], "node --test scripts/m2-acceptance-contract.test.mjs");
@@ -21,9 +23,28 @@ test("the packaged lane is fail-diagnostic and denies network in its extracted r
   assert.match(lane, /external-graphical/);
   assert.match(lane, /sourceFailures/);
   assert.match(lane, /diagnostic/);
-  assert.match(lane, /\[stderr, stdout\]/);
+  assert.match(lane, /runWithTimeout/);
+  assert.match(lane, /startJsonLineService/);
+  assert.match(processControl, /\[stderr, stdout\]/);
+  assert.match(processControl, /timed out after/);
   assert.match(lane, /AppImage not found/);
   assert.match(lane, /attachment\.ingest-block/);
   assert.match(lane, /page\.backlinks/);
   assert.match(lane, /backup\.restore-new/);
+});
+
+test("packaged acceptance subprocesses fail diagnostically instead of hanging", async () => {
+  await assert.rejects(
+    runWithTimeout(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { timeoutMs: 25 }),
+    /timed out after 25ms/
+  );
+
+  const exited = startJsonLineService(process.execPath, ["-e", "process.stdin.resume(); process.stdin.once('data', () => process.exit(0))"], {
+    requestTimeoutMs: 250
+  });
+  await assert.rejects(exited.request("query", {}), /exited 0 before replying/);
+
+  const stalled = startJsonLineService(process.execPath, ["-e", "process.stdin.resume()"], { requestTimeoutMs: 25 });
+  await assert.rejects(stalled.request("query", {}), /request timed out after 25ms/);
+  await stalled.terminate();
 });

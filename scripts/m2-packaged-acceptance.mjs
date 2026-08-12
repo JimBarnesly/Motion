@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
-import { createInterface } from "node:readline";
+import { dirname, join, resolve } from "node:path";
+import { runWithTimeout, startJsonLineService } from "./m2-process-control.mjs";
 
 const appImage = process.argv[2] ? resolve(process.argv[2]) : null;
 const reportPath = resolve(process.env.M2_ACCEPTANCE_REPORT ?? "artifacts/acceptance/m2-packaged.json");
@@ -32,18 +31,6 @@ async function persistReport() {
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
 }
 
-async function run(command, args, options = {}) {
-  return new Promise((accept, reject) => {
-    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"], ...options });
-    let stdout = "", stderr = "";
-    child.stdout.on("data", chunk => { stdout += chunk; });
-    child.stderr.on("data", chunk => { stderr += chunk; });
-    child.once("error", reject);
-    child.once("exit", code => code === 0 ? accept({ stdout, stderr })
-      : reject(new Error(`${basename(command)} exited ${code}\n${[stderr, stdout].filter(Boolean).join("\n")}`)));
-  });
-}
-
 async function findFile(directory, name) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name);
@@ -55,37 +42,14 @@ async function findFile(directory, name) {
 
 function packagedService(node, runner, dataRoot) {
   const guard = resolve("scripts/deny-network.cjs");
-  const child = spawn(node, [runner, dataRoot], {
+  return startJsonLineService(node, [runner, dataRoot], {
     env: { ...process.env, MOTION_E2E_NETWORK_GUARD: "required", NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${guard}`].filter(Boolean).join(" ") },
-    stdio: ["pipe", "pipe", "pipe"]
+    requestTimeoutMs: 30_000
   });
-  const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
-  const waiting = [];
-  let stderr = "";
-  child.stderr.on("data", chunk => { stderr += chunk; });
-  lines.on("line", line => waiting.shift()?.resolve(JSON.parse(line)));
-  child.once("error", error => { while (waiting.length) waiting.shift().reject(error); });
-  child.once("exit", code => {
-    if (code !== 0) while (waiting.length) waiting.shift().reject(new Error(`packaged service exited ${code}: ${stderr}`));
-  });
-  return {
-    async request(lane, payload) {
-      const reply = await new Promise((resolveReply, reject) => {
-        waiting.push({ resolve: resolveReply, reject });
-        child.stdin.write(`${JSON.stringify({ lane, payload })}\n`);
-      });
-      if (!reply?.ok) throw new Error(`${lane} failed: ${reply?.error?.code ?? "UNKNOWN"}: ${reply?.error?.message ?? "no message"}`);
-      return reply.value;
-    },
-    async close() {
-      child.stdin.end();
-      const code = await new Promise(resolveExit => child.once("exit", resolveExit));
-      assert.equal(code, 0, `packaged service shutdown failed: ${stderr}`);
-    }
-  };
 }
 
 const root = await mkdtemp(join(tmpdir(), "motion-m2-acceptance-"));
+let service = null;
 try {
   const sourceCommands = [
     ["npm", ["run", "test", "--workspace", "@motion/web"]],
@@ -96,7 +60,7 @@ try {
   for (const [command, args] of sourceCommands) {
     const check = `${command} ${args.join(" ")}`;
     try {
-      await run(command, args);
+      await runWithTimeout(command, args);
       report.evidence["source-test"].checks.push({ check, status: "passed" });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -112,17 +76,17 @@ try {
   catch (error) { throw new Error(`AppImage not found: ${appImage}`, { cause: error }); }
   assert.ok(appImageMetadata.isFile(), `AppImage is not a file: ${appImage}`);
   await chmod(appImage, 0o755);
-  await run(appImage, ["--appimage-extract"], { cwd: root, env: { ...process.env, APPIMAGE_EXTRACT_AND_RUN: "1" } });
+  await runWithTimeout(appImage, ["--appimage-extract"], { cwd: root, env: { ...process.env, APPIMAGE_EXTRACT_AND_RUN: "1" } });
   const extracted = join(root, "extracted");
   await rename(join(root, "squashfs-root"), extracted);
   const node = await findFile(extracted, "node-runtime");
   const runner = await findFile(extracted, "service-bundle.mjs");
   assert.ok(node, "packaged Node runtime is missing");
   assert.ok(runner, "packaged service bundle is missing");
-  assert.match((await run(node, ["--version"])).stdout.trim(), /^v24\./, "packaged runtime is not pinned Node 24");
+  assert.match((await runWithTimeout(node, ["--version"])).stdout.trim(), /^v24\./, "packaged runtime is not pinned Node 24");
 
   const dataRoot = join(root, "data");
-  let service = packagedService(node, runner, dataRoot);
+  service = packagedService(node, runner, dataRoot);
   let state = await service.request("command", { type: "workspace.create", name: "M2 packaged acceptance" });
   const workspaceId = state.workspace.id;
   state = await service.request("command", { type: "page.create", workspaceId, expectedRevision: state.revision, title: "Source" });
@@ -149,6 +113,7 @@ try {
   const backup = await service.request("async-query", { type: "backup.create", workspaceId, createdAt: "2026-08-12T00:00:00.000Z" });
   const restored = await service.request("async-command", { type: "backup.restore-new", bundle: backup, newWorkspaceId: "m2-restored" });
   await service.close();
+  service = null;
 
   service = packagedService(node, runner, dataRoot);
   const reopened = await service.request("query", { type: "workspace.get", workspaceId: restored.workspace.id });
@@ -162,6 +127,7 @@ try {
   const restoredBytes = await service.request("async-query", { type: "attachment.read", workspaceId: reopened.workspace.id, attachmentId: restoredAttachment.id });
   assert.deepEqual(restoredBytes.bytes.$motionBytes, bytes, "restored packaged attachment bytes differ");
   await service.close();
+  service = null;
 
   report.evidence["packaged-local"].status = "passed";
   report.evidence["packaged-local"].checks = [
@@ -178,6 +144,7 @@ try {
   report.failures.push(error instanceof Error ? error.stack ?? error.message : String(error));
   process.exitCode = 1;
 } finally {
+  await service?.terminate();
   await persistReport();
   await rm(root, { recursive: true, force: true });
   process.stdout.write(`M2 acceptance report: ${reportPath}\n`);

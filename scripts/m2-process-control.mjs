@@ -43,7 +43,7 @@ export function startJsonLineService(command, args, options = {}) {
   const child = spawn(command, args, { stdio: ["pipe", "pipe", "pipe"], ...spawnOptions });
   const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
   const waiting = [];
-  let stderr = "", exited = false, exitCode = null;
+  let stderr = "", exited = false, exitCode = null, terminalError = null;
 
   function rejectAll(error) {
     while (waiting.length) {
@@ -56,7 +56,14 @@ export function startJsonLineService(command, args, options = {}) {
   child.stderr.on("data", chunk => { stderr += chunk; });
   lines.on("line", line => {
     const pending = waiting.shift();
-    if (!pending) return;
+    if (!pending) {
+      try { JSON.parse(line); }
+      catch (error) {
+        terminalError = new Error(`packaged service returned invalid JSON: ${error.message}`);
+        child.kill("SIGKILL");
+      }
+      return;
+    }
     clearTimeout(pending.timer);
     try { pending.resolve(JSON.parse(line)); }
     catch (error) {
@@ -64,7 +71,12 @@ export function startJsonLineService(command, args, options = {}) {
       pending.reject(new Error(`packaged service returned invalid JSON: ${error.message}`));
     }
   });
-  child.once("error", rejectAll);
+  child.once("error", error => {
+    exited = true;
+    exitCode = "spawn-error";
+    terminalError = error;
+    rejectAll(error);
+  });
   child.once("exit", code => {
     exited = true;
     exitCode = code;
@@ -73,6 +85,7 @@ export function startJsonLineService(command, args, options = {}) {
 
   return {
     async request(lane, payload) {
+      if (terminalError) throw terminalError;
       if (exited) throw new Error(`packaged service already exited ${exitCode}${stderr ? `: ${stderr}` : ""}`);
       const reply = await new Promise((resolve, reject) => {
         const pending = { resolve, reject, timer: null };
@@ -112,7 +125,11 @@ export function startJsonLineService(command, args, options = {}) {
     async terminate() {
       if (exited) return;
       child.kill("SIGKILL");
-      await new Promise(resolve => child.once("exit", resolve));
+      await new Promise(resolve => {
+        const timer = setTimeout(resolve, requestTimeoutMs);
+        child.once("exit", () => { clearTimeout(timer); resolve(); });
+        child.once("error", () => { clearTimeout(timer); resolve(); });
+      });
     }
   };
 }

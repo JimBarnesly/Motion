@@ -48,3 +48,19 @@ test("packaged acceptance subprocesses fail diagnostically instead of hanging", 
   await assert.rejects(stalled.request("query", {}), /request timed out after 25ms/);
   await stalled.terminate();
 });
+
+test("packaged service cleanup survives spawn errors and unsolicited malformed output", async () => {
+  const missing = startJsonLineService("/definitely/missing/motion-node", [], { requestTimeoutMs: 25 });
+  await assert.rejects(missing.request("query", {}), /ENOENT/);
+  await Promise.race([
+    missing.terminate(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("spawn-error cleanup hung")), 100))
+  ]);
+
+  const malformed = startJsonLineService(process.execPath, ["-e", "console.log('{bad json'); process.stdin.resume()"], {
+    requestTimeoutMs: 250
+  });
+  await new Promise(resolve => setTimeout(resolve, 25));
+  await assert.rejects(malformed.request("query", {}), /invalid JSON|already exited/);
+  await malformed.terminate();
+});

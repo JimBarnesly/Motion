@@ -22,6 +22,29 @@ export function applyLocalEdit(document, candidate, timestamp) {
     for (const key of ["checked", "language", "attachmentId", "headingLevel", "pageId", "viewId", "date", "url"]) delete block[key];
     Object.assign(block, structuredClone(candidate.payload.transform));
     target.updatedAt = timestamp;
+  } else if (candidate.type === "block.batch") {
+    for (const command of candidate.payload.commands) {
+      const target = page(command.pageId);
+      if (command.type === "block.delete") {
+        target.blocks = target.blocks.filter(block => block.id !== command.blockId);
+      } else if (command.type === "block.update-content") {
+        const block = target.blocks.find(item => item.id === command.blockId);
+        block.text = command.content.text;
+        if (command.content.references !== undefined) block.references = structuredClone(command.content.references);
+        else delete block.references;
+      } else if (command.type === "block.transform") {
+        const block = target.blocks.find(item => item.id === command.blockId);
+        for (const key of ["checked", "language", "attachmentId", "headingLevel", "pageId", "viewId", "date", "url"]) delete block[key];
+        Object.assign(block, structuredClone(command.transform));
+      } else if (command.type === "block.create") {
+        const index = command.position.beforeBlockId === null ? target.blocks.length : target.blocks.findIndex(block => block.id === command.position.beforeBlockId);
+        if (index < 0) throw new Error("Paste insertion target was not found");
+        target.blocks.splice(index, 0, structuredClone(command.block));
+      } else {
+        throw new Error("Unsupported local block batch command");
+      }
+      target.updatedAt = timestamp;
+    }
   } else if (candidate.type === "database.record-update") {
     const target = page(candidate.payload.pageId);
     target.properties ??= {};

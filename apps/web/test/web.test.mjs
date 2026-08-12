@@ -599,6 +599,18 @@ test("document editor supports substantial block types and keyboard operations",
   assert.match(source, /future/);
 });
 
+test("document editor handles multiline paste through one canonical block batch", async () => {
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  const build = await readFile(resolve(root, "scripts/build.mjs"), "utf8");
+  assert.match(source, /from "\.\/markdown-paste\.js"/);
+  assert.match(source, /addEventListener\("paste"/);
+  assert.ok(source.indexOf('event.preventDefault();let commands;try{commands=multilinePasteCommands') > -1);
+  assert.match(source, /selectionTextParts\(input\)/);
+  assert.match(source, /resolveReferences:referencesForText/);
+  assert.match(source, /candidate:\{type:"block\.batch"/);
+  assert.match(build, /markdown-paste\.js/);
+});
+
 test("links are materialised by stable page ID and unknown blocks are preserved", async () => {
   const source = await readFile(resolve(root, "app.js"), "utf8");
   assert.match(source, /block\.references/);

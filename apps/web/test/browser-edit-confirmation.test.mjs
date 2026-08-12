@@ -35,6 +35,24 @@ test("a failed browser mutation cannot leak into a later successful save", async
   assert.equal(durable.revision, 4);
 });
 
+test("browser development compatibility applies the complete atomic block paste batch", async () => {
+  let state = structuredClone(initial);
+  state.workspace.pages[0].blocks = [
+    { id: "old", type: "paragraph", text: "Before", children: [] },
+    { id: "after", type: "paragraph", text: "After", children: [] }
+  ];
+  state = await confirmBrowserEdit(state, { type: "block.batch", payload: { commands: [
+    { type: "block.transform", pageId: "page-1", blockId: "old", transform: { type: "heading-1" } },
+    { type: "block.update-content", pageId: "page-1", blockId: "old", content: { text: "Pasted", references: [{ pageId: "page-2" }] } },
+    { type: "block.create", pageId: "page-1", position: { parentBlockId: null, beforeBlockId: "after" }, block: { id: "new", type: "heading-1", text: "Pasted", children: [] } }
+  ] } }, async () => {}, () => "stamp");
+  assert.deepEqual(state.workspace.pages[0].blocks, [
+    { id: "old", type: "heading-1", text: "Pasted", references: [{ pageId: "page-2" }], children: [] },
+    { id: "new", type: "heading-1", text: "Pasted", children: [] },
+    { id: "after", type: "paragraph", text: "After", children: [] }
+  ]);
+});
+
 test("browser development compatibility applies the typed block edit surface", async () => {
   let state = structuredClone(initial);
   state.workspace.pages[0].blocks = [{ id: "block-1", type: "paragraph", text: "before", children: [] }];

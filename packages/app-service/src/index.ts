@@ -76,6 +76,8 @@ export type AppCommand =
 
 export type AsyncAppCommand =
   | { type: "attachment.put"; workspaceId: string; expectedRevision: number; id?: string; fileName: string; mediaType: string; sha256: string; bytes: Uint8Array }
+  | { type: "attachment.ingest-block"; workspaceId: string; expectedRevision: number; pageId: string; position: BlockSiblingPosition;
+      attachmentId?: string; blockId?: string; fileName: string; mediaType: string; sha256: string; bytes: Uint8Array }
   | { type: "backup.restore-new"; bundle: BackupBundle; newWorkspaceId?: string };
 
 export type AppQuery =
@@ -126,7 +128,7 @@ export interface QueryResults {
   "workspace.search": readonly Readonly<SearchHit>[];
   "workspace.export": Readonly<FullExport>;
 }
-export interface AsyncCommandResults { "attachment.put": MutationDto; "backup.restore-new": MutationDto }
+export interface AsyncCommandResults { "attachment.put": MutationDto; "attachment.ingest-block": MutationDto; "backup.restore-new": MutationDto }
 export interface AsyncQueryResults { "attachment.read": AttachmentDto; "backup.create": BackupBundle; "backup.verify": VerificationResult; "backup.preview": RestorePreview }
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -315,6 +317,49 @@ export class MotionAppService {
   }
 
   private async executeAsyncUnsafe(command: AsyncAppCommand): Promise<MutationDto> {
+    if (command.type === "attachment.ingest-block") {
+      const expectedRevision = revision(command.expectedRevision);
+      const loaded = this.required(command.workspaceId);
+      if (loaded.revision !== expectedRevision) throw new MotionAppError("REVISION_CONFLICT", "Workspace changed since it was loaded; reload and retry");
+      const fileName = requiredText(command.fileName, "fileName");
+      const mediaType = requiredText(command.mediaType, "mediaType");
+      const sha256 = validSha256(command.sha256);
+      if (!(command.bytes instanceof Uint8Array)) throw new MotionAppError("INVALID_INPUT", "bytes must be a Uint8Array");
+      const attachmentId = command.attachmentId ? requiredText(command.attachmentId, "attachmentId") : crypto.randomUUID();
+      const blockId = command.blockId ? requiredText(command.blockId, "blockId") : crypto.randomUUID();
+      if (loaded.document.attachments.some(item => item.id === attachmentId)) throw new MotionAppError("ALREADY_EXISTS", "Attachment already exists");
+      const position = validatePosition(command.position, "position", false);
+      const operation: BlockOperation = { type: "block.create", pageId: requiredText(command.pageId, "pageId"),
+        position: { parentBlockId: position.parentBlockId, beforeBlockId: position.beforeBlockId },
+        block: { id: blockId, type: "file", text: fileName, children: [], attachmentId } };
+      validateBlockOperation(operation, false);
+      const staged = await this.attachmentStore().stage(command.bytes);
+      if (staged.sha256 !== sha256) {
+        await this.attachmentStore().discard(staged);
+        throw new MotionAppError("VALIDATION_FAILED", "Attachment bytes do not match declared sha256");
+      }
+      try {
+        await this.attachmentStore().promote(staged);
+      } catch {
+        await this.attachmentStore().discard(staged);
+        throw new MotionAppError("STORAGE_FAILURE", "Attachment ingestion failed before publication; no attachment or block was created");
+      }
+      const now = new Date().toISOString();
+      const document = new WorkspaceDocument(clone(loaded.document));
+      document.data.attachments.push({ id: attachmentId, fileName, mediaType, byteLength: staged.byteLength, sha256, path: staged.path, createdAt: now });
+      document.data.updatedAt = now;
+      applyBlockOperation(document, operation);
+      assertWorkspaceValue(document.data);
+      try {
+        const changes = new MutationChangeSet(); changes.attachment(attachmentId); changes.block(operation);
+        const savedRevision = this.store.saveUnitOfWork({ workspaceId: document.data.id, schemaVersion: document.data.schemaVersion,
+          document: document.data, expectedRevision, changeSet: changes.build() });
+        return immutable({ workspace: document.data, revision: savedRevision, saved: true as const }) as MutationDto;
+      } catch (error) {
+        throw new MotionAppError(error instanceof Error && error.message.startsWith("Revision conflict") ? "REVISION_CONFLICT" : "STORAGE_FAILURE",
+          "Attachment publication failed; no attachment or block was created");
+      }
+    }
     if (command.type === "attachment.put") {
       const expectedRevision = revision(command.expectedRevision);
       const loaded = this.required(command.workspaceId);

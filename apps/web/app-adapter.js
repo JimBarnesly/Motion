@@ -71,7 +71,7 @@ function browserDevelopmentAdapter() {
     async saveUi() {},
     async search() { return null; },
     async exportWorkspace() { return null; },
-    putAttachment: nativeOnly,
+    ingestAttachmentBlock: nativeOnly,
     createBackup: nativeOnly,
     saveBackup: nativeOnly,
     verifyBackup: nativeOnly,
@@ -236,11 +236,12 @@ function tauriAdapter(invoke) {
     async exportWorkspace() {
       return dispatchCurrentWorkspace("query", { type: "workspace.export" });
     },
-    async putAttachment({ fileName, mediaType, sha256, bytes }) {
+    async ingestAttachmentBlock({ pageId, position, fileName, mediaType, sha256, bytes }) {
       const operationEpoch = workspaceEpoch;
       const current = await requiredWorkspace();
       assertCurrentWorkspace(operationEpoch, current.id);
-      const result = await dispatch("async-command", { type: "attachment.put", workspaceId: current.id, expectedRevision: current.revision, fileName, mediaType, sha256, bytes: { $motionBytes: Array.from(bytes) } });
+      const result = await dispatch("async-command", { type: "attachment.ingest-block", workspaceId: current.id, expectedRevision: current.revision,
+        pageId, position, fileName, mediaType, sha256, bytes: { $motionBytes: Array.from(bytes) } });
       assertCurrentWorkspace(operationEpoch, current.id);
       if (result?.workspace?.id !== current.id) throw workspaceChanged();
       advanceWorkspaceSummary(result, current);

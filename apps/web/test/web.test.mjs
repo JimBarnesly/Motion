@@ -321,14 +321,14 @@ test("late attachment response cannot reactivate its old workspace after import"
     const operation = payload?.request?.payload;
     calls.push(operation);
     if (command === "motion_ui_load") return { schemaVersion: 2, workspace: { id: "workspace-old", pages: [], databases: [] }, revision: 4 };
-    if (operation?.type === "attachment.put") return attachmentResponse;
+    if (operation?.type === "attachment.ingest-block") return attachmentResponse;
     if (operation?.type === "workspace.import-web-v1") return { workspace: { id: "workspace-new", pages: [], databases: [] }, revision: 1, activePageId: null, saved: true };
     if (operation?.type === "workspace.search") return [];
     throw new Error(`Unexpected native call: ${operation?.type ?? command}`);
   } } } });
 
   await adapter.load();
-  const pendingAttachment = adapter.putAttachment({ fileName: "old.txt", mediaType: "text/plain", sha256: "a".repeat(64), bytes: new Uint8Array([1]) });
+  const pendingAttachment = adapter.ingestAttachmentBlock({ pageId: "page-old", position: { parentBlockId: null, beforeBlockId: null }, fileName: "old.txt", mediaType: "text/plain", sha256: "a".repeat(64), bytes: new Uint8Array([1]) });
   await adapter.importWebV1({ schemaVersion: 1, pages: [], activePageId: null });
   releaseAttachment({ workspace: { id: "workspace-old", pages: [], databases: [] }, revision: 5, saved: true });
 
@@ -501,7 +501,7 @@ test("native attachment and verified backup operations use revisioned typed lane
   const invoke = async (command, payload) => {
     calls.push({ command, payload });
     if (command === "app_dispatch" && payload.request.payload.type === "workspace.list") return [{ id: "workspace-1", revision: 7 }];
-    if (payload?.request?.payload?.type === "attachment.put") return { revision: 8, workspace: { id: "workspace-1", attachments: [{ id: "attachment-1", fileName: "proof.txt", byteLength: 3, sha256: "a".repeat(64) }] } };
+    if (payload?.request?.payload?.type === "attachment.ingest-block") return { revision: 8, workspace: { id: "workspace-1", attachments: [{ id: "attachment-1", fileName: "proof.txt", byteLength: 3, sha256: "a".repeat(64) }] } };
     if (payload?.request?.payload?.type === "backup.create") return { manifest: { files: [] }, files: {} };
     if (payload?.request?.payload?.type === "backup.verify") return { valid: true, errors: [] };
     if (payload?.request?.payload?.type === "backup.preview") return { valid: true, pages: 1, attachments: 1, totalBytes: 3 };
@@ -509,10 +509,11 @@ test("native attachment and verified backup operations use revisioned typed lane
   };
   const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke } } });
   const bundle = await adapter.createBackup();
-  await adapter.putAttachment({ fileName: "proof.txt", mediaType: "text/plain", sha256: "a".repeat(64), bytes: Uint8Array.from([1, 2, 3]) });
+  await adapter.ingestAttachmentBlock({ pageId: "page-1", position: { parentBlockId: null, beforeBlockId: null }, fileName: "proof.txt", mediaType: "text/plain", sha256: "a".repeat(64), bytes: Uint8Array.from([1, 2, 3]) });
   await adapter.verifyBackup(bundle); await adapter.previewBackup(bundle); await adapter.restoreBackup(bundle);
   const requests = calls.filter(call => call.command === "app_dispatch").map(call => call.payload.request);
-  assert.ok(requests.some(request => request.lane === "async-command" && request.payload.type === "attachment.put" && request.payload.expectedRevision === 7 && request.payload.bytes.$motionBytes.join(",") === "1,2,3"));
+  assert.ok(requests.some(request => request.lane === "async-command" && request.payload.type === "attachment.ingest-block" && request.payload.expectedRevision === 7
+    && request.payload.pageId === "page-1" && request.payload.bytes.$motionBytes.join(",") === "1,2,3"));
   assert.ok(requests.some(request => request.lane === "async-query" && request.payload.type === "backup.create"));
   assert.ok(requests.some(request => request.lane === "async-query" && request.payload.type === "backup.verify"));
   assert.ok(requests.some(request => request.lane === "async-query" && request.payload.type === "backup.preview"));

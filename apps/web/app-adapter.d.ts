@@ -132,7 +132,7 @@ interface MotionUiAdapterBase {
   saveUi(uiState: unknown): Promise<void>;
   search(query: string, limit?: number): Promise<NativeSearchHit[] | null>;
   exportWorkspace(): Promise<NativeFullExport | null>;
-  putAttachment(input: { fileName: string; mediaType: string; sha256: string; bytes: Uint8Array }): Promise<Record<string, unknown>>;
+  ingestAttachmentBlock(input: { pageId: string; position: { parentBlockId: string | null; beforeBlockId: string | null }; fileName: string; mediaType: string; sha256: string; bytes: Uint8Array }): Promise<Record<string, unknown>>;
   createBackup(): Promise<Record<string, unknown>>;
   verifyBackup(bundle: unknown): Promise<Record<string, unknown>>;
   previewBackup(bundle: unknown): Promise<Record<string, unknown>>;

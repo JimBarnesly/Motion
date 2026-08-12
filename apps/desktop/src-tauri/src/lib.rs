@@ -145,6 +145,19 @@ fn validate_dispatch_request(request: &IpcRequest) -> Result<(), IpcError> {
         ("command", "database.record-create") => &["type", "workspaceId", "expectedRevision", "databaseId", "title", "values"],
         ("command", "database.record-update") => &["type", "workspaceId", "expectedRevision", "pageId", "title", "values"],
         ("command", "database.view-update") => &["type", "workspaceId", "expectedRevision", "databaseId", "viewId", "patch"],
+        ("async-command", "attachment.ingest-block") => &[
+            "type",
+            "workspaceId",
+            "expectedRevision",
+            "pageId",
+            "position",
+            "attachmentId",
+            "blockId",
+            "fileName",
+            "mediaType",
+            "sha256",
+            "bytes",
+        ],
         ("async-command", "attachment.put") => &[
             "type",
             "workspaceId",
@@ -480,6 +493,16 @@ mod tests {
             validate_dispatch_request(&path_injection).unwrap_err().code,
             "INVALID_INPUT"
         );
+        let attachment_block = IpcRequest {
+            protocol_version: 1,
+            lane: "async-command".into(),
+            payload: json!({
+                "type": "attachment.ingest-block", "workspaceId": "w", "expectedRevision": 1, "pageId": "page-1",
+                "position": { "parentBlockId": null, "beforeBlockId": null }, "fileName": "x", "mediaType": "text/plain",
+                "sha256": "0".repeat(64), "bytes": { "$motionBytes": [] }
+            }),
+        };
+        assert!(validate_dispatch_request(&attachment_block).is_ok());
         let wrong_lane = IpcRequest {
             protocol_version: 1,
             lane: "query".into(),

@@ -319,6 +319,78 @@ test("native table-row search survives restart and a clean authenticated restore
   } finally { await Promise.all([removeDatabase(sourcePath), removeDatabase(targetPath)]); }
 });
 
+test("attachment block is published only after durable ingestion and survives restart plus full backup restore", async () => {
+  const sourcePath = databasePath("attachment-block-source");
+  const targetPath = databasePath("attachment-block-target");
+  const sourceFiles = `${sourcePath}.attachments`; const targetFiles = `${targetPath}.attachments`;
+  class FailingPromotionStore extends ContentAddressedAttachmentStore {
+    failNext = false;
+    override async promote(staged: import("@motion/storage").StagedAttachment) {
+      if (this.failNext) { this.failNext = false; throw new Error("injected ingestion failure"); }
+      return super.promote(staged);
+    }
+  }
+  class FailingWorkspaceStore extends SqliteWorkspaceStore {
+    failNext = false;
+    override saveUnitOfWork(write: import("@motion/storage").WorkspaceWrite): number {
+      if (this.failNext) { this.failNext = false; throw new Error("injected database failure"); }
+      return super.saveUnitOfWork(write);
+    }
+  }
+  try {
+    const failingStore = new FailingWorkspaceStore(sourcePath);
+    let store: SqliteWorkspaceStore = failingStore;
+    const attachments = new FailingPromotionStore(sourceFiles);
+    let service = new MotionAppService(store, attachments);
+    let state = service.execute({ type: "workspace.create", name: "Attachment blocks" });
+    state = service.execute({ type: "page.create", workspaceId: state.workspace.id, expectedRevision: state.revision, title: "Evidence" });
+    const workspaceId = state.workspace.id; const pageId = state.workspace.pages[0]!.id;
+    const bytes = new TextEncoder().encode("durable block payload");
+    const command = (overrides: Record<string, unknown> = {}) => ({ type: "attachment.ingest-block", workspaceId, expectedRevision: state.revision,
+      pageId, position: { parentBlockId: null, beforeBlockId: null }, attachmentId: "attachment-proof", blockId: "block-proof",
+      fileName: "proof.txt", mediaType: "text/plain", sha256: hash(bytes), bytes, ...overrides } as any);
+
+    attachments.failNext = true;
+    await assert.rejects(service.executeAsync(command()), (error: unknown) => error instanceof MotionAppError && error.code === "STORAGE_FAILURE" && /before publication/i.test(error.message));
+    let canonical = service.query({ type: "workspace.get", workspaceId }).workspace;
+    assert.deepEqual({ attachments: canonical.attachments.length, blocks: canonical.pages[0]!.blocks.length }, { attachments: 0, blocks: 0 });
+
+    await assert.rejects(service.executeAsync(command({ sha256: "0".repeat(64) })), (error: unknown) => error instanceof MotionAppError && error.code === "VALIDATION_FAILED");
+    canonical = service.query({ type: "workspace.get", workspaceId }).workspace;
+    assert.deepEqual({ attachments: canonical.attachments.length, blocks: canonical.pages[0]!.blocks.length }, { attachments: 0, blocks: 0 });
+
+    failingStore.failNext = true;
+    await assert.rejects(service.executeAsync(command()), (error: unknown) => error instanceof MotionAppError && error.code === "STORAGE_FAILURE" && /no attachment or block/i.test(error.message));
+    canonical = service.query({ type: "workspace.get", workspaceId }).workspace;
+    assert.deepEqual({ attachments: canonical.attachments.length, blocks: canonical.pages[0]!.blocks.length }, { attachments: 0, blocks: 0 });
+
+    const ingested = await service.executeAsync(command());
+    assert.equal(ingested.workspace.pages[0]!.blocks[0]!.attachmentId, "attachment-proof");
+    await assert.rejects(service.executeAsync(command({ attachmentId: "stale-attachment", blockId: "stale-block" })), (error: unknown) => error instanceof MotionAppError && error.code === "REVISION_CONFLICT");
+    canonical = service.query({ type: "workspace.get", workspaceId }).workspace;
+    assert.deepEqual(canonical.attachments.map(item => item.id), ["attachment-proof"]);
+    assert.deepEqual(canonical.pages[0]!.blocks.map(block => block.id), ["block-proof"]);
+
+    store.close();
+    store = new SqliteWorkspaceStore(sourcePath); service = new MotionAppService(store, new ContentAddressedAttachmentStore(sourceFiles));
+    assert.deepEqual((await service.queryAsync({ type: "attachment.read", workspaceId, attachmentId: "attachment-proof" })).bytes, bytes);
+    const bundle = await service.queryAsync({ type: "backup.create", workspaceId, createdAt: "2026-08-12T00:00:00.000Z" });
+    assert.deepEqual(await service.queryAsync({ type: "backup.verify", bundle }), { valid: true, errors: [] });
+    const attachmentPayload = bundle.manifest.files.find(file => file.path !== "workspace.json")!;
+    assert.deepEqual(bundle.files[attachmentPayload.path], bytes);
+    store.close();
+
+    const target = new SqliteWorkspaceStore(targetPath); const restoredService = new MotionAppService(target, new ContentAddressedAttachmentStore(targetFiles));
+    const restored = await restoredService.executeAsync({ type: "backup.restore-new", bundle, newWorkspaceId: "restored-attachment-block" });
+    const restoredAttachment = restored.workspace.attachments[0]!; const restoredBlock = restored.workspace.pages[0]!.blocks[0]!;
+    assert.equal(restoredBlock.attachmentId, restoredAttachment.id);
+    assert.deepEqual((await restoredService.queryAsync({ type: "attachment.read", workspaceId: restored.workspace.id, attachmentId: restoredAttachment.id })).bytes, bytes);
+    target.close();
+  } finally {
+    await Promise.all([removeDatabase(sourcePath), removeDatabase(targetPath), rm(sourceFiles, { recursive: true, force: true }), rm(targetFiles, { recursive: true, force: true })]);
+  }
+});
+
 test("attachments and canonical backup survive restart and restore without trusting archived paths", async () => {
   const sourcePath = databasePath("backup-source");
   const targetPath = databasePath("backup-target");

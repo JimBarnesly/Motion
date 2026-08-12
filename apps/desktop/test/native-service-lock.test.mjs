@@ -9,6 +9,7 @@ import { createInterface } from "node:readline";
 import test from "node:test";
 
 const workerPath = new URL("./fixtures/native-service-lock-worker.mjs", import.meta.url).pathname;
+const crashWorkerPath = new URL("./fixtures/native-service-lock-crash-worker.mjs", import.meta.url).pathname;
 const lockName = ".motion-service.lock";
 const busy = { type: "rejected", code: "MOTION_DATA_ROOT_BUSY", message: "Motion data is already open in another desktop process" };
 
@@ -36,18 +37,24 @@ async function stop(worker) {
   await new Promise(resolve => worker.child.once("exit", resolve));
 }
 
+async function crashEvidence(mode, root) {
+  const child = spawn(process.execPath, [crashWorkerPath, mode, root], { stdio: ["ignore", "ignore", "pipe"] });
+  let stderr = "";
+  child.stderr.setEncoding("utf8").on("data", chunk => { stderr += chunk; });
+  const [code, signal] = await new Promise(resolve => child.once("exit", (...status) => resolve(status)));
+  assert.equal(code, null, stderr);
+  assert.equal(signal, "SIGKILL", stderr);
+}
+
 async function withRoot(prefix, body) {
   const root = await mkdtemp(join(tmpdir(), prefix));
   try { await body(root); } finally { await rm(root, { recursive: true, force: true }); }
 }
 
-test("partial guardian readiness is accumulated and malformed readiness is rejected", async () => {
-  await withRoot("motion-partial-ready-", async root => {
-    const { acquireNativeServiceLock } = await import(`../native-service-lock.mjs?partial=${Date.now()}`);
-    const ownership = await acquireNativeServiceLock(root, { guardianCommand: "/usr/bin/flock --exclusive --nonblock 3 || exit 73; printf re; sleep 0.05; printf ady; while IFS= read -r line; do :; done" });
-    await ownership.release();
-    await assert.rejects(acquireNativeServiceLock(root, { guardianCommand: "/usr/bin/flock --exclusive --nonblock 3 || exit 73; printf readyx; while IFS= read -r line; do :; done" }), error => error?.code === "MOTION_DATA_ROOT_BUSY");
-  });
+test("production ownership exposes no failure-injection options", async () => {
+  const source = await readFile(new URL("../native-service-lock.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /beforeEvidencePublish|afterGuardianReady|guardianCommand|afterLock/);
+  assert.match(source, /export async function acquireNativeServiceLock\(dataRoot\)/);
 });
 
 test("root ownership, privacy, type, and link-count violations fail closed", async () => {
@@ -67,15 +74,43 @@ test("root ownership, privacy, type, and link-count violations fail closed", asy
   });
 });
 
-test("interruption before evidence publication leaves no malformed created evidence", async () => {
-  await withRoot("motion-evidence-interrupt-", async root => {
-    const lockPath = join(root, lockName);
-    const { acquireNativeServiceLock } = await import(`../native-service-lock.mjs?interrupt=${Date.now()}`);
-    await assert.rejects(acquireNativeServiceLock(root, { beforeEvidencePublish: () => { throw new Error("interrupted"); } }), error => error?.code === "MOTION_DATA_ROOT_BUSY");
-    await assert.rejects(lstat(lockPath), error => error?.code === "ENOENT");
-    assert.deepEqual((await fs.promises.readdir(root)).filter(name => name.includes(".tmp")), []);
+test("a fresh empty private root starts and publishes complete evidence", async () => {
+  await withRoot("motion-fresh-root-", async root => {
+    assert.deepEqual(await fs.promises.readdir(root), []);
+    const { acquireNativeServiceLock } = await import("../native-service-lock.mjs");
     const ownership = await acquireNativeServiceLock(root);
-    await ownership.release();
+    try {
+      const evidence = JSON.parse(await readFile(join(root, lockName), "utf8"));
+      assert.equal(evidence.schemaVersion, 1);
+      assert.equal(evidence.pid, process.pid);
+    } finally { await ownership.release(); }
+  });
+});
+
+test("a crash immediately after no-replace publication does not permanently block the root", async () => {
+  await withRoot("motion-after-link-crash-", async root => {
+    await crashEvidence("after-link", root);
+    const lockPath = join(root, lockName);
+    assert.equal((await stat(lockPath)).nlink, 2);
+    const successor = startWorker(root, join(root, "mutations.log"));
+    try { assert.deepEqual(await successor.next(), { type: "acquired" }); }
+    finally { await stop(successor); }
+    assert.equal((await stat(lockPath)).nlink, 1);
+    assert.deepEqual((await fs.promises.readdir(root)).filter(name => name.endsWith(".tmp")), []);
+  });
+});
+
+test("a crash after truncating valid evidence does not permanently block the root", async () => {
+  await withRoot("motion-after-truncate-crash-", async root => {
+    const first = startWorker(root, join(root, "first-mutations.log"));
+    assert.deepEqual(await first.next(), { type: "acquired" });
+    await stop(first);
+    await crashEvidence("after-truncate", root);
+    assert.equal((await stat(join(root, lockName))).size, 0);
+    const successor = startWorker(root, join(root, "mutations.log"));
+    try { assert.deepEqual(await successor.next(), { type: "acquired" }); }
+    finally { await stop(successor); }
+    assert.ok((await stat(join(root, lockName))).size > 0);
   });
 });
 
@@ -194,6 +229,40 @@ test("oversized evidence is read once with a bound, rejected, and preserved", as
   });
 });
 
+test("symlink and unrelated hard-link evidence fail closed without mutation", async () => {
+  for (const kind of ["symlink", "hardlink"]) {
+    await withRoot(`motion-hostile-${kind}-`, async root => {
+      const lockPath = join(root, lockName);
+      const target = join(root, "hostile-target");
+      await writeFile(target, "hostile", { mode: 0o600 });
+      if (kind === "symlink") await fs.promises.symlink(target, lockPath);
+      else await link(target, lockPath);
+      const before = await lstat(lockPath);
+      const owner = startWorker(root, join(root, "mutations.log"));
+      try { assert.deepEqual(await owner.next(), busy); }
+      finally { await stop(owner); }
+      const after = await lstat(lockPath);
+      assert.deepEqual({ dev: after.dev, ino: after.ino, nlink: after.nlink }, { dev: before.dev, ino: before.ino, nlink: before.nlink });
+      assert.equal(await readFile(target, "utf8"), "hostile");
+    });
+  }
+});
+
+test("foreign-owned evidence fails closed without mutation", async context => {
+  if (typeof process.getuid !== "function" || process.getuid() !== 0) { context.skip("requires root to construct foreign-owned evidence"); return; }
+  await withRoot("motion-hostile-owner-", async root => {
+    const lockPath = join(root, lockName);
+    await writeFile(lockPath, "hostile", { mode: 0o600 });
+    await fs.promises.chown(lockPath, 1, 1);
+    const before = await lstat(lockPath);
+    const owner = startWorker(root, join(root, "mutations.log"));
+    try { assert.deepEqual(await owner.next(), busy); }
+    finally { await stop(owner); }
+    const after = await lstat(lockPath);
+    assert.deepEqual({ dev: after.dev, ino: after.ino, uid: after.uid }, { dev: before.dev, ino: before.ino, uid: before.uid });
+  });
+});
+
 test("non-private evidence is rejected without chmod or overwrite", async () => {
   await withRoot("motion-hostile-mode-", async root => {
     const lockPath = join(root, lockName);
@@ -209,20 +278,20 @@ test("non-private evidence is rejected without chmod or overwrite", async () => 
   });
 });
 
-test("malformed evidence is rejected and preserved", async () => {
+test("malformed owner-private evidence is replaced only after acquiring the root lock", async () => {
   await withRoot("motion-malformed-", async root => {
     const lockPath = join(root, lockName);
     await writeFile(lockPath, "{", { mode: 0o600 });
     const owner = startWorker(root, join(root, "mutations.log"));
     try {
-      assert.deepEqual(await owner.next(), busy);
-      assert.equal(await readFile(lockPath, "utf8"), "{");
+      assert.deepEqual(await owner.next(), { type: "acquired" });
+      assert.doesNotMatch(await readFile(lockPath, "utf8"), /^\{$/);
     } finally { await stop(owner); }
   });
 });
 
-test("final-path replacement survives stale recovery, release, and failed initialization", async () => {
-  for (const phase of ["recovery", "release", "failed-init"]) {
+test("final-path replacement survives refresh and release", async () => {
+  for (const phase of ["refresh", "release"]) {
     await withRoot(`motion-final-${phase}-`, async root => {
       const lockPath = join(root, lockName);
       const displaced = join(root, "displaced.lock");
@@ -241,13 +310,9 @@ test("final-path replacement survives stale recovery, release, and failed initia
       syncBuiltinESMExports();
       try {
         const { acquireNativeServiceLock } = await import(`../native-service-lock.mjs?phase=${phase}-${Date.now()}`);
-        if (phase === "failed-init") {
-          await assert.rejects(acquireNativeServiceLock(root, { afterLock: () => { throw new Error("injected"); } }), error => error?.code === "MOTION_DATA_ROOT_BUSY");
-        } else {
-          const ownership = await acquireNativeServiceLock(root);
-          if (phase === "recovery") await new Promise(resolve => setTimeout(resolve, 10));
-          await ownership.release();
-        }
+        const ownership = await acquireNativeServiceLock(root);
+        if (phase === "refresh") await new Promise(resolve => setTimeout(resolve, 10));
+        await ownership.release();
         assert.equal(unlinkCalls, 0, "ownership must never use pathname unlink");
         assert.ok((await readFile(lockPath, "utf8")).length > 0);
         const successor = startWorker(root, join(root, "mutations.log"));

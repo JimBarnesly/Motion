@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import {
-  closeSync, constants, fstatSync, ftruncateSync, fsyncSync, linkSync, lstatSync,
-  openSync, readSync, statSync, unlinkSync, writeFileSync
+  closeSync, constants, fstatSync, fsyncSync, linkSync, lstatSync,
+  openSync, readSync, renameSync, statSync, unlinkSync, writeFileSync
 } from "node:fs";
 import { join } from "node:path";
 
@@ -57,8 +57,9 @@ function validateOpenedEvidence(lockPath, descriptor) {
   const opened = fstatSync(descriptor);
   if (!pathMetadata.isFile() || pathMetadata.isSymbolicLink() || !opened.isFile()
       || pathMetadata.dev !== opened.dev || pathMetadata.ino !== opened.ino
-      || opened.uid !== expectedUid(opened) || opened.nlink !== 1
+      || opened.uid !== expectedUid(opened) || opened.nlink < 1
       || (opened.mode & 0o777) !== 0o600) reject();
+  return opened;
 }
 
 function readBoundedEvidence(descriptor) {
@@ -67,25 +68,28 @@ function readBoundedEvidence(descriptor) {
   return { complete: count <= MAX_EVIDENCE_BYTES, bytes: buffer.subarray(0, Math.min(count, MAX_EVIDENCE_BYTES)) };
 }
 
-function validateEvidencePayload(bytes) {
+function evidenceTemporaryPath(lockPath, bytes) {
   let value;
-  try { value = JSON.parse(bytes.toString("utf8")); } catch { reject(); }
+  try { value = JSON.parse(bytes.toString("utf8")); } catch { return undefined; }
   if (value?.schemaVersion !== 1 || !Number.isSafeInteger(value.pid) || value.pid <= 0
-      || typeof value.nonce !== "string" || !/^[0-9a-f-]{36}$/i.test(value.nonce)) reject();
+      || typeof value.nonce !== "string" || !/^[0-9a-f-]{36}$/i.test(value.nonce)) return undefined;
+  return `${lockPath}.${value.nonce}.tmp`;
 }
 
-function writeNewEvidence(lockPath, value, options) {
+function validateEvidencePayload(bytes) {
+  if (!evidenceTemporaryPath("", bytes)) reject();
+}
+
+function writeTemporaryEvidence(lockPath, value) {
   const temporary = `${lockPath}.${value.nonce}.tmp`;
   let descriptor;
   try {
-    descriptor = openSync(temporary, constants.O_RDWR | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW ?? 0), 0o600);
+    descriptor = openSync(temporary, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
     writeFileSync(descriptor, `${JSON.stringify(value)}\n`);
     fsyncSync(descriptor);
-    options.beforeEvidencePublish?.();
     closeSync(descriptor);
     descriptor = undefined;
-    linkSync(temporary, lockPath);
-    unlinkSync(temporary);
+    return temporary;
   } catch (error) {
     if (descriptor !== undefined) try { closeSync(descriptor); } catch (closeError) { error.cause ??= closeError; }
     try { unlinkSync(temporary); } catch (cleanupError) { if (cleanupError?.code !== "ENOENT") error.cause ??= cleanupError; }
@@ -93,32 +97,60 @@ function writeNewEvidence(lockPath, value, options) {
   }
 }
 
-function openAndRefreshEvidence(lockPath, value) {
-  const flags = constants.O_RDWR | (constants.O_NOFOLLOW ?? 0);
-  const descriptor = openSync(lockPath, flags);
+function writeNewEvidence(lockPath, value) {
+  const temporary = writeTemporaryEvidence(lockPath, value);
   try {
-    validateOpenedEvidence(lockPath, descriptor);
-    const evidence = readBoundedEvidence(descriptor);
-    if (!evidence.complete) reject();
-    validateEvidencePayload(evidence.bytes);
-    ftruncateSync(descriptor, 0);
-    writeFileSync(descriptor, `${JSON.stringify(value)}\n`, { flag: "a" });
-    fsyncSync(descriptor);
-  } finally { closeSync(descriptor); }
-}
-
-function publishEvidence(lockPath, value, options) {
-  try { writeNewEvidence(lockPath, value, options); }
-  catch (error) {
-    if (error?.code !== "EEXIST") throw error;
-    openAndRefreshEvidence(lockPath, value);
+    linkSync(temporary, lockPath);
+    unlinkSync(temporary);
+  } catch (error) {
+    try { unlinkSync(temporary); } catch (cleanupError) { if (cleanupError?.code !== "ENOENT") error.cause ??= cleanupError; }
+    throw error;
   }
 }
 
-function startGuardian(descriptor, options) {
+function authenticateReplaceableEvidence(lockPath) {
+  const descriptor = openSync(lockPath, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const metadata = validateOpenedEvidence(lockPath, descriptor);
+    const evidence = readBoundedEvidence(descriptor);
+    if (!evidence.complete) reject();
+    if (metadata.nlink > 1) {
+      if (!evidence.complete) reject();
+      const temporary = evidenceTemporaryPath(lockPath, evidence.bytes);
+      if (!temporary) reject();
+      let temporaryMetadata;
+      try { temporaryMetadata = lstatSync(temporary); } catch { reject(); }
+      if (!temporaryMetadata.isFile() || temporaryMetadata.isSymbolicLink()
+          || temporaryMetadata.dev !== metadata.dev || temporaryMetadata.ino !== metadata.ino
+          || temporaryMetadata.uid !== expectedUid(temporaryMetadata)
+          || (temporaryMetadata.mode & 0o777) !== 0o600 || temporaryMetadata.nlink !== metadata.nlink) reject();
+      unlinkSync(temporary);
+      if (fstatSync(descriptor).nlink !== 1) reject();
+    }
+  } finally { closeSync(descriptor); }
+}
+
+function replaceEvidence(lockPath, value) {
+  authenticateReplaceableEvidence(lockPath);
+  const temporary = writeTemporaryEvidence(lockPath, value);
+  try { renameSync(temporary, lockPath); }
+  catch (error) {
+    try { unlinkSync(temporary); } catch (cleanupError) { if (cleanupError?.code !== "ENOENT") error.cause ??= cleanupError; }
+    throw error;
+  }
+}
+
+function publishEvidence(lockPath, value) {
+  try { writeNewEvidence(lockPath, value); }
+  catch (error) {
+    if (error?.code !== "EEXIST") throw error;
+    replaceEvidence(lockPath, value);
+  }
+}
+
+function startGuardian(descriptor) {
   if (process.platform !== "linux") reject();
-  const command = options.guardianCommand ??
-    "/usr/bin/flock --exclusive --nonblock 3 || exit 73; printf ready; while IFS= read -r line; do :; done";
+  const command = "/usr/bin/flock --exclusive --nonblock 3 || exit 73; printf ready; while IFS= read -r line; do :; done";
   const guardian = spawn("/bin/sh", ["-c", command], {
     stdio: ["pipe", "pipe", "pipe", descriptor],
     env: { PATH: "/usr/bin:/bin", LANG: "C" }
@@ -143,7 +175,7 @@ function startGuardian(descriptor, options) {
     const onData = chunk => {
       stdout += chunk.toString("utf8");
       if (stdout.length > 5 || !"ready".startsWith(stdout)) finish(new NativeServiceLockError());
-      else if (stdout === "ready") { options.afterGuardianReady?.(guardian); finish(); }
+      else if (stdout === "ready") finish();
     };
     guardian.once("error", onError);
     guardian.once("exit", onExit);
@@ -165,7 +197,7 @@ async function stopGuardian(guardian) {
   }
 }
 
-export async function acquireNativeServiceLock(dataRoot, options = {}) {
+export async function acquireNativeServiceLock(dataRoot) {
   let rootDescriptor;
   let guardian;
   let guardianStopping = false;
@@ -176,15 +208,14 @@ export async function acquireNativeServiceLock(dataRoot, options = {}) {
     const identity = validateOpenedRoot(dataRoot, rootDescriptor);
     const mutableRoot = `/proc/self/fd/${rootDescriptor}/`;
     validateDescriptorRoot(mutableRoot, rootDescriptor, identity);
-    guardian = await startGuardian(rootDescriptor, options);
+    guardian = await startGuardian(rootDescriptor);
     guardian.once("exit", guardianDied);
     guardian.once("error", guardianDied);
     if (guardian.exitCode !== null || guardian.signalCode !== null) process.exit(74);
     validateOpenedRoot(dataRoot, rootDescriptor);
     validateDescriptorRoot(mutableRoot, rootDescriptor, identity);
     const lockPath = join(mutableRoot, LOCK_NAME);
-    publishEvidence(lockPath, { schemaVersion: 1, pid: process.pid, nonce: randomUUID() }, options);
-    options.afterLock?.();
+    publishEvidence(lockPath, { schemaVersion: 1, pid: process.pid, nonce: randomUUID() });
     validateDescriptorRoot(mutableRoot, rootDescriptor, identity);
     return {
       guardianPid: guardian.pid,

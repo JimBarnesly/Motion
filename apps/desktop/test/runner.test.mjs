@@ -86,6 +86,27 @@ test("service ownership precedes every mutable store and releases through nested
   assert.match(source, /finally\s*\{\s*try\s*\{\s*store\?\.close\(\);\s*\}\s*finally\s*\{\s*await ownership\.release\(\);\s*\}/);
 });
 
+test("service runner creates a fresh missing data root before ownership", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "motion-fresh-service-root-"));
+  const root = join(parent, "data");
+  const child = spawn(process.execPath, [new URL("../dist/service-bundle.mjs", import.meta.url).pathname, root], { stdio: ["pipe", "pipe", "pipe"] });
+  const replies = [];
+  createInterface({ input: child.stdout, crlfDelay: Infinity }).on("line", line => replies.push(JSON.parse(line)));
+  let stderr = "";
+  child.stderr.setEncoding("utf8").on("data", chunk => { stderr += chunk; });
+  try {
+    child.stdin.write(`${JSON.stringify({ lane: "ui-load", payload: { schemaVersion: 2 } })}\n`);
+    const deadline = Date.now() + 5_000;
+    while (!replies.length && child.exitCode === null && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
+    assert.deepEqual(replies[0], { ok: true, value: { schemaVersion: 2, workspace: null, revision: 0, activePageId: null } }, stderr);
+    assert.equal((await lstat(root)).mode & 0o777, 0o700);
+  } finally {
+    child.stdin.end();
+    if (child.exitCode === null) await new Promise(resolve => child.once("exit", resolve));
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
 test("one service process handles errors and multiple durable requests", async () => {
   const root = await mkdtemp(join(tmpdir(), "motion-desktop-runner-"));
   const child = spawn(process.execPath, [new URL("../dist/service-bundle.mjs", import.meta.url).pathname, root], { stdio: ["pipe", "pipe", "inherit"] });

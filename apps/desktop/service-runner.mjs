@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
@@ -10,7 +10,6 @@ import { acquireNativeServiceLock } from "./native-service-lock.mjs";
 
 const [dataRoot] = process.argv.slice(2);
 if (!dataRoot) throw new Error("Usage: service-runner <data-root>");
-mkdirSync(dataRoot, { recursive: true, mode: 0o700 });
 
 const revive = value => {
   if (Array.isArray(value)) return value.map(revive);

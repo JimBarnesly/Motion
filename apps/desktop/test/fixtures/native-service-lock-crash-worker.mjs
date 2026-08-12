@@ -3,7 +3,7 @@ import { closeSync, constants, fsyncSync, linkSync, openSync, writeFileSync } fr
 import { join } from "node:path";
 
 const [mode, root] = process.argv.slice(2);
-const lockPath = join(root, ".motion-service.lock");
+const lockPath = join(root, ".motion-service.owner-v1");
 const value = { schemaVersion: 1, pid: process.pid, nonce: randomUUID() };
 
 if (mode === "after-link") {

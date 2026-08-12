@@ -1,13 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import {
-  closeSync, constants, fstatSync, fsyncSync, linkSync, lstatSync,
+  accessSync, closeSync, constants, fchmodSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync,
   openSync, readSync, renameSync, statSync, unlinkSync, writeFileSync
 } from "node:fs";
 import { join } from "node:path";
 
 const BUSY_MESSAGE = "Motion data is already open in another desktop process";
-const LOCK_NAME = ".motion-service.lock";
+// The directory flock is authoritative. This versioned file is diagnostics only;
+// unknown bytes under older evidence names are deliberately left untouched.
+const LOCK_NAME = ".motion-service.owner-v1";
+const FLOCK_PATH = "/usr/bin/flock";
 const MAX_EVIDENCE_BYTES = 4096;
 const ACQUIRE_TIMEOUT_MS = 1_000;
 const RELEASE_TIMEOUT_MS = 1_000;
@@ -150,7 +153,7 @@ function publishEvidence(lockPath, value) {
 
 function startGuardian(descriptor) {
   if (process.platform !== "linux") reject();
-  const command = "/usr/bin/flock --exclusive --nonblock 3 || exit 73; printf ready; while IFS= read -r line; do :; done";
+  const command = `${FLOCK_PATH} --exclusive --nonblock 3 || exit 73; printf ready; while IFS= read -r line; do :; done`;
   const guardian = spawn("/bin/sh", ["-c", command], {
     stdio: ["pipe", "pipe", "pipe", descriptor],
     env: { PATH: "/usr/bin:/bin", LANG: "C" }
@@ -199,12 +202,30 @@ async function stopGuardian(guardian) {
 
 export async function acquireNativeServiceLock(dataRoot) {
   let rootDescriptor;
+  let createdRoot = false;
   let guardian;
   let guardianStopping = false;
   const guardianDied = () => { if (!guardianStopping) process.exit(74); };
   try {
     if (process.platform !== "linux" || !constants.O_DIRECTORY || !constants.O_NOFOLLOW) reject();
+    try {
+      accessSync(FLOCK_PATH, constants.X_OK);
+      if (!statSync("/proc/self/fd").isDirectory()) reject();
+    } catch { reject(); }
+    try { mkdirSync(dataRoot, { mode: 0o700 }); createdRoot = true; }
+    catch (error) { if (error?.code !== "EEXIST") reject(); }
     rootDescriptor = openSync(dataRoot, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+    if (createdRoot) {
+      // mkdir(2)'s requested mode is filtered by umask. Repair only the exact
+      // directory descriptor created by this process, then persist metadata.
+      const pathMetadata = lstatSync(dataRoot);
+      const opened = fstatSync(rootDescriptor);
+      if (!pathMetadata.isDirectory() || pathMetadata.isSymbolicLink()
+          || pathMetadata.dev !== opened.dev || pathMetadata.ino !== opened.ino
+          || opened.uid !== expectedUid(opened)) reject();
+      fchmodSync(rootDescriptor, 0o700);
+      fsyncSync(rootDescriptor);
+    }
     const identity = validateOpenedRoot(dataRoot, rootDescriptor);
     const mutableRoot = `/proc/self/fd/${rootDescriptor}/`;
     validateDescriptorRoot(mutableRoot, rootDescriptor, identity);

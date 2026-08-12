@@ -10,7 +10,7 @@ import test from "node:test";
 
 const workerPath = new URL("./fixtures/native-service-lock-worker.mjs", import.meta.url).pathname;
 const crashWorkerPath = new URL("./fixtures/native-service-lock-crash-worker.mjs", import.meta.url).pathname;
-const lockName = ".motion-service.lock";
+const lockName = ".motion-service.owner-v1";
 const busy = { type: "rejected", code: "MOTION_DATA_ROOT_BUSY", message: "Motion data is already open in another desktop process" };
 
 function startWorker(root, mutations, options = {}) {
@@ -278,14 +278,17 @@ test("non-private evidence is rejected without chmod or overwrite", async () => 
   });
 });
 
-test("malformed owner-private evidence is replaced only after acquiring the root lock", async () => {
+test("malformed owner-private legacy evidence is preserved byte-for-byte while current evidence is published", async () => {
   await withRoot("motion-malformed-", async root => {
-    const lockPath = join(root, lockName);
-    await writeFile(lockPath, "{", { mode: 0o600 });
+    const legacyPath = join(root, ".motion-service.lock");
+    const malformed = Buffer.from([0x7b, 0x00, 0xff, 0x0a]);
+    await writeFile(legacyPath, malformed, { mode: 0o600 });
     const owner = startWorker(root, join(root, "mutations.log"));
     try {
       assert.deepEqual(await owner.next(), { type: "acquired" });
-      assert.doesNotMatch(await readFile(lockPath, "utf8"), /^\{$/);
+      assert.deepEqual(await readFile(legacyPath), malformed);
+      const current = JSON.parse(await readFile(join(root, lockName), "utf8"));
+      assert.equal(current.schemaVersion, 1);
     } finally { await stop(owner); }
   });
 });

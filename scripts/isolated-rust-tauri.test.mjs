@@ -29,8 +29,8 @@ test("candidate fingerprint and both dependency locks fail closed on substitutio
 test("rootless validation copies the exact read-only candidate into private executable tmpfs mounts", async () => {
   const source = await readFile("scripts/isolated-rust-tauri.mjs", "utf8");
   assert.match(source, /type=bind,src=\$\{candidate\},dst=\/candidate,readonly/);
-  assert.match(source, /--tmpfs", "\/workspace:rw,nosuid,nodev,size=1g,uid=1000,gid=1000"/);
-  assert.match(source, /--tmpfs", "\/target:rw,nosuid,nodev,size=6g,uid=1000,gid=1000"/);
+  assert.match(source, /--tmpfs", "\/workspace:rw,exec,nosuid,nodev,size=1g,uid=1000,gid=1000"/);
+  assert.match(source, /--tmpfs", "\/target:rw,exec,nosuid,nodev,size=6g,uid=1000,gid=1000"/);
   assert.match(source, /cp -a \/candidate\/\. \/workspace/);
   assert.match(source, /cp -a \/opt\/motion-seed\/node_modules \/workspace\/node_modules/);
   const dockerfile = await readFile("tooling/rust-tauri/Dockerfile", "utf8");

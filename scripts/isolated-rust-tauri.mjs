@@ -87,8 +87,8 @@ async function main() {
       + `cp -a /candidate/. /workspace; cp -a /opt/motion-seed/node_modules /workspace/node_modules; cd /workspace; ${npmValidation}; ${cargoTest}; ${tauriCheck}`;
     const validation = spawnSync("docker", ["run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
       "--pids-limit", "512", "--user", "1000:1000",
-      "--tmpfs", "/workspace:rw,nosuid,nodev,size=1g,uid=1000,gid=1000",
-      "--tmpfs", "/target:rw,nosuid,nodev,size=6g,uid=1000,gid=1000",
+      "--tmpfs", "/workspace:rw,exec,nosuid,nodev,size=1g,uid=1000,gid=1000",
+      "--tmpfs", "/target:rw,exec,nosuid,nodev,size=6g,uid=1000,gid=1000",
       "--mount", `type=bind,src=${candidate},dst=/candidate,readonly`,
       "--env", "CARGO_NET_OFFLINE=true", "--env", "CARGO_TARGET_DIR=/target",
       "--workdir", "/workspace", imageId,

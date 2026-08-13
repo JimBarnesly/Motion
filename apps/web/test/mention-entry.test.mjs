@@ -12,6 +12,26 @@ test("typing an at-sign followed by text exposes a mention query", () => {
   assert.equal(activeMentionQuery("mail@example.test", 17), null);
 });
 
+test("typing an open wiki link exposes a stable page selection query", () => {
+  assert.deepEqual(activeMentionQuery("Discuss [[Tar", 13), {
+    start: 8,
+    end: 13,
+    query: "Tar",
+    kind: "wiki"
+  });
+});
+
+test("wiki selection records the selected stable ID even when titles are duplicated", () => {
+  assert.deepEqual(applyMentionSelection({
+    text: "Discuss [[Tar",
+    mention: { start: 8, end: 13, query: "Tar", kind: "wiki" },
+    page: { id: "selected-duplicate", title: "Target" }
+  }), {
+    text: "Discuss [[Target]]",
+    references: [{ pageId: "selected-duplicate", start: 8, end: 18 }]
+  });
+});
+
 test("mention selection preserves the selected stable ID for duplicate and delimiter-bearing titles", () => {
   const mention = { start: 8, end: 12, query: "Tar" };
   assert.deepEqual(applyMentionSelection({ text: "Discuss @Tar", mention, page: { id: "selected", title: "Target" } }), {

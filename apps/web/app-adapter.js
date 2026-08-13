@@ -19,7 +19,7 @@ const WORKSPACE_KEY = "default";
 const UI_STATE_FIELDS = new Set(["workspaceId", "activePageId", "expandedPageIds"]);
 const UI_STATE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
 
-function decodeBinary(value) {
+export function decodeBinary(value) {
   if (Array.isArray(value)) return value.map(decodeBinary);
   if (value && typeof value === "object") {
     if (Object.keys(value).length === 1 && Array.isArray(value.$motionBytes)) return Uint8Array.from(value.$motionBytes);

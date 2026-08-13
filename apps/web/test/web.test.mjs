@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { decodeBinary } from "../app-adapter.js";
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
@@ -697,4 +698,14 @@ test("search remains available when every page is in Trash", async () => {
   assert.ok(listener.indexOf('target.id==="searchInput"') < listener.indexOf("if(!page)return"),
     "search input must be handled before the no-active-page editor guard");
   assert.match(listener, /renderSearch\(target\.value\)/);
+});
+test("verified backup JSON revives attachment payload byte envelopes", () => {
+  const restored = decodeBinary(JSON.parse('{"files":{"attachment":{"$motionBytes":[0,127,255]}}}'));
+  assert.deepEqual(restored.files.attachment, Uint8Array.of(0, 127, 255));
+});
+
+test("verified backup creation delegates publication to the native safe-save boundary", async () => {
+  const source = await readFile(new URL("../app.js", import.meta.url), "utf8");
+  assert.match(source, /await adapter\.saveBackup\(bundle\)/);
+  assert.doesNotMatch(source, /createVerifiedBackup[^\n]+downloadJson\(bundle/);
 });

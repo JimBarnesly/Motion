@@ -389,6 +389,32 @@ test("records are pages; typed filters and stable multi-sort operate on properti
   assert.deepEqual(doc.queryRecords(db.id, { kind: "and", children: [{ kind: "condition", propertyId: "status", operator: "equals", value: "open" }] }, [{ propertyId: "priority", direction: "desc" }]).map(p => p.id), [high.id, low.id]);
 });
 
+test("saved views create, rename, duplicate, reorder and delete without changing shared records", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Saved views")); const page = doc.addPage("Tasks");
+  const db = doc.addDatabase({ id: "db", pageId: page.id, name: "Tasks", properties: [
+    { id: "title", name: "Title", type: "title" }, { id: "status", name: "Status", type: "status" }
+  ], rows: [], views: [{ id: "table", collectionId: "db", name: "All tasks", type: "table", visiblePropertyIds: ["title", "status"], propertyOrder: ["title", "status"] }] });
+  const record = doc.addRecord(db.id, "Ship M3", { status: "open" });
+
+  const list = doc.addView(db.id, { id: "list", name: "Open list", type: "list", visiblePropertyIds: ["title"], propertyOrder: ["title"], filters: { kind: "condition", propertyId: "status", operator: "equals", value: "open" } });
+  doc.updateView(db.id, list.id, { name: "Priority list" });
+  const copy = doc.duplicateView(db.id, list.id, { id: "list-copy", name: "Priority list copy" });
+  doc.reorderView(db.id, copy.id, "table");
+  doc.deleteView(db.id, list.id);
+
+  assert.deepEqual(db.views.map(view => [view.id, view.name, view.type]), [["list-copy", "Priority list copy", "list"], ["table", "All tasks", "table"]]);
+  assert.equal(db.recordPageIds?.[0], record.id);
+  assert.equal(doc.page(record.id)?.properties?.status, "open");
+  assert.throws(() => doc.deleteView(db.id, "missing"), /view not found/i);
+  const beforeInvalid = structuredClone(db.views);
+  assert.throws(() => doc.updateView(db.id, "list-copy", { visiblePropertyIds: ["missing"] }), /unknown property/i);
+  assert.deepEqual(db.views, beforeInvalid);
+  doc.updateView(db.id, "list-copy", { type: "table" } as any);
+  assert.equal(db.views[0]!.type, "list", "runtime patches cannot change a saved view's type");
+  doc.deleteView(db.id, "list-copy");
+  assert.throws(() => doc.deleteView(db.id, "table"), /last view/i);
+});
+
 test("record mutations only accept properties declared by their collection", () => {
   const doc = new WorkspaceDocument(createWorkspace("Scoped properties"));
   const firstPage = doc.addPage("First"); const secondPage = doc.addPage("Second");

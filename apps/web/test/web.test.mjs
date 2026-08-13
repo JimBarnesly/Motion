@@ -537,7 +537,8 @@ test("native adapter declaration exhaustively types the synchronous service surf
   const operations = [
     "workspace.create", "page.create", "page.rename", "page.move", "page.reorder", "page.set-favourite", "page.trash", "page.restore", "page.replace-blocks",
     "block.create", "block.update-content", "block.transform", "block.move", "block.indent", "block.outdent", "block.duplicate", "block.delete", "block.batch",
-    "database.create", "database.property-add", "database.property-update", "database.property-delete", "database.record-create", "database.record-update", "database.view-update"
+    "database.create", "database.property-add", "database.property-update", "database.property-delete", "database.record-create", "database.record-update",
+    "database.view-create", "database.view-update", "database.view-duplicate", "database.view-reorder", "database.view-delete"
   ];
   const blockOperations = serviceSource.match(/export type BlockOperation =([\s\S]*?)export type BlockCommand/)?.[1];
   const appCommands = serviceSource.match(/export type AppCommand =([\s\S]*?)export type AsyncAppCommand/)?.[1];

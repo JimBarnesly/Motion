@@ -150,7 +150,11 @@ fn validate_dispatch_request(request: &IpcRequest) -> Result<(), IpcError> {
         ("command", "database.property-delete") => &["type", "workspaceId", "expectedRevision", "databaseId", "propertyId"],
         ("command", "database.record-create") => &["type", "workspaceId", "expectedRevision", "databaseId", "title", "values"],
         ("command", "database.record-update") => &["type", "workspaceId", "expectedRevision", "pageId", "title", "values"],
+        ("command", "database.view-create") => &["type", "workspaceId", "expectedRevision", "databaseId", "view"],
         ("command", "database.view-update") => &["type", "workspaceId", "expectedRevision", "databaseId", "viewId", "patch"],
+        ("command", "database.view-duplicate") => &["type", "workspaceId", "expectedRevision", "databaseId", "viewId", "name", "newViewId"],
+        ("command", "database.view-reorder") => &["type", "workspaceId", "expectedRevision", "databaseId", "viewId", "beforeViewId"],
+        ("command", "database.view-delete") => &["type", "workspaceId", "expectedRevision", "databaseId", "viewId"],
         ("async-command", "attachment.ingest-block") => &[
             "type",
             "workspaceId",
@@ -510,6 +514,19 @@ mod tests {
             }),
         };
         assert!(validate_dispatch_request(&attachment_block).is_ok());
+        let create_view = IpcRequest {
+            protocol_version: 1,
+            lane: "command".into(),
+            payload: json!({
+                "type": "database.view-create", "workspaceId": "w", "expectedRevision": 1, "databaseId": "db",
+                "view": { "name": "List", "type": "list", "visiblePropertyIds": [] }
+            }),
+        };
+        assert!(validate_dispatch_request(&create_view).is_ok());
+        let injected_view = IpcRequest { protocol_version: 1, lane: "command".into(), payload: json!({
+            "type": "database.view-delete", "workspaceId": "w", "expectedRevision": 1, "databaseId": "db", "viewId": "view", "path": "/tmp/injected"
+        }) };
+        assert_eq!(validate_dispatch_request(&injected_view).unwrap_err().code, "INVALID_INPUT");
         let extra_attachment_field = IpcRequest {
             protocol_version: 1,
             lane: "async-command".into(),

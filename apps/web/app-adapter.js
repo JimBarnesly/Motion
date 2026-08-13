@@ -10,7 +10,8 @@ const NATIVE_EXECUTE_OPERATIONS = Object.freeze([
   "workspace.create",
   "page.create", "page.rename", "page.move", "page.reorder", "page.set-favourite", "page.trash", "page.restore", "page.replace-blocks",
   "block.create", "block.update-content", "block.transform", "block.move", "block.indent", "block.outdent", "block.duplicate", "block.delete", "block.batch",
-  "database.create", "database.property-add", "database.property-update", "database.property-delete", "database.record-create", "database.record-update", "database.view-update"
+  "database.create", "database.property-add", "database.property-update", "database.property-delete", "database.record-create", "database.record-update",
+  "database.view-create", "database.view-update", "database.view-duplicate", "database.view-reorder", "database.view-delete"
 ]);
 const nativeExecuteOperations = new Set(NATIVE_EXECUTE_OPERATIONS);
 const DB_NAME = "motion-web-development";

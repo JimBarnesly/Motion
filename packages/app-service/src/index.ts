@@ -77,7 +77,11 @@ export type AppCommand =
   | { type: "database.property-delete"; workspaceId: string; expectedRevision: number; databaseId: string; propertyId: string }
   | { type: "database.record-create"; workspaceId: string; expectedRevision: number; databaseId: string; title: string; values?: Record<string, PropertyValue> }
   | { type: "database.record-update"; workspaceId: string; expectedRevision: number; pageId: string; title?: string; values: Record<string, PropertyValue | undefined> }
-  | { type: "database.view-update"; workspaceId: string; expectedRevision: number; databaseId: string; viewId: string; patch: Partial<Omit<DatabaseView, "id" | "collectionId" | "type">> };
+  | { type: "database.view-create"; workspaceId: string; expectedRevision: number; databaseId: string; view: Omit<DatabaseView, "id" | "collectionId"> & { id?: string } }
+  | { type: "database.view-update"; workspaceId: string; expectedRevision: number; databaseId: string; viewId: string; patch: Partial<Omit<DatabaseView, "id" | "collectionId" | "type">> }
+  | { type: "database.view-duplicate"; workspaceId: string; expectedRevision: number; databaseId: string; viewId: string; name?: string; newViewId?: string }
+  | { type: "database.view-reorder"; workspaceId: string; expectedRevision: number; databaseId: string; viewId: string; beforeViewId: string | null }
+  | { type: "database.view-delete"; workspaceId: string; expectedRevision: number; databaseId: string; viewId: string };
 
 export type AsyncAppCommand =
   | { type: "attachment.put"; workspaceId: string; expectedRevision: number; id?: string; fileName: string; mediaType: string; sha256: string; bytes: Uint8Array }
@@ -124,7 +128,11 @@ export interface CommandResults {
   "database.property-delete": MutationDto;
   "database.record-create": MutationDto;
   "database.record-update": MutationDto;
+  "database.view-create": MutationDto;
   "database.view-update": MutationDto;
+  "database.view-duplicate": MutationDto;
+  "database.view-reorder": MutationDto;
+  "database.view-delete": MutationDto;
 }
 export interface QueryResults {
   "workspace.list": readonly WorkspaceSummaryDto[];
@@ -544,7 +552,18 @@ export class MotionAppService {
         if (page.collectionId) changes.database(page.collectionId); changes.page(pageId, { fts: true });
         if (command.title !== undefined) changes.links(document.rebuildLinkIndex()); break;
       }
+      case "database.view-create": {
+        const databaseId = requiredText(command.databaseId, "databaseId"), view = clone(command.view);
+        document.addView(databaseId, { ...view, id: view.id ?? crypto.randomUUID() }); changes.database(databaseId); break;
+      }
       case "database.view-update": { const databaseId = requiredText(command.databaseId, "databaseId"); document.updateView(databaseId, requiredText(command.viewId, "viewId"), clone(command.patch)); changes.database(databaseId); break; }
+      case "database.view-duplicate": {
+        const databaseId = requiredText(command.databaseId, "databaseId"); document.duplicateView(databaseId, requiredText(command.viewId, "viewId"), { id: command.newViewId, name: command.name }); changes.database(databaseId); break;
+      }
+      case "database.view-reorder": {
+        const databaseId = requiredText(command.databaseId, "databaseId"); document.reorderView(databaseId, requiredText(command.viewId, "viewId"), command.beforeViewId === null ? null : requiredText(command.beforeViewId, "beforeViewId")); changes.database(databaseId); break;
+      }
+      case "database.view-delete": { const databaseId = requiredText(command.databaseId, "databaseId"); document.deleteView(databaseId, requiredText(command.viewId, "viewId")); changes.database(databaseId); break; }
     }
     assertWorkspaceValue(document.data);
     const savedRevision = this.store.saveUnitOfWork({ workspaceId: document.data.id, schemaVersion: WORKSPACE_SCHEMA_VERSION, document: document.data, expectedRevision, changeSet: changes.build() });

@@ -158,7 +158,32 @@ export class WorkspaceDocument {
   addProperty(databaseId: ID, property: Omit<DatabaseProperty, "id"> & { id?: ID }) { const db = this.requiredDatabase(databaseId); const result = { ...property, id: property.id ?? id() }; db.properties.push(result); for (const view of db.views) { view.visiblePropertyIds.push(result.id); view.propertyOrder = [...(view.propertyOrder ?? view.visiblePropertyIds.filter(propertyId => propertyId !== result.id)), result.id]; } this.touch(); return result; }
   updateProperty(databaseId: ID, propertyId: ID, patch: Partial<Omit<DatabaseProperty, "id">>) { const db = this.requiredDatabase(databaseId); const property = db.properties.find(candidate => candidate.id === propertyId); if (!property) throw new Error(`Database property not found: ${propertyId}`); if (patch.type && patch.type !== property.type) for (const page of this.indexedRecords(db)) delete page.properties?.[propertyId]; Object.assign(property, patch, { id: propertyId }); this.touch(); return property; }
   deleteProperty(databaseId: ID, propertyId: ID) { const db = this.requiredDatabase(databaseId); if (db.properties.find(candidate => candidate.id === propertyId)?.type === "title") throw new Error("The title property cannot be deleted"); db.properties = db.properties.filter(candidate => candidate.id !== propertyId); for (const page of this.indexedRecords(db)) delete page.properties?.[propertyId]; for (const view of db.views) { view.visiblePropertyIds = view.visiblePropertyIds.filter(id => id !== propertyId); view.propertyOrder = view.propertyOrder?.filter(id => id !== propertyId); if (view.columnWidths) delete view.columnWidths[propertyId]; view.sorts = view.sorts?.filter(sort => sort.propertyId !== propertyId); if (view.filters && filterReferences(view.filters, propertyId)) delete view.filters; } this.touch(); }
-  updateView(databaseId: ID, viewId: ID, patch: Partial<Omit<DatabaseView, "id" | "collectionId" | "type">>) { const db = this.requiredDatabase(databaseId); const view = db.views.find(candidate => candidate.id === viewId); if (!view) throw new Error(`Database view not found: ${viewId}`); Object.assign(view, patch, { id: viewId, collectionId: db.id, type: "table" as const }); this.touch(); return view; }
+  addView(databaseId: ID, view: Omit<DatabaseView, "collectionId">): DatabaseView {
+    const db = this.requiredDatabase(databaseId), result: DatabaseView = { ...structuredClone(view), collectionId: db.id };
+    const candidate = structuredClone(this.data), candidateDatabase = candidate.databases.find(database => database.id === db.id)!;
+    candidateDatabase.views.push(structuredClone(result)); assertWorkspace(candidate); db.views.push(result); this.touch(); return result;
+  }
+  updateView(databaseId: ID, viewId: ID, patch: Partial<Omit<DatabaseView, "id" | "collectionId" | "type">>) {
+    const db = this.requiredDatabase(databaseId), index = db.views.findIndex(candidate => candidate.id === viewId); if (index < 0) throw new Error(`Database view not found: ${viewId}`);
+    const patchValue = structuredClone(patch) as Partial<DatabaseView>, { id: _patchId, collectionId: _patchCollectionId, type: _patchType, ...safePatch } = patchValue;
+    const result = { ...structuredClone(db.views[index]!), ...safePatch, id: viewId, collectionId: db.id, type: db.views[index]!.type };
+    const candidate = structuredClone(this.data), candidateDatabase = candidate.databases.find(database => database.id === db.id)!; candidateDatabase.views[index] = structuredClone(result); assertWorkspace(candidate);
+    db.views[index] = result; this.touch(); return result;
+  }
+  duplicateView(databaseId: ID, viewId: ID, identity: { id?: ID; name?: string } = {}): DatabaseView {
+    const db = this.requiredDatabase(databaseId), source = db.views.find(candidate => candidate.id === viewId); if (!source) throw new Error(`Database view not found: ${viewId}`);
+    return this.addView(databaseId, { ...structuredClone(source), id: identity.id ?? id(), name: identity.name ?? `${source.name} copy` });
+  }
+  reorderView(databaseId: ID, viewId: ID, beforeViewId: ID | null): void {
+    const db = this.requiredDatabase(databaseId), from = db.views.findIndex(view => view.id === viewId); if (from < 0) throw new Error(`Database view not found: ${viewId}`);
+    if (beforeViewId === viewId) return;
+    const candidate = [...db.views], [view] = candidate.splice(from, 1); const to = beforeViewId === null ? candidate.length : candidate.findIndex(item => item.id === beforeViewId);
+    if (to < 0) throw new Error(`Database view not found: ${beforeViewId}`); candidate.splice(to, 0, view!); db.views = candidate; this.touch();
+  }
+  deleteView(databaseId: ID, viewId: ID): DatabaseView {
+    const db = this.requiredDatabase(databaseId), index = db.views.findIndex(view => view.id === viewId); if (index < 0) throw new Error(`Database view not found: ${viewId}`);
+    if (db.views.length === 1) throw new Error("Cannot delete the last view"); const [removed] = db.views.splice(index, 1); this.touch(); return removed!;
+  }
   links(): PageLink[] { return [...this.data.linkIndex]; }
   backlinks(pageId: ID) { this.requiredPage(pageId); return this.data.linkIndex.filter(link => link.targetPageId === pageId); }
   outgoingLinks(pageId: ID) { this.requiredPage(pageId); return this.data.linkIndex.filter(link => link.sourcePageId === pageId); }

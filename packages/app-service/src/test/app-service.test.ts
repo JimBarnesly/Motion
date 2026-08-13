@@ -846,6 +846,14 @@ test("page hierarchy and typed record commands persist through SQLite restart", 
         propertyOrder: [database.properties[0]!.id, statusId, costId], visiblePropertyIds: [database.properties[0]!.id, statusId, costId],
         filters: { kind: "condition", propertyId: statusId, operator: "not-equals", value: "todo" },
         sorts: [{ propertyId: statusId, direction: "asc" }, { propertyId: costId, direction: "desc" }] } });
+    state = service.execute({ type: "database.view-create", workspaceId, expectedRevision: state.revision, databaseId: database.id,
+      view: { name: "Open jobs", type: "list", visiblePropertyIds: [database.properties[0]!.id, statusId], propertyOrder: [database.properties[0]!.id, statusId],
+        filters: { kind: "condition", propertyId: statusId, operator: "equals", value: "doing" }, sorts: [{ propertyId: costId, direction: "desc" }] } });
+    const listView = state.workspace.databases[0]!.views.find(candidate => candidate.type === "list")!;
+    state = service.execute({ type: "database.view-duplicate", workspaceId, expectedRevision: state.revision, databaseId: database.id, viewId: listView.id, name: "Open jobs copy" });
+    const copiedView = state.workspace.databases[0]!.views.find(candidate => candidate.name === "Open jobs copy")!;
+    state = service.execute({ type: "database.view-reorder", workspaceId, expectedRevision: state.revision, databaseId: database.id, viewId: copiedView.id, beforeViewId: view.id });
+    state = service.execute({ type: "database.view-delete", workspaceId, expectedRevision: state.revision, databaseId: database.id, viewId: listView.id });
     state = service.execute({ type: "page.reorder", workspaceId, expectedRevision: state.revision, pageId: state.workspace.databases[0]!.pageId, beforePageId: notesId });
     store.close();
 
@@ -856,8 +864,9 @@ test("page hierarchy and typed record commands persist through SQLite restart", 
     assert.equal(reopened.pages.find(page => page.id === notesId)?.favourite, true);
     assert.equal(reopened.pages.find(page => page.id === record.id)?.properties?.[costId], 4200);
     assert.equal(reopened.pages.find(page => page.id === record.id)?.blocks[0]?.text, "Need three supplier quotes.");
-    assert.deepEqual(reopenedDatabase.views[0]!.sorts?.map(sort => sort.propertyId), [statusId, costId]);
-    assert.equal(reopenedDatabase.views[0]!.filters?.kind, "condition");
+    assert.deepEqual(reopenedDatabase.views.map(candidate => [candidate.name, candidate.type]), [["Open jobs copy", "list"], ["Table", "table"]]);
+    assert.deepEqual(reopenedDatabase.views[1]!.sorts?.map(sort => sort.propertyId), [statusId, costId]);
+    assert.equal(reopenedDatabase.views[1]!.filters?.kind, "condition");
     assert.equal(reopenedDatabase.recordPageIds?.[0], record.id);
     store.close();
   } finally { await removeDatabase(path); }

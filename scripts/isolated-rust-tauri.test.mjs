@@ -33,6 +33,8 @@ test("rootless validation copies the exact read-only candidate into private exec
   assert.match(source, /--tmpfs", "\/target:rw,nosuid,nodev,size=6g,uid=1000,gid=1000"/);
   assert.match(source, /cp -a \/candidate\/\. \/workspace/);
   assert.match(source, /cp -a \/opt\/motion-seed\/node_modules \/workspace\/node_modules/);
+  const dockerfile = await readFile("tooling/rust-tauri/Dockerfile", "utf8");
+  assert.match(dockerfile, /chmod -R a\+rX \/opt\/motion-seed\/node_modules/);
   assert.match(source, /cd \/workspace/);
   assert.match(source, /CARGO_TARGET_DIR=\/target/);
   assert.match(source, /name\.startsWith\("\.project-office\/"\) && !name\.startsWith\("\.cache\/"\)/);

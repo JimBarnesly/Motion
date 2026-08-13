@@ -27,6 +27,7 @@ ENV CARGO_HOME=/usr/local/cargo \
 COPY . /opt/motion-seed
 RUN cd /opt/motion-seed \
  && npm ci --ignore-scripts \
+ && chmod -R a+rX /opt/motion-seed/node_modules \
  && cargo fetch --locked --manifest-path apps/desktop/src-tauri/Cargo.toml \
  && chmod -R a+rX /usr/local/cargo/registry \
  && rustc --version | grep -Fx 'rustc 1.97.1 (8bab26f4f 2026-07-14)'

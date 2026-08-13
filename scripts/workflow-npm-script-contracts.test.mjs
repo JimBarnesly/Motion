@@ -42,3 +42,15 @@ test("every workflow npm run command references a declared script", async () => 
   }
   assert.deepEqual(missing, []);
 });
+
+test("workflows that invoke cargo clippy install the pinned clippy component", async () => {
+  const missing = [];
+  const workflows = (await readdir(".github/workflows")).filter(path => path.endsWith(".yml")).sort();
+  for (const workflow of workflows) {
+    const source = await readFile(join(".github/workflows", workflow), "utf8");
+    if (!/\bcargo clippy\b/.test(source)) continue;
+    const toolchainSteps = source.match(/- uses: dtolnay\/rust-toolchain@[\s\S]*?(?=\n\s*- (?:uses:|name:|run:)|$)/g) ?? [];
+    if (!toolchainSteps.some(step => /^\s*components:\s*clippy\s*$/m.test(step))) missing.push(workflow);
+  }
+  assert.deepEqual(missing, []);
+});

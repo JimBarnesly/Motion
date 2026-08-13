@@ -230,7 +230,7 @@ test("MOTION-UX-008: native verified backup restores created content and stable 
   await expect(page.getByRole("heading", { name: "Your workspace is ready" })).toBeVisible();
   page.once("dialog", dialog => dialog.accept());
   await page.locator("#verifiedBackupFile").setInputFiles({ name: "motion-verified-backup.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(bundle)) });
-  await page.getByRole("button", { name: "Durable native table", exact: true }).click();
+  await workspaceItem(page, "Durable native table").click();
   await expect(page.getByRole("button", { name: "native-backup-cell-008", exact: true })).toBeVisible();
   const after = await page.evaluate(() => (window as any).__TAURI__.core.invoke("motion_ui_load", { request: { schemaVersion: 1 } }));
   expect(after.workspace.id).not.toBe(before.workspace.id);

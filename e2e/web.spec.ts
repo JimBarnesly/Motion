@@ -123,7 +123,7 @@ test("typed table records open as pages and retain view state", async ({ page })
   await page.getByRole("button", { name: "+ Add block" }).click();
   await page.locator('[contenteditable="true"][data-block]').last().fill("Need quotes from three suppliers.");
 
-  await page.getByRole("button", { name: "Jobs", exact: true }).click();
+  await page.locator('[data-back]').click();
   await expect(page.getByRole("textbox", { name: "Database title" })).toHaveValue("Jobs");
   await expect(page.getByRole("button", { name: "Replace heat pump" })).toBeVisible();
   const recordRow = page.getByRole("button", { name: "Replace heat pump" }).locator("xpath=ancestor::tr");

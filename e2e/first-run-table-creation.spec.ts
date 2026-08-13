@@ -104,7 +104,7 @@ for (const layout of layouts) {
 
       await page.keyboard.press("Control+k");
       await page.getByRole("searchbox", { name: "Search workspace" }).fill("durable-cell-008");
-      const hit = page.locator("#searchResults").getByRole("button", { name: /Persistent readings.*durable-cell-008/ });
+      const hit = page.locator("#searchResults").getByRole("button", { name: "durable-cell-008 durable-cell-008", exact: true });
       await expect(hit).toHaveCount(1);
       await hit.press("Enter");
       await expect(page.getByRole("textbox", { name: "Page title" })).toBeFocused();
@@ -212,6 +212,8 @@ test("MOTION-UX-008: native verified backup restores created content and stable 
   await page.getByRole("textbox", { name: "Page title" }).fill("Durable native page");
   await (await rootCreation(page, "New table")).click();
   await page.getByRole("textbox", { name: "Database title" }).fill("Durable native table");
+  await page.getByRole("textbox", { name: "Database title" }).press("Tab");
+  await expect(page.getByRole("status")).toHaveText("Saved to Motion");
   await page.getByRole("button", { name: "+ New record" }).click();
   await page.getByRole("button", { name: "Untitled", exact: true }).click();
   await page.getByRole("textbox", { name: "Page title" }).fill("native-backup-cell-008");

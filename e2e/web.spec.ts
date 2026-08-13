@@ -10,7 +10,7 @@ test("local Web workspace persists, searches and exports without external networ
   await title.fill("Pump commissioning notes");
   const body = page.locator('[contenteditable="true"][data-block]').first();
   await body.fill("Verified local pressure and flow before startup.");
-  await body.press("Tab");
+  await body.blur();
   await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
   await expect.poll(() => page.evaluate(async () => {
     const request = indexedDB.open("motion-web-development", 1);
@@ -111,8 +111,13 @@ test("typed table records open as pages and retain view state", async ({ page })
   await page.getByRole("button", { name: "+ New record" }).click();
   await page.getByRole("button", { name: "Untitled", exact: true }).click();
   await page.getByRole("textbox", { name: "Page title" }).fill("Replace heat pump");
+  await page.getByRole("textbox", { name: "Page title" }).blur();
+  await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
   await page.getByLabel("Status").selectOption({ label: "In progress" });
+  await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
   await page.getByLabel("Cost").fill("4200");
+  await page.getByLabel("Cost").blur();
+  await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
   await page.getByRole("button", { name: "+ Add block" }).click();
   await page.locator('[contenteditable="true"][data-block]').last().fill("Need quotes from three suppliers.");
 

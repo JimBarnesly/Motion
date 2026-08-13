@@ -55,6 +55,16 @@ test("schema-v2 typed edits use the canonical recoverable confirmation boundary"
   assert.match(html, /id="discardEdit"/);
 });
 
+test("destructive block deletion and workspace replacement require cancellable confirmations", async () => {
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  assert.match(source, /if\(button\.dataset\.deleteBlock\)\{if\(!confirm\("Permanently delete this block\? This cannot be undone\."\)\)/);
+  assert.match(source, /if\(!confirm\("Replace the current workspace with the selected file\?"\)\)/);
+  assert.match(source, /Restore cancelled\./);
+  assert.match(source, /\$\("#restoreWorkspace"\)\?\.focus\(\)/);
+  assert.match(source, /trashed=await trash\(pageById\(pageId\)\);if\(!trashed\)return;/);
+  assert.match(source, /\(\$\("\[data-block\]"\) \?\? \$\("#addBlock"\)\)\?\.focus\(\)/);
+});
+
 test("native editor undo and redo use canonical page block replacement", async () => {
   const source = await readFile(resolve(root, "app.js"), "utf8");
   const build = await readFile(resolve(root, "scripts/build.mjs"), "utf8");

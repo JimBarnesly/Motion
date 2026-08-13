@@ -36,6 +36,13 @@ test("the packaged lane is fail-diagnostic and does not overclaim OS-level netwo
   assert.doesNotMatch(lane, /"network-denied packaged service execution"/);
 });
 
+test("the packaged smoke uses the privileged import lane and typed mutations instead of forbidden whole-snapshot saves", async () => {
+  const smoke = await readFile("scripts/smoke-packaged-app.mjs", "utf8");
+  assert.match(smoke, /lane: "web-v1-import"/);
+  assert.match(smoke, /lane: "command"/);
+  assert.doesNotMatch(smoke, /lane: "ui-save"/);
+});
+
 test("packaged acceptance subprocesses fail diagnostically instead of hanging", async () => {
   await assert.rejects(
     runWithTimeout(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { timeoutMs: 25 }),

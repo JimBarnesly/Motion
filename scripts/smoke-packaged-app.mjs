@@ -69,10 +69,12 @@ try {
   assert.match((await run(node, ["--version"])).stdout.trim(), /^v24\./);
 
   const document = { schemaVersion: 1, pages: [{ id: "page-package-smoke", parentId: null, order: 0, type: "document", title: "Packaged restart", blocks: [{ id: "block-package-smoke", type: "paragraph", text: "Durable and offline" }] }], activePageId: "page-package-smoke" };
-  const saved = await serviceExchange(node, runner, [{ lane: "ui-save", payload: { schemaVersion: 1, document } }]);
+  const saved = await serviceExchange(node, runner, [{ lane: "web-v1-import", payload: { type: "workspace.import-web-v1", document } }]);
   assert.equal(saved[0]?.value?.saved, true);
 
-  const backup = (await serviceExchange(node, runner, [{ lane: "async-query", payload: { type: "backup.create", workspaceId: "web-workspace-v1" } }]))[0]?.value;
+  const workspaceId = saved[0].value.workspace.id;
+  const importedRevision = saved[0].value.revision;
+  const backup = (await serviceExchange(node, runner, [{ lane: "async-query", payload: { type: "backup.create", workspaceId } }]))[0]?.value;
   assert.equal(backup?.manifest?.format, "motion-workspace-backup");
   const backupPath = join(root, "selected.motion-backup.json"); const neighbour = join(root, "unrelated.txt");
   await writeFile(neighbour, "preserve", { mode: 0o640 });
@@ -92,9 +94,8 @@ try {
   const denied = await serviceExchange(node, runner, [{ lane: "native-backup-save", payload: { destination: join(unwritable, "denied.json"), replaceConfirmed: false, bundle: backup } }]);
   assert.deepEqual(denied[0]?.error, { code: "STORAGE_FAILURE", message: "Backup could not be written safely; existing data was preserved" });
   assert.equal(await readFile(neighbour, "utf8"), "preserve");
-  const changed = structuredClone(document);
-  changed.pages[0].blocks[0].text = "Changed after backup";
-  assert.equal((await serviceExchange(node, runner, [{ lane: "ui-save", payload: { schemaVersion: 1, document: changed } }]))[0]?.value?.saved, true);
+  const changed = await serviceExchange(node, runner, [{ lane: "command", payload: { type: "block.update-content", workspaceId, expectedRevision: importedRevision, pageId: "page-package-smoke", blockId: "block-package-smoke", content: { text: "Changed after backup" } } }]);
+  assert.equal(changed[0]?.value?.saved, true);
   const restored = (await serviceExchange(node, runner, [{ lane: "async-command", payload: { type: "backup.restore-new", bundle: backup, newWorkspaceId: "packaged-restored-workspace" } }]))[0]?.value;
   assert.equal(restored?.workspace?.id, "packaged-restored-workspace");
 

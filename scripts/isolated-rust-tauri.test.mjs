@@ -35,5 +35,7 @@ test("rootless validation copies the exact read-only candidate into private exec
   assert.match(source, /cp -a \/opt\/motion-seed\/node_modules \/workspace\/node_modules/);
   assert.match(source, /cd \/workspace/);
   assert.match(source, /CARGO_TARGET_DIR=\/target/);
+  assert.match(source, /name\.startsWith\("\.project-office\/"\) && !name\.startsWith\("\.cache\/"\)/);
+  assert.match(source, /const excluded = \[join\(root, "\.project-office"\), join\(root, "\.cache"\)/);
   assert.doesNotMatch(source, /type=bind,src=\$\{candidate\},dst=\/workspace/);
 });

@@ -13,7 +13,7 @@ const fail = () => { throw new Error("isolated Rust/Tauri validation input or en
 
 export async function candidateFingerprint(root) {
   const names = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], { cwd: root })
-    .toString().split("\0").filter(name => name && !name.startsWith(".project-office/")).sort();
+    .toString().split("\0").filter(name => name && !name.startsWith(".project-office/") && !name.startsWith(".cache/")).sort();
   const digest = createHash("sha256");
   for (const name of names) {
     const path = join(root, name); const before = await lstat(path);
@@ -74,7 +74,7 @@ async function main() {
       "--user", "1000:1000", imageId, "sh", "-lc", "dpkg-query -W -f='${Package}=${Version}\\n' | LC_ALL=C sort | sha256sum | cut -d' ' -f1"], { encoding: "utf8", timeout: 120000 });
     if (packages.status !== 0 || packages.stdout.trim() !== policy.image.packageInventorySha256) fail();
     const candidate = join(work, "candidate");
-    const excluded = [join(root, ".project-office"), join(root, "artifacts"), join(root, "node_modules"), join(root, "apps/desktop/src-tauri/target")];
+    const excluded = [join(root, ".project-office"), join(root, ".cache"), join(root, "artifacts"), join(root, "node_modules"), join(root, "apps/desktop/src-tauri/target")];
     await cp(root, candidate, { recursive: true, filter: path => !excluded.some(item => path === item || path.startsWith(`${item}/`)) });
     const npmValidation = "npm run lint; npm run typecheck; npm run test --workspaces --if-present";
     const cargoTest = "cargo test --offline --locked --target-dir /target --manifest-path apps/desktop/src-tauri/Cargo.toml";

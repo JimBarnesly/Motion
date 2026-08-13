@@ -121,7 +121,10 @@ test("typed table records open as pages and retain view state", async ({ page })
   await page.getByLabel("Cost").blur();
   await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
   await page.getByRole("button", { name: "+ Add block" }).click();
-  await page.locator('[contenteditable="true"][data-block]').last().fill("Need quotes from three suppliers.");
+  const recordBody = page.locator('[contenteditable="true"][data-block]').last();
+  await recordBody.fill("Need quotes from three suppliers.");
+  await recordBody.press("Tab");
+  await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
 
   await page.locator('[data-back]').click();
   await expect(page.getByRole("textbox", { name: "Database title" })).toHaveValue("Jobs");

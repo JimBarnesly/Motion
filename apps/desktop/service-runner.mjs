@@ -37,7 +37,7 @@ const uiStatePath = join(mutableRoot, "ui-state.json");
 const readUiState = () => { try { hardenPrivateFile(uiStatePath); return JSON.parse(readFileSync(uiStatePath, "utf8")); } catch (error) { if (error?.code === "ENOENT") return {}; throw error; } };
 const writeUiState = state => {
   const temporary = `${uiStatePath}.${randomUUID()}.tmp`;
-  writeFileSync(temporary, JSON.stringify({ schemaVersion: 1, workspaceId: state.workspaceId, activePageId: state.activePageId ?? null, expandedPageIds: Array.isArray(state.expandedPageIds) ? state.expandedPageIds : [] }), { flag: "wx", mode: 0o600 });
+  writeFileSync(temporary, JSON.stringify({ schemaVersion: 1, workspaceId: state.workspaceId, activePageId: state.activePageId ?? null, expandedPageIds: Array.isArray(state.expandedPageIds) ? state.expandedPageIds : [], activeViewIds: state.activeViewIds ?? {} }), { flag: "wx", mode: 0o600 });
   renameSync(temporary, uiStatePath);
   hardenPrivateFile(uiStatePath);
 };
@@ -86,7 +86,7 @@ async function dispatch(rawRequest) {
         const uiState = readUiState();
         const selected = summaries.find(summary => summary.id === uiState.workspaceId) ?? summaries[0];
         const loaded = service.query({ type: "workspace.get", workspaceId: selected.id });
-        result = { schemaVersion: 2, ...loaded, activePageId: loaded.workspace.pages.some(page => page.id === uiState.activePageId && !page.deletedAt) ? uiState.activePageId : loaded.workspace.pages.find(page => !page.deletedAt)?.id ?? null, expandedPageIds: Array.isArray(uiState.expandedPageIds) ? uiState.expandedPageIds : [] };
+        result = { schemaVersion: 2, ...loaded, activePageId: loaded.workspace.pages.some(page => page.id === uiState.activePageId && !page.deletedAt) ? uiState.activePageId : loaded.workspace.pages.find(page => !page.deletedAt)?.id ?? null, expandedPageIds: Array.isArray(uiState.expandedPageIds) ? uiState.expandedPageIds : [], activeViewIds: uiState.activeViewIds ?? {} };
         break;
       }
       if (!summaries.length) { result = { schemaVersion: 1, pages: [], activePageId: null }; break; }
@@ -111,7 +111,7 @@ async function dispatch(rawRequest) {
             || Object.keys(request.payload).some(key => !["schemaVersion", "document"].includes(key))
             || !isValidUiState(candidate)) throw new MotionAppError("INVALID_INPUT", "Invalid UI state request");
         const summaries = service.query({ type: "workspace.list" }); const current = summaries.find(summary => summary.id === candidate?.workspaceId) ?? summaries[0];
-        if (current) writeUiState({ workspaceId: current.id, activePageId: candidate?.activePageId ?? null, expandedPageIds: candidate?.expandedPageIds });
+        if (current) writeUiState({ workspaceId: current.id, activePageId: candidate?.activePageId ?? null, expandedPageIds: candidate?.expandedPageIds, activeViewIds: candidate?.activeViewIds });
         result = { saved: true }; break;
       }
       throw new MotionAppError("INVALID_INPUT", "Whole-workspace UI save is not supported");

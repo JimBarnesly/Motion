@@ -151,8 +151,22 @@ test("typed table records open as pages and retain view state", async ({ page })
   await page.getByRole("button", { name: "Clear" }).click();
   await expect(page.getByRole("button", { name: "Replace heat pump" })).toBeVisible();
 
+  await page.getByRole("button", { name: "+ List view" }).click();
+  await expect(page.getByRole("combobox", { name: "Active database view" })).toHaveValue(/.+/);
+  await expect(page.getByRole("list", { name: "List list" })).toBeVisible();
+  await expect(page.getByRole("listitem").getByRole("button", { name: "Replace heat pump" })).toBeVisible();
+  await page.getByRole("button", { name: "Filter" }).click();
+  await page.locator("#filterProperty").selectOption({ label: "Status" });
+  await page.locator("#filterOperator").selectOption("not-equals");
+  await page.locator("#filterValue").fill(statusValue);
+  await page.getByRole("button", { name: "Apply" }).click();
+  await expect(page.getByRole("button", { name: "Replace heat pump" })).toHaveCount(0);
+  await page.getByRole("combobox", { name: "Active database view" }).selectOption({ label: "Table · table" });
+  await expect(page.getByRole("button", { name: "Replace heat pump" })).toBeVisible();
+
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Database title" })).toHaveValue("Jobs");
+  await expect(page.getByRole("combobox", { name: "Active database view" })).toHaveValue(/.+/);
   await expect(page.getByRole("button", { name: "Replace heat pump" })).toBeVisible();
   await page.getByRole("button", { name: "Replace heat pump" }).click();
   await expect(page.getByLabel("Status", { exact: true })).not.toHaveValue("");

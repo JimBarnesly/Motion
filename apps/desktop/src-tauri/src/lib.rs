@@ -81,7 +81,7 @@ fn validate_ui_state_document(document: &Value) -> Result<(), IpcError> {
         .ok_or_else(|| reject("INVALID_INPUT", "Invalid UI state request"))?;
     if state
         .keys()
-        .any(|key| !matches!(key.as_str(), "workspaceId" | "activePageId" | "expandedPageIds"))
+        .any(|key| !matches!(key.as_str(), "workspaceId" | "activePageId" | "expandedPageIds" | "activeViewIds"))
         || !state.get("workspaceId").is_none_or(valid_ui_state_id)
         || !state.get("activePageId").is_none_or(valid_ui_state_id)
     {
@@ -96,6 +96,15 @@ fn validate_ui_state_document(document: &Value) -> Result<(), IpcError> {
         if ids.iter().any(|id| {
             let Some(id_text) = id.as_str() else { return true; };
             !valid_ui_state_id(id) || !unique.insert(id_text)
+        }) {
+            return Err(reject("INVALID_INPUT", "Invalid UI state request"));
+        }
+    }
+    if let Some(active_views) = state.get("activeViewIds") {
+        let views = active_views.as_object().filter(|views| views.len() <= 256)
+            .ok_or_else(|| reject("INVALID_INPUT", "Invalid UI state request"))?;
+        if views.iter().any(|(database_id, view_id)| {
+            !valid_ui_state_id(&Value::String(database_id.clone())) || !valid_ui_state_id(view_id)
         }) {
             return Err(reject("INVALID_INPUT", "Invalid UI state request"));
         }
@@ -662,13 +671,14 @@ mod tests {
     #[test]
     fn ui_state_boundary_accepts_only_bounded_ephemeral_fields() {
         assert!(validate_ui_state_document(&json!({
-            "workspaceId": "workspace-1", "activePageId": null, "expandedPageIds": ["page-1"]
+            "workspaceId": "workspace-1", "activePageId": null, "expandedPageIds": ["page-1"], "activeViewIds": { "database-1": "view-1" }
         }))
         .is_ok());
         for invalid in [
             json!({ "workspace": { "pages": [] }, "workspaceId": "workspace-1" }),
             json!({ "pages": [] }),
             json!({ "workspaceId": "workspace-1", "expandedPageIds": ["page-1", "page-1"] }),
+            json!({ "workspaceId": "workspace-1", "activeViewIds": { "bad/id": "view-1" } }),
             json!({ "workspaceId": "workspace-1", "activePageId": "bad/id" }),
         ] {
             assert_eq!(

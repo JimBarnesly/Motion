@@ -38,6 +38,13 @@ test("workspace persistence uses an explicit async native/browser adapter", asyn
   assert.match(adapter, /schemaVersion:\s*2/);
 });
 
+test("saved-view selection stays bounded and browser property creation matches native all-view updates", async () => {
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  assert.match(source, /entries\.slice\(-255\)/);
+  assert.match(source, /for\(const view of database\.views\)\{view\.visiblePropertyIds\.push\(property\.id\);view\.propertyOrder\.push\(property\.id\);\}/);
+  assert.doesNotMatch(source, /activeView\(database\)\.visiblePropertyIds\.push\(property\.id\)/);
+});
+
 test("schema-v2 typed edits use the canonical recoverable confirmation boundary", async () => {
   const source = await readFile(resolve(root, "app.js"), "utf8");
   const html = await readFile(resolve(root, "index.html"), "utf8");
@@ -143,7 +150,7 @@ test("native adapter sends versioned typed IPC envelopes", async () => {
   assert.equal((await adapter.exportWorkspace()).schemaVersion, 1);
   assert.deepEqual(calls, [
     { command: "motion_ui_load", payload: { request: { schemaVersion: 2 } } },
-    { command: "motion_ui_save", payload: { request: { document: { workspaceId: "workspace-1", activePageId: null, expandedPageIds: [] }, schemaVersion: 2 } } },
+    { command: "motion_ui_save", payload: { request: { document: { workspaceId: "workspace-1", activePageId: null, expandedPageIds: [], activeViewIds: {} }, schemaVersion: 2 } } },
     { command: "app_dispatch", payload: { request: { protocolVersion: 1, lane: "query", payload: { type: "workspace.search", workspaceId: "workspace-1", query: "match", limit: 50 } } } },
     { command: "app_dispatch", payload: { request: { protocolVersion: 1, lane: "query", payload: { type: "workspace.export", workspaceId: "workspace-1" } } } }
   ]);
@@ -508,6 +515,8 @@ test("native UI-state save rejects canonical snapshots and bounds its exact ephe
   const adapter = createMotionUiAdapter({ __TAURI__: { core: { invoke: async (command, payload) => calls.push({ command, payload }) } } });
   await assert.rejects(adapter.saveUi({ workspaceId: "workspace-1", activePageId: null, expandedPageIds: [], pages: [] }), /Invalid UI state request/);
   await assert.rejects(adapter.saveUi({ workspaceId: "workspace-1", activePageId: null, expandedPageIds: Array.from({ length: 257 }, (_, index) => `page-${index}`) }), /Invalid UI state request/);
+  await assert.rejects(adapter.saveUi({ workspaceId: "workspace-1", activePageId: null, expandedPageIds: [], activeViewIds: { "bad/id": "view-1" } }), /Invalid UI state request/);
+  await assert.rejects(adapter.saveUi({ workspaceId: "workspace-1", activePageId: null, expandedPageIds: [], activeViewIds: Object.fromEntries(Array.from({ length: 257 }, (_, index) => [`database-${index}`, `view-${index}`])) }), /Invalid UI state request/);
   assert.deepEqual(calls, []);
 });
 

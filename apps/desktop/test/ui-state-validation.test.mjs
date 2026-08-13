@@ -4,7 +4,7 @@ import test from "node:test";
 import { isValidUiState } from "../ui-state-validation.mjs";
 
 test("runner UI state accepts only bounded ephemeral fields and rejects embedded canonical snapshots", () => {
-  assert.equal(isValidUiState({ workspaceId: "workspace-1", activePageId: null, expandedPageIds: ["page-1"] }), true);
+  assert.equal(isValidUiState({ workspaceId: "workspace-1", activePageId: null, expandedPageIds: ["page-1"], activeViewIds: { "database-1": "view-1" } }), true);
   for (const invalid of [
     { workspace: { schemaVersion: 2, pages: [], databases: [] }, workspaceId: "workspace-1", activePageId: null, expandedPageIds: [] },
     { pages: [] },
@@ -15,6 +15,8 @@ test("runner UI state accepts only bounded ephemeral fields and rejects embedded
     { document: { schemaVersion: 2 } },
     { workspaceId: "workspace-1", expandedPageIds: ["page-1", "page-1"] },
     { workspaceId: "workspace-1", expandedPageIds: Array.from({ length: 257 }, (_, index) => `page-${index}`) },
+    { workspaceId: "workspace-1", activeViewIds: { "bad/id": "view-1" } },
+    { workspaceId: "workspace-1", activeViewIds: Object.fromEntries(Array.from({ length: 257 }, (_, index) => [`database-${index}`, `view-${index}`])) },
     { workspaceId: "workspace-1", activePageId: "bad/id" },
   ]) assert.equal(isValidUiState(invalid), false);
 });

@@ -73,7 +73,6 @@ async function main() {
     const packages = spawnSync("docker", ["run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
       "--user", "1000:1000", imageId, "sh", "-lc", "dpkg-query -W -f='${Package}=${Version}\\n' | LC_ALL=C sort | sha256sum | cut -d' ' -f1"], { encoding: "utf8", timeout: 120000 });
     if (packages.status !== 0 || packages.stdout.trim() !== policy.image.packageInventorySha256) fail();
-    const target = join(work, "target"); await mkdir(target, { mode: 0o700 });
     const candidate = join(work, "candidate");
     const excluded = [join(root, ".project-office"), join(root, "artifacts"), join(root, "node_modules"), join(root, "apps/desktop/src-tauri/target")];
     await cp(root, candidate, { recursive: true, filter: path => !excluded.some(item => path === item || path.startsWith(`${item}/`)) });
@@ -85,10 +84,12 @@ async function main() {
       + "test \"$(rustc --version)\" = 'rustc 1.97.1 (8bab26f4f 2026-07-14)'; test \"$(node --version)\" = 'v24.18.0'; "
       + `test \"$(sha256sum \"$(rustup which rustc)\" | cut -d' ' -f1)\" = '${policy.rust.rustcSha256}'; `
       + `test \"$(sha256sum \"$(rustup which cargo)\" | cut -d' ' -f1)\" = '${policy.rust.cargoSha256}'; `
-      + `cp -a /opt/motion-seed/node_modules /workspace/node_modules; ${npmValidation}; ${cargoTest}; ${tauriCheck}`;
+      + `cp -a /candidate/. /workspace; cp -a /opt/motion-seed/node_modules /workspace/node_modules; cd /workspace; ${npmValidation}; ${cargoTest}; ${tauriCheck}`;
     const validation = spawnSync("docker", ["run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-      "--pids-limit", "512", "--user", "1000:1000", "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=512m,uid=1000,gid=1000",
-      "--mount", `type=bind,src=${candidate},dst=/workspace`, "--mount", `type=bind,src=${target},dst=/target`,
+      "--pids-limit", "512", "--user", "1000:1000",
+      "--tmpfs", "/workspace:rw,nosuid,nodev,size=1g,uid=1000,gid=1000",
+      "--tmpfs", "/target:rw,nosuid,nodev,size=6g,uid=1000,gid=1000",
+      "--mount", `type=bind,src=${candidate},dst=/candidate,readonly`,
       "--env", "CARGO_NET_OFFLINE=true", "--env", "CARGO_TARGET_DIR=/target",
       "--workdir", "/workspace", imageId,
       "sh", "-lc", command], { encoding: "utf8", timeout: 900000, maxBuffer: 1024 * 1024 });

@@ -23,6 +23,16 @@ test("private database path failures map to stable storage errors without intern
   assert.equal(mapped.details, undefined);
 });
 
+test("filesystem database-open failures map to stable storage errors without internals", () => {
+  const privatePath = `/private/workspace-${crypto.randomUUID()}.sqlite`;
+  const failure = Object.assign(new Error(`EISDIR: illegal operation on a directory, open '${privatePath}'`), { code: "EISDIR" });
+  const mapped = toAppError(failure);
+  assert.equal(mapped.code, "STORAGE_FAILURE");
+  assert.equal(mapped.message, "Local database operation failed");
+  assert.equal(mapped.message.includes(privatePath), false);
+  assert.equal(mapped.details, undefined);
+});
+
 test("mutation change sets use comparator-free deterministic ordering", async () => {
   const path = databasePath("comparator-free-change-set"); const store = new SqliteWorkspaceStore(path); const service = new MotionAppService(store);
   try {

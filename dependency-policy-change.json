@@ -2,10 +2,10 @@
   "schemaVersion": 2,
   "oldPolicySha256": "e6f39d7b204bf45a00e3a5f67a378ea529396cfcdfb1295ad95ffab91734a679",
   "newPolicySha256": "e6f39d7b204bf45a00e3a5f67a378ea529396cfcdfb1295ad95ffab91734a679",
-  "rationale": "Authorize the independently reviewed ARM fail-diagnostic setting for the exact isolated validator; dependency policy scope is unchanged.",
+  "rationale": "The workflow repair preserves fail-closed controls while passing Cargo lock enforcement through the correct Tauri runner boundary; dependency policy scope and all pinned security controls remain unchanged.",
   "approverRole": "Operations & Security Director",
   "scopeDiff": [],
   "controlPlaneDiff": [
-    ".github/workflows/ci.yml:sha256:1ecfa9403720323517044cbefe4195d9bf8738a616b786031dc77e4dc7add9e7->sha256:0963b19a6fdd9579466fecb6627cb43ed041ad50560a79ac84bdce2535a5e6f6"
+    ".github/workflows/ci.yml:sha256:0963b19a6fdd9579466fecb6627cb43ed041ad50560a79ac84bdce2535a5e6f6->sha256:fb73d224d561d49732aa2c9a9b854601f9c2a9e6b39faf2d8e321ad52246c732"
   ]
 }

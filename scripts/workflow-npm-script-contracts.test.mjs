@@ -73,3 +73,8 @@ test("native Tauri resources are prepared before every Cargo validation path", a
     }
   }
 });
+
+test("native packaging passes Cargo lock enforcement after the Tauri argument boundary", async () => {
+  const source = await readFile(".github/workflows/ci.yml", "utf8");
+  assert.match(source, /npm run tauri:build --workspace @motion\/desktop -- --bundles deb,appimage -- --locked/);
+});

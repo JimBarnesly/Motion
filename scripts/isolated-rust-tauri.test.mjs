@@ -25,3 +25,15 @@ test("candidate fingerprint and both dependency locks fail closed on substitutio
     await assert.rejects(verifyInputs(root, policy, expected), /rejected/);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test("rootless validation copies the exact read-only candidate into private executable tmpfs mounts", async () => {
+  const source = await readFile("scripts/isolated-rust-tauri.mjs", "utf8");
+  assert.match(source, /type=bind,src=\$\{candidate\},dst=\/candidate,readonly/);
+  assert.match(source, /--tmpfs", "\/workspace:rw,nosuid,nodev,size=1g,uid=1000,gid=1000"/);
+  assert.match(source, /--tmpfs", "\/target:rw,nosuid,nodev,size=6g,uid=1000,gid=1000"/);
+  assert.match(source, /cp -a \/candidate\/\. \/workspace/);
+  assert.match(source, /cp -a \/opt\/motion-seed\/node_modules \/workspace\/node_modules/);
+  assert.match(source, /cd \/workspace/);
+  assert.match(source, /CARGO_TARGET_DIR=\/target/);
+  assert.doesNotMatch(source, /type=bind,src=\$\{candidate\},dst=\/workspace/);
+});

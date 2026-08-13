@@ -245,7 +245,7 @@ jobs:
       - name: Test native shell
         run: cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
       - name: Build native Linux packages
-        run: npm run tauri:build --workspace @motion/desktop -- --locked --bundles deb,appimage
+        run: npm run tauri:build --workspace @motion/desktop -- --bundles deb,appimage -- --locked
       - name: Validate packaged M2 acceptance wiring
         run: npm run test:m2-acceptance-contract
       - name: Smoke-test packaged runtime offline across restart

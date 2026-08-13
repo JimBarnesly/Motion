@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { applyLocalEdit } from "../browser-edit-confirmation.js";
 import { decodeBinary } from "../app-adapter.js";
 import { resolve } from "node:path";
 
@@ -53,6 +54,51 @@ test("schema-v2 typed edits use the canonical recoverable confirmation boundary"
   assert.match(html, /id="editRecovery"[^>]*role="alert"/);
   assert.match(html, /id="retryEdit"/);
   assert.match(html, /id="discardEdit"/);
+});
+
+test("root creation is single-flight, truthful, rollback-safe, and restores deterministic focus", async () => {
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  const html = await readFile(resolve(root, "index.html"), "utf8");
+  assert.match(source, /function findBlockLocation\(blocks,id,parent=null\)/);
+  assert.match(source, /location\.blocks\.splice\(location\.index,1\)/);
+  assert.match(source, /rootCreationInFlight/);
+  assert.match(source, /const previous=structuredClone\(state\)/);
+  assert.match(source, /let recovered=previous/);
+  assert.match(source, /recovered=migrateLoaded\(await adapter\.load\(\)\)/);
+  assert.match(source, /created and saved\./);
+  assert.match(source, /creation failed\. No content was added\./);
+  assert.match(source, /requestAnimationFrame\(\(\)=>trigger\?\.focus\(\)\)/);
+  assert.match(html, /id="addRootDatabase"[^>]*aria-label="New table"/);
+});
+
+test("canonical browser edits apply typed indent and outdent operations", () => {
+  const first={id:"first",type:"paragraph",text:"Parent",children:[]},second={id:"second",type:"paragraph",text:"Child",children:[]};
+  const document={workspace:{pages:[{id:"page",blocks:[first,second]}]}};
+  applyLocalEdit(document,{type:"block.indent",payload:{pageId:"page",blockId:"second"}},"2026-08-13T00:00:00.000Z");
+  assert.deepEqual(document.workspace.pages[0].blocks.map(block=>block.id),["first"]);
+  assert.deepEqual(first.children.map(block=>block.id),["second"]);
+  applyLocalEdit(document,{type:"block.outdent",payload:{pageId:"page",blockId:"second"}},"2026-08-13T00:00:01.000Z");
+  assert.deepEqual(document.workspace.pages[0].blocks.map(block=>block.id),["first","second"]);
+  assert.deepEqual(first.children,[]);
+
+  const leaf={id:"leaf",type:"divider",children:[]},rejected={id:"rejected",type:"paragraph",text:"Remain",children:[]};
+  const invalid={workspace:{pages:[{id:"leaf-page",blocks:[leaf,rejected]}]}};
+  const before=structuredClone(invalid);
+  assert.throws(
+    ()=>applyLocalEdit(invalid,{type:"block.indent",payload:{pageId:"leaf-page",blockId:"rejected"}},"2026-08-13T00:00:02.000Z"),
+    /Block type divider cannot contain children/
+  );
+  assert.deepEqual(invalid,before,"rejected browser indentation must be atomic");
+});
+
+test("canonical editor exposes non-trapping indent and outdent through typed commands", async () => {
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  assert.match(source, /event\.altKey&&event\.key==="]"/);
+  assert.match(source, /"block\.indent"/);
+  assert.match(source, /event\.altKey&&event\.key==="\["/);
+  assert.match(source, /"block\.outdent"/);
+  assert.match(source, /aria-keyshortcuts="Alt\+BracketRight Alt\+BracketLeft"/);
+  assert.match(source, /style="--indent:\$\{depth\}"/);
 });
 
 test("destructive block deletion and workspace replacement require cancellable confirmations", async () => {
@@ -624,7 +670,7 @@ test("document editor supports substantial block types and keyboard operations",
   assert.match(source, /if\(await flushCanonicalEdit\("focusing the new block"\)\)requestAnimationFrame/);
   assert.match(source, /event\.key==="Backspace"/);
   assert.match(source, /selectionIsCollapsedIn\(input\)/);
-  assert.match(source, /mergeAdjacentBlockCommands\(\{pageId:page\.id,previousBlock:page\.blocks\[at-1\],currentBlock:block\}\)/);
+  assert.match(source, /mergeAdjacentBlockCommands\(\{pageId:page\.id,previousBlock,currentBlock:block\}\)/);
   assert.match(source, /candidate:\{type:"block\.batch",payload:\{commands:merge\.commands\}\}/);
   assert.match(source, /focusBlockAtOffset\(merge\.focusBlockId,merge\.focusOffset\)/);
   assert.match(source, /structuredClone\(block\)/);
@@ -641,7 +687,7 @@ test("structural keyboard editing flushes canonical text before creating another
 
   assert.match(source, /async function flushCanonicalEdit[\s\S]*await editRecovery\.commit\(\)/);
   assert.match(keydown, /await flushCanonicalEdit\("continuing"\)/);
-  assert.match(keydown, /if\(!await flushCanonicalEdit\("continuing"\)\)return;page=activePage\(\);at=page\.blocks\.findIndex\(candidate=>candidate\.id===input\.dataset\.block\);block=page\.blocks\[at\]/);
+  assert.match(keydown, /if\(!await flushCanonicalEdit\("continuing"\)\)return;page=activePage\(\);flat=flattenBlocks\(page\.blocks,\[\]\);at=flat\.findIndex\(candidate=>candidate\.id===input\.dataset\.block\);block=flat\[at\]/);
   assert.ok(
     keydown.indexOf('await flushCanonicalEdit("continuing")') < keydown.indexOf("splitBlockCommands("),
     "the current text must be confirmed before the block is split"

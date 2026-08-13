@@ -1,3 +1,5 @@
+const LEAF_BLOCK_TYPES = new Set(["divider", "image", "file", "bookmark", "child-page", "page-mention", "date-mention", "simple-table", "collection-view"]);
+
 export function applyLocalEdit(document, candidate, timestamp) {
   const page = id => document.workspace.pages.find(item => item.id === id);
   if (candidate.type === "page.rename") {
@@ -21,6 +23,37 @@ export function applyLocalEdit(document, candidate, timestamp) {
     const block = target.blocks.find(item => item.id === candidate.payload.blockId);
     for (const key of ["checked", "language", "attachmentId", "headingLevel", "pageId", "viewId", "date", "url"]) delete block[key];
     Object.assign(block, structuredClone(candidate.payload.transform));
+    target.updatedAt = timestamp;
+  } else if (candidate.type === "block.indent" || candidate.type === "block.outdent") {
+    const target = page(candidate.payload.pageId);
+    const locate = (blocks, parent = null) => {
+      for (let index = 0; index < blocks.length; index += 1) {
+        if (blocks[index].id === candidate.payload.blockId) return { blocks, index, parent };
+        const nested = locate(blocks[index].children ?? [], blocks[index]);
+        if (nested) return nested;
+      }
+      return null;
+    };
+    const location = locate(target.blocks);
+    if (!location) throw new Error("Block was not found");
+    if (candidate.type === "block.indent") {
+      if (location.index === 0) throw new Error("Block has no previous sibling to indent under");
+      const parent = location.blocks[location.index - 1];
+      if (LEAF_BLOCK_TYPES.has(parent.type)) throw new Error(`Block type ${parent.type} cannot contain children`);
+      const moving = location.blocks.splice(location.index, 1)[0];
+      (parent.children ??= []).push(moving);
+    } else {
+      if (!location.parent) throw new Error("Top-level block cannot be outdented");
+      const moving = location.blocks.splice(location.index, 1)[0];
+      const findParent = blocks => {
+        const index = blocks.findIndex(block => block.id === location.parent.id);
+        if (index >= 0) return { blocks, index };
+        for (const block of blocks) { const nested = findParent(block.children ?? []); if (nested) return nested; }
+        return null;
+      };
+      const destination = findParent(target.blocks);
+      destination.blocks.splice(destination.index + 1, 0, moving);
+    }
     target.updatedAt = timestamp;
   } else if (candidate.type === "block.batch") {
     for (const command of candidate.payload.commands) {

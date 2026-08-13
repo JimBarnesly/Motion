@@ -93,7 +93,7 @@ for (const layout of layouts) {
 
       const backup = await exportWorkspace(page);
       page.once("dialog", dialog => dialog.accept());
-      await page.getByRole("button", { name: "Delete", exact: true }).click();
+      await page.getByRole("button", { name: "Trash", exact: true }).click();
       if (layout.viewport.width <= 720) await page.getByRole("button", { name: "Open navigation" }).click();
       await expect(page.getByRole("navigation", { name: "Trash" }).getByRole("button", { name: "Restore Persistent readings" })).toBeVisible();
       await page.getByRole("navigation", { name: "Trash" }).getByRole("button", { name: "Restore Persistent readings" }).click();

@@ -10,7 +10,10 @@ async function seed(page: Page) {
   await page.evaluate(async () => {
     const value = { schemaVersion: 1, activePageId: "page-editor", pages: [{ id: "page-editor", parentId: null, order: 0,
       type: "document", title: "Editor accessibility", deleted: false,
-      blocks: [{ id: "block-editor", type: "paragraph", text: "Content stays attached to its block", indent: 0 }] }] };
+      blocks: [
+        { id: "block-parent", type: "paragraph", text: "Parent block", indent: 0 },
+        { id: "block-editor", type: "paragraph", text: "Content stays attached to its block", indent: 0 }
+      ] }] };
     const request = indexedDB.open("motion-web-development", 1);
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       request.onupgradeneeded = () => request.result.createObjectStore("workspace");

@@ -104,7 +104,7 @@ for (const layout of layouts) {
 
     test("page delete recovers focus to Trash and announces success", async ({ page }) => {
       await seed(page);
-      const deletePage = page.getByRole("button", { name: "Delete", exact: true });
+      const deletePage = page.getByRole("button", { name: "Trash", exact: true });
       await deletePage.focus();
       page.once("dialog", dialog => dialog.accept());
       await page.keyboard.press("Enter");
@@ -116,7 +116,7 @@ for (const layout of layouts) {
     test("Trash restore recovers focus to the restored page and announces success", async ({ page }) => {
       await seed(page);
       page.once("dialog", dialog => dialog.accept());
-      await page.getByRole("button", { name: "Delete", exact: true }).press("Enter");
+      await page.getByRole("button", { name: "Trash", exact: true }).press("Enter");
       const restorePage = page.getByRole("button", { name: "Restore Destructive test" });
       await restorePage.focus();
       await page.keyboard.press("Enter");
@@ -137,7 +137,7 @@ for (const layout of layouts) {
     test("destructive success uses a consequence-specific live announcement", async ({ page }) => {
       await seed(page);
       page.once("dialog", dialog => dialog.accept());
-      await page.getByRole("button", { name: "Delete", exact: true }).press("Enter");
+      await page.getByRole("button", { name: "Trash", exact: true }).press("Enter");
       const status = page.getByRole("status");
       await regressionExpect(status, "successful page deletion must be announced explicitly").toContainText(/page moved to trash/i);
     });

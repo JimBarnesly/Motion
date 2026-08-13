@@ -24,10 +24,10 @@ Motion must remain independently designed. Do not copy Notion branding, assets, 
 - [x] Offline-first operation without requiring an account, server, internet connection, telemetry, or provider account.
 - [x] Canonical, versioned structured workspace data; rendered HTML is never authoritative.
 - [x] Linux desktop is the initial supported packaged platform.
-- [ ] Optional private multi-device synchronization without weakening local-only operation.
-- [ ] Optional self-hosted collaboration after local correctness and sync foundations are complete.
-- [!] Generative AI, AI writing, AI search, agents, and MCP are excluded from the target.
-- [!] Third-party integrations, connectors, external automations, webhooks, and public integration APIs are excluded from the target.
+- [ ] Optional private multi-device synchronization without weakening local-only operation (V2.0).
+- [ ] Optional self-hosted collaboration after local correctness and sync foundations are complete (V2.0).
+- [ ] Third-party integrations, connectors, external automations, webhooks, and public integration APIs are a V1.5 destination and are excluded from V1.0.
+- [ ] Optional AI writing, search, assistants, agents, and MCP with local/cloud provider choice are a V3.0 destination and are excluded from V1.0–V2.0.
 - [!] Separate adjacent products such as an email client or standalone calendar service are excluded; calendar database views remain included.
 - [!] Motion will not reproduce Notion branding or its exact interface.
 
@@ -271,7 +271,7 @@ Motion must remain independently designed. Do not copy Notion branding, assets, 
 - [ ] Duplicate template content with deterministic identity remapping.
 - [ ] Recurring/repeating template creation using local schedules.
 - [ ] Buttons that create or update bounded local content with a visible preview.
-- [!] Third-party automation actions are excluded.
+- [ ] Third-party automation actions through the explicit V1.5 connector permission boundary.
 
 ## 9. Files and media
 
@@ -430,7 +430,9 @@ These are later optional capabilities. They must never become prerequisites for 
 - **M5:** Relations, rollups, formulas, chart, and form views.
 - **M5.5:** Reliability, performance, diagnostics, interchange, recovery, and operational release gate.
 - **M6:** Optional private multi-device sync.
-- **M7:** Optional collaborative self-hosting, permissions, comments, history, presence, and publishing.
+- **M7 / V2.0:** Optional collaborative self-hosting, permissions, comments, history, presence, and publishing.
+- **V1.5:** Third-party connector framework, integrations, and bounded automation.
+- **V3.0:** Optional provider-neutral AI with local and cloud model paths.
 
 ## Completion rule
 
@@ -452,5 +454,7 @@ An item may move to `[x]` only when all applicable layers agree:
 - Does this checklist capture the intended product destination?
 - Should optional self-hosted collaboration and public publishing remain in scope after local parity?
 - Should Windows, macOS, mobile, and browser-hosted clients remain later targets?
-- Are application-level encrypted workspaces part of the desired parity target?
+- Are application-level encrypted workspaces part of the desired V2.0 self-hosting target?
 - Are canvas, dashboard, feed, map, and form surfaces desired, or should any be explicitly excluded?
+- Which integrations should define the first V1.5 connector acceptance slice?
+- Should Tailscale/Headscale be the recommended V2.0 deployment profile while standard hardened HTTPS remains supported?

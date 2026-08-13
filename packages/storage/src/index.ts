@@ -325,7 +325,9 @@ function hardenPrivatePath(path: string, kind: PrivatePathKind): void {
 }
 
 export function ensurePrivateDirectory(path: string): void {
-  mkdirSync(path, { recursive: true, mode: 0o700 });
+  const inheritedUmask = process.umask(0);
+  try { mkdirSync(path, { recursive: true, mode: 0o700 }); }
+  finally { process.umask(inheritedUmask); }
   hardenPrivatePath(path, "directory");
 }
 

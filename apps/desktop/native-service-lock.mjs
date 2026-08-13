@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import {
-  accessSync, closeSync, constants, fchmodSync, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync,
+  accessSync, closeSync, constants, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync,
   openSync, readSync, renameSync, statSync, unlinkSync, writeFileSync
 } from "node:fs";
 import { join } from "node:path";
@@ -202,7 +202,7 @@ async function stopGuardian(guardian) {
 
 export async function acquireNativeServiceLock(dataRoot) {
   let rootDescriptor;
-  let createdRoot = false;
+  let createdRootIdentity;
   let guardian;
   let guardianStopping = false;
   const guardianDied = () => { if (!guardianStopping) process.exit(74); };
@@ -212,18 +212,24 @@ export async function acquireNativeServiceLock(dataRoot) {
       accessSync(FLOCK_PATH, constants.X_OK);
       if (!statSync("/proc/self/fd").isDirectory()) reject();
     } catch { reject(); }
-    try { mkdirSync(dataRoot, { mode: 0o700 }); createdRoot = true; }
-    catch (error) { if (error?.code !== "EEXIST") reject(); }
+    const inheritedUmask = process.umask(0);
+    try {
+      try {
+        mkdirSync(dataRoot, { mode: 0o700 });
+        const created = lstatSync(dataRoot);
+        createdRootIdentity = { dev: created.dev, ino: created.ino };
+      } catch (error) { if (error?.code !== "EEXIST") reject(); }
+    } finally { process.umask(inheritedUmask); }
     rootDescriptor = openSync(dataRoot, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
-    if (createdRoot) {
-      // mkdir(2)'s requested mode is filtered by umask. Repair only the exact
-      // directory descriptor created by this process, then persist metadata.
+    if (createdRootIdentity) {
+      // The synchronous zero-umask mkdir creates the private mode directly.
+      // Authenticate the exact created inode before accepting or syncing it.
       const pathMetadata = lstatSync(dataRoot);
       const opened = fstatSync(rootDescriptor);
       if (!pathMetadata.isDirectory() || pathMetadata.isSymbolicLink()
           || pathMetadata.dev !== opened.dev || pathMetadata.ino !== opened.ino
-          || opened.uid !== expectedUid(opened)) reject();
-      fchmodSync(rootDescriptor, 0o700);
+          || opened.dev !== createdRootIdentity.dev || opened.ino !== createdRootIdentity.ino
+          || opened.uid !== expectedUid(opened) || (opened.mode & 0o777) !== 0o700) reject();
       fsyncSync(rootDescriptor);
     }
     const identity = validateOpenedRoot(dataRoot, rootDescriptor);

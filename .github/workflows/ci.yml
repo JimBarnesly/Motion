@@ -224,6 +224,8 @@ jobs:
         run: npm run build --workspace @motion/web
       - name: Run repository-owned isolated Rust/Tauri validation
         if: matrix.arch == 'aarch64'
+        env:
+          MOTION_ISOLATED_VALIDATION_DEBUG: "1"
         run: npm run validate:isolated-rust-tauri
       - name: Run pinned Rust Clippy security/compiler gate
         run: |

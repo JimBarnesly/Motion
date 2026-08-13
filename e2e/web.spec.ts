@@ -10,6 +10,7 @@ test("local Web workspace persists, searches and exports without external networ
   await title.fill("Pump commissioning notes");
   const body = page.locator('[contenteditable="true"][data-block]').first();
   await body.fill("Verified local pressure and flow before startup.");
+  await body.press("Tab");
   await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
   await expect.poll(() => page.evaluate(async () => {
     const request = indexedDB.open("motion-web-development", 1);
@@ -91,6 +92,8 @@ test("typed table records open as pages and retain view state", async ({ page })
   await page.goto("/");
   await page.getByRole("navigation", { name: "Workspace pages" }).getByRole("button", { name: "New table", exact: true }).click();
   await page.getByRole("textbox", { name: "Database title" }).fill("Jobs");
+  await page.getByRole("textbox", { name: "Database title" }).press("Tab");
+  await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
 
   page.once("dialog", dialog => dialog.accept("Status"));
   await page.getByRole("button", { name: "+ Property" }).click();

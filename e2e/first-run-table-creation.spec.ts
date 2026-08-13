@@ -32,6 +32,10 @@ async function exportWorkspace(page: Page) {
   return Buffer.concat(chunks);
 }
 
+function workspaceItem(page: Page, title: string) {
+  return page.getByRole("navigation", { name: "Workspace pages" }).locator('[data-open-page]').filter({ has: page.getByText(title, { exact: true }) });
+}
+
 async function assertSingleCreation(page: Page, action: "Add page" | "New table", key: "Enter" | "Space", repeated = false) {
   await clean(page);
   const create = await rootCreation(page, action);
@@ -46,9 +50,9 @@ async function assertSingleCreation(page: Page, action: "Add page" | "New table"
   const defaultTitle = action === "New table" ? "Untitled database" : "Untitled page";
   await expect(page.getByRole("status")).toHaveText(`${action === "New table" ? "Table" : "Page"} created and saved.`);
   await expect(page.getByRole("textbox", { name: titleName })).toBeFocused();
-  await expect(page.getByRole("navigation", { name: "Workspace pages" }).getByRole("button", { name: defaultTitle, exact: true })).toHaveCount(1);
+  await expect(workspaceItem(page, defaultTitle)).toHaveCount(1);
   await page.reload();
-  await expect(page.getByRole("navigation", { name: "Workspace pages" }).getByRole("button", { name: defaultTitle, exact: true })).toHaveCount(1);
+  await expect(workspaceItem(page, defaultTitle)).toHaveCount(1);
 }
 
 async function installFailingNativeSave(page: Page) {
@@ -88,20 +92,25 @@ for (const layout of layouts) {
       const title = page.getByRole("textbox", { name: "Database title" });
       await expect(title).toBeFocused();
       await title.fill("Persistent readings");
+      await title.press("Tab");
+      await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
       await page.getByRole("button", { name: "+ New record" }).click();
-      await page.getByRole("textbox", { name: "Name", exact: true }).fill("durable-cell-008");
+      await page.getByRole("button", { name: "Untitled", exact: true }).click();
+      await page.getByRole("textbox", { name: "Page title" }).fill("durable-cell-008");
       await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
       await page.reload();
-      await expect(page.getByRole("textbox", { name: "Database title" })).toHaveValue("Persistent readings");
-      await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("durable-cell-008");
-      await expect(page.getByRole("navigation", { name: "Workspace pages" }).getByRole("button", { name: "Persistent readings", exact: true })).toHaveCount(1);
+      await expect(page.getByRole("textbox", { name: "Page title" })).toHaveValue("durable-cell-008");
+      await expect(workspaceItem(page, "Persistent readings")).toHaveCount(1);
 
       await page.keyboard.press("Control+k");
       await page.getByRole("searchbox", { name: "Search workspace" }).fill("durable-cell-008");
       const hit = page.locator("#searchResults").getByRole("button", { name: /Persistent readings.*durable-cell-008/ });
       await expect(hit).toHaveCount(1);
       await hit.press("Enter");
-      await expect(page.getByRole("textbox", { name: "Name", exact: true })).toBeFocused();
+      await expect(page.getByRole("textbox", { name: "Page title" })).toBeFocused();
+      if (layout.viewport.width <= 720) await page.getByRole("button", { name: "Open navigation" }).click();
+      await workspaceItem(page, "Persistent readings").click();
+      await expect(page.getByRole("textbox", { name: "Database title" })).toHaveValue("Persistent readings");
 
       const backup = await exportWorkspace(page);
       page.once("dialog", dialog => dialog.accept());
@@ -114,7 +123,10 @@ for (const layout of layouts) {
       page.once("dialog", dialog => dialog.accept());
       await page.locator("#restoreFile").setInputFiles({ name: "motion-backup.json", mimeType: "application/json", buffer: backup });
       await expect(page.getByRole("status")).toHaveText("Workspace restored.");
-      await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("durable-cell-008");
+      if (layout.viewport.width <= 720) await page.getByRole("button", { name: "Open navigation" }).click();
+      await workspaceItem(page, "Persistent readings").click();
+      await page.getByRole("button", { name: "durable-cell-008", exact: true }).click();
+      await expect(page.getByRole("textbox", { name: "Page title" })).toHaveValue("durable-cell-008");
     });
 
     test("MOTION-UX-008: table-first keyboard activation is single-shot and durable", async ({ page }) => {
@@ -124,9 +136,9 @@ for (const layout of layouts) {
       await Promise.all([create.press("Enter"), create.press("Space")]);
       await expect(page.getByRole("status")).toHaveText("Table created and saved.");
       await expect(page.getByRole("textbox", { name: "Database title" })).toBeFocused();
-      await expect(page.getByRole("navigation", { name: "Workspace pages" }).getByRole("button", { name: "Untitled database", exact: true })).toHaveCount(1);
+      await expect(workspaceItem(page, "Untitled database")).toHaveCount(1);
       await page.reload();
-      await expect(page.getByRole("navigation", { name: "Workspace pages" }).getByRole("button", { name: "Untitled database", exact: true })).toHaveCount(1);
+      await expect(workspaceItem(page, "Untitled database")).toHaveCount(1);
     });
 
     for (const action of ["Add page", "New table"] as const) for (const key of ["Enter", "Space"] as const) {
@@ -201,7 +213,8 @@ test("MOTION-UX-008: native verified backup restores created content and stable 
   await (await rootCreation(page, "New table")).click();
   await page.getByRole("textbox", { name: "Database title" }).fill("Durable native table");
   await page.getByRole("button", { name: "+ New record" }).click();
-  await page.getByRole("textbox", { name: "Name", exact: true }).fill("native-backup-cell-008");
+  await page.getByRole("button", { name: "Untitled", exact: true }).click();
+  await page.getByRole("textbox", { name: "Page title" }).fill("native-backup-cell-008");
   await expect(page.getByRole("status")).toHaveText("Saved to Motion");
   const before = await page.evaluate(() => (window as any).__TAURI__.core.invoke("motion_ui_load", { request: { schemaVersion: 1 } }));
 
@@ -215,8 +228,8 @@ test("MOTION-UX-008: native verified backup restores created content and stable 
   await expect(page.getByRole("heading", { name: "Your workspace is ready" })).toBeVisible();
   page.once("dialog", dialog => dialog.accept());
   await page.locator("#verifiedBackupFile").setInputFiles({ name: "motion-verified-backup.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(bundle)) });
-  await expect(page.getByRole("textbox", { name: "Database title" })).toHaveValue("Durable native table");
-  await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("native-backup-cell-008");
+  await page.getByRole("button", { name: "Durable native table", exact: true }).click();
+  await expect(page.getByRole("button", { name: "native-backup-cell-008", exact: true })).toBeVisible();
   const after = await page.evaluate(() => (window as any).__TAURI__.core.invoke("motion_ui_load", { request: { schemaVersion: 1 } }));
   expect(after.workspace.id).not.toBe(before.workspace.id);
   expect(after.workspace.pages.map((page:any) => page.id)).not.toEqual(before.workspace.pages.map((page:any) => page.id));
@@ -224,6 +237,6 @@ test("MOTION-UX-008: native verified backup restores created content and stable 
   expect(after.workspace.databases[0].pageId).toBe(after.workspace.pages.find((page:any) => page.title === "Durable native table").id);
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Database title" })).toHaveValue("Durable native table");
-  await expect(page.getByRole("navigation", { name: "Workspace pages" }).getByRole("button", { name: "Durable native page", exact: true })).toHaveCount(1);
-  await expect(page.getByRole("navigation", { name: "Workspace pages" }).getByRole("button", { name: "Durable native table", exact: true })).toHaveCount(1);
+  await expect(workspaceItem(page, "Durable native page")).toHaveCount(1);
+  await expect(workspaceItem(page, "Durable native table")).toHaveCount(1);
 });

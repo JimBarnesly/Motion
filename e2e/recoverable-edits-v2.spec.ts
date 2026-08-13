@@ -153,7 +153,7 @@ for (const layout of layouts) {
       await page.getByRole("button", { name: "Export JSON" }).click();
       await expect(page.locator("#editRecovery")).toContainText("before exporting");
       expect(await page.evaluate(() => (window as any).__motionEditV2.exportCalls)).toBe(0);
-      await page.getByRole("button", { name: "Other durable page", exact: true }).click();
+      await page.getByRole("navigation", { name: "Workspace pages" }).locator('[data-open-page]').filter({ has: page.getByText("Other durable page", { exact: true }) }).click();
       await expect(page.getByRole("textbox", { name: "Page title" })).toHaveValue("Durable document");
       await expect(page.locator("#editRecovery")).toContainText("before leaving this page");
 

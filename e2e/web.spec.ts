@@ -8,6 +8,8 @@ test("local Web workspace persists, searches and exports without external networ
   await page.getByRole("button", { name: "New page" }).click();
   const title = page.getByRole("textbox", { name: "Page title" });
   await title.fill("Pump commissioning notes");
+  await title.blur();
+  await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
   const body = page.locator('[contenteditable="true"][data-block]').first();
   await body.fill("Verified local pressure and flow before startup.");
   await body.blur();
@@ -122,9 +124,11 @@ test("typed table records open as pages and retain view state", async ({ page })
   await page.locator('[contenteditable="true"][data-block]').last().fill("Need quotes from three suppliers.");
 
   await page.getByRole("button", { name: "Jobs", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Database title" })).toHaveValue("Jobs");
   await expect(page.getByRole("button", { name: "Replace heat pump" })).toBeVisible();
-  await expect(page.getByLabel("Status", { exact: true })).toHaveValue(/.+/);
-  await expect(page.getByLabel("Cost", { exact: true })).toHaveValue("4200");
+  const recordRow = page.getByRole("button", { name: "Replace heat pump" }).locator("xpath=ancestor::tr");
+  await expect(recordRow.getByLabel("Status", { exact: true })).toHaveValue(/.+/);
+  await expect(recordRow.getByLabel("Cost", { exact: true })).toHaveValue("4200");
 
   await page.getByRole("button", { name: "Sort" }).click();
   await page.locator("[data-sort-property]").first().selectOption({ label: "Status" });

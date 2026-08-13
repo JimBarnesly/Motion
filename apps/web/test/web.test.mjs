@@ -99,6 +99,8 @@ test("canonical editor exposes non-trapping indent and outdent through typed com
   assert.match(source, /event\.altKey&&event\.key==="\["/);
   assert.match(source, /"block\.outdent"/);
   assert.match(source, /aria-keyshortcuts="Alt\+BracketRight Alt\+BracketLeft"/);
+  assert.match(source, /event\.key==="Tab"&&!mod&&!event\.altKey/);
+  assert.match(source, /findByDataValue\("\[data-delete-block\]","deleteBlock",input\.dataset\.block\)/);
   assert.match(source, /style="--indent:\$\{depth\}"/);
 });
 
@@ -764,5 +766,8 @@ test("verified backup JSON revives attachment payload byte envelopes", () => {
 test("verified backup creation delegates publication to the native safe-save boundary", async () => {
   const source = await readFile(new URL("../app.js", import.meta.url), "utf8");
   assert.match(source, /await adapter\.saveBackup\(bundle\)/);
+  assert.match(source, /Verified backup saved safely\./);
+  assert.match(source, /Verified backup restored\./);
+  assert.match(source, /Workspace restored\./);
   assert.doesNotMatch(source, /createVerifiedBackup[^\n]+downloadJson\(bundle/);
 });

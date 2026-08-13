@@ -71,9 +71,7 @@ for (const layout of layouts) {
 
       await page.keyboard.press("Tab");
       await expect(editor).not.toBeFocused();
-      await expect(layout.viewport.width <= 720
-        ? page.locator('[data-block-type="block-editor"]')
-        : page.locator('[data-delete-block="block-editor"]')).toBeFocused();
+      await expect(page.locator('[data-delete-block="block-editor"]')).toBeFocused();
       await editor.focus();
       await page.keyboard.press("Shift+Tab");
       await expect(page.locator('[data-block-type="block-editor"]')).toBeFocused();

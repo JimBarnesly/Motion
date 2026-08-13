@@ -61,6 +61,7 @@ test("native Tauri resources are prepared before every Cargo validation path", a
   const resources = [
     ["npm run runtime:prepare --workspace @motion/desktop", "bundled runtime"],
     ["npm run build --workspace @motion/desktop", "bundled service"],
+    ["npm run build --workspace @motion/web", "frontend distribution"],
   ];
   for (const [resourceCommand, resourceLabel] of resources) {
     const prepare = nativeJob.indexOf(resourceCommand);

@@ -2,10 +2,10 @@
   "schemaVersion": 2,
   "oldPolicySha256": "e6f39d7b204bf45a00e3a5f67a378ea529396cfcdfb1295ad95ffab91734a679",
   "newPolicySha256": "e6f39d7b204bf45a00e3a5f67a378ea529396cfcdfb1295ad95ffab91734a679",
-  "rationale": "Authorize the reviewed native CI ordering repair that prepares exact pinned Tauri resources before compiler and packaging gates; dependency policy scope is unchanged.",
+  "rationale": "Authorize the independently reviewed native CI ordering and startup-tolerance repair: the existing pinned Web build now prepares Tauri frontend resources before every Rust validation path, and guardian readiness remains fail-closed while tolerating loaded CI runners; dependency policy scope is unchanged.",
   "approverRole": "Operations & Security Director",
   "scopeDiff": [],
   "controlPlaneDiff": [
-    ".github/workflows/ci.yml:sha256:26e2a8c4d97c8e39c50402e0b494eba4f64f40cdf20986f0552a80701da40390->sha256:241f2fdab05c6424ad1c458c2e6e2b821c2caf834dbeb328fac2c97ff8590c1a"
+    ".github/workflows/ci.yml:sha256:241f2fdab05c6424ad1c458c2e6e2b821c2caf834dbeb328fac2c97ff8590c1a->sha256:1ecfa9403720323517044cbefe4195d9bf8738a616b786031dc77e4dc7add9e7"
   ]
 }

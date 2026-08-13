@@ -12,7 +12,7 @@ const BUSY_MESSAGE = "Motion data is already open in another desktop process";
 const LOCK_NAME = ".motion-service.owner-v1";
 const FLOCK_PATH = "/usr/bin/flock";
 const MAX_EVIDENCE_BYTES = 4096;
-const ACQUIRE_TIMEOUT_MS = 1_000;
+const ACQUIRE_TIMEOUT_MS = 5_000;
 const RELEASE_TIMEOUT_MS = 1_000;
 
 export class NativeServiceLockError extends Error {

@@ -220,6 +220,8 @@ jobs:
         run: npm run runtime:prepare --workspace @motion/desktop
       - name: Build desktop service resource for Tauri
         run: npm run build --workspace @motion/desktop
+      - name: Build desktop Web assets for Tauri context
+        run: npm run build --workspace @motion/web
       - name: Run repository-owned isolated Rust/Tauri validation
         if: matrix.arch == 'aarch64'
         run: npm run validate:isolated-rust-tauri
@@ -234,8 +236,6 @@ jobs:
           path: artifacts/static-analysis/clippy.json
           if-no-files-found: error
           retention-days: 14
-      - name: Build desktop Web assets for Tauri context
-        run: npm run build --workspace @motion/web
       - name: Check desktop TypeScript and IPC contract
         run: |
           npm run typecheck --workspace @motion/desktop

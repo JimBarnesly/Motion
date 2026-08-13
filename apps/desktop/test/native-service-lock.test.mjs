@@ -55,6 +55,8 @@ test("production ownership exposes no failure-injection options", async () => {
   const source = await readFile(new URL("../native-service-lock.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(source, /beforeEvidencePublish|afterGuardianReady|guardianCommand|afterLock/);
   assert.match(source, /export async function acquireNativeServiceLock\(dataRoot\)/);
+  const timeout = Number(source.match(/const ACQUIRE_TIMEOUT_MS = ([\d_]+);/)?.[1]?.replaceAll("_", ""));
+  assert.ok(timeout >= 5_000, "guardian acquisition timeout must tolerate loaded CI runners");
 });
 
 test("root ownership, privacy, type, and link-count violations fail closed", async () => {

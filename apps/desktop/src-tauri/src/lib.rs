@@ -82,8 +82,8 @@ fn validate_ui_state_document(document: &Value) -> Result<(), IpcError> {
     if state
         .keys()
         .any(|key| !matches!(key.as_str(), "workspaceId" | "activePageId" | "expandedPageIds"))
-        || !state.get("workspaceId").map_or(true, valid_ui_state_id)
-        || !state.get("activePageId").map_or(true, valid_ui_state_id)
+        || !state.get("workspaceId").is_none_or(valid_ui_state_id)
+        || !state.get("activePageId").is_none_or(valid_ui_state_id)
     {
         return Err(reject("INVALID_INPUT", "Invalid UI state request"));
     }
@@ -448,7 +448,7 @@ pub fn run() {
 mod tests {
     use super::{
         select_node_binary, validate_dispatch_request, validate_ui_state_document,
-        BackupSaveRequest, IpcRequest,
+        BackupSaveRequest, IpcRequest, MAX_ATTACHMENT_BYTES,
     };
     use serde_json::json;
     use std::{ffi::OsString, fs, path::PathBuf};

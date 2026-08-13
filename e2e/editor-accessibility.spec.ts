@@ -37,7 +37,7 @@ for (const layout of layouts) {
 
     test("MOTION-UX-001: block type is visible, readable, stable and persisted", async ({ page }) => {
       await seed(page);
-      let control = page.getByRole("combobox", { name: /Block type: Text/i });
+      let control = page.locator('[data-block-type="block-editor"]');
       await expect(control).toBeVisible();
       const presentation = await control.evaluate(element => {
         const style = getComputedStyle(element);
@@ -50,12 +50,14 @@ for (const layout of layouts) {
 
       for (const [value, label] of [["heading-1", "Heading 1"], ["task", "Task"], ["code", "Code"], ["divider", "Divider"], ["paragraph", "Text"]] as const) {
         await control.selectOption(value);
-        control = page.getByRole("combobox", { name: new RegExp(`Block type: ${label}`, "i") });
+        control = page.locator('[data-block-type="block-editor"]');
         await expect(control).toHaveValue(value);
+        await expect(control).toHaveAccessibleName(`Block type: ${label}`);
         await expect(page.locator('[data-block-id="block-editor"]')).toHaveCount(1);
       }
       await page.reload();
-      await expect(page.getByRole("combobox", { name: /Block type: Text/i })).toHaveValue("paragraph");
+      await expect(page.locator('[data-block-type="block-editor"]')).toHaveValue("paragraph");
+      await expect(page.locator('[data-block-type="block-editor"]')).toHaveAccessibleName("Block type: Text");
       await expect(page.locator('[data-block="block-editor"]')).toHaveText("Content stays attached to its block");
     });
 
@@ -68,10 +70,10 @@ for (const layout of layouts) {
       await expect(page.locator('[data-block-id="block-editor"]')).toHaveAttribute("style", /--indent:1/);
 
       await page.keyboard.press("Tab");
-      await expect(page.getByRole("button", { name: "Delete block" })).toBeFocused();
+      await expect(page.locator('[data-delete-block="block-editor"]')).toBeFocused();
       await editor.focus();
       await page.keyboard.press("Shift+Tab");
-      await expect(page.getByRole("combobox", { name: /Block type: Text/i })).toBeFocused();
+      await expect(page.locator('[data-block-type="block-editor"]')).toBeFocused();
     });
   });
 }

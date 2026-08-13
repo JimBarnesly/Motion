@@ -53,9 +53,21 @@ async function assertSingleCreation(page: Page, action: "Add page" | "New table"
 
 async function installFailingNativeSave(page: Page) {
   await page.addInitScript(() => {
-    (window as any).__TAURI__ = { core: { invoke: async (command: string) => {
-      if (command === "motion_ui_load") return { schemaVersion: 1, pages: [], activePageId: null };
-      if (command === "motion_ui_save") throw new Error("injected save failure");
+    const stamp = "2026-08-13T00:00:00.000Z";
+    let workspace: any = null;
+    let revision = 0;
+    (window as any).__TAURI__ = { core: { invoke: async (command: string, envelope: any) => {
+      if (command === "motion_ui_load") return { schemaVersion: 2, workspace: structuredClone(workspace), revision, activePageId: null, expandedPageIds: [] };
+      if (command === "motion_ui_save") return undefined;
+      if (command === "app_dispatch") {
+        const payload = envelope.request.payload;
+        if (payload.type === "workspace.create") {
+          workspace = { schemaVersion: 2, id: "native-workspace", name: "Motion Workspace", pages: [], databases: [], attachments: [], linkIndex: [], createdAt: stamp, updatedAt: stamp };
+          revision = 1;
+          return { workspace: structuredClone(workspace), revision };
+        }
+        if (payload.type === "database.create" || payload.type === "page.create") throw new Error("injected creation failure");
+      }
       throw new Error("unexpected native request");
     } } };
   });
@@ -76,7 +88,7 @@ for (const layout of layouts) {
       const title = page.getByRole("textbox", { name: "Database title" });
       await expect(title).toBeFocused();
       await title.fill("Persistent readings");
-      await page.getByRole("button", { name: "+ New row" }).click();
+      await page.getByRole("button", { name: "+ New record" }).click();
       await page.getByRole("textbox", { name: "Name", exact: true }).fill("durable-cell-008");
       await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
       await page.reload();
@@ -157,23 +169,29 @@ test("MOTION-UX-008: Add page save failure rolls back, announces failure, and re
 
 test("MOTION-UX-008: native verified backup restores created content and stable IDs into a clean workspace", async ({ page }) => {
   await page.addInitScript(() => {
-    const empty = { schemaVersion: 1, pages: [], activePageId: null };
+    const stamp = "2026-08-13T00:00:00.000Z";
+    const empty = { schemaVersion: 2, workspace: null as any, revision: 0, activePageId: null as string|null, expandedPageIds: [] as string[] };
     const loadDocument = () => JSON.parse(localStorage.getItem("motion-native-test-document") ?? JSON.stringify(empty));
     const saveDocument = (value: any) => localStorage.setItem("motion-native-test-document", JSON.stringify(value));
-    const revision = () => Number(localStorage.getItem("motion-native-test-revision") ?? 0);
-    const advanceRevision = () => localStorage.setItem("motion-native-test-revision", String(revision() + 1));
+    const mutate = (action: (document: any) => void) => { const document=loadDocument(); action(document); document.revision += 1; saveDocument(document); return { workspace: structuredClone(document.workspace), revision: document.revision }; };
     (window as any).__motionSavedBackup = null;
     (window as any).__TAURI__ = { core: { invoke: async (command: string, args: any) => {
       if (command === "motion_ui_load") return structuredClone(loadDocument());
-      if (command === "motion_ui_save") { saveDocument(args.request.document); advanceRevision(); return null; }
+      if (command === "motion_ui_save") { const document=loadDocument(); document.activePageId=args.request.document.activePageId; document.expandedPageIds=args.request.document.expandedPageIds; saveDocument(document); return null; }
       if (command === "motion_backup_save") { (window as any).__motionSavedBackup = structuredClone(args.request.bundle); return { saved: true, replaced: false, cancelled: false }; }
       if (command !== "app_dispatch") throw new Error(`unexpected native request: ${command}`);
       const payload = args.request.payload;
-      if (payload.type === "workspace.list") return [{ id: "native-workspace", revision: revision() }];
+      if (payload.type === "workspace.create") return mutate(document => { document.workspace={schemaVersion:2,id:"native-workspace",name:payload.name,pages:[],databases:[],attachments:[],linkIndex:[],createdAt:stamp,updatedAt:stamp}; });
+      if (payload.type === "page.create") return mutate(document => { document.workspace.pages.push({id:crypto.randomUUID(),parentId:payload.parentId,title:payload.title,blocks:[{id:crypto.randomUUID(),type:"paragraph",text:"",children:[]}],createdAt:stamp,updatedAt:stamp}); });
+      if (payload.type === "database.create") return mutate(document => { const pageId=crypto.randomUUID(),databaseId=crypto.randomUUID(),propertyId=crypto.randomUUID();document.workspace.pages.push({id:pageId,parentId:payload.parentId,title:payload.title,blocks:[],createdAt:stamp,updatedAt:stamp});document.workspace.databases.push({id:databaseId,pageId,name:payload.title,properties:[{id:propertyId,name:"Name",type:"title"}],rows:[],recordPageIds:[],views:[{id:crypto.randomUUID(),collectionId:databaseId,name:"Table",type:"table",visiblePropertyIds:[propertyId],propertyOrder:[propertyId],columnWidths:{[propertyId]:280},sorts:[]}]}); });
+      if (payload.type === "page.rename") return mutate(document => { const page=document.workspace.pages.find((item:any)=>item.id===payload.pageId);page.title=payload.title; });
+      if (payload.type === "database.record-create") return mutate(document => { const database=document.workspace.databases.find((item:any)=>item.id===payload.databaseId),id=crypto.randomUUID();document.workspace.pages.push({id,parentId:database.pageId,collectionId:database.id,title:payload.title,blocks:[],properties:payload.values,createdAt:stamp,updatedAt:stamp});database.recordPageIds.push(id); });
+      if (payload.type === "database.record-update") return mutate(document => { const page=document.workspace.pages.find((item:any)=>item.id===payload.pageId);page.properties={...page.properties,...payload.values}; });
+      if (payload.type === "workspace.list") { const document=loadDocument();return document.workspace?[{id:document.workspace.id,revision:document.revision}]:[]; }
       if (payload.type === "backup.create") return { format: "motion-test-verified", document: structuredClone(loadDocument()) };
       if (payload.type === "backup.verify") return { valid: payload.bundle?.format === "motion-test-verified", errors: [] };
-      if (payload.type === "backup.preview") return { workspaceName: "First run", pages: payload.bundle.document.pages.length, attachments: 0, totalBytes: JSON.stringify(payload.bundle).length };
-      if (payload.type === "backup.restore-new") { saveDocument(payload.bundle.document); advanceRevision(); return { workspace: { id: "restored-workspace" }, revision: revision() }; }
+      if (payload.type === "backup.preview") return { workspaceName: "First run", pages: payload.bundle.document.workspace.pages.length, attachments: 0, totalBytes: JSON.stringify(payload.bundle).length };
+      if (payload.type === "backup.restore-new") { const source=payload.bundle.document,newWorkspaceId="restored-workspace",document=structuredClone(source),idMap=new Map<string,string>();const identities=[source.workspace.id,...source.workspace.pages.flatMap((page:any)=>[page.id,...page.blocks.map((block:any)=>block.id)]),...source.workspace.databases.flatMap((database:any)=>[database.id,...database.properties.map((property:any)=>property.id),...database.views.map((view:any)=>view.id)])];for(const id of identities)idMap.set(id,id===source.workspace.id?newWorkspaceId:`${newWorkspaceId}:${id}`);document.workspace.id=newWorkspaceId;for(const page of document.workspace.pages){page.id=idMap.get(page.id);if(page.parentId)page.parentId=idMap.get(page.parentId);if(page.collectionId)page.collectionId=idMap.get(page.collectionId);if(page.properties)page.properties=Object.fromEntries(Object.entries(page.properties).map(([id,value])=>[idMap.get(id)??id,value]));for(const block of page.blocks)block.id=idMap.get(block.id);}for(const database of document.workspace.databases){database.id=idMap.get(database.id);database.pageId=idMap.get(database.pageId);database.recordPageIds=database.recordPageIds.map((id:string)=>idMap.get(id));for(const property of database.properties)property.id=idMap.get(property.id);for(const view of database.views){view.id=idMap.get(view.id);view.collectionId=idMap.get(view.collectionId);view.visiblePropertyIds=view.visiblePropertyIds.map((id:string)=>idMap.get(id));view.propertyOrder=view.propertyOrder.map((id:string)=>idMap.get(id));}}document.revision=1;document.activePageId=document.workspace.pages.find((page:any)=>!page.deletedAt)?.id??null;saveDocument(document);return { workspace: structuredClone(document.workspace), revision: document.revision }; }
       throw new Error(`unexpected native payload: ${payload.type}`);
     } } };
   });
@@ -182,7 +200,7 @@ test("MOTION-UX-008: native verified backup restores created content and stable 
   await page.getByRole("textbox", { name: "Page title" }).fill("Durable native page");
   await (await rootCreation(page, "New table")).click();
   await page.getByRole("textbox", { name: "Database title" }).fill("Durable native table");
-  await page.getByRole("button", { name: "+ New row" }).click();
+  await page.getByRole("button", { name: "+ New record" }).click();
   await page.getByRole("textbox", { name: "Name", exact: true }).fill("native-backup-cell-008");
   await expect(page.getByRole("status")).toHaveText("Saved to Motion");
   const before = await page.evaluate(() => (window as any).__TAURI__.core.invoke("motion_ui_load", { request: { schemaVersion: 1 } }));
@@ -192,7 +210,7 @@ test("MOTION-UX-008: native verified backup restores created content and stable 
   const bundle = await page.evaluate(() => (window as any).__motionSavedBackup);
   expect(bundle.document).toEqual(before);
 
-  await page.evaluate(() => (window as any).__TAURI__.core.invoke("motion_ui_save", { request: { schemaVersion: 1, document: { schemaVersion: 1, pages: [], activePageId: null } } }));
+  await page.evaluate(() => localStorage.setItem("motion-native-test-document", JSON.stringify({ schemaVersion: 2, workspace: null, revision: 0, activePageId: null, expandedPageIds: [] })));
   await page.reload();
   await expect(page.getByRole("heading", { name: "Your workspace is ready" })).toBeVisible();
   page.once("dialog", dialog => dialog.accept());
@@ -200,7 +218,10 @@ test("MOTION-UX-008: native verified backup restores created content and stable 
   await expect(page.getByRole("textbox", { name: "Database title" })).toHaveValue("Durable native table");
   await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("native-backup-cell-008");
   const after = await page.evaluate(() => (window as any).__TAURI__.core.invoke("motion_ui_load", { request: { schemaVersion: 1 } }));
-  expect(after).toEqual(before);
+  expect(after.workspace.id).not.toBe(before.workspace.id);
+  expect(after.workspace.pages.map((page:any) => page.id)).not.toEqual(before.workspace.pages.map((page:any) => page.id));
+  expect(after.workspace.pages.map((page:any) => page.title)).toEqual(before.workspace.pages.map((page:any) => page.title));
+  expect(after.workspace.databases[0].pageId).toBe(after.workspace.pages.find((page:any) => page.title === "Durable native table").id);
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Database title" })).toHaveValue("Durable native table");
   await expect(page.getByRole("navigation", { name: "Workspace pages" }).getByRole("button", { name: "Durable native page", exact: true })).toHaveCount(1);

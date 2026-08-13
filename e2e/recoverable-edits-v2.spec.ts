@@ -121,7 +121,9 @@ for (const layout of layouts) {
       await installTypedFailureHarness(page);
       await page.goto("/");
       await page.evaluate(() => (window as any).__motionEditV2.pauseExport());
-      await page.getByRole("button", { name: "Export JSON" }).click();
+      if (layout.viewport.width <= 720) await page.getByRole("button", { name: "Open navigation" }).click();
+      const exportButton = page.getByRole("button", { name: "Export JSON" });
+      await exportButton.click();
       await expect.poll(() => page.evaluate(() => (window as any).__motionEditV2.exportCalls)).toBe(1);
 
       const title = page.getByRole("textbox", { name: "Page title" });
@@ -145,7 +147,7 @@ for (const layout of layouts) {
       await page.keyboard.press("Control+k");
       await page.getByRole("searchbox", { name: "Search workspace" }).fill("rejected-search-marker");
       await expect(page.locator("#searchResults")).toContainText("No results");
-      await page.keyboard.press("Escape");
+      await page.getByRole("button", { name: "Close search" }).click();
 
       if (layout.viewport.width <= 720) await page.getByRole("button", { name: "Open navigation" }).click();
       await page.getByRole("button", { name: "Export JSON" }).click();

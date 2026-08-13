@@ -11,6 +11,12 @@ test("local Web workspace persists, searches and exports without external networ
   const body = page.locator('[contenteditable="true"][data-block]').first();
   await body.fill("Verified local pressure and flow before startup.");
   await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
+  await expect.poll(() => page.evaluate(async () => {
+    const request = indexedDB.open("motion-web-development", 1);
+    const database = await new Promise<IDBDatabase>((resolve, reject) => { request.onsuccess=()=>resolve(request.result); request.onerror=()=>reject(request.error); });
+    try { return await new Promise<string>((resolve, reject) => { const read=database.transaction("workspace","readonly").objectStore("workspace").get("default"); read.onsuccess=()=>resolve(read.result?.workspace?.pages?.[0]?.blocks?.[0]?.text ?? ""); read.onerror=()=>reject(read.error); }); }
+    finally { database.close(); }
+  })).toBe("Verified local pressure and flow before startup.");
   await expect.poll(() => page.evaluate(async () => (await indexedDB.databases()).map(database => database.name)))
     .toContain("motion-web-development");
 
@@ -83,8 +89,8 @@ test("local Web workspace persists, searches and exports without external networ
 
 test("typed table records open as pages and retain view state", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "New table" }).click();
-  await page.getByRole("textbox", { name: "Page title" }).fill("Jobs");
+  await page.getByRole("navigation", { name: "Workspace pages" }).getByRole("button", { name: "New table", exact: true }).click();
+  await page.getByRole("textbox", { name: "Database title" }).fill("Jobs");
 
   page.once("dialog", dialog => dialog.accept("Status"));
   await page.getByRole("button", { name: "+ Property" }).click();
@@ -131,7 +137,7 @@ test("typed table records open as pages and retain view state", async ({ page })
   await expect(page.getByRole("button", { name: "Replace heat pump" })).toBeVisible();
 
   await page.reload();
-  await expect(page.getByRole("textbox", { name: "Page title" })).toHaveValue("Jobs");
+  await expect(page.getByRole("textbox", { name: "Database title" })).toHaveValue("Jobs");
   await expect(page.getByRole("button", { name: "Replace heat pump" })).toBeVisible();
   await page.getByRole("button", { name: "Replace heat pump" }).click();
   await expect(page.getByLabel("Status", { exact: true })).not.toHaveValue("");

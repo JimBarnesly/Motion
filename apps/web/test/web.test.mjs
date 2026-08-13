@@ -65,6 +65,7 @@ test("root creation is single-flight, truthful, rollback-safe, and restores dete
   assert.match(source, /const previous=structuredClone\(state\)/);
   assert.match(source, /let recovered=previous/);
   assert.match(source, /recovered=migrateLoaded\(await adapter\.load\(\)\)/);
+  assert.match(source, /openPage\(created\.id\);renderNavigation\(\)/);
   assert.match(source, /created and saved\./);
   assert.match(source, /creation failed\. No content was added\./);
   assert.match(source, /requestAnimationFrame\(\(\)=>trigger\?\.focus\(\)\)/);

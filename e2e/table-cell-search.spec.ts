@@ -51,6 +51,7 @@ async function restoreClean(page: Page) {
     request.onsuccess = () => resolve(); request.onerror = () => reject(request.error);
   }));
   await page.reload();
+  page.once("dialog", dialog => dialog.accept());
   await page.locator("#restoreFile").setInputFiles({
     name: "motion-canonical-search.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({ workspace: canonicalWorkspace }))
   });

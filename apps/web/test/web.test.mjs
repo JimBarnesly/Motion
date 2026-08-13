@@ -45,6 +45,15 @@ test("saved-view selection stays bounded and browser property creation matches n
   assert.doesNotMatch(source, /activeView\(database\)\.visiblePropertyIds\.push\(property\.id\)/);
 });
 
+test("column drag and keyboard alternatives persist the same canonical saved-view order", async () => {
+  const source = await readFile(resolve(root, "app.js"), "utf8");
+  assert.match(source, /draggable="true" data-column-drag=/);
+  assert.match(source, /data-column-move=/);
+  assert.match(source, /text\/x-motion-column/);
+  const updates = source.match(/updateView\(database,\{propertyOrder:order\}\)/g) ?? [];
+  assert.equal(updates.length, 2);
+});
+
 test("schema-v2 typed edits use the canonical recoverable confirmation boundary", async () => {
   const source = await readFile(resolve(root, "app.js"), "utf8");
   const html = await readFile(resolve(root, "index.html"), "utf8");

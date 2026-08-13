@@ -59,7 +59,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:8b22b8df3a4c3123074ad22149cfbeed92df0f61a6fe2556b9c4a4ba2f33b7f4",
+      "fingerprint": "sha256:23a18accb84e2c469062e1d9c7e443515d9b9097eb0ffbf82fbb865378e83f30",
       "evidence": "apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; e2e/web.spec.ts saved table/list view switching and shared-record acceptance",
       "owner": "Operations & Security Director",
       "rationale": "Database table/list and view-toolbar composition attribute-escape persisted property, view, page, and record IDs and HTML-escape every persisted visible value; view types are canonical closed enum values.",

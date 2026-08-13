@@ -92,9 +92,17 @@ test("WorkspaceDocument rejects invalid typed block mutations without changing d
 test("portable full export contains JSON, Markdown, CSV and attachment manifest", () => {
   const ws = createWorkspace("Export"); const doc = new WorkspaceDocument(ws); const page = doc.addPage("Tasks");
   doc.addBlock(page.id, { type: "task", text: "Ship", checked: false });
-  const db = doc.addDatabase({ pageId: page.id, name: "Work", properties: [{ id: "name", name: "Name", type: "text" }], rows: [{ id: "r1", values: { name: "A, B" }, createdAt: ws.createdAt, updatedAt: ws.updatedAt }], views: [] });
-  ws.attachments.push({ id: "a1", fileName: "photo.jpg", mediaType: "image/jpeg", byteLength: 3, sha256: "abc", path: "objects/abc", createdAt: ws.createdAt });
+  const db = doc.addDatabase({ pageId: page.id, name: "Work", properties: [{ id: "name", name: "Name", type: "title" }, { id: "range", name: "Range", type: "date-range" }, { id: "files", name: "Files", type: "files" }], rows: [{ id: "r1", values: { name: "A, B" }, createdAt: ws.createdAt, updatedAt: ws.updatedAt }], views: [] });
+  ws.attachments.push({ id: "a1", fileName: "photo.jpg", mediaType: "image/jpeg", byteLength: 3, sha256: "a".repeat(64), path: "objects/abc", createdAt: ws.createdAt });
   assert.match(exportDatabaseCsv(db), /"A, B"/);
+  const recordPage = doc.addRecord(db.id, "Canonical record", { range: { start: "2026-01-02T00:00:00.000Z", end: "2026-01-03T00:00:00.000Z" }, files: { attachmentIds: ["a1"] } });
+  db.rows.push({ id: "compat", pageId: recordPage.id, values: { name: "Stale legacy value" }, createdAt: ws.createdAt, updatedAt: ws.updatedAt });
+  const csv = exportDatabaseCsv(db, ws.pages);
+  assert.doesNotMatch(csv, /Stale legacy value/);
+  assert.match(csv, new RegExp(`"${recordPage.id}","Canonical record"`));
+  assert.match(csv, /"\{""end"":""2026-01-03T00:00:00.000Z"",""start"":""2026-01-02T00:00:00.000Z""\}"/);
+  assert.match(csv, /"\{""attachmentIds"":\[""a1""\]\}"/);
+  assert.equal(recordPage.collectionId, db.id);
   const bundle = exportFullWorkspace(ws);
   assert.ok(Object.keys(bundle.files).some(name => name.endsWith(".md")));
   assert.ok(Object.keys(bundle.files).some(name => name.endsWith(".csv")));
@@ -385,8 +393,9 @@ test("records are pages; typed filters and stable multi-sort operate on properti
   const low = doc.addRecord(db.id, "Low", { status: "open", priority: 1 });
   const high = doc.addRecord(db.id, "High", { status: "open", priority: 5 });
   doc.addRecord(db.id, "Closed", { status: "closed", priority: 10 });
+  const medium = doc.addRecord(db.id, "Medium", { status: "open", priority: 3 });
   assert.equal(low.collectionId, db.id);
-  assert.deepEqual(doc.queryRecords(db.id, { kind: "and", children: [{ kind: "condition", propertyId: "status", operator: "equals", value: "open" }] }, [{ propertyId: "priority", direction: "desc" }]).map(p => p.id), [high.id, low.id]);
+  assert.deepEqual(doc.queryRecords(db.id, { kind: "and", children: [{ kind: "or", children: [{ kind: "condition", propertyId: "status", operator: "equals", value: "open" }, { kind: "condition", propertyId: "priority", operator: "equals", value: 10 }] }, { kind: "not", child: { kind: "condition", propertyId: "priority", operator: "equals", value: 10 } }] }, [{ propertyId: "status", direction: "asc" }, { propertyId: "priority", direction: "desc" }]).map(p => p.id), [high.id, medium.id, low.id]);
 });
 
 test("saved views create, rename, duplicate, reorder and delete without changing shared records", () => {

@@ -54,3 +54,21 @@ test("workflows that invoke cargo clippy install the pinned clippy component", a
   }
   assert.deepEqual(missing, []);
 });
+
+test("native Tauri resources are prepared before every Cargo validation path", async () => {
+  const source = await readFile(".github/workflows/ci.yml", "utf8");
+  const nativeJob = source.slice(source.indexOf("  native-desktop:"));
+  const resources = [
+    ["npm run runtime:prepare --workspace @motion/desktop", "bundled runtime"],
+    ["npm run build --workspace @motion/desktop", "bundled service"],
+  ];
+  for (const [resourceCommand, resourceLabel] of resources) {
+    const prepare = nativeJob.indexOf(resourceCommand);
+    assert.ok(prepare >= 0, `native desktop job does not prepare its ${resourceLabel} resource`);
+    for (const command of ["npm run validate:isolated-rust-tauri", "cargo clippy", "cargo test", "npm run tauri:build"]) {
+      const validation = nativeJob.indexOf(command);
+      assert.ok(validation >= 0, `native desktop job does not run ${command}`);
+      assert.ok(prepare < validation, `${resourceLabel} preparation must precede ${command}`);
+    }
+  }
+});

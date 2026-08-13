@@ -211,6 +211,15 @@ jobs:
         with:
           workspaces: apps/desktop/src-tauri -> target
       - run: npm ci --ignore-scripts
+      - name: Cache pinned Node desktop runtime archive
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .cache/node-runtime
+          key: motion-node-runtime-24.18.0-${{ matrix.arch }}
+      - name: Prepare verified bundled Node runtime
+        run: npm run runtime:prepare --workspace @motion/desktop
+      - name: Build desktop service resource for Tauri
+        run: npm run build --workspace @motion/desktop
       - name: Run repository-owned isolated Rust/Tauri validation
         if: matrix.arch == 'aarch64'
         run: npm run validate:isolated-rust-tauri
@@ -225,13 +234,6 @@ jobs:
           path: artifacts/static-analysis/clippy.json
           if-no-files-found: error
           retention-days: 14
-      - name: Cache pinned Node desktop runtime archive
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: .cache/node-runtime
-          key: motion-node-runtime-24.18.0-${{ matrix.arch }}
-      - name: Prepare verified bundled Node runtime
-        run: npm run runtime:prepare --workspace @motion/desktop
       - name: Build desktop Web assets for Tauri context
         run: npm run build --workspace @motion/web
       - name: Check desktop TypeScript and IPC contract

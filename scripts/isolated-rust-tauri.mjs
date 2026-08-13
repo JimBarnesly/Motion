@@ -89,6 +89,7 @@ async function main() {
       "--pids-limit", "512", "--user", "1000:1000",
       "--tmpfs", "/workspace:rw,exec,nosuid,nodev,size=1g,uid=1000,gid=1000",
       "--tmpfs", "/target:rw,exec,nosuid,nodev,size=6g,uid=1000,gid=1000",
+      "--tmpfs", "/tmp:rw,exec,nosuid,nodev,size=2g,uid=1000,gid=1000,mode=1777",
       "--mount", `type=bind,src=${candidate},dst=/candidate,readonly`,
       "--env", "CARGO_NET_OFFLINE=true", "--env", "CARGO_TARGET_DIR=/target",
       "--workdir", "/workspace", imageId,

@@ -9,11 +9,11 @@ test("local Web workspace persists, searches and exports without external networ
   const title = page.getByRole("textbox", { name: "Page title" });
   await title.fill("Pump commissioning notes");
   await title.blur();
-  await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
+  await expect(page.locator("#saveState")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
   const body = page.locator('[contenteditable="true"][data-block]').first();
   await body.fill("Verified local pressure and flow before startup.");
   await body.blur();
-  await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
+  await expect(page.locator("#saveState")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
   await expect.poll(() => page.evaluate(async () => {
     const request = indexedDB.open("motion-web-development", 1);
     const database = await new Promise<IDBDatabase>((resolve, reject) => { request.onsuccess=()=>resolve(request.result); request.onerror=()=>reject(request.error); });
@@ -137,7 +137,7 @@ test("initial record properties expose canonical date ranges, attachment IDs, an
   await page.getByLabel("Window start").fill("2026-08-14");
   await page.getByLabel("Window end").fill("2026-08-16");
   await page.getByLabel("Files", { exact: true }).selectOption(["attachment-1", "attachment-2"]);
-  await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
+  await expect(page.locator("#saveState")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
   await page.reload();
   await expect(page.getByLabel("Window start")).toHaveValue("2026-08-14");
   await expect(page.getByLabel("Window end")).toHaveValue("2026-08-16");
@@ -160,7 +160,7 @@ test("typed table records open as pages and retain view state", async ({ page })
   await page.getByRole("navigation", { name: "Workspace pages" }).getByRole("button", { name: "New table", exact: true }).click();
   await page.getByRole("textbox", { name: "Database title" }).fill("Jobs");
   await page.getByRole("textbox", { name: "Database title" }).press("Tab");
-  await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
+  await expect(page.locator("#saveState")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
 
   page.once("dialog", dialog => dialog.accept("Status"));
   await page.getByRole("button", { name: "+ Property" }).click();
@@ -179,17 +179,17 @@ test("typed table records open as pages and retain view state", async ({ page })
   await page.getByRole("button", { name: "Untitled", exact: true }).click();
   await page.getByRole("textbox", { name: "Page title" }).fill("Replace heat pump");
   await page.getByRole("textbox", { name: "Page title" }).blur();
-  await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
+  await expect(page.locator("#saveState")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
   await page.getByLabel("Status").selectOption({ label: "In progress" });
-  await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
+  await expect(page.locator("#saveState")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
   await page.getByLabel("Cost").fill("4200");
   await page.getByLabel("Cost").blur();
-  await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
+  await expect(page.locator("#saveState")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
   await page.getByRole("button", { name: "+ Add block" }).click();
   const recordBody = page.locator('[contenteditable="true"][data-block]').last();
   await recordBody.fill("Need quotes from three suppliers.");
   await recordBody.press("Tab");
-  await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
+  await expect(page.locator("#saveState")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
 
   await page.locator('[data-back]').click();
   await expect(page.getByRole("textbox", { name: "Database title" })).toHaveValue("Jobs");

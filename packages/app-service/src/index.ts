@@ -184,6 +184,32 @@ function validateReference(value: unknown, field: string): void {
   for (const key of ["start", "end"] as const) if (reference[key] !== undefined && (!Number.isSafeInteger(reference[key]) || Number(reference[key]) < 0)) throw new MotionAppError("INVALID_INPUT", `${field}.${key} must be a non-negative integer`);
   if ((reference.start === undefined) !== (reference.end === undefined) || (typeof reference.start === "number" && typeof reference.end === "number" && reference.start > reference.end)) throw new MotionAppError("INVALID_INPUT", `${field} must contain an ordered start/end pair`);
 }
+function validatePropertyInput(value: unknown, field: string, patch = false): Record<string, unknown> {
+  const property = exactObject(value, field, ["name", "type", "relation", "relationDatabaseId", "options", "validation"], patch ? [] : ["name", "type"]);
+  if (patch && Object.keys(property).length === 0) throw new MotionAppError("INVALID_INPUT", `${field} must contain a property change`);
+  if (property.name !== undefined) requiredText(property.name, `${field}.name`, true);
+  if (property.type !== undefined) requiredText(property.type, `${field}.type`);
+  if (property.relationDatabaseId !== undefined) inputId(property.relationDatabaseId, `${field}.relationDatabaseId`);
+  if (property.relation !== undefined) {
+    const relation = exactObject(property.relation, `${field}.relation`, ["targetCollectionId", "reciprocalPropertyId", "cardinality", "maxItems", "onDelete"], ["targetCollectionId"]);
+    inputId(relation.targetCollectionId, `${field}.relation.targetCollectionId`);
+    if (relation.reciprocalPropertyId !== undefined) inputId(relation.reciprocalPropertyId, `${field}.relation.reciprocalPropertyId`);
+    if (relation.cardinality !== undefined && !["one-to-one", "one-to-many", "many-to-many"].includes(String(relation.cardinality))) throw new MotionAppError("INVALID_INPUT", `${field}.relation.cardinality is invalid`);
+    if (relation.maxItems !== undefined && (!Number.isSafeInteger(relation.maxItems) || Number(relation.maxItems) < 1)) throw new MotionAppError("INVALID_INPUT", `${field}.relation.maxItems must be positive`);
+    if (relation.onDelete !== undefined && !["retain", "remove"].includes(String(relation.onDelete))) throw new MotionAppError("INVALID_INPUT", `${field}.relation.onDelete is invalid`);
+  }
+  if (property.options !== undefined) {
+    if (!Array.isArray(property.options) || property.options.length > DEFAULT_VALIDATION_LIMITS.maxObjectKeys) throw new MotionAppError("INVALID_INPUT", `${field}.options must be an array within limits`);
+    property.options.forEach((value, index) => { const option = exactObject(value, `${field}.options[${index}]`, ["id", "name", "color"], ["id", "name"]); inputId(option.id, `${field}.options[${index}].id`); requiredText(option.name, `${field}.options[${index}].name`, true); if (option.color !== undefined) requiredText(option.color, `${field}.options[${index}].color`, true); });
+  }
+  if (property.validation !== undefined) {
+    const validation = exactObject(property.validation, `${field}.validation`, ["required", "min", "max", "minLength", "maxLength"], []);
+    if (validation.required !== undefined && typeof validation.required !== "boolean") throw new MotionAppError("INVALID_INPUT", `${field}.validation.required must be a boolean`);
+    for (const key of ["min", "max"] as const) if (validation[key] !== undefined && (typeof validation[key] !== "number" || !Number.isFinite(validation[key]))) throw new MotionAppError("INVALID_INPUT", `${field}.validation.${key} must be finite`);
+    for (const key of ["minLength", "maxLength"] as const) if (validation[key] !== undefined && (!Number.isSafeInteger(validation[key]) || Number(validation[key]) < 0)) throw new MotionAppError("INVALID_INPUT", `${field}.validation.${key} must be a non-negative integer`);
+  }
+  return property;
+}
 function validateTypedBlockFields(block: Record<string, unknown>, field: string, state: BlockInputState): void {
   if (block.checked !== undefined && typeof block.checked !== "boolean") throw new MotionAppError("INVALID_INPUT", `${field}.checked must be a boolean`);
   for (const key of ["language", "date", "url"] as const) if (block[key] !== undefined) requiredText(block[key], `${field}.${key}`, key === "language");
@@ -504,6 +530,14 @@ export class MotionAppService {
       inputId(batch.workspaceId, "workspaceId"); revision(batch.expectedRevision); const blockState = blockInputState();
       batch.commands.forEach(operation => validateBlockOperation(operation, false, blockState));
     } else if (command.type.startsWith("block.")) validateBlockOperation(command, true);
+    if (command.type === "database.property-add") {
+      const input = exactObject(command, "database.property-add", ["type", "workspaceId", "expectedRevision", "databaseId", "property"]);
+      inputId(input.workspaceId, "workspaceId"); revision(input.expectedRevision); inputId(input.databaseId, "databaseId"); validatePropertyInput(input.property, "property");
+    }
+    if (command.type === "database.property-update") {
+      const input = exactObject(command, "database.property-update", ["type", "workspaceId", "expectedRevision", "databaseId", "propertyId", "patch"]);
+      inputId(input.workspaceId, "workspaceId"); revision(input.expectedRevision); inputId(input.databaseId, "databaseId"); inputId(input.propertyId, "propertyId"); validatePropertyInput(input.patch, "patch", true);
+    }
     if (command.type === "database.property-reorder") {
       const input = exactObject(command, "database.property-reorder", ["type", "workspaceId", "expectedRevision", "databaseId", "orderedPropertyIds"]);
       inputId(input.workspaceId, "workspaceId"); revision(input.expectedRevision); inputId(input.databaseId, "databaseId");

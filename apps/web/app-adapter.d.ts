@@ -52,7 +52,7 @@ export interface NativeDatabasePropertyInput {
   relation?: { targetCollectionId: string; reciprocalPropertyId?: string; cardinality?: "one-to-one" | "one-to-many" | "many-to-many"; maxItems?: number; onDelete?: "retain" | "remove" };
   relationDatabaseId?: string;
   options?: Array<{ id: string; name: string; color?: string }>;
-  validation?: { required?: boolean; min?: number; max?: number; minLength?: number; maxLength?: number; pattern?: string };
+  validation?: { required?: boolean; min?: number; max?: number; minLength?: number; maxLength?: number };
 }
 export type NativeDatabasePropertyPatch = Partial<NativeDatabasePropertyInput>;
 export type NativeFilterOperator = "equals" | "not-equals" | "contains" | "not-contains" | "gt" | "gte" | "lt" | "lte" | "before" | "after" | "is-empty" | "is-not-empty" | "in" | "relative-date";

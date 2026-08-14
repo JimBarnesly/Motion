@@ -666,6 +666,9 @@ test("property definitions reorder canonically and tombstones preserve historic 
   const staleView = structuredClone(doc.data) as any;
   staleView.databases[0].views[0].visiblePropertyIds.push("remove");
   assert.throws(() => assertWorkspaceValue(staleView), /tombstoned|live property/i);
+  const unknownOrder = structuredClone(doc.data) as any;
+  unknownOrder.databases[0].propertyOrder = ["title", "unknown"];
+  assert.throws(() => assertWorkspaceValue(unknownOrder), /propertyOrder.*live property/i);
   const missingLiveTitle = structuredClone(doc.data) as any;
   missingLiveTitle.databases[0].properties.find((property: any) => property.id === "title").deletedAt = new Date().toISOString();
   missingLiveTitle.databases[0].propertyOrder = ["keep"];
@@ -683,6 +686,8 @@ test("property validation metadata is closed and enforced atomically", () => {
   ], propertyOrder: ["title", "age", "code"], rows: [], views: [] });
   const before = structuredClone(doc.data);
   assert.throws(() => doc.addProperty(database.id, { name: "Injected", type: "number", validation: { min: 0, injected: true } as any }), /validation.*shape/i);
+  assert.deepEqual(doc.data, before);
+  assert.throws(() => doc.addProperty(database.id, { name: "Injected definition", type: "number", injected: { attacker: true } } as any), /property.*shape/i);
   assert.deepEqual(doc.data, before);
   assert.throws(() => doc.addProperty(database.id, { name: "Unsafe pattern", type: "plain-text", validation: { pattern: "(a+)+$" } as any }), /validation.*shape/i);
   assert.deepEqual(doc.data, before);

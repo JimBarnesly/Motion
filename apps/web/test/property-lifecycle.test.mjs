@@ -37,6 +37,7 @@ test("web UI uses one canonical command for labelled keyboard and pointer defini
   const root = resolve(import.meta.dirname, "..");
   const source = await readFile(resolve(root, "app.js"), "utf8");
   const adapter = await readFile(resolve(root, "app-adapter.js"), "utf8");
+  const adapterTypes = await readFile(resolve(root, "app-adapter.d.ts"), "utf8");
   assert.match(adapter, /"database\.property-reorder"/);
   assert.match(source, /commit\("database\.property-reorder"/);
   assert.match(source, /data-property-definition-move/);
@@ -45,4 +46,5 @@ test("web UI uses one canonical command for labelled keyboard and pointer defini
   assert.match(source, /Property .* moved to position/);
   assert.doesNotMatch(source, /function (?:filterRow|sortRow)[^\n]+database\.properties/);
   assert.doesNotMatch(source, /database\.view-update[^\n]+property-definition/);
+  assert.doesNotMatch(adapterTypes, /pattern\?: string/);
 });

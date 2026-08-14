@@ -52,6 +52,7 @@ export interface NativeDatabasePropertyInput {
   relation?: { targetCollectionId: string; reciprocalPropertyId?: string; cardinality?: "one-to-one" | "one-to-many" | "many-to-many"; maxItems?: number; onDelete?: "retain" | "remove" };
   relationDatabaseId?: string;
   options?: Array<{ id: string; name: string; color?: string }>;
+  validation?: { required?: boolean; min?: number; max?: number; minLength?: number; maxLength?: number; pattern?: string };
 }
 export type NativeDatabasePropertyPatch = Partial<NativeDatabasePropertyInput>;
 export type NativeFilterOperator = "equals" | "not-equals" | "contains" | "not-contains" | "gt" | "gte" | "lt" | "lte" | "before" | "after" | "is-empty" | "is-not-empty" | "in" | "relative-date";
@@ -101,6 +102,7 @@ export interface NativeCommandPayloads {
   "database.create": { title: string; parentId?: string | null };
   "database.property-add": { databaseId: string; property: NativeDatabasePropertyInput };
   "database.property-update": { databaseId: string; propertyId: string; patch: NativeDatabasePropertyPatch };
+  "database.property-reorder": { databaseId: string; orderedPropertyIds: readonly string[] };
   "database.property-delete": { databaseId: string; propertyId: string };
   "database.record-create": { databaseId: string; title: string; values?: Record<string, NativePropertyValue> };
   "database.record-update": { pageId: string; title?: string; values: Record<string, NativePropertyValue | undefined> };
@@ -115,7 +117,7 @@ export declare const NATIVE_EXECUTE_OPERATIONS: readonly [
   "workspace.create",
   "page.create", "page.rename", "page.move", "page.reorder", "page.set-favourite", "page.trash", "page.restore", "page.replace-blocks",
   "block.create", "block.update-content", "block.transform", "block.move", "block.indent", "block.outdent", "block.duplicate", "block.delete", "block.batch",
-  "database.create", "database.property-add", "database.property-update", "database.property-delete", "database.record-create", "database.record-update",
+  "database.create", "database.property-add", "database.property-update", "database.property-reorder", "database.property-delete", "database.record-create", "database.record-update",
   "database.view-create", "database.view-update", "database.view-duplicate", "database.view-reorder", "database.view-delete"
 ];
 export type NativeExecuteOperation = typeof NATIVE_EXECUTE_OPERATIONS[number];

@@ -60,19 +60,19 @@ fn reject(code: &str, message: impl Into<String>) -> IpcError {
     }
 }
 
+fn valid_canonical_id(value: &Value) -> bool {
+    value.as_str().is_some_and(|id| {
+        !id.is_empty()
+            && id.len() <= 160
+            && id.as_bytes()[0].is_ascii_alphanumeric()
+            && id
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
+    })
+}
+
 fn valid_ui_state_id(value: &Value) -> bool {
-    match value {
-        Value::Null => true,
-        Value::String(id) => {
-            !id.is_empty()
-                && id.len() <= 160
-                && id.as_bytes()[0].is_ascii_alphanumeric()
-                && id
-                    .bytes()
-                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
-        }
-        _ => false,
-    }
+    value.is_null() || valid_canonical_id(value)
 }
 
 fn validate_ui_state_document(document: &Value) -> Result<(), IpcError> {
@@ -156,6 +156,7 @@ fn validate_dispatch_request(request: &IpcRequest) -> Result<(), IpcError> {
         ("command", "database.create") => &["type", "workspaceId", "expectedRevision", "title", "parentId"],
         ("command", "database.property-add") => &["type", "workspaceId", "expectedRevision", "databaseId", "property"],
         ("command", "database.property-update") => &["type", "workspaceId", "expectedRevision", "databaseId", "propertyId", "patch"],
+        ("command", "database.property-reorder") => &["type", "workspaceId", "expectedRevision", "databaseId", "orderedPropertyIds"],
         ("command", "database.property-delete") => &["type", "workspaceId", "expectedRevision", "databaseId", "propertyId"],
         ("command", "database.record-create") => &["type", "workspaceId", "expectedRevision", "databaseId", "title", "values"],
         ("command", "database.record-update") => &["type", "workspaceId", "expectedRevision", "pageId", "title", "values"],
@@ -203,6 +204,20 @@ fn validate_dispatch_request(request: &IpcRequest) -> Result<(), IpcError> {
             "INVALID_INPUT",
             "IPC payload contains an unsupported field",
         ));
+    }
+    if operation == "database.property-reorder" {
+        let ordered = payload
+            .get("orderedPropertyIds")
+            .and_then(Value::as_array)
+            .filter(|ids| ids.len() <= 100_000)
+            .ok_or_else(|| reject("INVALID_INPUT", "Invalid property reorder request"))?;
+        let mut unique = std::collections::HashSet::new();
+        if ordered.iter().any(|id| {
+            let Some(id_text) = id.as_str() else { return true; };
+            !valid_canonical_id(id) || !unique.insert(id_text)
+        }) {
+            return Err(reject("INVALID_INPUT", "Invalid property reorder request"));
+        }
     }
     Ok(())
 }
@@ -652,6 +667,44 @@ mod tests {
                 "{operation} must reject unsupported top-level fields"
             );
         }
+    }
+
+    #[test]
+    fn dispatch_accepts_property_reorder_only_with_exact_closed_payload() {
+        let valid = IpcRequest {
+            protocol_version: 1,
+            lane: "command".into(),
+            payload: json!({
+                "type": "database.property-reorder", "workspaceId": "workspace", "expectedRevision": 1,
+                "databaseId": "database", "orderedPropertyIds": ["title", "score"]
+            }),
+        };
+        assert!(validate_dispatch_request(&valid).is_ok());
+
+        for payload in [
+            json!({
+                "type": "database.property-reorder", "workspaceId": "workspace", "expectedRevision": 1,
+                "databaseId": "database", "orderedPropertyIds": ["title"], "unsupported": true
+            }),
+            json!({
+                "type": "database.property-reorder", "workspaceId": "workspace", "expectedRevision": 1,
+                "databaseId": "database", "orderedPropertyIds": [{ "id": "title" }]
+            }),
+            json!({
+                "type": "database.property-reorder", "workspaceId": "workspace", "expectedRevision": 1,
+                "databaseId": "database", "orderedPropertyIds": ["title", "title"]
+            }),
+            json!({
+                "type": "database.property-reorder", "workspaceId": "workspace", "expectedRevision": 1,
+                "databaseId": "database", "orderedPropertyIds": ["bad/id"]
+            }),
+        ] {
+            let request = IpcRequest { protocol_version: 1, lane: "command".into(), payload };
+            assert_eq!(validate_dispatch_request(&request).unwrap_err().code, "INVALID_INPUT");
+        }
+
+        let wrong_lane = IpcRequest { protocol_version: 1, lane: "query".into(), payload: valid.payload };
+        assert_eq!(validate_dispatch_request(&wrong_lane).unwrap_err().code, "INVALID_INPUT");
     }
 
     #[test]

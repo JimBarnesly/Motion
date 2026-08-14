@@ -619,20 +619,84 @@ test("addRecord registers membership atomically and rejected values leave all st
   assert.doesNotThrow(() => assertWorkspaceValue(doc.data));
 });
 
-test("property mutations retain record membership and clean soft-deleted records", () => {
+test("property definitions reorder canonically and tombstones preserve historic values", () => {
   const doc = new WorkspaceDocument(createWorkspace("Soft-deleted records")); const collectionPage = doc.addPage("Collection");
   const database = doc.addDatabase({ id: "db", pageId: collectionPage.id, name: "Data", properties: [
-    { id: "keep", name: "Keep", type: "number" }, { id: "remove", name: "Remove", type: "number" }
-  ], rows: [], views: [] });
+    { id: "title", name: "Name", type: "title" }, { id: "keep", name: "Keep", type: "number" }, { id: "remove", name: "Remove", type: "number" }
+  ], propertyOrder: ["title", "keep", "remove"], rows: [], views: [{ id: "table", collectionId: "db", name: "Table", type: "table",
+    visiblePropertyIds: ["title", "keep", "remove"], propertyOrder: ["title", "keep", "remove"], columnWidths: { remove: 200 },
+    filters: { kind: "and", children: [{ kind: "condition", propertyId: "remove", operator: "equals", value: 2 }, { kind: "condition", propertyId: "keep", operator: "equals", value: 1 }] },
+    sorts: [{ propertyId: "remove", direction: "asc" }, { propertyId: "keep", direction: "desc" }], groupByPropertyId: "remove",
+    subgroupByPropertyId: "remove", calendarDatePropertyId: "remove", timelineStartPropertyId: "remove", timelineEndPropertyId: "remove" }] });
   const record = doc.addRecord(database.id, "Deleted", { keep: 1, remove: 2 }); record.deletedAt = doc.data.updatedAt;
 
-  doc.updateProperty(database.id, "keep", { type: "plain-text" });
-  assert.equal(record.properties?.keep, undefined);
+  doc.reorderProperties(database.id, ["title", "remove", "keep"]);
+  assert.deepEqual(database.propertyOrder, ["title", "remove", "keep"]);
+  assert.deepEqual(database.properties.map(property => property.id), ["title", "remove", "keep"]);
   doc.deleteProperty(database.id, "remove");
-  assert.equal(record.properties?.remove, undefined);
+  const removed = database.properties.find(property => property.id === "remove")!;
+  assert.match(removed.deletedAt!, /^\d{4}-/);
+  assert.deepEqual(database.propertyOrder, ["title", "keep"]);
+  assert.equal(record.properties?.remove, 2, "historic values remain keyed by stable property ID");
+  assert.deepEqual(database.views[0]!.visiblePropertyIds, ["title", "keep"]);
+  assert.deepEqual(database.views[0]!.propertyOrder, ["title", "keep"]);
+  assert.deepEqual(database.views[0]!.columnWidths, {});
+  assert.deepEqual(database.views[0]!.sorts, [{ propertyId: "keep", direction: "desc" }]);
+  assert.deepEqual(database.views[0]!.filters, { kind: "condition", propertyId: "keep", operator: "equals", value: 1 });
+  assert.equal(database.views[0]!.groupByPropertyId, undefined);
+  assert.equal(database.views[0]!.subgroupByPropertyId, undefined);
+  assert.equal(database.views[0]!.calendarDatePropertyId, undefined);
+  assert.equal(database.views[0]!.timelineStartPropertyId, undefined);
+  assert.equal(database.views[0]!.timelineEndPropertyId, undefined);
+  const json = JSON.parse(exportWorkspaceJson(doc.data));
+  assert.ok(json.databases[0].properties.find((property: any) => property.id === "remove").deletedAt);
+  assert.equal(json.pages.find((page: any) => page.id === record.id).properties.remove, 2);
+  const full = exportFullWorkspace(doc.data), backupWorkspace = JSON.parse(full.files["workspace.json"]!);
+  assert.ok(backupWorkspace.databases[0].properties.find((property: any) => property.id === "remove").deletedAt);
+  assert.equal(backupWorkspace.pages.find((page: any) => page.id === record.id).properties.remove, 2);
+  const csv = exportDatabaseCsv(database, doc.data.pages);
+  assert.doesNotMatch(csv, /Remove|,2(?:,|\n)/);
+  assert.match(csv, /"Name","Keep"/);
   assert.deepEqual(database.recordPageIds, [record.id]);
   assert.deepEqual(doc.records(database.id), []);
+  assert.throws(() => doc.updateProperty(database.id, "remove", { name: "Stale" }), /deleted|tombstoned/i);
+  assert.throws(() => doc.updateRecord(record.id, undefined, { remove: 3 }), /deleted|tombstoned/i);
+  assert.throws(() => doc.reorderProperties(database.id, ["keep"]), /title|every live property/i);
   assert.doesNotThrow(() => assertWorkspaceValue(doc.data));
+});
+
+test("property validation metadata is closed and enforced atomically", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Validated properties")); const page = doc.addPage("People");
+  const database = doc.addDatabase({ id: "people", pageId: page.id, name: "People", properties: [
+    { id: "title", name: "Name", type: "title" },
+    { id: "age", name: "Age", type: "number", validation: { required: true, min: 18, max: 120 } },
+    { id: "code", name: "Code", type: "plain-text", validation: { minLength: 2, maxLength: 4, pattern: "^[A-Z]+$" } }
+  ], propertyOrder: ["title", "age", "code"], rows: [], views: [] });
+  const before = structuredClone(doc.data);
+  assert.throws(() => doc.addProperty(database.id, { name: "Injected", type: "number", validation: { min: 0, injected: true } as any }), /validation.*shape/i);
+  assert.deepEqual(doc.data, before);
+  assert.throws(() => doc.updateProperty(database.id, "age", { validation: { min: 200, max: 100 } }), /validation.*ordered/i);
+  assert.deepEqual(doc.data, before);
+  assert.throws(() => doc.addRecord(database.id, "Minor", { age: 17 }), /validation|minimum|required/i);
+  assert.deepEqual(doc.data, before);
+  assert.throws(() => doc.addRecord(database.id, "Missing", {}), /required/i);
+  const record = doc.addRecord(database.id, "Valid", { age: 21, code: "AB" });
+  assert.throws(() => doc.updateRecord(record.id, undefined, { code: "abcde" }), /validation|length|pattern/i);
+  assert.equal(record.properties?.code, "AB");
+  const invalid = structuredClone(doc.data) as any;
+  invalid.databases[0].properties[1].validation.injected = true;
+  assert.throws(() => assertWorkspaceValue(invalid), /validation.*shape/i);
+});
+
+test("populated property type changes fail atomically instead of deleting values", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Safe type changes")); const page = doc.addPage("Data");
+  const database = doc.addDatabase({ id: "data", pageId: page.id, name: "Data", properties: [
+    { id: "title", name: "Name", type: "title" }, { id: "value", name: "Value", type: "plain-text" }
+  ], rows: [], views: [] });
+  const record = doc.addRecord(database.id, "One", { value: "historic" }), before = structuredClone(doc.data);
+  assert.throws(() => doc.updateProperty(database.id, "value", { type: "number" }), /populated|type change/i);
+  assert.deepEqual(doc.data, before);
+  assert.equal(record.properties?.value, "historic");
 });
 
 test("workspace validation rejects record values from another collection", () => {

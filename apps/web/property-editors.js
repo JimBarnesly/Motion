@@ -33,7 +33,9 @@ export function propertyValueForRecord(property, page) {
 }
 
 export function applyBrowserPropertyPatch(property, patch, records) {
-  if (patch.type && patch.type !== property.type) for (const record of records) delete record.properties?.[property.id];
+  if (patch.type && patch.type !== property.type && records.some(record => record.properties?.[property.id] !== undefined)) {
+    throw new Error("Populated property type change requires an explicit conversion preview");
+  }
   Object.assign(property, patch);
 }
 

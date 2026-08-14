@@ -47,6 +47,48 @@ test("mutation change sets use comparator-free deterministic ordering", async ()
     assert.equal(mutationSortCalls, 0);
   } finally { store.close(); await removeDatabase(path); }
 });
+
+test("property reorder is exact, atomic, durable, and deletion retains tombstones and values", async () => {
+  const path = databasePath("property-lifecycle"); let store = new SqliteWorkspaceStore(path);
+  try {
+    let service = new MotionAppService(store); let state = service.execute({ type: "workspace.create", name: "Properties" }); const workspaceId = state.workspace.id;
+    state = service.execute({ type: "database.create", workspaceId, expectedRevision: state.revision, title: "Tasks" });
+    const databaseId = state.workspace.databases[0]!.id, titleId = state.workspace.databases[0]!.properties[0]!.id;
+    state = service.execute({ type: "database.property-add", workspaceId, expectedRevision: state.revision, databaseId, property: { name: "Score", type: "number", validation: { min: 0, max: 10 } } });
+    const scoreId = state.workspace.databases[0]!.properties.find(property => property.name === "Score")!.id;
+    state = service.execute({ type: "database.record-create", workspaceId, expectedRevision: state.revision, databaseId, title: "Ship", values: { [scoreId]: 7 } });
+    const before = structuredClone(store.load(workspaceId));
+    assert.throws(() => service.execute({ type: "database.property-update", workspaceId, expectedRevision: state.revision, databaseId, propertyId: scoreId, patch: { type: "plain-text" } }),
+      (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    assert.deepEqual(store.load(workspaceId), before);
+    assert.throws(() => service.execute({ type: "database.property-update", workspaceId, expectedRevision: state.revision, databaseId, propertyId: scoreId, patch: { validation: { min: 20, max: 10 } } }),
+      (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    assert.deepEqual(store.load(workspaceId), before);
+    assert.throws(() => service.execute({ type: "database.record-create", workspaceId, expectedRevision: state.revision, databaseId, title: "Invalid", values: { [scoreId]: 11 } }),
+      (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    assert.deepEqual(store.load(workspaceId), before);
+    assert.throws(() => service.execute({ type: "database.property-reorder", workspaceId, expectedRevision: state.revision, databaseId, orderedPropertyIds: [scoreId, titleId], injected: true } as any),
+      (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    assert.deepEqual(store.load(workspaceId), before);
+    for (const orderedPropertyIds of [[scoreId], [titleId, scoreId, scoreId], [titleId, "unknown"]]) {
+      assert.throws(() => service.execute({ type: "database.property-reorder", workspaceId, expectedRevision: state.revision, databaseId, orderedPropertyIds }),
+        (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+      assert.deepEqual(store.load(workspaceId), before);
+    }
+    state = service.execute({ type: "database.property-reorder", workspaceId, expectedRevision: state.revision, databaseId, orderedPropertyIds: [scoreId, titleId] });
+    assert.deepEqual(state.workspace.databases[0]!.propertyOrder, [scoreId, titleId]);
+    state = service.execute({ type: "database.property-delete", workspaceId, expectedRevision: state.revision, databaseId, propertyId: scoreId });
+    store.close(); store = new SqliteWorkspaceStore(path); service = new MotionAppService(store);
+    const restarted = service.query({ type: "workspace.get", workspaceId });
+    const database = restarted.workspace.databases[0]!, property = database.properties.find(candidate => candidate.id === scoreId)!;
+    assert.ok(property.deletedAt);
+    assert.deepEqual(database.propertyOrder, [titleId]);
+    const record = restarted.workspace.pages.find(page => page.collectionId === databaseId)!;
+    assert.equal(record.properties?.[scoreId], 7);
+    assert.throws(() => service.execute({ type: "database.property-update", workspaceId, expectedRevision: restarted.revision, databaseId, propertyId: scoreId, patch: { name: "Stale" } }),
+      (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+  } finally { store.close(); await removeDatabase(path); }
+});
 const integrityHash = async (database: string, attachmentRoot: string): Promise<string> => {
   const digest = createHash("sha256");
   for (const file of [database, `${database}-wal`, `${database}-shm`]) {

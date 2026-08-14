@@ -72,8 +72,9 @@ export type AppCommand =
   | { type: "page.restore"; workspaceId: string; expectedRevision: number; pageId: string }
   | { type: "page.replace-blocks"; workspaceId: string; expectedRevision: number; pageId: string; blocks: readonly Block[] }
   | { type: "database.create"; workspaceId: string; expectedRevision: number; title: string; parentId?: string | null }
-  | { type: "database.property-add"; workspaceId: string; expectedRevision: number; databaseId: string; property: Omit<DatabaseProperty, "id"> }
-  | { type: "database.property-update"; workspaceId: string; expectedRevision: number; databaseId: string; propertyId: string; patch: Partial<Omit<DatabaseProperty, "id">> }
+  | { type: "database.property-add"; workspaceId: string; expectedRevision: number; databaseId: string; property: Omit<DatabaseProperty, "id" | "deletedAt"> }
+  | { type: "database.property-update"; workspaceId: string; expectedRevision: number; databaseId: string; propertyId: string; patch: Partial<Omit<DatabaseProperty, "id" | "deletedAt">> }
+  | { type: "database.property-reorder"; workspaceId: string; expectedRevision: number; databaseId: string; orderedPropertyIds: readonly string[] }
   | { type: "database.property-delete"; workspaceId: string; expectedRevision: number; databaseId: string; propertyId: string }
   | { type: "database.record-create"; workspaceId: string; expectedRevision: number; databaseId: string; title: string; values?: Record<string, PropertyValue> }
   | { type: "database.record-update"; workspaceId: string; expectedRevision: number; pageId: string; title?: string; values: Record<string, PropertyValue | undefined> }
@@ -125,6 +126,7 @@ export interface CommandResults {
   "database.create": MutationDto;
   "database.property-add": MutationDto;
   "database.property-update": MutationDto;
+  "database.property-reorder": MutationDto;
   "database.property-delete": MutationDto;
   "database.record-create": MutationDto;
   "database.record-update": MutationDto;
@@ -502,6 +504,12 @@ export class MotionAppService {
       inputId(batch.workspaceId, "workspaceId"); revision(batch.expectedRevision); const blockState = blockInputState();
       batch.commands.forEach(operation => validateBlockOperation(operation, false, blockState));
     } else if (command.type.startsWith("block.")) validateBlockOperation(command, true);
+    if (command.type === "database.property-reorder") {
+      const input = exactObject(command, "database.property-reorder", ["type", "workspaceId", "expectedRevision", "databaseId", "orderedPropertyIds"]);
+      inputId(input.workspaceId, "workspaceId"); revision(input.expectedRevision); inputId(input.databaseId, "databaseId");
+      if (!Array.isArray(input.orderedPropertyIds) || input.orderedPropertyIds.length > DEFAULT_VALIDATION_LIMITS.maxObjectKeys) throw new MotionAppError("INVALID_INPUT", "orderedPropertyIds must be an array within limits");
+      input.orderedPropertyIds.forEach((propertyId, index) => inputId(propertyId, `orderedPropertyIds[${index}]`));
+    }
     const expectedRevision = revision(command.expectedRevision);
     const loaded = this.required(command.workspaceId);
     const document = new WorkspaceDocument(clone(loaded.document));
@@ -544,6 +552,13 @@ export class MotionAppService {
         const databaseId = requiredText(command.databaseId, "databaseId"); const database = document.data.databases.find(candidate => candidate.id === databaseId)!;
         document.updateProperty(databaseId, requiredText(command.propertyId, "propertyId"), clone(command.patch)); changes.database(databaseId);
         if (command.patch.type !== undefined) for (const pageId of database.recordPageIds ?? []) changes.page(pageId, { fts: true }); break;
+      }
+      case "database.property-reorder": {
+        const databaseId = inputId(command.databaseId, "databaseId"), database = document.data.databases.find(candidate => candidate.id === databaseId);
+        if (!database) throw new MotionAppError("NOT_FOUND", "Database not found");
+        const liveIds = database.properties.filter(property => property.deletedAt === undefined).map(property => property.id);
+        if (command.orderedPropertyIds.length !== liveIds.length || new Set(command.orderedPropertyIds).size !== command.orderedPropertyIds.length || command.orderedPropertyIds.some(propertyId => !liveIds.includes(propertyId))) throw new MotionAppError("INVALID_INPUT", "orderedPropertyIds must contain every live property exactly once");
+        document.reorderProperties(databaseId, command.orderedPropertyIds); changes.database(databaseId); break;
       }
       case "database.property-delete": {
         const databaseId = requiredText(command.databaseId, "databaseId"); const database = document.data.databases.find(candidate => candidate.id === databaseId)!;
@@ -626,6 +641,7 @@ export function toAppError(error: unknown): MotionAppError {
   const filesystemCode = error && typeof error === "object" && "code" in error ? String(error.code) : "";
   if (message.startsWith("Revision conflict")) return new MotionAppError("REVISION_CONFLICT", "Workspace changed since it was loaded; reload and retry");
   if (/Invalid record property for collection/i.test(message)) return new MotionAppError("INVALID_INPUT", "Record values must use properties from their collection");
+  if (/property is (?:already )?tombstoned|Populated property type change|\.validation\b/i.test(message)) return new MotionAppError("INVALID_INPUT", "Property changes failed validation");
   if (/Invalid record target/i.test(message)) return new MotionAppError("INVALID_INPUT", "Record updates require a page indexed by exactly one matching collection");
   if (/not found/i.test(message)) return new MotionAppError("NOT_FOUND", "Requested local resource was not found");
   if (/Attachment storage (?:content exceeds|contains|changed)/i.test(message)) return new MotionAppError("STORAGE_FAILURE", "Local attachment storage operation failed");

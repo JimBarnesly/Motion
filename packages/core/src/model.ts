@@ -31,7 +31,8 @@ export interface Page {
 
 export type PropertyType = "title" | "plain-text" | "rich-text" | "number" | "checkbox" | "select" | "multi-select" | "status" | "date" | "date-range" | "url" | "email" | "phone" | "files" | "created-time" | "updated-time" | "created-by" | "updated-by" | "relation" | "text" | "page";
 export interface RelationConfig { targetCollectionId: ID; reciprocalPropertyId?: ID; cardinality?: "one-to-one" | "one-to-many" | "many-to-many"; maxItems?: number; onDelete?: "retain" | "remove" }
-export interface DatabaseProperty { id: ID; name: string; type: PropertyType; relation?: RelationConfig; relationDatabaseId?: ID; options?: { id: ID; name: string; color?: string }[] }
+export interface PropertyValidation { required?: boolean; min?: number; max?: number; minLength?: number; maxLength?: number; pattern?: string }
+export interface DatabaseProperty { id: ID; name: string; type: PropertyType; relation?: RelationConfig; relationDatabaseId?: ID; options?: { id: ID; name: string; color?: string }[]; validation?: PropertyValidation; deletedAt?: ISODate }
 export interface DateRange { start: ISODate; end?: ISODate }
 export type PropertyValue = Scalar | string[] | DateRange | { attachmentIds: ID[] };
 /** A record's identity and content live in its Page; this object only retains legacy row compatibility. */
@@ -47,7 +48,7 @@ export interface DatabaseView {
   calendarDatePropertyId?: ID; timelineStartPropertyId?: ID; timelineEndPropertyId?: ID;
   permissions?: Record<string, unknown>; scope?: "personal" | "shared";
 }
-export interface Database { id: ID; pageId: ID; name: string; properties: DatabaseProperty[]; rows: DatabaseRow[]; recordPageIds?: ID[]; views: DatabaseView[] }
+export interface Database { id: ID; pageId: ID; name: string; properties: DatabaseProperty[]; propertyOrder?: ID[]; rows: DatabaseRow[]; recordPageIds?: ID[]; views: DatabaseView[] }
 export interface PageLink { sourcePageId: ID; targetPageId: ID; blockId: ID }
 export interface Workspace { schemaVersion: typeof WORKSPACE_SCHEMA_VERSION; id: ID; name: string; pages: Page[]; databases: Database[]; attachments: Attachment[]; linkIndex: PageLink[]; createdAt: ISODate; updatedAt: ISODate }
 
@@ -61,6 +62,7 @@ export function migrateWorkspace(input: unknown): Workspace {
       block.type = aliases[block.type] ?? block.type;
     }
     for (const db of raw.databases ?? []) {
+      db.propertyOrder ??= (db.properties ?? []).filter((property: DatabaseProperty) => property.deletedAt === undefined).map((property: DatabaseProperty) => property.id);
       db.recordPageIds ??= (db.rows ?? []).map((r: DatabaseRow) => r.pageId).filter(Boolean);
       if (!Array.isArray(db.recordPageIds)) continue;
       for (const recordPageId of db.recordPageIds) {
@@ -74,6 +76,7 @@ export function migrateWorkspace(input: unknown): Workspace {
   const raw = input as Record<string, any>;
   if (raw.schemaVersion !== 2) throw new Error(`Unsupported workspace schema: ${String(raw.schemaVersion)}`);
   raw.linkIndex ??= [];
+  for (const db of raw.databases ?? []) db.propertyOrder ??= (db.properties ?? []).filter((property: DatabaseProperty) => property.deletedAt === undefined).map((property: DatabaseProperty) => property.id);
   assertWorkspaceValue(raw);
   return raw as Workspace;
 }

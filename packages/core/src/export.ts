@@ -18,9 +18,11 @@ function canonical(value: unknown): unknown {
   return value;
 }
 export function exportDatabaseCsv(database: Database, pages: Page[] = []): string {
-  const header = ["id", ...database.properties.map(p => p.name)].map(csvCell).join(",");
-  const legacyRows = database.rows.filter(row => !row.pageId || !(database.recordPageIds ?? []).includes(row.pageId)).map(row => [row.id, ...database.properties.map(p => row.values[p.id])]);
-  const recordRows = (database.recordPageIds ?? []).map(pageId => pages.find(page => page.id === pageId && page.collectionId === database.id)).filter((page): page is Page => Boolean(page)).map(page => { const values = projectRecordProperties(database, page); return [page.id, ...database.properties.map(property => property.type === "title" ? page.title : values[property.id])]; });
+  const byId = new Map(database.properties.map(property => [property.id, property] as const));
+  const properties = (database.propertyOrder ?? database.properties.filter(property => property.deletedAt === undefined).map(property => property.id)).map(propertyId => byId.get(propertyId)).filter((property): property is NonNullable<typeof property> => property !== undefined && property.deletedAt === undefined);
+  const header = ["id", ...properties.map(p => p.name)].map(csvCell).join(",");
+  const legacyRows = database.rows.filter(row => !row.pageId || !(database.recordPageIds ?? []).includes(row.pageId)).map(row => [row.id, ...properties.map(p => row.values[p.id])]);
+  const recordRows = (database.recordPageIds ?? []).map(pageId => pages.find(page => page.id === pageId && page.collectionId === database.id)).filter((page): page is Page => Boolean(page)).map(page => { const values = projectRecordProperties(database, page); return [page.id, ...properties.map(property => property.type === "title" ? page.title : values[property.id])]; });
   return [header, ...[...legacyRows, ...recordRows].map(row => row.map(csvCell).join(","))].join("\n") + "\n";
 }
 

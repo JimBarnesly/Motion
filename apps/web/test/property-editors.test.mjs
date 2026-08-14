@@ -111,16 +111,14 @@ test("date range and files controls have keyboard-native labelled controls and s
   assert.equal(propertyDisplayText({ type: "date-range" }, { start: "2026-08-14T00:00:00.000Z", end: "2026-08-16T00:00:00.000Z" }, []), "2026-08-14 – 2026-08-16");
 });
 
-test("property type changes clear stored values in browser parity with native core", () => {
+test("populated property type changes fail without deleting browser values", () => {
   const property = { id: "notes", name: "Notes", type: "plain-text" };
   const records = [{ properties: { notes: "old", keep: true } }, { properties: { notes: "other" } }];
-  applyBrowserPropertyPatch(property, { name: "When", type: "date-range" }, records);
-  assert.deepEqual(property, { id: "notes", name: "When", type: "date-range" });
-  assert.deepEqual(records, [{ properties: { keep: true } }, { properties: {} }]);
-
-  records[0].properties.notes = "preserved";
+  assert.throws(() => applyBrowserPropertyPatch(property, { name: "When", type: "date-range" }, records), /populated|type change/i);
+  assert.deepEqual(property, { id: "notes", name: "Notes", type: "plain-text" });
+  assert.deepEqual(records, [{ properties: { notes: "old", keep: true } }, { properties: { notes: "other" } }]);
   applyBrowserPropertyPatch(property, { name: "Schedule" }, records);
-  assert.equal(records[0].properties.notes, "preserved");
+  assert.equal(records[0].properties.notes, "old");
 });
 
 test("browser UI wires every editor through canonical record update while computed projections cannot submit", async () => {

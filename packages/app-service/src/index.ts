@@ -675,7 +675,7 @@ export function toAppError(error: unknown): MotionAppError {
   const filesystemCode = error && typeof error === "object" && "code" in error ? String(error.code) : "";
   if (message.startsWith("Revision conflict")) return new MotionAppError("REVISION_CONFLICT", "Workspace changed since it was loaded; reload and retry");
   if (/Invalid record property for collection/i.test(message)) return new MotionAppError("INVALID_INPUT", "Record values must use properties from their collection");
-  if (/property is (?:already )?tombstoned|Populated property type change|\.validation\b/i.test(message)) return new MotionAppError("INVALID_INPUT", "Property changes failed validation");
+  if (/property is (?:already )?tombstoned|Populated property type change|title property type|\.validation\b/i.test(message)) return new MotionAppError("INVALID_INPUT", "Property changes failed validation");
   if (/Invalid record target/i.test(message)) return new MotionAppError("INVALID_INPUT", "Record updates require a page indexed by exactly one matching collection");
   if (/not found/i.test(message)) return new MotionAppError("NOT_FOUND", "Requested local resource was not found");
   if (/Attachment storage (?:content exceeds|contains|changed)/i.test(message)) return new MotionAppError("STORAGE_FAILURE", "Local attachment storage operation failed");

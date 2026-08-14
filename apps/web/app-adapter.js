@@ -1,4 +1,5 @@
 import { normalizeWorkspaceV1 } from "./workspace-v1.js";
+import { assertSafePropertyLifecycle } from "./property-lifecycle.js";
 
 /**
  * @typedef {{schemaVersion: 1, pages: Array<object>, activePageId: string|null}} WebWorkspaceV1
@@ -46,7 +47,10 @@ function validUiState(value) {
 
 function validWorkspace(value) {
   if (value === undefined) return structuredClone(EMPTY_WORKSPACE);
-  if (value?.schemaVersion === 2 && (value.workspace === null || (value.workspace && Array.isArray(value.workspace.pages) && Array.isArray(value.workspace.databases)))) return structuredClone(value);
+  if (value?.schemaVersion === 2 && (value.workspace === null || (value.workspace && Array.isArray(value.workspace.pages) && Array.isArray(value.workspace.databases)))) {
+    if (value.workspace) assertSafePropertyLifecycle(value.workspace);
+    return structuredClone(value);
+  }
   return normalizeWorkspaceV1(value);
 }
 

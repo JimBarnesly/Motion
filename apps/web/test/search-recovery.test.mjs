@@ -28,6 +28,10 @@ test("browser canonical search covers titles, nested blocks, record properties, 
   const attachment = buildBrowserSearchHits(workspace, "commissioning proof")[0];
   assert.deepEqual({ entityId: attachment?.entityId, ownerEntityId: attachment?.ownerEntityId }, { entityId: "record-b", ownerEntityId: "table-page" });
   assert.match(attachment?.snippet ?? "", /commissioning-proof\.pdf/);
+  const withTombstone = structuredClone(workspace);
+  withTombstone.databases[0].properties.push({ id: "historic", name: "Historic", deletedAt: "2026-08-14T00:00:00.000Z" });
+  withTombstone.pages[2].properties.historic = "secret tombstone value";
+  assert.deepEqual(buildBrowserSearchHits(withTombstone, "secret tombstone").map(hit => hit.entityId), []);
 });
 
 test("result normalization deduplicates by stable target and orders deterministically", () => {

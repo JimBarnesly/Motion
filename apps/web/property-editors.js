@@ -33,6 +33,9 @@ export function propertyValueForRecord(property, page) {
 }
 
 export function applyBrowserPropertyPatch(property, patch, records) {
+  if (patch.type && patch.type !== property.type && (property.type === "title" || patch.type === "title")) {
+    throw new Error("The title property type is immutable");
+  }
   if (patch.type && patch.type !== property.type && records.some(record => record.properties?.[property.id] !== undefined)) {
     throw new Error("Populated property type change requires an explicit conversion preview");
   }

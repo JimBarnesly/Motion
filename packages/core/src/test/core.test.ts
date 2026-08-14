@@ -709,6 +709,11 @@ test("populated property type changes fail atomically instead of deleting values
   const database = doc.addDatabase({ id: "data", pageId: page.id, name: "Data", properties: [
     { id: "title", name: "Name", type: "title" }, { id: "value", name: "Value", type: "plain-text" }
   ], rows: [], views: [] });
+  const empty = structuredClone(doc.data);
+  assert.throws(() => doc.updateProperty(database.id, "title", { type: "number" }), /title.*type|type.*title/i);
+  assert.deepEqual(doc.data, empty);
+  assert.throws(() => doc.updateProperty(database.id, "value", { type: "title" }), /title.*type|type.*title/i);
+  assert.deepEqual(doc.data, empty);
   const record = doc.addRecord(database.id, "One", { value: "historic" }), before = structuredClone(doc.data);
   assert.throws(() => doc.updateProperty(database.id, "value", { type: "number" }), /populated|type change/i);
   assert.deepEqual(doc.data, before);

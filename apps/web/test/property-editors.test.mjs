@@ -117,6 +117,8 @@ test("populated property type changes fail without deleting browser values", () 
   assert.throws(() => applyBrowserPropertyPatch(property, { name: "When", type: "date-range" }, records), /populated|type change/i);
   assert.deepEqual(property, { id: "notes", name: "Notes", type: "plain-text" });
   assert.deepEqual(records, [{ properties: { notes: "old", keep: true } }, { properties: { notes: "other" } }]);
+  assert.throws(() => applyBrowserPropertyPatch({ id: "title", name: "Name", type: "title" }, { type: "number" }, []), /title.*type|type.*title/i);
+  assert.throws(() => applyBrowserPropertyPatch({ id: "empty", name: "Empty", type: "number" }, { type: "title" }, []), /title.*type|type.*title/i);
   applyBrowserPropertyPatch(property, { name: "Schedule" }, records);
   assert.equal(records[0].properties.notes, "old");
 });

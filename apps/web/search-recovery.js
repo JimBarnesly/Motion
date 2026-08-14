@@ -49,8 +49,9 @@ export function buildBrowserSearchHits(workspace, query, limit = 50) {
     const ownerEntityId = owningTable(workspace, page);
     const database = ownerEntityId ? workspace.databases.find(candidate => candidate.id === page.collectionId) : undefined;
     const properties = Object.entries(page.properties ?? {}).flatMap(([id, value]) => {
-      const property = database?.properties?.find(candidate => candidate.id === id);
-      const label = property?.name ?? id;
+      const property = database?.properties?.find(candidate => candidate.id === id && candidate.deletedAt === undefined);
+      if (!property) return [];
+      const label = property.name;
       const fileNames = Array.isArray(value?.attachmentIds) ? value.attachmentIds.map(attachmentId => attachments.get(attachmentId)).filter(Boolean) : [];
       const values = [...scalarText(value), ...fileNames];
       return values.map(item => `${label}: ${item}`);

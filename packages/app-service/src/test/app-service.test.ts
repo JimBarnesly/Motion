@@ -64,6 +64,9 @@ test("property reorder is exact, atomic, durable, and deletion retains tombstone
     assert.throws(() => service.execute({ type: "database.property-update", workspaceId, expectedRevision: state.revision, databaseId, propertyId: scoreId, patch: { injected: true } } as any),
       (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
     assert.deepEqual(store.load(workspaceId), before);
+    assert.throws(() => service.execute({ type: "database.property-update", workspaceId, expectedRevision: state.revision, databaseId, propertyId: titleId, patch: { type: "number" } }),
+      (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    assert.deepEqual(store.load(workspaceId), before);
     assert.throws(() => service.execute({ type: "database.property-update", workspaceId, expectedRevision: state.revision, databaseId, propertyId: scoreId, patch: { type: "plain-text" } }),
       (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
     assert.deepEqual(store.load(workspaceId), before);

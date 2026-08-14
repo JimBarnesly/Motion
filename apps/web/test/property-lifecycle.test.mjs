@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
 
-import { livePropertyDefinitions, reorderPropertyDefinitions, tombstonePropertyDefinition } from "../property-lifecycle.js";
+import { assertSafePropertyLifecycle, livePropertyDefinitions, reorderPropertyDefinitions, tombstonePropertyDefinition } from "../property-lifecycle.js";
 
 const fixture = () => ({
   properties: [{ id: "title", name: "Name", type: "title" }, { id: "score", name: "Score", type: "number" }, { id: "notes", name: "Notes", type: "plain-text" }],
@@ -31,6 +31,19 @@ test("browser property lifecycle preserves canonical definitions and historic va
   assert.equal(database.views[0].groupByPropertyId, undefined);
   assert.throws(() => reorderPropertyDefinitions(database, ["title"]), /every live property/i);
   assert.throws(() => tombstonePropertyDefinition(database, "title", "2026-08-14T00:00:00.000Z"), /title/i);
+});
+
+test("browser schema-v2 lifecycle validation rejects crafted canonical state", () => {
+  const valid = fixture();
+  assert.equal(assertSafePropertyLifecycle({ databases: [valid] }), true);
+  const unknownOrder = structuredClone(valid); unknownOrder.propertyOrder = ["title", "score", "unknown"];
+  assert.throws(() => assertSafePropertyLifecycle({ databases: [unknownOrder] }), /property order/i);
+  const staleView = structuredClone(valid); staleView.properties[1].deletedAt = "2026-08-14T00:00:00.000Z"; staleView.propertyOrder = ["title", "notes"];
+  assert.throws(() => assertSafePropertyLifecycle({ databases: [staleView] }), /live property/i);
+  const duplicateTitle = structuredClone(valid); duplicateTitle.properties[1].type = "title";
+  assert.throws(() => assertSafePropertyLifecycle({ databases: [duplicateTitle] }), /title/i);
+  const injected = structuredClone(valid); injected.properties[1].injected = true;
+  assert.throws(() => assertSafePropertyLifecycle({ databases: [injected] }), /shape/i);
 });
 
 test("web UI uses one canonical command for labelled keyboard and pointer definition reorder", async () => {

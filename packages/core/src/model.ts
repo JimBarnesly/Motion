@@ -31,7 +31,7 @@ export interface Page {
 
 export type PropertyType = "title" | "plain-text" | "rich-text" | "number" | "checkbox" | "select" | "multi-select" | "status" | "date" | "date-range" | "url" | "email" | "phone" | "files" | "created-time" | "updated-time" | "created-by" | "updated-by" | "relation" | "text" | "page";
 export interface RelationConfig { targetCollectionId: ID; reciprocalPropertyId?: ID; cardinality?: "one-to-one" | "one-to-many" | "many-to-many"; maxItems?: number; onDelete?: "retain" | "remove" }
-export interface PropertyValidation { required?: boolean; min?: number; max?: number; minLength?: number; maxLength?: number; pattern?: string }
+export interface PropertyValidation { required?: boolean; min?: number; max?: number; minLength?: number; maxLength?: number }
 export interface DatabaseProperty { id: ID; name: string; type: PropertyType; relation?: RelationConfig; relationDatabaseId?: ID; options?: { id: ID; name: string; color?: string }[]; validation?: PropertyValidation; deletedAt?: ISODate }
 export interface DateRange { start: ISODate; end?: ISODate }
 export type PropertyValue = Scalar | string[] | DateRange | { attachmentIds: ID[] };

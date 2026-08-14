@@ -663,6 +663,15 @@ test("property definitions reorder canonically and tombstones preserve historic 
   assert.throws(() => doc.updateRecord(record.id, undefined, { remove: 3 }), /deleted|tombstoned/i);
   assert.throws(() => doc.reorderProperties(database.id, ["keep"]), /title|every live property/i);
   assert.doesNotThrow(() => assertWorkspaceValue(doc.data));
+  const staleView = structuredClone(doc.data) as any;
+  staleView.databases[0].views[0].visiblePropertyIds.push("remove");
+  assert.throws(() => assertWorkspaceValue(staleView), /tombstoned|live property/i);
+  const missingLiveTitle = structuredClone(doc.data) as any;
+  missingLiveTitle.databases[0].properties.find((property: any) => property.id === "title").deletedAt = new Date().toISOString();
+  missingLiveTitle.databases[0].propertyOrder = ["keep"];
+  missingLiveTitle.databases[0].views[0].visiblePropertyIds = ["keep"];
+  missingLiveTitle.databases[0].views[0].propertyOrder = ["keep"];
+  assert.throws(() => assertWorkspaceValue(missingLiveTitle), /live title/i);
 });
 
 test("property validation metadata is closed and enforced atomically", () => {
@@ -670,10 +679,12 @@ test("property validation metadata is closed and enforced atomically", () => {
   const database = doc.addDatabase({ id: "people", pageId: page.id, name: "People", properties: [
     { id: "title", name: "Name", type: "title" },
     { id: "age", name: "Age", type: "number", validation: { required: true, min: 18, max: 120 } },
-    { id: "code", name: "Code", type: "plain-text", validation: { minLength: 2, maxLength: 4, pattern: "^[A-Z]+$" } }
+    { id: "code", name: "Code", type: "plain-text", validation: { minLength: 2, maxLength: 4 } }
   ], propertyOrder: ["title", "age", "code"], rows: [], views: [] });
   const before = structuredClone(doc.data);
   assert.throws(() => doc.addProperty(database.id, { name: "Injected", type: "number", validation: { min: 0, injected: true } as any }), /validation.*shape/i);
+  assert.deepEqual(doc.data, before);
+  assert.throws(() => doc.addProperty(database.id, { name: "Unsafe pattern", type: "plain-text", validation: { pattern: "(a+)+$" } as any }), /validation.*shape/i);
   assert.deepEqual(doc.data, before);
   assert.throws(() => doc.updateProperty(database.id, "age", { validation: { min: 200, max: 100 } }), /validation.*ordered/i);
   assert.deepEqual(doc.data, before);

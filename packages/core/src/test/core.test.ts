@@ -397,6 +397,72 @@ test("record property semantics reject select values outside declared options at
   assert.deepEqual(doc.data, before);
 });
 
+test("multi-select values use unique declared stable option IDs atomically", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Multi-select semantics"));
+  const page = doc.addPage("Tasks");
+  const database = doc.addDatabase({ id: "tasks", pageId: page.id, name: "Tasks", properties: [
+    { id: "name", name: "Name", type: "title" },
+    { id: "labels", name: "Labels", type: "multi-select", options: [{ id: "urgent", name: "Urgent" }, { id: "home", name: "Home" }] }
+  ], rows: [], views: [{ id: "table", collectionId: "tasks", name: "Table", type: "table", visiblePropertyIds: ["name", "labels"], propertyOrder: ["name", "labels"] }] });
+
+  const record = doc.addRecord(database.id, "Valid", { labels: ["urgent", "home"] });
+  for (const labels of [["urgent", "urgent"], ["missing"], ["not a stable ID!"]] as string[][]) {
+    const before = structuredClone(doc.data);
+    assert.throws(() => doc.updateRecord(record.id, undefined, { labels }), /duplicate|declared option|canonical ID/i);
+    assert.deepEqual(doc.data, before);
+  }
+});
+
+test("files values are closed unique references to canonical workspace attachments atomically", () => {
+  const workspace = createWorkspace("File semantics");
+  workspace.attachments.push({ id: "attachment-1", fileName: "proof.txt", mediaType: "text/plain", byteLength: 1, sha256: "a".repeat(64), path: "objects/aa", createdAt: workspace.createdAt });
+  const doc = new WorkspaceDocument(workspace); const page = doc.addPage("Evidence");
+  const database = doc.addDatabase({ id: "evidence", pageId: page.id, name: "Evidence", properties: [
+    { id: "name", name: "Name", type: "title" }, { id: "files", name: "Files", type: "files" }
+  ], rows: [], views: [{ id: "table", collectionId: "evidence", name: "Table", type: "table", visiblePropertyIds: ["name", "files"], propertyOrder: ["name", "files"] }] });
+  const record = doc.addRecord(database.id, "Valid", { files: { attachmentIds: ["attachment-1"] } });
+
+  for (const files of [
+    { attachmentIds: ["attachment-1"], injected: true },
+    { attachmentIds: ["attachment-1", "attachment-1"] },
+    { attachmentIds: ["missing-attachment"] }
+  ]) {
+    const before = structuredClone(doc.data);
+    assert.throws(() => doc.updateRecord(record.id, undefined, { files } as any), /closed|duplicate|missing attachment/i);
+    assert.deepEqual(doc.data, before);
+  }
+});
+
+test("record commands reject computed property writes while projections derive page metadata", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Computed semantics")); const page = doc.addPage("Audit");
+  const database = doc.addDatabase({ id: "audit", pageId: page.id, name: "Audit", properties: [
+    { id: "name", name: "Name", type: "title" },
+    { id: "created", name: "Created", type: "created-time" }, { id: "updated", name: "Updated", type: "updated-time" },
+    { id: "creator", name: "Creator", type: "created-by" }, { id: "editor", name: "Editor", type: "updated-by" }
+  ], rows: [], views: [{ id: "table", collectionId: "audit", name: "Table", type: "table", visiblePropertyIds: ["name", "created", "updated", "creator", "editor"], propertyOrder: ["name", "created", "updated", "creator", "editor"] }] });
+
+  for (const [propertyId, value] of [["created", "2020-01-01T00:00:00.000Z"], ["updated", "2020-01-01T00:00:00.000Z"], ["creator", "caller"], ["editor", "caller"]] as const) {
+    const before = structuredClone(doc.data);
+    assert.throws(() => doc.addRecord(database.id, "Injected", { [propertyId]: value }), /computed|read-only|page metadata/i);
+    assert.deepEqual(doc.data, before);
+  }
+
+  const record = doc.addRecord(database.id, "Canonical");
+  record.createdAt = "2026-08-14T01:00:00.000Z"; record.updatedAt = "2026-08-14T02:00:00.000Z";
+  record.createdBy = "author"; record.updatedBy = "editor-id";
+  record.properties = { created: "2020-01-01T00:00:00.000Z", updated: "2020-01-01T00:00:00.000Z", creator: "caller", editor: "caller" };
+  assert.doesNotThrow(() => assertWorkspaceValue(doc.data), "existing schema-v2 stored values remain loadable");
+
+  const projected = doc.queryRecords(database.id, { kind: "condition", propertyId: "created", operator: "equals", value: record.createdAt })[0]!;
+  assert.deepEqual(projected.properties, { created: record.createdAt, updated: record.updatedAt, creator: "author", editor: "editor-id" });
+  const csv = exportDatabaseCsv(database, doc.data.pages);
+  assert.match(csv, /2026-08-14T01:00:00.000Z/); assert.doesNotMatch(csv, /2020-01-01T00:00:00.000Z|caller/);
+
+  const beforeUpdate = structuredClone(doc.data);
+  assert.throws(() => doc.updateRecord(record.id, "Must roll back", { updated: "2026-08-14T03:00:00.000Z" }), /computed|read-only|page metadata/i);
+  assert.deepEqual(doc.data, beforeUpdate);
+});
+
 test("record property semantics reject malformed URL, email, and phone values atomically", () => {
   const doc = new WorkspaceDocument(createWorkspace("Contact semantics"));
   const page = doc.addPage("People");

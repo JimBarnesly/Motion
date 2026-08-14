@@ -904,6 +904,45 @@ test("record commands reject cross-collection properties without saving a revisi
   } finally { await removeDatabase(path); }
 });
 
+test("record semantic validation rejects caller values without a revision and computed export survives restart", async () => {
+  const path = databasePath("record-semantic-validation");
+  try {
+    let store = new SqliteWorkspaceStore(path); let service = new MotionAppService(store);
+    let state = service.execute({ type: "workspace.create", name: "Semantic records" }); const workspaceId = state.workspace.id;
+    state = service.execute({ type: "database.create", workspaceId, expectedRevision: state.revision, title: "Audit" });
+    const databaseId = state.workspace.databases[0]!.id;
+    for (const property of [
+      { name: "Labels", type: "multi-select" as const, options: [{ id: "one", name: "One" }] },
+      { name: "Files", type: "files" as const }, { name: "Created", type: "created-time" as const },
+      { name: "Updated", type: "updated-time" as const }, { name: "Creator", type: "created-by" as const }, { name: "Editor", type: "updated-by" as const }
+    ]) state = service.execute({ type: "database.property-add", workspaceId, expectedRevision: state.revision, databaseId, property });
+    const properties = Object.fromEntries(state.workspace.databases[0]!.properties.map(property => [property.name, property.id]));
+
+    for (const values of [
+      { [properties.Labels!]: ["one", "one"] }, { [properties.Files!]: { attachmentIds: ["missing"] } },
+      { [properties.Created!]: "2020-01-01T00:00:00.000Z" }, { [properties.Updated!]: "2020-01-01T00:00:00.000Z" },
+      { [properties.Creator!]: "caller" }, { [properties.Editor!]: "caller" }
+    ]) {
+      const before = structuredClone(store.load(workspaceId));
+      assert.throws(() => service.execute({ type: "database.record-create", workspaceId, expectedRevision: state.revision, databaseId, title: "Injected", values }),
+        (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT", JSON.stringify(values));
+      assert.deepEqual(store.load(workspaceId), before);
+    }
+
+    state = service.execute({ type: "database.record-create", workspaceId, expectedRevision: state.revision, databaseId, title: "Canonical", values: { [properties.Labels!]: ["one"] } });
+    const record = state.workspace.pages.find(page => page.title === "Canonical")!;
+    const beforeUpdate = structuredClone(store.load(workspaceId));
+    assert.throws(() => service.execute({ type: "database.record-update", workspaceId, expectedRevision: state.revision, pageId: record.id, title: "Must roll back", values: { [properties.Updated!]: "2020-01-01T00:00:00.000Z" } }),
+      (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    assert.deepEqual(store.load(workspaceId), beforeUpdate); store.close();
+    store = new SqliteWorkspaceStore(path); service = new MotionAppService(store);
+    const bundle = service.query({ type: "workspace.export", workspaceId });
+    const csv = Object.entries(bundle.files).find(([name]) => name.endsWith(".csv"))?.[1] ?? "";
+    assert.match(csv, new RegExp(record.createdAt.replaceAll(".", "\\.")));
+    store.close();
+  } finally { await removeDatabase(path); }
+});
+
 test("record update rejects non-record targets without saving a revision", async () => {
   const path = databasePath("record-target-membership");
   try {

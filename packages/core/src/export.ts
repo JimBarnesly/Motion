@@ -1,4 +1,5 @@
 import type { Block, Database, Page, Workspace } from "./model.js";
+import { projectRecordProperties } from "./workspace.js";
 
 const safeName = (name: string) => name.replace(/[\\/:*?"<>|]/g, "-").trim() || "untitled";
 const csvCell = (value: unknown) => `"${(Array.isArray(value) ? value.join("; ") : value && typeof value === "object" ? JSON.stringify(canonical(value)) : value ?? "").toString().replaceAll('"', '""')}"`;
@@ -19,7 +20,7 @@ function canonical(value: unknown): unknown {
 export function exportDatabaseCsv(database: Database, pages: Page[] = []): string {
   const header = ["id", ...database.properties.map(p => p.name)].map(csvCell).join(",");
   const legacyRows = database.rows.filter(row => !row.pageId || !(database.recordPageIds ?? []).includes(row.pageId)).map(row => [row.id, ...database.properties.map(p => row.values[p.id])]);
-  const recordRows = (database.recordPageIds ?? []).map(pageId => pages.find(page => page.id === pageId && page.collectionId === database.id)).filter((page): page is Page => Boolean(page)).map(page => [page.id, ...database.properties.map(property => property.type === "title" ? page.title : page.properties?.[property.id])]);
+  const recordRows = (database.recordPageIds ?? []).map(pageId => pages.find(page => page.id === pageId && page.collectionId === database.id)).filter((page): page is Page => Boolean(page)).map(page => { const values = projectRecordProperties(database, page); return [page.id, ...database.properties.map(property => property.type === "title" ? page.title : values[property.id])]; });
   return [header, ...[...legacyRows, ...recordRows].map(row => row.map(csvCell).join(","))].join("\n") + "\n";
 }
 

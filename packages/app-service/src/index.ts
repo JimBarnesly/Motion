@@ -259,6 +259,14 @@ function applyBlockOperation(document: WorkspaceDocument, operation: BlockOperat
     case "block.delete": document.deleteBlock(command.pageId, command.blockId); break;
   }
 }
+function applyRecordInput<T>(mutation: () => T): T {
+  try { return mutation(); }
+  catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (/^Invalid workspace:|Computed record property is read-only/i.test(message)) throw new MotionAppError("INVALID_INPUT", "Record property values failed semantic validation");
+    throw error;
+  }
+}
 function operationFromCommand(command: BlockCommand): BlockOperation {
   const { workspaceId: _workspaceId, expectedRevision: _expectedRevision, ...operation } = command;
   return operation as BlockOperation;
@@ -543,12 +551,12 @@ export class MotionAppService {
         for (const pageId of database.recordPageIds ?? []) changes.page(pageId, { fts: true }); break;
       }
       case "database.record-create": {
-        const databaseId = requiredText(command.databaseId, "databaseId"); const page = document.addRecord(databaseId, requiredText(command.title, "title", true), clone(command.values ?? {}));
+        const databaseId = requiredText(command.databaseId, "databaseId"); const page = applyRecordInput(() => document.addRecord(databaseId, requiredText(command.title, "title", true), clone(command.values ?? {})));
         changes.database(databaseId); changes.page(page.id, { links: true, fts: true }); changes.links(document.rebuildLinkIndex()); break;
       }
       case "database.record-update": {
         const pageId = requiredText(command.pageId, "pageId"); const page = requiredPage(document, pageId);
-        document.updateRecord(pageId, command.title === undefined ? undefined : requiredText(command.title, "title", true), clone(command.values));
+        applyRecordInput(() => document.updateRecord(pageId, command.title === undefined ? undefined : requiredText(command.title, "title", true), clone(command.values)));
         if (page.collectionId) changes.database(page.collectionId); changes.page(pageId, { fts: true });
         if (command.title !== undefined) changes.links(document.rebuildLinkIndex()); break;
       }

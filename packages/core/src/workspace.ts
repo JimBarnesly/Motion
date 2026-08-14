@@ -23,6 +23,17 @@ export function canonicalIdOrder<T>(items: readonly T[], keys: readonly ((item: 
 }
 const canonicalLinkOrder = (links: readonly PageLink[]): PageLink[] => canonicalIdOrder(links,
   [link => link.sourcePageId, link => link.blockId, link => link.targetPageId]);
+const COMPUTED_PROPERTY_FIELDS = Object.freeze({
+  "created-time": "createdAt", "updated-time": "updatedAt", "created-by": "createdBy", "updated-by": "updatedBy"
+} as const);
+export function projectRecordProperties(database: Database, page: Page): Record<ID, PropertyValue> {
+  const values = structuredClone(page.properties ?? {});
+  for (const property of database.properties) {
+    const field = COMPUTED_PROPERTY_FIELDS[property.type as keyof typeof COMPUTED_PROPERTY_FIELDS];
+    if (field !== undefined) values[property.id] = page[field] ?? null;
+  }
+  return values;
+}
 const linkScopes = (links: readonly PageLink[]): Map<ID, string> => {
   const grouped = new Map<ID, PageLink[]>();
   for (const link of links) { const scoped = grouped.get(link.sourcePageId); if (scoped) scoped.push(link); else grouped.set(link.sourcePageId, [link]); }
@@ -198,7 +209,7 @@ export class WorkspaceDocument {
   }
   search(query: string) { const terms = query.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean); if (!terms.length) return []; return this.data.pages.map(page => { const texts: string[] = []; walk(page.blocks, b => texts.push(b.text)); const haystack = `${page.title}\n${texts.join("\n")}`.toLocaleLowerCase(); const score = terms.reduce((n, term) => n + (page.title.toLocaleLowerCase().includes(term) ? 5 : 0) + haystack.split(term).length - 1, 0); return { page, score, snippets: texts.filter(t => terms.some(term => t.toLocaleLowerCase().includes(term))).slice(0, 3) }; }).filter(r => r.score > 0).sort((a, b) => b.score - a.score || b.page.updatedAt.localeCompare(a.page.updatedAt)); }
   records(databaseId: ID): Page[] { const db = this.requiredDatabase(databaseId); return (db.recordPageIds ?? []).map(pid => this.page(pid)).filter((p): p is Page => !!p && !p.deletedAt); }
-  queryRecords(databaseId: ID, filter?: FilterExpression, sorts: SortClause[] = []): Page[] { let pages = this.records(databaseId); if (filter) pages = pages.filter(p => evaluateFilter(filter, p.properties ?? {})); return stableSort(pages, sorts); }
+  queryRecords(databaseId: ID, filter?: FilterExpression, sorts: SortClause[] = []): Page[] { const db = this.requiredDatabase(databaseId); let pages = this.records(databaseId).map(page => ({ ...structuredClone(page), properties: projectRecordProperties(db, page) })); if (filter) pages = pages.filter(p => evaluateFilter(filter, p.properties ?? {})); return stableSort(pages, sorts); }
   private linkLookup(stats?: LinkRebuildStats): LinkLookup {
     const pagesById = new Map<ID, Page>(), uniquePagesByTitle = new Map<string, Page | null>();
     for (const page of this.data.pages) {
@@ -379,7 +390,7 @@ export class WorkspaceDocument {
   private requiredPage(pageId: ID) { const page = this.page(pageId); if (!page) throw new Error(`Page not found: ${pageId}`); return page; }
   private requiredDatabase(databaseId: ID) { const db = this.data.databases.find(d => d.id === databaseId); if (!db) throw new Error(`Database not found: ${databaseId}`); return db; }
   private indexedRecords(database: Database): Page[] { return (database.recordPageIds ?? []).map(pageId => this.page(pageId)).filter((page): page is Page => page !== undefined); }
-  private assertRecordPropertyIds(db: Database, values: Record<ID, PropertyValue | undefined>): void { for (const propertyId of Object.keys(values)) if (!db.properties.some(property => property.id === propertyId)) throw new Error(`Invalid record property for collection: ${propertyId}`); }
+  private assertRecordPropertyIds(db: Database, values: Record<ID, PropertyValue | undefined>): void { for (const propertyId of Object.keys(values)) { const property = db.properties.find(candidate => candidate.id === propertyId); if (!property) throw new Error(`Invalid record property for collection: ${propertyId}`); if (Object.hasOwn(COMPUTED_PROPERTY_FIELDS, property.type)) throw new Error(`Computed record property is read-only and derives from page metadata: ${propertyId}`); } }
   private touchPage(page: Page) { page.updatedAt = now(); this.touch(); }
   private touch() { this.data.updatedAt = now(); }
 }

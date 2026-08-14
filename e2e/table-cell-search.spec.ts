@@ -20,6 +20,7 @@ const canonicalWorkspace = {
   ],
   databases: [{ id: "commissioning-db", pageId: "commissioning-table", name: "Commissioning register",
     properties: [{ id: "title", name: "Name", type: "title" }, { id: "reading", name: "Reading", type: "text" }, { id: "proof", name: "Proof", type: "files" }],
+    propertyOrder: ["title", "reading", "proof"], titlePropertyId: "title",
     rows: [{ id: "native-row-a", pageId: "stable-record-a", values: {} }], recordPageIds: ["stable-record-a", "stable-record-b"],
     views: [{ id: "table-view", collectionId: "commissioning-db", name: "Table", type: "table", visiblePropertyIds: ["title", "reading"], propertyOrder: ["title", "reading"], columnWidths: {} }] }],
   attachments: [{ id: "proof-attachment", fileName: "commissioning-proof.pdf", mediaType: "application/pdf", byteLength: 3, sha256: "a".repeat(64), path: "/private/never-render-this-path", createdAt: stamp }],

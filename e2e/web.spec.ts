@@ -114,6 +114,7 @@ test("initial record properties expose canonical date ranges, attachment IDs, an
           { id: "updated", name: "Updated", type: "updated-time" }, { id: "creator", name: "Creator", type: "created-by" },
           { id: "editor", name: "Editor", type: "updated-by" }
         ],
+        propertyOrder: ["name", "window", "files", "created", "updated", "creator", "editor"], titlePropertyId: "name",
         views: [{ id: "table", collectionId: "projects", name: "Table", type: "table", visiblePropertyIds: ["name", "window", "files", "created", "updated", "creator", "editor"], propertyOrder: ["name", "window", "files", "created", "updated", "creator", "editor"] }]
       }]
     };

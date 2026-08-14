@@ -536,7 +536,7 @@ test("normal native page and block editing source never calls whole-document sav
   assert.match(source, /block\.transform/);
   assert.match(source, /block\.create/);
   assert.match(source, /block\.delete/);
-  assert.match(source, /saveLocal\(\) \{ if \(adapter\.kind !== "browser-development"\) return/);
+  assert.match(source, /saveLocal\(document=structuredClone\(state\)\) \{ if \(adapter\.kind !== "browser-development"\) return/);
   const nativeCommit=source.slice(source.indexOf("async function commit"),source.indexOf("async function confirmCanonicalEdit"));
   assert.doesNotMatch(nativeCommit, /adapter\.save/);
   assert.doesNotMatch(source, /adapter\.execute\(["']workspace\.import-web-v1/);

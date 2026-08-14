@@ -11,6 +11,7 @@ import { confirmEditorHistory } from "./editor-history.js";
 import { reconcileTextReferences } from "./reference-reconciliation.js";
 import { activeMentionQuery, applyMentionSelection } from "./mention-entry.js";
 import { normalizeWorkspaceV1 } from "./workspace-v1.js";
+import { persistBrowserMutation } from "./browser-mutation.js";
 import { applyBrowserPropertyPatch, editablePropertyTypes, PROPERTY_TYPE_LABELS, propertyControlHtml, propertyDisplayText, propertyValueForRecord, readPropertyControl, restorePropertyControl } from "./property-editors.js"; import { livePropertyDefinitions, reorderPropertyDefinitions, tombstonePropertyDefinition } from "./property-lifecycle.js";
 
 const adapter = createMotionUiAdapter();
@@ -24,7 +25,7 @@ const BLOCK_TYPES = ["paragraph","heading-1","heading-2","heading-3","bulleted-l
 const BLOCK_LABELS = { paragraph:"Text", "heading-1":"Heading 1", "heading-2":"Heading 2", "heading-3":"Heading 3", "bulleted-list":"Bulleted list", "numbered-list":"Numbered list", task:"Task", quote:"Quote", code:"Code", divider:"Divider" };
 const EMPTY = { schemaVersion:2, workspace:null, revision:0, activePageId:null, expandedPageIds:[], activeViewIds:{} };
 let state = migrateLoaded(await adapter.load()); const nativeCommands=adapter.kind==="tauri"?createNativeCommandController({execute:(type,payload)=>adapter.execute(type,payload),currentRevision:()=>state.revision,confirm:(confirmed,revision)=>confirmNativeSnapshot(confirmed,revision)}):null;
-let history = [], future = [], navigation = [], saveQueue = Promise.resolve(), editing = null, editTimer = null, activeEditMeta = null, searchRequest = 0, currentSearchHits = new Map(), activeMention = null, rootCreationInFlight = false;
+let history = [], future = [], navigation = [], saveQueue = Promise.resolve(), editing = null, editTimer = null, activeEditMeta = null, searchRequest = 0, currentSearchHits = new Map(), activeMention = null, rootCreationInFlight = false, browserCommitInFlight = false;
 
 function canonicalWorkspace(value) { if (value !== null && value !== undefined) assertSafeCanonicalWorkspaceIds(value); return value; }
 function migrateLoaded(value) {
@@ -36,7 +37,7 @@ function migrateLoaded(value) {
     if (source.type === "database") {
       const databaseId = uid(), properties = source.columns.map((column,index) => ({ id:column.id, name:column.name, type:index === 0 ? "title" : "text" }));
       const recordPageIds = source.rows.map(row => { const record = { id:row.id, parentId:source.id, title:String(row.values[properties[0]?.id] ?? "Untitled"), blocks:[], createdAt:stamp, updatedAt:stamp, collectionId:databaseId, properties:{ ...row.values } }; delete record.properties[properties[0]?.id]; pages.push(record); return record.id; });
-      databases.push({ id:databaseId, pageId:source.id, name:source.title, properties, propertyOrder:properties.map(p=>p.id), rows:[], recordPageIds, views:[{ id:uid(), collectionId:databaseId, name:"Table", type:"table", visiblePropertyIds:properties.map(p=>p.id), propertyOrder:properties.map(p=>p.id), columnWidths:{} }] });
+      databases.push({ id:databaseId, pageId:source.id, name:source.title, properties, propertyOrder:properties.map(p=>p.id), titlePropertyId:properties[0]?.id, rows:[], recordPageIds, views:[{ id:uid(), collectionId:databaseId, name:"Table", type:"table", visiblePropertyIds:properties.map(p=>p.id), propertyOrder:properties.map(p=>p.id), columnWidths:{} }] });
     }
   }
   return { schemaVersion:2, workspace:{ schemaVersion:2,id:uid(),name:"Motion Workspace",pages,databases,attachments:[],linkIndex:[],createdAt:stamp,updatedAt:stamp },revision:1,activePageId:legacy.activePageId,expandedPageIds:[] };
@@ -50,15 +51,20 @@ const visiblePages = () => workspace()?.pages.filter(page => !page.deletedAt) ??
 const childrenOf = parentId => visiblePages().filter(page => page.parentId === parentId && !page.collectionId);
 const snapshot = () => JSON.stringify(state);
 function checkpoint() { history.push(snapshot()); if (history.length > 80) history.shift(); future=[]; }
-async function saveLocal() { if (adapter.kind !== "browser-development") return; saveQueue=saveQueue.catch(()=>{}).then(()=>adapter.save(structuredClone(state))); await saveQueue; }
+async function saveLocal(document=structuredClone(state)) { if (adapter.kind !== "browser-development") return; const candidate=structuredClone(document);saveQueue=saveQueue.catch(()=>{}).then(()=>adapter.save(candidate));await saveQueue; }
 async function saveUi() { await adapter.saveUi({ workspaceId:workspace()?.id, activePageId:state.activePageId, expandedPageIds:state.expandedPageIds, activeViewIds:state.activeViewIds }); if (adapter.kind === "browser-development") await saveLocal(); }
 async function commit(type,payload,localMutation) {
   $("#saveState").textContent="Saving…";
   try {
     if (adapter.kind === "tauri") await nativeCommands.execute(type,payload);
-    else { localMutation(); state.workspace.updatedAt=now(); state.revision++; await saveLocal(); }
+    else {
+      if(browserCommitInFlight)throw new Error("Another browser mutation is still being saved");
+      browserCommitInFlight=true;
+      try{await persistBrowserMutation({snapshot:()=>structuredClone(state),restore:document=>{state=document;},mutate:localMutation,touch:()=>{state.workspace.updatedAt=now();state.revision++;},save:saveLocal});}
+      finally{browserCommitInFlight=false;}
+    }
     $("#saveState").textContent=adapter.kind === "tauri" ? "Saved to Motion" : "Saved in browser (development mode)";
-  } catch (error) { $("#saveState").textContent="Save failed"; alert("Motion could not save this change."); throw error; }
+  } catch (error) { if(adapter.kind==="browser-development")render();$("#saveState").textContent="Save failed"; alert("Motion could not save this change."); throw error; }
 }
 async function confirmCanonicalEdit({candidate}) {
   if(adapter.kind==="tauri"){
@@ -184,7 +190,7 @@ async function createPage(parentId=null,database=false,trigger=null) {
   const previous=structuredClone(state),title=database ? "Untitled database" : "Untitled page";
   try{
     checkpoint();await ensureWorkspace();
-    await commit(database?"database.create":"page.create",{title,parentId},()=>{ const stamp=now(),page={id:uid(),parentId,title,blocks:database?[]:[{id:uid(),type:"paragraph",text:"",children:[]}],createdAt:stamp,updatedAt:stamp,favourite:false}; workspace().pages.push(page); if(database){const dbId=uid(),propertyId=uid(); workspace().databases.push({id:dbId,pageId:page.id,name:title,properties:[{id:propertyId,name:"Name",type:"title"}],propertyOrder:[propertyId],rows:[],recordPageIds:[],views:[{id:uid(),collectionId:dbId,name:"Table",type:"table",visiblePropertyIds:[propertyId],propertyOrder:[propertyId],columnWidths:{[propertyId]:280},sorts:[]}]});}});
+    await commit(database?"database.create":"page.create",{title,parentId},()=>{ const stamp=now(),page={id:uid(),parentId,title,blocks:database?[]:[{id:uid(),type:"paragraph",text:"",children:[]}],createdAt:stamp,updatedAt:stamp,favourite:false}; workspace().pages.push(page); if(database){const dbId=uid(),propertyId=uid(); workspace().databases.push({id:dbId,pageId:page.id,name:title,properties:[{id:propertyId,name:"Name",type:"title"}],propertyOrder:[propertyId],titlePropertyId:propertyId,rows:[],recordPageIds:[],views:[{id:uid(),collectionId:dbId,name:"Table",type:"table",visiblePropertyIds:[propertyId],propertyOrder:[propertyId],columnWidths:{[propertyId]:280},sorts:[]}]});}});
     const created=[...visiblePages()].reverse().find(page=>page.title===title && page.parentId===parentId);if(!created)return false;
     state.expandedPageIds=[...new Set([...state.expandedPageIds,...ancestors(created).map(page=>page.id)])];openPage(created.id);renderNavigation();$("#saveState").textContent=`${database?"Table":"Page"} created and saved.`;requestAnimationFrame(()=>$("#pageTitle")?.select());return true;
   }catch(error){

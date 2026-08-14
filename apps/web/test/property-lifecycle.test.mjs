@@ -4,10 +4,12 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 import { assertSafePropertyLifecycle, livePropertyDefinitions, reorderPropertyDefinitions, tombstonePropertyDefinition } from "../property-lifecycle.js";
+import { persistBrowserMutation } from "../browser-mutation.js";
 
 const fixture = () => ({
   properties: [{ id: "title", name: "Name", type: "title" }, { id: "score", name: "Score", type: "number" }, { id: "notes", name: "Notes", type: "plain-text" }],
   propertyOrder: ["title", "score", "notes"],
+  titlePropertyId: "title",
   recordPageIds: ["record"],
   views: [{ visiblePropertyIds: ["title", "score", "notes"], propertyOrder: ["notes", "title", "score"], columnWidths: { score: 200 },
     filters: { kind: "and", children: [{ kind: "condition", propertyId: "score", operator: "equals", value: 1 }, { kind: "condition", propertyId: "notes", operator: "contains", value: "x" }] },
@@ -42,8 +44,27 @@ test("browser schema-v2 lifecycle validation rejects crafted canonical state", (
   assert.throws(() => assertSafePropertyLifecycle({ databases: [staleView] }), /live property/i);
   const duplicateTitle = structuredClone(valid); duplicateTitle.properties[1].type = "title";
   assert.throws(() => assertSafePropertyLifecycle({ databases: [duplicateTitle] }), /title/i);
+  const convertedTitle = structuredClone(valid); convertedTitle.properties[0].type = "number";
+  assert.throws(() => assertSafePropertyLifecycle({ databases: [convertedTitle] }), /title/i);
+  const swappedTitle = structuredClone(valid); swappedTitle.properties[0].type = "number"; swappedTitle.properties[1].type = "title";
+  assert.throws(() => assertSafePropertyLifecycle({ databases: [swappedTitle] }), /title/i);
+  const invalidBounds = structuredClone(valid); invalidBounds.properties[1].validation = { min: 10, max: 1, minLength: -1 };
+  assert.throws(() => assertSafePropertyLifecycle({ databases: [invalidBounds] }), /validation/i);
+  const invalidRelation = structuredClone(valid); invalidRelation.properties[1].type = "relation"; invalidRelation.properties[1].relation = { targetCollectionId: {}, maxItems: -1 };
+  assert.throws(() => assertSafePropertyLifecycle({ databases: [invalidRelation] }), /relation/i);
   const injected = structuredClone(valid); injected.properties[1].injected = true;
   assert.throws(() => assertSafePropertyLifecycle({ databases: [injected] }), /shape/i);
+});
+
+test("browser lifecycle persistence failure restores the exact snapshot and cannot leak later", async () => {
+  let state = { revision: 4, workspace: { properties: ["title"] } };
+  const run = save => persistBrowserMutation({ snapshot: () => structuredClone(state), restore: snapshot => { state = snapshot; },
+    mutate: () => state.workspace.properties.push("score"), touch: () => { state.revision++; }, save });
+  await assert.rejects(run(async () => { throw new Error("IndexedDB rejected write"); }));
+  assert.deepEqual(state, { revision: 4, workspace: { properties: ["title"] } });
+  let persisted;
+  await run(async candidate => { persisted = structuredClone(candidate); });
+  assert.deepEqual(persisted, { revision: 5, workspace: { properties: ["title", "score"] } });
 });
 
 test("web UI uses one canonical command for labelled keyboard and pointer definition reorder", async () => {
@@ -51,6 +72,7 @@ test("web UI uses one canonical command for labelled keyboard and pointer defini
   const source = await readFile(resolve(root, "app.js"), "utf8");
   const adapter = await readFile(resolve(root, "app-adapter.js"), "utf8");
   const adapterTypes = await readFile(resolve(root, "app-adapter.d.ts"), "utf8");
+  const build = await readFile(resolve(root, "scripts/build.mjs"), "utf8");
   assert.match(adapter, /"database\.property-reorder"/);
   assert.match(source, /commit\("database\.property-reorder"/);
   assert.match(source, /data-property-definition-move/);
@@ -60,4 +82,6 @@ test("web UI uses one canonical command for labelled keyboard and pointer defini
   assert.doesNotMatch(source, /function (?:filterRow|sortRow)[^\n]+database\.properties/);
   assert.doesNotMatch(source, /database\.view-update[^\n]+property-definition/);
   assert.doesNotMatch(adapterTypes, /pattern\?: string/);
+  assert.match(build, /"property-lifecycle\.js"/);
+  assert.match(build, /"browser-mutation\.js"/);
 });

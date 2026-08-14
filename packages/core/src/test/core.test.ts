@@ -658,6 +658,7 @@ test("property definitions reorder canonically and tombstones preserve historic 
   assert.doesNotMatch(csv, /Remove|,2(?:,|\n)/);
   assert.match(csv, /"Name","Keep"/);
   assert.deepEqual(database.recordPageIds, [record.id]);
+  assert.equal(database.titlePropertyId, "title");
   assert.deepEqual(doc.records(database.id), []);
   assert.throws(() => doc.updateProperty(database.id, "remove", { name: "Stale" }), /deleted|tombstoned/i);
   assert.throws(() => doc.updateRecord(record.id, undefined, { remove: 3 }), /deleted|tombstoned/i);
@@ -669,6 +670,9 @@ test("property definitions reorder canonically and tombstones preserve historic 
   const unknownOrder = structuredClone(doc.data) as any;
   unknownOrder.databases[0].propertyOrder = ["title", "unknown"];
   assert.throws(() => assertWorkspaceValue(unknownOrder), /propertyOrder.*live property/i);
+  const swappedTitleIdentity = structuredClone(doc.data) as any;
+  swappedTitleIdentity.databases[0].titlePropertyId = "keep";
+  assert.throws(() => assertWorkspaceValue(swappedTitleIdentity), /titlePropertyId.*canonical live title/i);
   const missingLiveTitle = structuredClone(doc.data) as any;
   missingLiveTitle.databases[0].properties.find((property: any) => property.id === "title").deletedAt = new Date().toISOString();
   missingLiveTitle.databases[0].propertyOrder = ["keep"];

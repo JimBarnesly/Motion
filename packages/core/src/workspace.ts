@@ -146,7 +146,8 @@ export class WorkspaceDocument {
   addDatabase(database: Omit<Database, "id"> & { id?: ID }): Database {
     this.requiredPage(database.pageId); const databaseId = database.id ?? id();
     const taggedRecordPageIds = this.data.pages.filter(page => page.collectionId === databaseId).map(page => page.id);
-    const result: Database = { ...structuredClone(database), id: databaseId, propertyOrder: structuredClone(database.propertyOrder ?? database.properties.filter(property => property.deletedAt === undefined).map(property => property.id)), recordPageIds: structuredClone(database.recordPageIds ?? taggedRecordPageIds) };
+    const titleProperties = database.properties.filter(property => property.type === "title" && property.deletedAt === undefined);
+    const result: Database = { ...structuredClone(database), id: databaseId, propertyOrder: structuredClone(database.propertyOrder ?? database.properties.filter(property => property.deletedAt === undefined).map(property => property.id)), ...(database.titlePropertyId !== undefined ? { titlePropertyId: database.titlePropertyId } : titleProperties.length === 1 ? { titlePropertyId: titleProperties[0]!.id } : {}), recordPageIds: structuredClone(database.recordPageIds ?? taggedRecordPageIds) };
     const candidate = structuredClone(this.data); candidate.databases.push(structuredClone(result)); assertWorkspace(candidate);
     this.data.databases.push(result); this.touch(); return result;
   }

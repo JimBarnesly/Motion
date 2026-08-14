@@ -117,6 +117,8 @@ test("canonical editor exposes non-trapping indent and outdent through typed com
   assert.match(source, /aria-keyshortcuts="Alt\+BracketRight Alt\+BracketLeft"/);
   assert.match(source, /event\.key==="Tab"&&!mod&&!event\.altKey/);
   assert.match(source, /findByDataValue\("\[data-delete-block\]","deleteBlock",input\.dataset\.block\)/);
+  assert.match(source, /render\(\);findByDataValue\("\[data-block\]","block",block\.id\)\?\.focus\(\);return;/);
+  assert.doesNotMatch(source, /render\(\);requestAnimationFrame\(\(\)=>findByDataValue\("\[data-block\]","block",block\.id\)\?\.focus\(\)\);return;/);
   assert.match(source, /style="--indent:\$\{depth\}"/);
 });
 

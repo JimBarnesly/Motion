@@ -106,8 +106,18 @@ function validatePropertyValue(value: unknown, property: DatabaseProperty, path:
   if (value === null) return;
   const type = property.type;
   if (["title", "plain-text", "rich-text", "select", "status", "url", "email", "phone", "created-by", "updated-by", "text", "page", "created-time", "updated-time", "date"].includes(type)) {
-    if (["select", "status", "created-by", "updated-by", "page"].includes(type)) stableId(value, path, limits);
-    else string(value, path, limits, true);
+    if (["select", "status", "created-by", "updated-by", "page"].includes(type)) {
+      const selectedId = stableId(value, path, limits);
+      if (["select", "status"].includes(type) && !(property.options ?? []).some(option => option.id === selectedId)) fail(`${path} must reference a declared option`);
+    } else {
+      const text = string(value, path, limits, true);
+      if (type === "url" && text !== "") {
+        let parsed: URL; try { parsed = new URL(text); } catch { fail(`${path} must be a valid URL`); }
+        if (!new Set(["http:", "https:"]).has(parsed!.protocol) || parsed!.username || parsed!.password) fail(`${path} must be a safe URL`);
+      }
+      if (type === "email" && text !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) fail(`${path} must be a valid email`);
+      if (type === "phone" && text !== "" && (!/^[+()\d.\s-]+$/.test(text) || (text.match(/\d/g)?.length ?? 0) < 3)) fail(`${path} must be a valid phone`);
+    }
     if (["created-time", "updated-time", "date"].includes(type) && value !== "") timestamp(value, path, limits);
   } else if (type === "number") { if (typeof value !== "number" || !Number.isFinite(value)) fail(`${path} must be a finite number`); }
   else if (type === "checkbox") { if (typeof value !== "boolean") fail(`${path} must be a boolean`); }
@@ -117,8 +127,12 @@ function validatePropertyValue(value: unknown, property: DatabaseProperty, path:
   } else if (type === "date-range") {
     if (!plain(value)) fail(`${path} must be a date range`);
     const range = value as Record<string, unknown>;
+    if (Object.keys(range).some(key => !["start", "end"].includes(key))) fail(`${path} must be a closed date range`);
     timestamp(range.start, `${path}.start`, limits);
-    if (range.end !== undefined) timestamp(range.end, `${path}.end`, limits);
+    if (range.end !== undefined) {
+      timestamp(range.end, `${path}.end`, limits);
+      if (String(range.end) < String(range.start)) fail(`${path} must be an ordered date range`);
+    }
   } else if (type === "files") {
     if (!plain(value) || !Array.isArray(value.attachmentIds)) fail(`${path} must contain attachmentIds`);
     ((value as Record<string, unknown>).attachmentIds as unknown[]).forEach((entry, index) => stableId(entry, `${path}.attachmentIds[${index}]`, limits));

@@ -385,10 +385,54 @@ test("materialized stable-ID links update without scans at read time", () => {
   assert.equal(doc.backlinks(target.id).length, 0);
 });
 
+test("record property semantics reject select values outside declared options atomically", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Property semantics"));
+  const page = doc.addPage("Tasks");
+  const database = doc.addDatabase({ id: "tasks", pageId: page.id, name: "Tasks", properties: [
+    { id: "name", name: "Name", type: "title" },
+    { id: "status", name: "Status", type: "select", options: [{ id: "open", name: "Open" }] }
+  ], rows: [], views: [{ id: "table", collectionId: "tasks", name: "Table", type: "table", visiblePropertyIds: ["name", "status"], propertyOrder: ["name", "status"] }] });
+  const before = structuredClone(doc.data);
+  assert.throws(() => doc.addRecord(database.id, "Invalid", { status: "missing-option" }), /declared option/i);
+  assert.deepEqual(doc.data, before);
+});
+
+test("record property semantics reject malformed URL, email, and phone values atomically", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Contact semantics"));
+  const page = doc.addPage("People");
+  const database = doc.addDatabase({ id: "people", pageId: page.id, name: "People", properties: [
+    { id: "name", name: "Name", type: "title" },
+    { id: "site", name: "Site", type: "url" },
+    { id: "email", name: "Email", type: "email" },
+    { id: "phone", name: "Phone", type: "phone" }
+  ], rows: [], views: [{ id: "table", collectionId: "people", name: "Table", type: "table", visiblePropertyIds: ["name", "site", "email", "phone"], propertyOrder: ["name", "site", "email", "phone"] }] });
+  for (const values of [{ site: "javascript:alert(1)" }, { email: "not-an-email" }, { phone: "letters-only" }] as Record<string, string>[]) {
+    const before = structuredClone(doc.data);
+    assert.throws(() => doc.addRecord(database.id, "Invalid", values), /URL|email|phone/i);
+    assert.deepEqual(doc.data, before);
+  }
+});
+
+test("record property semantics reject reversed or open-shaped date ranges atomically", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Date semantics"));
+  const page = doc.addPage("Events");
+  const database = doc.addDatabase({ id: "events", pageId: page.id, name: "Events", properties: [
+    { id: "name", name: "Name", type: "title" }, { id: "range", name: "Range", type: "date-range" }
+  ], rows: [], views: [{ id: "table", collectionId: "events", name: "Table", type: "table", visiblePropertyIds: ["name", "range"], propertyOrder: ["name", "range"] }] });
+  for (const range of [
+    { start: "2026-02-02T00:00:00.000Z", end: "2026-02-01T00:00:00.000Z" },
+    { start: "2026-02-01T00:00:00.000Z", timezone: "injected" }
+  ]) {
+    const before = structuredClone(doc.data);
+    assert.throws(() => doc.addRecord(database.id, "Invalid", { range } as any), /date range/i);
+    assert.deepEqual(doc.data, before);
+  }
+});
+
 test("records are pages; typed filters and stable multi-sort operate on properties", () => {
   const doc = new WorkspaceDocument(createWorkspace("Collections")); const home = doc.addPage("Tasks");
   const db = doc.addDatabase({ id: "db", pageId: home.id, name: "Tasks", properties: [
-    { id: "title", name: "Title", type: "title" }, { id: "status", name: "Status", type: "status" }, { id: "priority", name: "Priority", type: "number" }
+    { id: "title", name: "Title", type: "title" }, { id: "status", name: "Status", type: "status", options: [{ id: "open", name: "Open" }, { id: "closed", name: "Closed" }] }, { id: "priority", name: "Priority", type: "number" }
   ], rows: [], views: [{ id: "table", collectionId: "db", name: "All", type: "table", visiblePropertyIds: ["title", "status"], filters: { kind: "condition", propertyId: "status", operator: "equals", value: "open" }, sorts: [{ propertyId: "priority", direction: "desc" }] }] });
   const low = doc.addRecord(db.id, "Low", { status: "open", priority: 1 });
   const high = doc.addRecord(db.id, "High", { status: "open", priority: 5 });
@@ -401,7 +445,7 @@ test("records are pages; typed filters and stable multi-sort operate on properti
 test("saved views create, rename, duplicate, reorder and delete without changing shared records", () => {
   const doc = new WorkspaceDocument(createWorkspace("Saved views")); const page = doc.addPage("Tasks");
   const db = doc.addDatabase({ id: "db", pageId: page.id, name: "Tasks", properties: [
-    { id: "title", name: "Title", type: "title" }, { id: "status", name: "Status", type: "status" }
+    { id: "title", name: "Title", type: "title" }, { id: "status", name: "Status", type: "status", options: [{ id: "open", name: "Open" }] }
   ], rows: [], views: [{ id: "table", collectionId: "db", name: "All tasks", type: "table", visiblePropertyIds: ["title", "status"], propertyOrder: ["title", "status"] }] });
   const record = doc.addRecord(db.id, "Ship M3", { status: "open" });
 

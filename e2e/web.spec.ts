@@ -90,6 +90,70 @@ test("local Web workspace persists, searches and exports without external networ
   await expect(trashNavigation.getByRole("button", { name: "Restore Pump commissioning notes" })).toHaveCount(0);
 });
 
+test("initial record properties expose canonical date ranges, attachment IDs, and read-only metadata", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const request = indexedDB.open("motion-web-development", 1);
+    const database = await new Promise<IDBDatabase>((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+    const workspace = {
+      schemaVersion: 2, id: "workspace", name: "Property editors", createdAt: "2026-08-14T00:00:00.000Z", updatedAt: "2026-08-14T02:00:00.000Z",
+      linkIndex: [],
+      attachments: [
+        { id: "attachment-1", fileName: "brief.txt", mediaType: "text/plain", byteLength: 5, sha256: "a".repeat(64), path: "objects/a", createdAt: "2026-08-14T00:00:00.000Z" },
+        { id: "attachment-2", fileName: "plan.pdf", mediaType: "application/pdf", byteLength: 10, sha256: "b".repeat(64), path: "objects/b", createdAt: "2026-08-14T00:00:00.000Z" }
+      ],
+      pages: [
+        { id: "database-page", parentId: null, title: "Projects", blocks: [], createdAt: "2026-08-14T00:00:00.000Z", updatedAt: "2026-08-14T00:00:00.000Z" },
+        { id: "record-page", parentId: "database-page", collectionId: "projects", title: "Canonical record title", blocks: [], createdAt: "2026-08-14T01:00:00.000Z", updatedAt: "2026-08-14T02:00:00.000Z", createdBy: "author-id", updatedBy: "editor-id", properties: {} }
+      ],
+      databases: [{
+        id: "projects", pageId: "database-page", name: "Projects", rows: [], recordPageIds: ["record-page"],
+        properties: [
+          { id: "name", name: "Name", type: "title" }, { id: "window", name: "Window", type: "date-range" },
+          { id: "files", name: "Files", type: "files" }, { id: "created", name: "Created", type: "created-time" },
+          { id: "updated", name: "Updated", type: "updated-time" }, { id: "creator", name: "Creator", type: "created-by" },
+          { id: "editor", name: "Editor", type: "updated-by" }
+        ],
+        views: [{ id: "table", collectionId: "projects", name: "Table", type: "table", visiblePropertyIds: ["name", "window", "files", "created", "updated", "creator", "editor"], propertyOrder: ["name", "window", "files", "created", "updated", "creator", "editor"] }]
+      }]
+    };
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const write = database.transaction("workspace", "readwrite").objectStore("workspace").put({ schemaVersion: 2, workspace, revision: 1, activePageId: "record-page", expandedPageIds: [], activeViewIds: {} }, "default");
+        write.onsuccess = () => resolve(); write.onerror = () => reject(write.error);
+      });
+    } finally { database.close(); }
+  });
+  await page.reload();
+
+  await expect(page.getByRole("textbox", { name: "Page title" })).toHaveValue("Canonical record title");
+  await expect(page.getByLabel("Created", { exact: true })).toHaveText("2026-08-14T01:00:00.000Z");
+  await expect(page.getByLabel("Updated", { exact: true })).toHaveText("2026-08-14T02:00:00.000Z");
+  await expect(page.getByLabel("Creator", { exact: true })).toHaveText("author-id");
+  await expect(page.getByLabel("Editor", { exact: true })).toHaveText("editor-id");
+  await expect(page.getByLabel("Created", { exact: true })).not.toHaveAttribute("data-property");
+
+  await page.getByLabel("Window start").fill("2026-08-14");
+  await page.getByLabel("Window end").fill("2026-08-16");
+  await page.getByLabel("Files", { exact: true }).selectOption(["attachment-1", "attachment-2"]);
+  await expect(page.getByRole("status")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
+  await page.reload();
+  await expect(page.getByLabel("Window start")).toHaveValue("2026-08-14");
+  await expect(page.getByLabel("Window end")).toHaveValue("2026-08-16");
+  await expect(page.getByLabel("Files", { exact: true })).toHaveValues(["attachment-1", "attachment-2"]);
+
+  const properties = await page.evaluate(async () => {
+    const request = indexedDB.open("motion-web-development", 1);
+    const database = await new Promise<IDBDatabase>((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+    try { return await new Promise<any>((resolve, reject) => { const read = database.transaction("workspace", "readonly").objectStore("workspace").get("default"); read.onsuccess = () => resolve(read.result.workspace.pages.find((candidate: any) => candidate.id === "record-page").properties); read.onerror = () => reject(read.error); }); }
+    finally { database.close(); }
+  });
+  expect(properties).toEqual({
+    window: { start: "2026-08-14T00:00:00.000Z", end: "2026-08-16T00:00:00.000Z" },
+    files: { attachmentIds: ["attachment-1", "attachment-2"] }
+  });
+});
+
 test("typed table records open as pages and retain view state", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("navigation", { name: "Workspace pages" }).getByRole("button", { name: "New table", exact: true }).click();

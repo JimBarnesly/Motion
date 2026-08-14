@@ -42,8 +42,12 @@ export function applyBrowserPropertyPatch(property, patch, records) {
   Object.assign(property, patch);
 }
 
+function propertyDataAttributes(property, recordId) {
+  return `data-property="${escapeText(property.id)}"${recordId ? ` data-record="${escapeText(recordId)}"` : ""}`;
+}
+
 function commonAttributes(property, recordId) {
-  return `data-property="${escapeText(property.id)}"${recordId ? ` data-record="${escapeText(recordId)}"` : ""} aria-label="${escapeText(property.name)}"`;
+  return `${propertyDataAttributes(property, recordId)} aria-label="${escapeText(property.name)}"`;
 }
 
 export function propertyControlHtml(property, value, attachments = [], recordId) {
@@ -54,7 +58,8 @@ export function propertyControlHtml(property, value, attachments = [], recordId)
   if (property.type === "date") return `<input type="date" value="${escapeText(datePart(value))}" ${common}>`;
   if (property.type === "date-range") {
     const start = datePart(value?.start), end = datePart(value?.end);
-    return `<fieldset class="date-range-editor"><legend class="visually-hidden">${escapeText(property.name)}</legend><label>Start<input type="date" value="${escapeText(start)}" ${common} data-property-range="start" aria-label="${escapeText(property.name)} start"></label><label>End<input type="date" value="${escapeText(end)}" ${common} data-property-range="end" aria-label="${escapeText(property.name)} end"></label></fieldset>`;
+    const data = propertyDataAttributes(property, recordId);
+    return `<fieldset class="date-range-editor"><legend class="visually-hidden">${escapeText(property.name)}</legend><label>Start<input type="date" value="${escapeText(start)}" ${data} data-property-range="start" aria-label="${escapeText(property.name)} start"></label><label>End<input type="date" value="${escapeText(end)}" ${data} data-property-range="end" aria-label="${escapeText(property.name)} end"></label></fieldset>`;
   }
   if (["select", "status"].includes(property.type)) return `<select ${common}><option value="">—</option>${(property.options ?? []).map(option => `<option value="${escapeText(option.id)}" ${value === option.id ? "selected" : ""}>${escapeText(option.name)}</option>`).join("")}</select>`;
   if (property.type === "multi-select") return `<select multiple ${common}>${(property.options ?? []).map(option => `<option value="${escapeText(option.id)}" ${Array.isArray(value) && value.includes(option.id) ? "selected" : ""}>${escapeText(option.name)}</option>`).join("")}</select>`;

@@ -28,6 +28,11 @@ test("initial property controls expose exactly the honest M3 type set", () => {
 });
 
 test("date range controls emit one closed canonical range or clear it", () => {
+  const html = propertyControlHtml({ id: "window", name: "Window", type: "date-range" }, undefined, [], "record-1");
+  assert.equal((html.match(/aria-label=/g) ?? []).length, 2);
+  assert.match(html, /aria-label="Window start"/);
+  assert.match(html, /aria-label="Window end"/);
+  assert.doesNotMatch(html, /aria-label="Window"(?:\s|>)/);
   const complete = {
     closest: () => ({ querySelector: selector => ({ value: selector.includes("start") ? "2026-08-14" : "2026-08-16" }) })
   };

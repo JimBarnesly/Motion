@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash } from "node:crypto";
 import { canonicalJson, createBackup, previewRestore, restoreIntoNewWorkspace, safeArchivePath, verifyBackup, type BackupBundle, type WorkspaceSnapshot } from "../index.js";
+import { assertWorkspaceValue } from "@motion/core";
 
 const bytes = new TextEncoder().encode("attachment contents");
 const sha256 = createHash("sha256").update(bytes).digest("hex");
@@ -63,15 +64,25 @@ test("restoring a table remaps property IDs and row value keys together", () => 
   const source = structuredClone(workspace) as any;
   source.attachments = [];
   delete source.pages[0].blocks[0].attachmentId;
+  for (const page of source.pages) page.updatedAt = source.updatedAt;
+  source.pages[1].properties = {};
   source.databases = [{ id: "database-1", pageId: "page-root", name: "Readings",
-    properties: [{ id: "property-1", name: "Reading", type: "plain-text" }],
+    properties: [{ id: "title", name: "Name", type: "title" }, { id: "property-1", name: "Reading", type: "plain-text" }],
+    propertyOrder: ["title", "property-1"], titlePropertyId: "title",
     rows: [{ id: "row-1", values: { "property-1": "stable cell" }, createdAt: source.createdAt, updatedAt: source.updatedAt }],
-    recordPageIds: ["page-child"], views: [] }];
+    recordPageIds: ["page-child"], views: [{ id: "view-1", collectionId: "database-1", name: "Table", type: "table", visiblePropertyIds: ["title", "property-1"], propertyOrder: ["title", "property-1"], columnWidths: {} }] }];
   const restored = restoreIntoNewWorkspace(createBackup(source, [], "2026-01-01T00:00:00.000Z"), "restored").workspace;
-  const propertyId = (restored.databases[0]?.properties[0] as any)?.id;
+  const database = restored.databases[0]!;
+  const titleId = (database.properties[0] as any).id;
+  const propertyId = (database.properties[1] as any).id;
+  assert.equal(titleId, "restored:title");
   assert.equal(propertyId, "restored:property-1");
-  assert.equal((restored.databases[0]?.rows[0] as any)?.values[propertyId!], "stable cell");
-  assert.equal("property-1" in ((restored.databases[0]?.rows[0] as any)?.values ?? {}), false);
+  assert.deepEqual((database as any).propertyOrder, [titleId, propertyId]);
+  assert.equal((database as any).titlePropertyId, titleId);
+  assert.deepEqual(((database as any).views[0] as any).propertyOrder, [titleId, propertyId]);
+  assert.equal((database.rows[0] as any).values[propertyId], "stable cell");
+  assert.equal("property-1" in ((database.rows[0] as any).values ?? {}), false);
+  assertWorkspaceValue(restored);
 });
 
 test("bounded restore IDs preserve references, attachment keys and non-ID strings", () => {

@@ -320,6 +320,8 @@ export function restoreIntoNewWorkspace(bundle: BackupBundle, newWorkspaceId: st
   for (const [databaseIndex, database] of workspace.databases.entries()) {
     const sourceDatabase = source.databases[databaseIndex]!;
     database.id = mapped(database.id) as string; database.pageId = mapped(database.pageId) as string;
+    if (database.propertyOrder !== undefined) database.propertyOrder = mappedList(database.propertyOrder)!;
+    if (database.titlePropertyId !== undefined) database.titlePropertyId = mapped(database.titlePropertyId)!;
     const propertyTypes = new Map<string, string>();
     for (const propertyValue of sourceDatabase.properties) {
       const property = object(propertyValue);

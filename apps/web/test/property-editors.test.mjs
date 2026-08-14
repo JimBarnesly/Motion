@@ -10,7 +10,8 @@ import {
   propertyControlHtml,
   propertyDisplayText,
   propertyValueForRecord,
-  readPropertyControl
+  readPropertyControl,
+  restorePropertyControl
 } from "../property-editors.js";
 
 const initialTypes = [
@@ -38,6 +39,19 @@ test("date range controls emit one closed canonical range or clear it", () => {
     closest: () => ({ querySelector: selector => ({ value: selector.includes("start") ? "2026-08-14" : "" }) })
   };
   assert.equal(readPropertyControl(partial, { type: "date-range" }), undefined);
+  const reversed = {
+    closest: () => ({ querySelector: selector => ({ value: selector.includes("start") ? "2026-08-16" : "2026-08-14" }) })
+  };
+  assert.throws(() => readPropertyControl(reversed, { type: "date-range" }), /ordered date range/i);
+});
+
+test("rejected date-range and files edits restore their complete canonical controls", () => {
+  const start = { value: "" }, end = { value: "" }, range = { closest: () => ({ querySelector: selector => selector.includes("start") ? start : end }) };
+  restorePropertyControl(range, { type: "date-range" }, { start: "2026-08-14T00:00:00.000Z", end: "2026-08-16T00:00:00.000Z" }, []);
+  assert.deepEqual([start.value, end.value], ["2026-08-14", "2026-08-16"]);
+  const options = [{ value: "a-1", selected: false }, { value: "a-2", selected: false }], files = { options };
+  restorePropertyControl(files, { type: "files" }, { attachmentIds: ["a-2"] }, [{ id: "a-1" }, { id: "a-2" }]);
+  assert.deepEqual(options.map(option => option.selected), [false, true]);
 });
 
 test("files controls emit only unique selected canonical workspace attachment IDs", () => {
@@ -116,6 +130,10 @@ test("browser UI wires every editor through canonical record update while comput
   assert.match(source, /from "\.\/property-editors\.js"/);
   assert.match(source, /propertyValueForRecord\(property,record\)/);
   assert.match(source, /readPropertyControl\(target,property,workspace\(\)\.attachments\)/);
+  assert.match(source, /async function queueDiscreteCanonicalEdit/);
+  assert.match(source, /pending\.key!==edit\.key/);
+  assert.match(source, /await flushCanonicalEdit/);
+  assert.match(source, /await queueDiscreteCanonicalEdit/);
   assert.match(source, /type:"database\.record-update"/);
   assert.match(source, /propertyControlHtml\(property,value,workspace\(\)\.attachments/);
   assert.match(source, /property:\{name,type:"plain-text"\}/);

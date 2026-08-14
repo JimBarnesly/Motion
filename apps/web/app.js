@@ -11,7 +11,7 @@ import { confirmEditorHistory } from "./editor-history.js";
 import { reconcileTextReferences } from "./reference-reconciliation.js";
 import { activeMentionQuery, applyMentionSelection } from "./mention-entry.js";
 import { normalizeWorkspaceV1 } from "./workspace-v1.js";
-import { applyBrowserPropertyPatch, editablePropertyTypes, PROPERTY_TYPE_LABELS, propertyControlHtml, propertyDisplayText, propertyValueForRecord, readPropertyControl } from "./property-editors.js";
+import { applyBrowserPropertyPatch, editablePropertyTypes, PROPERTY_TYPE_LABELS, propertyControlHtml, propertyDisplayText, propertyValueForRecord, readPropertyControl, restorePropertyControl } from "./property-editors.js";
 
 const adapter = createMotionUiAdapter();
 const $ = selector => document.querySelector(selector);
@@ -89,10 +89,8 @@ function restoreRejectedEditTarget(target){
   else if(target.kind==="task")element.checked=Boolean(page?.blocks.find(block=>block.id===target.blockId)?.checked);
   else if(target.kind==="view-width"){const database=databaseForPage(page),property=database?.properties.find(item=>item.id===target.propertyId);element.value=database?.views[0].columnWidths?.[target.propertyId]??(property?.type==="title"?280:170);}
   else if(target.kind==="record-property"){
-    const property=databaseForPage(page)?.properties.find(item=>item.id===target.propertyId),value=page?.properties?.[target.propertyId];
-    if(property?.type==="checkbox")element.checked=Boolean(value);
-    else if(property?.type==="multi-select")for(const option of element.options)option.selected=Array.isArray(value)&&value.includes(option.value);
-    else element.value=value??"";
+    const property=databaseForPage(page)?.properties.find(item=>item.id===target.propertyId),value=property?propertyValueForRecord(property,page):undefined;
+    if(property)restorePropertyControl(element,property,value,workspace().attachments);
   }
 }
 
@@ -129,6 +127,13 @@ function queueCanonicalEdit({key,label,candidate,target,rerender=false}){
   if(pending.blocked){syncEditRecovery(pending);$("#editRecoveryMessage").textContent="Resolve the unsaved edit before editing other content.";requestAnimationFrame(()=>editTarget(pending.target)?.focus());}
   else{$("#saveState").textContent=`${operationCoordinator.snapshot().canonicalOperation} in progress — edit not applied.`;requestAnimationFrame(()=>editTarget(target)?.focus());}
   return false;
+}
+async function queueDiscreteCanonicalEdit(edit){
+  const pending=editRecovery.snapshot();
+  if(pending.blocked&&pending.key!==edit.key&&!await flushCanonicalEdit(`saving ${pending.label} before ${edit.label}`)){
+    restoreRejectedEditTarget(edit.target);return false;
+  }
+  return queueCanonicalEdit(edit);
 }
 function requireResolvedEdit(action){
   const pending=editRecovery.snapshot();if(!pending.blocked)return true;
@@ -308,9 +313,9 @@ document.addEventListener("input",event=>{const target=event.target,page=activeP
   if(target.dataset.block){const blockId=target.dataset.block,block=findBlockLocation(page.blocks,blockId)?.block;if(!block)return;const draft=structuredClone(block);draft.text=target.textContent;renderMentionChooser(target);draft.references=reconcileTextReferences({previousText:block.text,previousReferences:block.references,nextText:draft.text,pages:workspace().pages});const shortcut=markdownShortcutCommand({pageId:page.id,block:draft});if(shortcut){queueCanonicalEdit({key:`block:text:${page.id}:${blockId}`,label:"Markdown shortcut",candidate:{type:shortcut.type,payload:{commands:shortcut.commands}},target:{kind:"block-text",pageId:page.id,blockId},rerender:true});return;}queueCanonicalEdit({key:`block:text:${page.id}:${blockId}`,label:`${BLOCK_LABELS[block?.type]??"Block"} text`,candidate:{type:"block.update-content",payload:{pageId:page.id,blockId,content:{text:draft.text,references:draft.references??[]}}},target:{kind:"block-text",pageId:page.id,blockId}});return;}
   if(target.dataset.columnWidth){const database=databaseForPage(page),propertyId=target.dataset.columnWidth,widths={...activeView(database).columnWidths,[propertyId]:Number(target.value)};queueCanonicalEdit({key:`view:width:${activeView(database).id}:${propertyId}`,label:"Table column width",candidate:{type:"database.view-update",payload:{databaseId:database.id,viewId:activeView(database).id,patch:{columnWidths:widths}}},target:{kind:"view-width",pageId:page.id,propertyId}});}
 });
-document.addEventListener("change",event=>{const target=event.target,page=activePage();if(!page)return;const database=databaseForPage(page);
+document.addEventListener("change",async event=>{const target=event.target,page=activePage();if(!page)return;const database=databaseForPage(page);
   if(target.id==="activeView"&&database){setActiveView(database.id,target.value);void saveUi();render();return;}
-  if(target.dataset.property){const record=target.dataset.record?pageById(target.dataset.record):page,property=database.properties.find(item=>item.id===target.dataset.property),value=readPropertyControl(target,property,workspace().attachments);queueCanonicalEdit({key:`record:property:${record.id}:${property.id}`,label:`${property.name} property`,candidate:{type:"database.record-update",payload:{pageId:record.id,values:{[property.id]:value}}},target:{kind:"record-property",pageId:record.id,propertyId:property.id},rerender:false});return;}
+  if(target.dataset.property){const record=target.dataset.record?pageById(target.dataset.record):page,property=database?.properties.find(item=>item.id===target.dataset.property),descriptor={kind:"record-property",pageId:record?.id,propertyId:property?.id};if(!record||!property)return;let value;try{value=readPropertyControl(target,property,workspace().attachments);}catch(error){restoreRejectedEditTarget(descriptor);$("#saveState").className="save-state unsaved";$("#saveState").textContent=error instanceof Error?error.message:"Property value is invalid.";target.setAttribute("aria-invalid","true");target.focus();return;}await queueDiscreteCanonicalEdit({key:`record:property:${record.id}:${property.id}`,label:`${property.name} property`,candidate:{type:"database.record-update",payload:{pageId:record.id,values:{[property.id]:value}}},target:descriptor,rerender:false});return;}
   if(target.dataset.blockType){const blockId=target.dataset.blockType,transform={type:target.value,...(target.value==="task"?{checked:false}:{})};queueCanonicalEdit({key:`block:type:${page.id}:${blockId}`,label:"Block type",candidate:{type:"block.transform",payload:{pageId:page.id,blockId,transform}},target:{kind:"block-type",pageId:page.id,blockId},rerender:true});return;}
   if(target.dataset.task){const blockId=target.dataset.task;queueCanonicalEdit({key:`block:task:${page.id}:${blockId}`,label:"Task state",candidate:{type:"block.transform",payload:{pageId:page.id,blockId,transform:{type:"task",checked:target.checked}}},target:{kind:"task",pageId:page.id,blockId}});}
 });

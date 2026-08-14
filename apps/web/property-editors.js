@@ -61,6 +61,23 @@ export function propertyControlHtml(property, value, attachments = [], recordId)
   return `<input type="${inputType}" value="${escapeText(value ?? "")}" ${common}>`;
 }
 
+export function restorePropertyControl(target, property, value, attachments = []) {
+  if (property.type === "date-range") {
+    const row = target.closest?.(".record-property") ?? target.closest?.("fieldset");
+    const start = row?.querySelector('[data-property-range="start"]'), end = row?.querySelector('[data-property-range="end"]');
+    if (start) start.value = datePart(value?.start);
+    if (end) end.value = datePart(value?.end);
+    return;
+  }
+  if (property.type === "checkbox") { target.checked = Boolean(value); return; }
+  if (["multi-select", "files"].includes(property.type)) {
+    const selected = new Set(property.type === "files" ? value?.attachmentIds ?? [] : Array.isArray(value) ? value : []);
+    for (const option of target.options ?? []) option.selected = selected.has(option.value);
+    return;
+  }
+  target.value = property.type === "date" ? datePart(value) : value ?? "";
+}
+
 export function readPropertyControl(target, property, attachments = []) {
   if (isSystemProperty(property) || property.type === "title") return undefined;
   if (property.type === "checkbox") return target.checked;
@@ -70,6 +87,7 @@ export function readPropertyControl(target, property, attachments = []) {
     const row = target.closest(".record-property") ?? target.closest("fieldset");
     const start = row?.querySelector('[data-property-range="start"]')?.value;
     const end = row?.querySelector('[data-property-range="end"]')?.value;
+    if (start && end && end < start) throw new Error("Date range must be an ordered date range");
     return start && end ? { start: canonicalDate(start), end: canonicalDate(end) } : undefined;
   }
   if (property.type === "multi-select") return [...target.selectedOptions].map(option => option.value);

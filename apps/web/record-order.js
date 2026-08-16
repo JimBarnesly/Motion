@@ -1,3 +1,7 @@
+export function manualRecordOrderEnabled(view) {
+  return !view?.filters && !(view?.sorts?.length);
+}
+
 export function applyBrowserRecordOrder(workspace, databaseId, orderedRecordPageIds) {
   const database = workspace?.databases?.find(candidate => candidate.id === databaseId);
   if (!database) throw new Error("Database not found");

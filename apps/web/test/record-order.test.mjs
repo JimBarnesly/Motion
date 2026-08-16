@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { applyBrowserRecordOrder, moveRecordInManualOrder } from "../record-order.js";
+import { applyBrowserRecordOrder, manualRecordOrderEnabled, moveRecordInManualOrder } from "../record-order.js";
 
 const fixture = () => ({
   pages: [
@@ -34,6 +34,12 @@ test("pointer and keyboard moves derive the same complete manual order", () => {
   assert.throws(() => moveRecordInManualOrder(order, "missing", "first"), /record/i);
 });
 
+test("filtered and sorted views cannot mutate an order their presentation hides", () => {
+  assert.equal(manualRecordOrderEnabled({}), true);
+  assert.equal(manualRecordOrderEnabled({ filters: { kind: "condition" } }), false);
+  assert.equal(manualRecordOrderEnabled({ sorts: [{ propertyId: "title", direction: "asc" }] }), false);
+});
+
 test("table and list expose labelled keyboard and pointer reorder controls through one canonical command seam", async () => {
   const source = await readFile(new URL("../app.js", import.meta.url), "utf8");
   const build = await readFile(new URL("../scripts/build.mjs", import.meta.url), "utf8");
@@ -43,6 +49,8 @@ test("table and list expose labelled keyboard and pointer reorder controls throu
   assert.match(source, /aria-label="Move \$\{escapeHtml\(record\.title\|\|"Untitled"\)\} record later"/);
   assert.match(source, /text\/x-motion-record/);
   assert.match(source, /commitRecordOrder/);
+  assert.match(source, /manualRecordOrderEnabled\(view\)/);
+  assert.match(source, /Clear filters and sorts to reorder records manually/);
   assert.match(source, /commit\("database\.record-reorder",\{databaseId:database\.id,orderedRecordPageIds\}/);
   assert.match(build, /"record-order\.js"/);
 });

@@ -7,15 +7,27 @@ const PROPERTY_FIELDS = new Set(["id", "name", "type", "relation", "relationData
 const VALIDATION_FIELDS = new Set(["required", "min", "max", "minLength", "maxLength"]);
 const OPTION_FIELDS = new Set(["id", "name", "color"]);
 const RELATION_FIELDS = new Set(["targetCollectionId", "reciprocalPropertyId", "cardinality", "maxItems", "onDelete"]);
+const VIEW_FIELDS = new Set(["id", "collectionId", "name", "type", "visiblePropertyIds", "propertyOrder", "columnWidths", "filters", "sorts", "groupByPropertyId", "subgroupByPropertyId", "layout", "cardPreview", "calendarDatePropertyId", "timelineStartPropertyId", "timelineEndPropertyId"]);
+const VIEW_TYPES = new Set(["table", "list", "board", "calendar", "gallery", "timeline", "chart", "form"]);
+const SORT_FIELDS = new Set(["propertyId", "direction", "nulls", "locale"]);
+const FILTER_OPERATORS = new Set(["equals", "not-equals", "contains", "not-contains", "gt", "gte", "lt", "lte", "before", "after", "is-empty", "is-not-empty", "in", "relative-date"]);
+const RELATIVE_DATE_PRESETS = new Set(["today", "yesterday", "tomorrow", "past-week", "next-week", "past-month", "next-month"]);
 const plain = value => value !== null && typeof value === "object" && !Array.isArray(value) && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
 const closed = (value, fields, label) => { if (!plain(value) || Object.keys(value).some(key => !fields.has(key))) throw new Error(`${label} has an invalid shape`); };
 const canonicalId = (value, label) => { if (typeof value !== "string" || !CANONICAL_ID.test(value)) throw new Error(`${label} must be a canonical ID`); return value; };
 const liveReference = (value, liveIds, label) => { if (typeof value !== "string" || !liveIds.has(value)) throw new Error(`${label} must reference a live property`); };
 function validateFilterReferences(filter, liveIds, depth = 0) {
   if (!plain(filter) || depth > 64) throw new Error("Filter has an invalid shape");
-  if (filter.kind === "condition") return liveReference(filter.propertyId, liveIds, "Filter");
-  if (filter.kind === "not") return validateFilterReferences(filter.child, liveIds, depth + 1);
+  if (filter.kind === "condition") {
+    closed(filter, new Set(["kind", "propertyId", "operator", "value"]), "Filter condition");
+    liveReference(filter.propertyId, liveIds, "Filter");
+    if (!FILTER_OPERATORS.has(filter.operator)) throw new Error("Filter operator is invalid");
+    if (filter.operator === "relative-date" && !RELATIVE_DATE_PRESETS.has(filter.value)) throw new Error("Relative-date preset is invalid");
+    return;
+  }
+  if (filter.kind === "not") { closed(filter, new Set(["kind", "child"]), "Filter not"); return validateFilterReferences(filter.child, liveIds, depth + 1); }
   if ((filter.kind !== "and" && filter.kind !== "or") || !Array.isArray(filter.children)) throw new Error("Filter has an invalid shape");
+  closed(filter, new Set(["kind", "children"]), "Filter group");
   filter.children.forEach(child => validateFilterReferences(child, liveIds, depth + 1));
 }
 export function assertSafePropertyLifecycle(workspace) {
@@ -61,11 +73,17 @@ export function assertSafePropertyLifecycle(workspace) {
     if (titles.length && (canonicalId(database.titlePropertyId, "Canonical title property") !== titles[0].id)) throw new Error("Canonical title property identity changed");
     if (!titles.length && database.titlePropertyId !== undefined) throw new Error("Canonical title property identity is invalid");
     for (const view of database.views) {
-      if (!plain(view) || !Array.isArray(view.visiblePropertyIds)) throw new Error("View lifecycle has an invalid shape");
+      closed(view, VIEW_FIELDS, "View lifecycle");
+      canonicalId(view.id, "View ID");
+      if (view.collectionId !== undefined) canonicalId(view.collectionId, "View collection ID");
+      if (typeof view.name !== "string" || !VIEW_TYPES.has(view.type)) throw new Error("View type or name is invalid");
+      if (!Array.isArray(view.visiblePropertyIds) || new Set(view.visiblePropertyIds).size !== view.visiblePropertyIds.length) throw new Error("View lifecycle has an invalid shape");
       for (const propertyId of view.visiblePropertyIds) liveReference(propertyId, liveIds, "Visible property");
       for (const propertyId of view.propertyOrder ?? []) liveReference(propertyId, liveIds, "View property order");
-      for (const propertyId of Object.keys(view.columnWidths ?? {})) liveReference(propertyId, liveIds, "Column width");
-      for (const sort of view.sorts ?? []) liveReference(sort?.propertyId, liveIds, "Sort");
+      if (view.columnWidths !== undefined && !plain(view.columnWidths)) throw new Error("Column widths have an invalid shape");
+      for (const [propertyId, width] of Object.entries(view.columnWidths ?? {})) { liveReference(propertyId, liveIds, "Column width"); if (typeof width !== "number" || !Number.isFinite(width) || width <= 0) throw new Error("Column width is invalid"); }
+      if (view.sorts !== undefined && !Array.isArray(view.sorts)) throw new Error("View sorts have an invalid shape");
+      for (const sort of view.sorts ?? []) { closed(sort, SORT_FIELDS, "Sort"); liveReference(sort.propertyId, liveIds, "Sort"); if (!["asc", "desc"].includes(sort.direction) || (sort.nulls !== undefined && !["first", "last"].includes(sort.nulls)) || (sort.locale !== undefined && typeof sort.locale !== "string")) throw new Error("Sort metadata is invalid"); }
       if (view.filters !== undefined) validateFilterReferences(view.filters, liveIds);
       for (const field of FILTER_REFERENCE_FIELDS) if (view[field] !== undefined) liveReference(view[field], liveIds, field);
     }

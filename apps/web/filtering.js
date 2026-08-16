@@ -1,12 +1,13 @@
 import { matchesRelativeDate } from "./relative-date.js";
 
-export function matchesFilter(condition, page, instant = new Date()) {
+export function matchesFilter(condition, page, instant = new Date(), properties = []) {
   if (!condition || typeof condition !== "object") return false;
-  if (condition.kind === "and") return Array.isArray(condition.children) && condition.children.every(item => matchesFilter(item, page, instant));
-  if (condition.kind === "or") return Array.isArray(condition.children) && condition.children.some(item => matchesFilter(item, page, instant));
-  if (condition.kind === "not") return !matchesFilter(condition.child, page, instant);
+  if (condition.kind === "and") return Array.isArray(condition.children) && condition.children.every(item => matchesFilter(item, page, instant, properties));
+  if (condition.kind === "or") return Array.isArray(condition.children) && condition.children.some(item => matchesFilter(item, page, instant, properties));
+  if (condition.kind === "not") return !matchesFilter(condition.child, page, instant, properties);
   if (condition.kind !== "condition") return false;
-  const actual = page.properties?.[condition.propertyId], expected = condition.value;
+  const propertyType = properties.find(property => property.id === condition.propertyId)?.type;
+  const actual = propertyType === "created-time" ? page.createdAt : propertyType === "updated-time" ? page.updatedAt : page.properties?.[condition.propertyId], expected = condition.value;
   const empty = actual == null || actual === "" || (Array.isArray(actual) && !actual.length);
   const evaluator = {
     equals: () => JSON.stringify(actual) === JSON.stringify(expected),

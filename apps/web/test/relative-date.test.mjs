@@ -36,6 +36,13 @@ test("browser filter evaluation preserves nested AND OR NOT with one injected in
   assert.equal(matchesFilter({ kind: "condition", propertyId: "date", operator: "relative-date", value: "invalid" }, { properties: { date: "2026-03-16T12:00:00.000Z" } }, instant), false);
 });
 
+test("browser relative-date filtering projects created-time and updated-time like canonical core", () => {
+  const page = { createdAt: "2026-03-16T08:00:00.000Z", updatedAt: "2026-03-17T08:00:00.000Z", properties: {} };
+  const properties = [{ id: "created", type: "created-time" }, { id: "updated", type: "updated-time" }];
+  assert.equal(matchesFilter({ kind: "condition", propertyId: "created", operator: "relative-date", value: "today" }, page, instant, properties), true);
+  assert.equal(matchesFilter({ kind: "condition", propertyId: "updated", operator: "relative-date", value: "today" }, page, instant, properties), false);
+});
+
 test("filter UI exposes readable bounded presets and persists the selected preset", () => {
   assert.ok(FILTER_OPERATOR_CHOICES.some(choice => choice.value === "relative-date" && choice.label === "Relative date"));
   const html = filterValueControlHtml({ type: "date" }, { operator: "relative-date", value: "past-week" });

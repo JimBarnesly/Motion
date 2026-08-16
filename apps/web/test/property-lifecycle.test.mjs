@@ -11,7 +11,7 @@ const fixture = () => ({
   propertyOrder: ["title", "score", "notes"],
   titlePropertyId: "title",
   recordPageIds: ["record"],
-  views: [{ visiblePropertyIds: ["title", "score", "notes"], propertyOrder: ["notes", "title", "score"], columnWidths: { score: 200 },
+  views: [{ id: "table-view", name: "Table", type: "table", visiblePropertyIds: ["title", "score", "notes"], propertyOrder: ["notes", "title", "score"], columnWidths: { score: 200 },
     filters: { kind: "and", children: [{ kind: "condition", propertyId: "score", operator: "equals", value: 1 }, { kind: "condition", propertyId: "notes", operator: "contains", value: "x" }] },
     sorts: [{ propertyId: "score", direction: "asc" }], groupByPropertyId: "score" }]
 });
@@ -54,6 +54,16 @@ test("browser schema-v2 lifecycle validation rejects crafted canonical state", (
   assert.throws(() => assertSafePropertyLifecycle({ databases: [invalidRelation] }), /relation/i);
   const injected = structuredClone(valid); injected.properties[1].injected = true;
   assert.throws(() => assertSafePropertyLifecycle({ databases: [injected] }), /shape/i);
+  const hostileViewType = structuredClone(valid); hostileViewType.views[0].type = '<img src=x onerror="alert(1)">';
+  assert.throws(() => assertSafePropertyLifecycle({ databases: [hostileViewType] }), /view type/i);
+  const injectedView = structuredClone(valid); injectedView.views[0].injected = true;
+  assert.throws(() => assertSafePropertyLifecycle({ databases: [injectedView] }), /view.*shape/i);
+});
+
+test("schema-v2 restore validates lifecycle state and escapes view labels independently", async () => {
+  const source = await readFile(new URL("../app.js", import.meta.url), "utf8");
+  assert.match(source, /canonicalWorkspace[^\n]+assertSafePropertyLifecycle/);
+  assert.match(source, /escapeHtml\(candidate\.type\)/);
 });
 
 test("browser lifecycle persistence failure restores the exact snapshot and cannot leak later", async () => {

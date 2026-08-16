@@ -165,7 +165,7 @@ test("typed table records open as pages and retain view state", async ({ page })
 
   page.once("dialog", dialog => dialog.accept("Status"));
   await page.getByRole("button", { name: "+ Property" }).click();
-  await page.locator('[data-property-menu]').filter({ hasText: "Status" }).click();
+  await page.getByRole("toolbar", { name: "Database views" }).getByRole("button", { name: "Status", exact: true }).click();
   await page.locator("#propertyType").selectOption("status");
   await page.locator("#propertyOptions").fill("To do, In progress, Done");
   await page.getByRole("button", { name: "Save" }).click();

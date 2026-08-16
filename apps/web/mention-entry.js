@@ -11,6 +11,15 @@ export function activeMentionQuery(text, caret) {
   return { start, end: caret, query: match[1] };
 }
 
+export const MAX_WIKI_PAGE_TITLE_LENGTH = 200;
+
+export function missingWikiPageTitle({ mention, pages, maxLength = MAX_WIKI_PAGE_TITLE_LENGTH }) {
+  if (mention?.kind !== "wiki") return null;
+  const title = String(mention.query ?? "");
+  if (!title.trim() || title.length > maxLength) return null;
+  return pages.some(page => page.title === title) ? null : title;
+}
+
 export function applyMentionSelection({ text, mention, page, previousReferences = [] }) {
   const title = String(page.title).replaceAll("\\", "\\\\").replaceAll("]", "\\]");
   const token = mention.kind === "wiki" ? `[[${title}]]` : `@[${title}]`;

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { activeMentionQuery, applyMentionSelection } from "../mention-entry.js";
+import { activeMentionQuery, applyMentionSelection, missingWikiPageTitle } from "../mention-entry.js";
 
 test("typing an at-sign followed by text exposes a mention query", () => {
   assert.deepEqual(activeMentionQuery("Discuss @Tar", 12), {
@@ -19,6 +19,16 @@ test("typing an open wiki link exposes a stable page selection query", () => {
     query: "Tar",
     kind: "wiki"
   });
+});
+
+test("wiki creation offers the exact bounded non-empty title only when no live exact match exists", () => {
+  const mention = { start: 8, end: 21, query: "second page", kind: "wiki" };
+  assert.equal(missingWikiPageTitle({ mention, pages: [{ id: "other", title: "Second page" }] }), "second page");
+  assert.equal(missingWikiPageTitle({ mention, pages: [{ id: "exact", title: "second page" }] }), null);
+  assert.equal(missingWikiPageTitle({ mention: { ...mention, query: "   " }, pages: [] }), null);
+  assert.equal(missingWikiPageTitle({ mention: { ...mention, query: "x".repeat(200) }, pages: [] }), "x".repeat(200));
+  assert.equal(missingWikiPageTitle({ mention: { ...mention, query: "x".repeat(201) }, pages: [] }), null);
+  assert.equal(missingWikiPageTitle({ mention: { start: 0, end: 4, query: "new" }, pages: [] }), null);
 });
 
 test("wiki selection records the selected stable ID even when titles are duplicated", () => {
@@ -74,6 +84,14 @@ test("the editor exposes an accessible at-mention chooser and persists the selec
   assert.match(source, /applyMentionSelection\(\{text:input\.textContent,mention,page,previousReferences:block\.references\}\)/);
   assert.match(source, /selected\.references/);
   assert.match(source, /button\.dataset\.mentionPage=page\.id/);
+  assert.match(source, /missingWikiPageTitle\(\{mention:activeMention,pages:visiblePages\(\)\}\)/);
+  assert.match(source, /button\.dataset\.createMentionPage=creationTitle/);
+  assert.match(source, /Create page “\$\{creationTitle\}”/);
+  assert.match(source, /async function createMentionPage\(title\)[^{]*\{[^}]*visiblePages\(\)\.find\(page=>page\.title===title\)[^}]*selectMentionPage\(exact\)/);
+  assert.match(source, /runCanonicalOperation\("creating linked page"/);
+  assert.match(source, /commit\("page\.create",\{title,parentId:null\}/);
+  assert.match(source, /event\.key==="ArrowDown"&&activeMention/);
+  assert.match(source, /Type text, or \[\[Page name\]\] to link or create/);
   assert.match(html, /id="mentionChooser"[^>]+role="listbox"/);
   assert.match(build, /"mention-entry\.js"/);
 });

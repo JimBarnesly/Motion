@@ -4,6 +4,8 @@ Status: working product-destination checklist
 Owner: Product / Engineering
 Last reviewed: 2026-08-13
 
+> Historical M2 inventory. For the current source-grounded product target and exact implementation status, use [NOTION_PRODUCT_REVIEW.md](./NOTION_PRODUCT_REVIEW.md) and [NOTION_PARITY_MATRIX.md](./NOTION_PARITY_MATRIX.md). This file remains as evidence of the earlier audit and must not be used to infer current completion.
+
 ## Purpose
 
 This checklist describes the broad Notion-style workspace capabilities Motion is aiming to provide. It is a product-destination checklist, not a claim that every listed feature is implemented and not a promise that every item belongs in the next release.

@@ -4,6 +4,8 @@ Status: active product direction
 Decision authority: Jake
 Last reviewed: 2026-08-13
 
+The current source-grounded product definition is [NOTION_PRODUCT_REVIEW.md](./NOTION_PRODUCT_REVIEW.md). Exact shipped, partial, model-only and absent capability status is governed by [NOTION_PARITY_MATRIX.md](./NOTION_PARITY_MATRIX.md); permissive schema support alone never counts as a shipped feature.
+
 ## Roadmap principles
 
 - Each release is additive: later networked features must not make local-only editing, search, export, backup, or restore depend on a server.

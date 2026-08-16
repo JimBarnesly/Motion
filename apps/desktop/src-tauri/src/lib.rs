@@ -1,5 +1,6 @@
 use rfd::{FileDialog, MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
-use libc::{geteuid, O_CLOEXEC, O_DIRECTORY, O_NOFOLLOW};
+use libc::{O_CLOEXEC, O_DIRECTORY, O_NOFOLLOW};
+use rustix::process::geteuid;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -274,11 +275,11 @@ fn prepare_native_data_root(data_root: &Path) -> Result<(), IpcError> {
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
         Err(_) => return Err(data_root_security_error()),
     };
-    let expected_uid = unsafe { geteuid() };
+    let effective_uid = geteuid().as_raw();
     let path_mode = path_metadata.mode() & 0o777;
     if !path_metadata.is_dir()
         || path_metadata.file_type().is_symlink()
-        || path_metadata.uid() != expected_uid
+        || path_metadata.uid() != effective_uid
         || path_metadata.nlink() < 2
         || !matches!(path_mode, 0o700 | 0o755 | 0o775)
     {
@@ -293,7 +294,7 @@ fn prepare_native_data_root(data_root: &Path) -> Result<(), IpcError> {
     let opened = root.metadata().map_err(reject_root)?;
     let current = fs::symlink_metadata(data_root).map_err(reject_root)?;
     if !opened.is_dir()
-        || opened.uid() != expected_uid
+        || opened.uid() != effective_uid
         || opened.nlink() < 2
         || opened.mode() & 0o777 != path_mode
         || opened.dev() != path_metadata.dev()
@@ -313,7 +314,7 @@ fn prepare_native_data_root(data_root: &Path) -> Result<(), IpcError> {
     }
     let secured = root.metadata().map_err(reject_root)?;
     let secured_path = fs::symlink_metadata(data_root).map_err(reject_root)?;
-    if secured.uid() != expected_uid
+    if secured.uid() != effective_uid
         || secured.nlink() < 2
         || secured.permissions().mode() & 0o777 != 0o700
         || secured_path.file_type().is_symlink()

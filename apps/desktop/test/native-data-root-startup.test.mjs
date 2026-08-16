@@ -11,7 +11,7 @@ test("packaged startup authenticates and hardens the data root before spawning t
 
   assert.match(helper, /symlink_metadata\(data_root\)/);
   assert.match(helper, /O_NOFOLLOW/);
-  assert.match(helper, /uid\(\) != expected_uid/);
+  assert.match(helper, /uid\(\) != effective_uid/);
   assert.match(helper, /matches!\(path_mode, 0o700 \| 0o755 \| 0o775\)/);
   assert.match(helper, /dev\(\).*ino\(\)/s);
   assert.match(helper, /set_permissions\(Permissions::from_mode\(0o700\)\)/);

@@ -114,7 +114,7 @@ function syncEditRecovery(snapshot){
   clearTimeout(editTimer);editTimer=null;markPendingEdit(snapshot);
   if(!snapshot.blocked){
     recovery.hidden=true;saveState.className="save-state";
-    if(snapshot.saved){saveState.textContent=adapter.kind==="tauri"?"Saved to Motion":"Saved in browser (development mode)";const meta=activeEditMeta;if(meta?.rerender)render();requestAnimationFrame(()=>editTarget(meta?.target)?.focus());}
+    if(snapshot.saved){saveState.textContent=adapter.kind==="tauri"?"Saved to Motion":"Saved in browser (development mode)";const meta=activeEditMeta;if(meta?.target?.kind==="page-title")refreshPageTitlePresentation(meta.target.pageId);if(meta?.rerender){render();requestAnimationFrame(()=>editTarget(meta.target)?.focus());}}
     return;
   }
   saveState.className=`save-state ${failed?"unsaved":"saving"}`;
@@ -225,9 +225,11 @@ function renderNavigation(){
 function render(){
   activeMention=null;activeSlash=null;for(const id of ["mentionChooser","slashChooser"]){const chooser=$(`#${id}`);if(chooser)chooser.hidden=true;}
   renderNavigation();const page=activePage();if(!page){$("#breadcrumbs").textContent="Workspace";$("#content").innerHTML=`<div class="empty-state"><div class="empty-icon">◇</div><h1>Your workspace is ready</h1><p>Create a page or table. Everything stays on this device.</p><div class="empty-actions"><button class="primary" data-create="page">New page</button><button data-create="database">New table</button></div></div>`;renderContext(null);return;}
-  $("#breadcrumbs").innerHTML=`${navigation.length?`<button data-back aria-label="Go back">←</button>`:""}${ancestors(page).map(item=>`<button data-open-page="${escapeAttribute(item.id)}">${escapeHtml(item.title||"Untitled")}</button>`).join("<span>/</span>")}`;
+  renderBreadcrumbs(page);
   const database=databaseForPage(page); if(database?.pageId===page.id){renderDatabase(page,database);tagRecordRows(database);}else renderDocument(page,database);renderContext(page);
 }
+function renderBreadcrumbs(page){$("#breadcrumbs").innerHTML=`${navigation.length?`<button data-back aria-label="Go back">←</button>`:""}${ancestors(page).map(item=>`<button data-open-page="${escapeAttribute(item.id)}">${escapeHtml(item.title||"Untitled")}</button>`).join("<span>/</span>")}`;}
+function refreshPageTitlePresentation(pageId){const page=pageById(pageId);if(!page||page.id!==state.activePageId)return;renderNavigation();renderBreadcrumbs(page);}
 function pageHeader(page,label){return `<div class="page-kicker"><span>${escapeHtml(label)}</span><span><button class="quiet" data-favourite="${escapeAttribute(page.id)}">${page.favourite?"★ Favourited":"☆ Favourite"}</button><button class="danger-text" data-trash-page="${escapeAttribute(page.id)}">Trash</button></span></div><input id="pageTitle" class="page-title" value="${escapeHtml(page.title)}" aria-label="${label==="Table"?"Database title":"Page title"}" placeholder="Untitled" />`;}
 function propertyInput(property,value,recordId){
   return propertyControlHtml(property,value,workspace().attachments,recordId);
@@ -331,7 +333,7 @@ $("#content").addEventListener("dragover",event=>{if(event.target.closest("[data
 $("#content").addEventListener("drop",async event=>{const target=event.target.closest("[data-property-definition-drag]"),sourceId=event.dataTransfer?.getData("text/x-motion-property-definition");if(!target||!sourceId||target.dataset.propertyDefinitionDrag===sourceId)return;event.preventDefault();const database=databaseForPage(activePage());if(!database)return;const definitions=livePropertyDefinitions(database),order=definitions.map(property=>property.id),from=order.indexOf(sourceId),to=order.indexOf(target.dataset.propertyDefinitionDrag);if(from<0||to<0)return;const movedName=definitions[from].name;order.splice(to,0,...order.splice(from,1));await commitPropertyDefinitionOrder(database,order,movedName);});
 
 document.addEventListener("input",event=>{const target=event.target,page=activePage();if(target.id==="searchInput"){void renderSearch(target.value);return;}if(!page)return;
-  if(target.id==="pageTitle"){const descriptor={kind:"page-title",pageId:page.id};queueCanonicalEdit({key:`page:title:${page.id}`,label:"Page title",candidate:{type:"page.rename",payload:{pageId:page.id,title:target.value}},target:descriptor,rerender:true});return;}
+  if(target.id==="pageTitle"){const descriptor={kind:"page-title",pageId:page.id};queueCanonicalEdit({key:`page:title:${page.id}`,label:"Page title",candidate:{type:"page.rename",payload:{pageId:page.id,title:target.value}},target:descriptor});return;}
   if(target.dataset.block){const blockId=target.dataset.block,block=findBlockLocation(page.blocks,blockId)?.block;if(!block)return;const draft=structuredClone(block);draft.text=target.textContent;renderMentionChooser(target);renderSlashChooser(target);draft.references=reconcileTextReferences({previousText:block.text,previousReferences:block.references,nextText:draft.text,pages:workspace().pages});const shortcut=markdownShortcutCommand({pageId:page.id,block:draft});if(shortcut){queueCanonicalEdit({key:`block:text:${page.id}:${blockId}`,label:"Markdown shortcut",candidate:{type:shortcut.type,payload:{commands:shortcut.commands}},target:{kind:"block-text",pageId:page.id,blockId},rerender:true});return;}queueCanonicalEdit({key:`block:text:${page.id}:${blockId}`,label:`${BLOCK_LABELS[block?.type]??"Block"} text`,candidate:{type:"block.update-content",payload:{pageId:page.id,blockId,content:{text:draft.text,references:draft.references??[]}}},target:{kind:"block-text",pageId:page.id,blockId}});return;}
   if(target.dataset.columnWidth){const database=databaseForPage(page),propertyId=target.dataset.columnWidth,widths={...activeView(database).columnWidths,[propertyId]:Number(target.value)};queueCanonicalEdit({key:`view:width:${activeView(database).id}:${propertyId}`,label:"Table column width",candidate:{type:"database.view-update",payload:{databaseId:database.id,viewId:activeView(database).id,patch:{columnWidths:widths}}},target:{kind:"view-width",pageId:page.id,propertyId}});}
 });

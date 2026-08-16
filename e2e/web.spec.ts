@@ -194,8 +194,8 @@ test("typed table records open as pages and retain view state", async ({ page })
 
   await page.locator('[data-back]').click();
   await expect(page.getByRole("textbox", { name: "Database title" })).toHaveValue("Jobs");
-  await expect(page.getByRole("button", { name: "Replace heat pump" })).toBeVisible();
-  const recordRow = page.getByRole("button", { name: "Replace heat pump" }).locator("xpath=ancestor::tr");
+  await expect(page.getByRole("button", { name: "Replace heat pump", exact: true })).toBeVisible();
+  const recordRow = page.getByRole("button", { name: "Replace heat pump", exact: true }).locator("xpath=ancestor::tr");
   await expect(recordRow.getByLabel("Status", { exact: true })).toHaveValue(/.+/);
   await expect(recordRow.getByLabel("Cost", { exact: true })).toHaveValue("4200");
 
@@ -212,29 +212,29 @@ test("typed table records open as pages and retain view state", async ({ page })
   const statusValue = await page.getByLabel("Status", { exact: true }).inputValue();
   await page.locator("#filterValue").fill(statusValue);
   await page.getByRole("button", { name: "Apply" }).click();
-  await expect(page.getByRole("button", { name: "Replace heat pump" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Replace heat pump", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Filter" }).click();
   await page.getByRole("button", { name: "Clear" }).click();
-  await expect(page.getByRole("button", { name: "Replace heat pump" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Replace heat pump", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "+ List view" }).click();
   await expect(page.getByRole("combobox", { name: "Active database view" })).toHaveValue(/.+/);
   await expect(page.getByRole("list", { name: "List list" })).toBeVisible();
-  await expect(page.getByRole("listitem").getByRole("button", { name: "Replace heat pump" })).toBeVisible();
+  await expect(page.getByRole("listitem").getByRole("button", { name: "Replace heat pump", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Filter" }).click();
   await page.locator("#filterProperty").selectOption({ label: "Status" });
   await page.locator("#filterOperator").selectOption("not-equals");
   await page.locator("#filterValue").fill(statusValue);
   await page.getByRole("button", { name: "Apply" }).click();
-  await expect(page.getByRole("button", { name: "Replace heat pump" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Replace heat pump", exact: true })).toHaveCount(0);
   await page.getByRole("combobox", { name: "Active database view" }).selectOption({ label: "Table · table" });
-  await expect(page.getByRole("button", { name: "Replace heat pump" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Replace heat pump", exact: true })).toBeVisible();
 
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Database title" })).toHaveValue("Jobs");
   await expect(page.getByRole("combobox", { name: "Active database view" })).toHaveValue(/.+/);
-  await expect(page.getByRole("button", { name: "Replace heat pump" })).toBeVisible();
-  await page.getByRole("button", { name: "Replace heat pump" }).click();
+  await expect(page.getByRole("button", { name: "Replace heat pump", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Replace heat pump", exact: true }).click();
   await expect(page.getByLabel("Status", { exact: true })).not.toHaveValue("");
   await expect(page.getByLabel("Cost", { exact: true })).toHaveValue("4200");
   await expect(page.locator('[contenteditable="true"][data-block]').last()).toHaveText("Need quotes from three suppliers.");

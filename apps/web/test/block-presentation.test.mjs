@@ -47,9 +47,18 @@ test("block type control keeps hostile preserved types inert", () => {
   assert.match(select, /Block type: Unsupported/);
 });
 
-test("block type control presentation is readable without hover at normal and narrow layouts", async () => {
+test("block type control is compact, readable, and gains chrome on interaction", async () => {
   const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
-  assert.match(styles, /\.block-type-select\s*\{[^}]*min-width:\s*140px[^}]*color:\s*var\(--text\)/s);
-  assert.doesNotMatch(styles, /\.block-type-select\s*\{[^}]*max-width:/s);
+  const baseRule = styles.match(/\.block-type-select\s*\{([^}]*)\}/s)?.[1] ?? "";
+  const interactiveRule = styles.match(/\.block-type-select:hover,\.block-type-select:focus\s*\{([^}]*)\}/s)?.[1] ?? "";
+
+  assert.match(baseRule, /field-sizing:\s*content/);
+  assert.match(baseRule, /min-width:\s*76px/);
+  assert.doesNotMatch(baseRule, /min-width:\s*140px/);
+  assert.match(baseRule, /min-height:\s*(?:2[5-9]|[3-9]\d)px/);
+  assert.match(baseRule, /color:\s*var\(--muted\)/);
+  assert.match(interactiveRule, /border-color:\s*var\(--line\)/);
+  assert.match(interactiveRule, /background:\s*var\(--surface\)/);
+  assert.match(interactiveRule, /color:\s*var\(--text\)/);
   assert.doesNotMatch(styles, /\.block-row select\s*\{[^}]*color:\s*transparent/s);
 });

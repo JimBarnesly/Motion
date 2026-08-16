@@ -23,6 +23,7 @@ export const WEB_ASSETS = Object.freeze([
   "property-editors.js",
   "property-lifecycle.js",
   "reference-reconciliation.js",
+  "record-order.js",
   "relative-date.js",
   "search-recovery.js",
   "slash-entry.js",

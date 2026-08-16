@@ -564,6 +564,31 @@ test("records are pages; typed filters and stable multi-sort operate on properti
   assert.deepEqual(doc.queryRecords(db.id, { kind: "and", children: [{ kind: "or", children: [{ kind: "condition", propertyId: "status", operator: "equals", value: "open" }, { kind: "condition", propertyId: "priority", operator: "equals", value: 10 }] }, { kind: "not", child: { kind: "condition", propertyId: "priority", operator: "equals", value: 10 } }] }, [{ propertyId: "status", direction: "asc" }, { propertyId: "priority", direction: "desc" }]).map(p => p.id), [high.id, medium.id, low.id]);
 });
 
+test("record order is manual by default, rejects invalid targets atomically, and saved sorts only override presentation", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Manual record order")); const page = doc.addPage("Tasks");
+  const database = doc.addDatabase({ id: "tasks", pageId: page.id, name: "Tasks", properties: [
+    { id: "title", name: "Title", type: "title" }, { id: "priority", name: "Priority", type: "number" }
+  ], rows: [], views: [] });
+  const first = doc.addRecord(database.id, "First", { priority: 1 });
+  const second = doc.addRecord(database.id, "Second", { priority: 3 });
+  const hidden = doc.addRecord(database.id, "Hidden", { priority: 99 }); hidden.deletedAt = doc.data.updatedAt;
+  const third = doc.addRecord(database.id, "Third", { priority: 2 });
+  const otherPage = doc.addPage("Other"); const other = doc.addDatabase({ id: "other", pageId: otherPage.id, name: "Other", properties: [], rows: [], views: [] });
+  const foreign = doc.addRecord(other.id, "Foreign");
+
+  doc.reorderRecords(database.id, [third.id, first.id, second.id]);
+  assert.deepEqual(database.recordPageIds, [third.id, first.id, hidden.id, second.id], "hidden records retain their canonical slots");
+  assert.deepEqual(doc.queryRecords(database.id).map(record => record.id), [third.id, first.id, second.id]);
+  assert.deepEqual(doc.queryRecords(database.id, undefined, [{ propertyId: "priority", direction: "desc" }]).map(record => record.id), [second.id, third.id, first.id]);
+  assert.deepEqual(database.recordPageIds, [third.id, first.id, hidden.id, second.id], "saved sorts do not destroy manual order");
+
+  for (const orderedRecordPageIds of [[third.id, first.id], [third.id, first.id, first.id], [third.id, first.id, foreign.id], [third.id, first.id, "missing"]]) {
+    const before = structuredClone(doc.data);
+    assert.throws(() => doc.reorderRecords(database.id, orderedRecordPageIds), /live record|collection|exactly once/i);
+    assert.deepEqual(doc.data, before);
+  }
+});
+
 test("saved views create, rename, duplicate, reorder and delete without changing shared records", () => {
   const doc = new WorkspaceDocument(createWorkspace("Saved views")); const page = doc.addPage("Tasks");
   const db = doc.addDatabase({ id: "db", pageId: page.id, name: "Tasks", properties: [

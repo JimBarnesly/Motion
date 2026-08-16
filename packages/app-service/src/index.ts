@@ -78,6 +78,7 @@ export type AppCommand =
   | { type: "database.property-delete"; workspaceId: string; expectedRevision: number; databaseId: string; propertyId: string }
   | { type: "database.record-create"; workspaceId: string; expectedRevision: number; databaseId: string; title: string; values?: Record<string, PropertyValue> }
   | { type: "database.record-update"; workspaceId: string; expectedRevision: number; pageId: string; title?: string; values: Record<string, PropertyValue | undefined> }
+  | { type: "database.record-reorder"; workspaceId: string; expectedRevision: number; databaseId: string; orderedRecordPageIds: readonly string[] }
   | { type: "database.view-create"; workspaceId: string; expectedRevision: number; databaseId: string; view: Omit<DatabaseView, "id" | "collectionId"> & { id?: string } }
   | { type: "database.view-update"; workspaceId: string; expectedRevision: number; databaseId: string; viewId: string; patch: Partial<Omit<DatabaseView, "id" | "collectionId" | "type">> }
   | { type: "database.view-duplicate"; workspaceId: string; expectedRevision: number; databaseId: string; viewId: string; name?: string; newViewId?: string }
@@ -130,6 +131,7 @@ export interface CommandResults {
   "database.property-delete": MutationDto;
   "database.record-create": MutationDto;
   "database.record-update": MutationDto;
+  "database.record-reorder": MutationDto;
   "database.view-create": MutationDto;
   "database.view-update": MutationDto;
   "database.view-duplicate": MutationDto;
@@ -544,6 +546,12 @@ export class MotionAppService {
       if (!Array.isArray(input.orderedPropertyIds) || input.orderedPropertyIds.length > DEFAULT_VALIDATION_LIMITS.maxObjectKeys) throw new MotionAppError("INVALID_INPUT", "orderedPropertyIds must be an array within limits");
       input.orderedPropertyIds.forEach((propertyId, index) => inputId(propertyId, `orderedPropertyIds[${index}]`));
     }
+    if (command.type === "database.record-reorder") {
+      const input = exactObject(command, "database.record-reorder", ["type", "workspaceId", "expectedRevision", "databaseId", "orderedRecordPageIds"]);
+      inputId(input.workspaceId, "workspaceId"); revision(input.expectedRevision); inputId(input.databaseId, "databaseId");
+      if (!Array.isArray(input.orderedRecordPageIds) || input.orderedRecordPageIds.length > DEFAULT_VALIDATION_LIMITS.maxPages) throw new MotionAppError("INVALID_INPUT", "orderedRecordPageIds must be an array within limits");
+      input.orderedRecordPageIds.forEach((pageId, index) => inputId(pageId, `orderedRecordPageIds[${index}]`));
+    }
     const expectedRevision = revision(command.expectedRevision);
     const loaded = this.required(command.workspaceId);
     const document = new WorkspaceDocument(clone(loaded.document));
@@ -608,6 +616,12 @@ export class MotionAppService {
         applyRecordInput(() => document.updateRecord(pageId, command.title === undefined ? undefined : requiredText(command.title, "title", true), clone(command.values)));
         if (page.collectionId) changes.database(page.collectionId); changes.page(pageId, { fts: true });
         if (command.title !== undefined) changes.links(document.rebuildLinkIndex()); break;
+      }
+      case "database.record-reorder": {
+        const databaseId = inputId(command.databaseId, "databaseId");
+        try { document.reorderRecords(databaseId, command.orderedRecordPageIds); }
+        catch (error) { if (error instanceof Error && /Record order must contain/.test(error.message)) throw new MotionAppError("INVALID_INPUT", "orderedRecordPageIds must contain every live record in the target collection exactly once"); throw error; }
+        changes.database(databaseId); break;
       }
       case "database.view-create": {
         const databaseId = requiredText(command.databaseId, "databaseId"), view = clone(command.view);

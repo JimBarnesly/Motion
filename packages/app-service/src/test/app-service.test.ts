@@ -98,6 +98,42 @@ test("property reorder is exact, atomic, durable, and deletion retains tombstone
       (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
   } finally { store.close(); await removeDatabase(path); }
 });
+test("record reorder is exact, atomic, one-revision durable, and exported in manual order", async () => {
+  const path = databasePath("record-order"); let store = new SqliteWorkspaceStore(path);
+  try {
+    let service = new MotionAppService(store); let state = service.execute({ type: "workspace.create", name: "Record ordering" }); const workspaceId = state.workspace.id;
+    state = service.execute({ type: "database.create", workspaceId, expectedRevision: state.revision, title: "Tasks" });
+    const databaseId = state.workspace.databases[0]!.id;
+    for (const title of ["First", "Second", "Third"]) state = service.execute({ type: "database.record-create", workspaceId, expectedRevision: state.revision, databaseId, title, values: {} });
+    const ids = state.workspace.databases[0]!.recordPageIds!; const expected = [ids[2]!, ids[0]!, ids[1]!];
+    const beforeRevision = state.revision;
+
+    const reordered = service.execute({ type: "database.record-reorder", workspaceId, expectedRevision: state.revision, databaseId, orderedRecordPageIds: expected });
+    assert.equal(reordered.revision, beforeRevision + 1);
+    assert.deepEqual(reordered.workspace.databases[0]!.recordPageIds, expected);
+    assert.deepEqual(reordered.workspace.pages.filter(page => expected.includes(page.id)).map(page => [page.id, page.title]),
+      state.workspace.pages.filter(page => expected.includes(page.id)).map(page => [page.id, page.title]), "record page identity and content changed");
+    assert.deepEqual(JSON.parse(String((store.database.prepare("SELECT database_json FROM workspace_databases WHERE workspace_id=? AND database_id=?").get(workspaceId, databaseId) as any).database_json)).recordPageIds, expected);
+
+    const beforeFailure = structuredClone(store.load(workspaceId));
+    for (const invalid of [[expected[0]!, expected[1]!], [expected[0]!, expected[0]!, expected[1]!], [expected[0]!, expected[1]!, "missing"]]) {
+      assert.throws(() => service.execute({ type: "database.record-reorder", workspaceId, expectedRevision: reordered.revision, databaseId, orderedRecordPageIds: invalid }),
+        (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+      assert.deepEqual(store.load(workspaceId), beforeFailure);
+    }
+    assert.throws(() => service.execute({ type: "database.record-reorder", workspaceId, expectedRevision: reordered.revision, databaseId, orderedRecordPageIds: expected, injected: true } as any),
+      (error: unknown) => error instanceof MotionAppError && error.code === "INVALID_INPUT");
+    assert.deepEqual(store.load(workspaceId), beforeFailure);
+
+    const exported = service.query({ type: "workspace.export", workspaceId });
+    assert.deepEqual(JSON.parse(exported.files["workspace.json"]!).databases[0].recordPageIds, expected);
+    const backup = createBackup(reordered.workspace as unknown as WorkspaceSnapshot, [], "2026-08-16T00:00:00.000Z");
+    assert.deepEqual(JSON.parse(new TextDecoder().decode(backup.files["workspace.json"]!)).databases[0].recordPageIds, expected);
+    store.close(); store = new SqliteWorkspaceStore(path); service = new MotionAppService(store);
+    assert.deepEqual(service.query({ type: "workspace.get", workspaceId }).workspace.databases[0]!.recordPageIds, expected);
+  } finally { store.close(); await removeDatabase(path); }
+});
+
 const integrityHash = async (database: string, attachmentRoot: string): Promise<string> => {
   const digest = createHash("sha256");
   for (const file of [database, `${database}-wal`, `${database}-shm`]) {

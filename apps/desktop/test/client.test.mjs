@@ -35,6 +35,14 @@ test("desktop capability and CSP expose no generic local or remote capability", 
   assert.match(capability.description, /no plugin filesystem, shell, dialog/);
 });
 
+test("native boundary admits exact record reorder commands only on the command lane", async () => {
+  const source = await (await import("node:fs/promises")).readFile(new URL("../src-tauri/src/lib.rs", import.meta.url), "utf8");
+  assert.match(source, /\("command", "database\.record-reorder"\)\s*=>\s*&\["type", "workspaceId", "expectedRevision", "databaseId", "orderedRecordPageIds"\]/);
+  assert.match(source, /operation == "database\.record-reorder"/);
+  assert.match(source, /Invalid record reorder request/);
+  assert.doesNotMatch(source, /\("query", "database\.record-reorder"\)/);
+});
+
 test("native boundary rejects unauthorized command and path fields before service dispatch", async () => {
   const source = await (await import("node:fs/promises")).readFile(new URL("../src-tauri/src/lib.rs", import.meta.url), "utf8");
   assert.match(source, /IPC operation is not allowed on this lane/);

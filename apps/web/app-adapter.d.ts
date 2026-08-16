@@ -108,6 +108,7 @@ export interface NativeCommandPayloads {
   "database.property-delete": { databaseId: string; propertyId: string };
   "database.record-create": { databaseId: string; title: string; values?: Record<string, NativePropertyValue> };
   "database.record-update": { pageId: string; title?: string; values: Record<string, NativePropertyValue | undefined> };
+  "database.record-reorder": { databaseId: string; orderedRecordPageIds: readonly string[] };
   "database.view-create": { databaseId: string; view: NativeDatabaseViewPatch & { id?: string; name: string; type: NativeDatabaseViewType; visiblePropertyIds: string[] } };
   "database.view-update": { databaseId: string; viewId: string; patch: NativeDatabaseViewPatch };
   "database.view-duplicate": { databaseId: string; viewId: string; name?: string; newViewId?: string };
@@ -119,7 +120,7 @@ export declare const NATIVE_EXECUTE_OPERATIONS: readonly [
   "workspace.create",
   "page.create", "page.rename", "page.move", "page.reorder", "page.set-favourite", "page.trash", "page.restore", "page.replace-blocks",
   "block.create", "block.update-content", "block.transform", "block.move", "block.indent", "block.outdent", "block.duplicate", "block.delete", "block.batch",
-  "database.create", "database.property-add", "database.property-update", "database.property-reorder", "database.property-delete", "database.record-create", "database.record-update",
+  "database.create", "database.property-add", "database.property-update", "database.property-reorder", "database.property-delete", "database.record-create", "database.record-update", "database.record-reorder",
   "database.view-create", "database.view-update", "database.view-duplicate", "database.view-reorder", "database.view-delete"
 ];
 export type NativeExecuteOperation = typeof NATIVE_EXECUTE_OPERATIONS[number];

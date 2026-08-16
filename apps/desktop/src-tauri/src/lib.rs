@@ -164,6 +164,7 @@ fn validate_dispatch_request(request: &IpcRequest) -> Result<(), IpcError> {
         ("command", "database.property-delete") => &["type", "workspaceId", "expectedRevision", "databaseId", "propertyId"],
         ("command", "database.record-create") => &["type", "workspaceId", "expectedRevision", "databaseId", "title", "values"],
         ("command", "database.record-update") => &["type", "workspaceId", "expectedRevision", "pageId", "title", "values"],
+        ("command", "database.record-reorder") => &["type", "workspaceId", "expectedRevision", "databaseId", "orderedRecordPageIds"],
         ("command", "database.view-create") => &["type", "workspaceId", "expectedRevision", "databaseId", "view"],
         ("command", "database.view-update") => &["type", "workspaceId", "expectedRevision", "databaseId", "viewId", "patch"],
         ("command", "database.view-duplicate") => &["type", "workspaceId", "expectedRevision", "databaseId", "viewId", "name", "newViewId"],
@@ -221,6 +222,20 @@ fn validate_dispatch_request(request: &IpcRequest) -> Result<(), IpcError> {
             !valid_canonical_id(id) || !unique.insert(id_text)
         }) {
             return Err(reject("INVALID_INPUT", "Invalid property reorder request"));
+        }
+    }
+    if operation == "database.record-reorder" {
+        let ordered = payload
+            .get("orderedRecordPageIds")
+            .and_then(Value::as_array)
+            .filter(|ids| ids.len() <= 100_000)
+            .ok_or_else(|| reject("INVALID_INPUT", "Invalid record reorder request"))?;
+        let mut unique = std::collections::HashSet::new();
+        if ordered.iter().any(|id| {
+            let Some(id_text) = id.as_str() else { return true; };
+            !valid_canonical_id(id) || !unique.insert(id_text)
+        }) {
+            return Err(reject("INVALID_INPUT", "Invalid record reorder request"));
         }
     }
     Ok(())

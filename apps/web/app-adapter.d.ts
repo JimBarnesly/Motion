@@ -56,8 +56,10 @@ export interface NativeDatabasePropertyInput {
 }
 export type NativeDatabasePropertyPatch = Partial<NativeDatabasePropertyInput>;
 export type NativeFilterOperator = "equals" | "not-equals" | "contains" | "not-contains" | "gt" | "gte" | "lt" | "lte" | "before" | "after" | "is-empty" | "is-not-empty" | "in" | "relative-date";
+export type NativeRelativeDatePreset = "today" | "yesterday" | "tomorrow" | "past-week" | "next-week" | "past-month" | "next-month";
 export type NativeFilterExpression =
-  | { kind: "condition"; propertyId: string; operator: NativeFilterOperator; value?: NativePropertyValue }
+  | { kind: "condition"; propertyId: string; operator: "relative-date"; value: NativeRelativeDatePreset }
+  | { kind: "condition"; propertyId: string; operator: Exclude<NativeFilterOperator, "relative-date">; value?: NativePropertyValue }
   | { kind: "and" | "or"; children: NativeFilterExpression[] }
   | { kind: "not"; child: NativeFilterExpression };
 export type NativeDatabaseViewType = "table" | "list" | "board" | "calendar" | "gallery" | "timeline" | "chart" | "form";

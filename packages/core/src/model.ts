@@ -39,7 +39,11 @@ export type PropertyValue = Scalar | string[] | DateRange | { attachmentIds: ID[
 export interface DatabaseRow { id: ID; pageId?: ID; values: Record<ID, PropertyValue>; createdAt: ISODate; updatedAt: ISODate }
 export type DatabaseViewType = "table" | "list" | "board" | "calendar" | "gallery" | "timeline" | "chart" | "form";
 export type FilterOperator = "equals" | "not-equals" | "contains" | "not-contains" | "gt" | "gte" | "lt" | "lte" | "before" | "after" | "is-empty" | "is-not-empty" | "in" | "relative-date";
-export type FilterExpression = { kind: "condition"; propertyId: ID; operator: FilterOperator; value?: PropertyValue } | { kind: "and" | "or"; children: FilterExpression[] } | { kind: "not"; child: FilterExpression };
+export type FilterExpression =
+  | { kind: "condition"; propertyId: ID; operator: "relative-date"; value: RelativeDatePreset }
+  | { kind: "condition"; propertyId: ID; operator: Exclude<FilterOperator, "relative-date">; value?: PropertyValue }
+  | { kind: "and" | "or"; children: FilterExpression[] }
+  | { kind: "not"; child: FilterExpression };
 export interface SortClause { propertyId: ID; direction: "asc" | "desc"; nulls?: "first" | "last"; locale?: string }
 export interface DatabaseView {
   id: ID; collectionId?: ID; name: string; type: DatabaseViewType; visiblePropertyIds: ID[];
@@ -89,3 +93,4 @@ export function assertWorkspace(value: unknown): asserts value is Workspace {
 }
 
 import { assertWorkspaceValue } from "./validation.js";
+import type { RelativeDatePreset } from "./relative-date.js";

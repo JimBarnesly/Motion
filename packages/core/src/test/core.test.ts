@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { CANONICAL_MAX_ID_LENGTH, DEFAULT_VALIDATION_LIMITS, MemoryWorkspaceStore, WorkspaceDocument, assertWorkspaceValue, createWorkspace, exportDatabaseCsv, exportFullWorkspace, exportPageMarkdown, exportWorkspaceJson, migrateWebWorkspaceV1, migrateWorkspace, stableId, type Block, type Page, type Workspace } from "../index.js";
+import { CANONICAL_MAX_ID_LENGTH, DEFAULT_VALIDATION_LIMITS, RELATIVE_DATE_PRESETS, MemoryWorkspaceStore, WorkspaceDocument, assertWorkspaceValue, createWorkspace, exportDatabaseCsv, exportFullWorkspace, exportPageMarkdown, exportWorkspaceJson, migrateWebWorkspaceV1, migrateWorkspace, relativeDateBounds, stableId, type Block, type FilterExpression, type Page, type Workspace } from "../index.js";
 
 test("hierarchy, links, backlinks and search", async () => {
   const ws = createWorkspace("Private notes");
@@ -491,6 +491,62 @@ test("record property semantics reject reversed or open-shaped date ranges atomi
   ]) {
     const before = structuredClone(doc.data);
     assert.throws(() => doc.addRecord(database.id, "Invalid", { range } as any), /date range/i);
+    assert.deepEqual(doc.data, before);
+  }
+});
+
+test("relative-date presets use deterministic UTC calendar windows for date values", () => {
+  const clock = new Date("2026-03-15T18:45:12.000-07:00");
+  assert.deepEqual(RELATIVE_DATE_PRESETS, ["today", "yesterday", "tomorrow", "past-week", "next-week", "past-month", "next-month"]);
+  assert.deepEqual(relativeDateBounds("today", clock).map(value => value.toISOString()), ["2026-03-16T00:00:00.000Z", "2026-03-17T00:00:00.000Z"]);
+  assert.deepEqual(relativeDateBounds("past-week", clock).map(value => value.toISOString()), ["2026-03-10T00:00:00.000Z", "2026-03-17T00:00:00.000Z"]);
+  assert.deepEqual(relativeDateBounds("next-month", clock).map(value => value.toISOString()), ["2026-03-16T00:00:00.000Z", "2026-04-15T00:00:00.000Z"]);
+
+  const doc = new WorkspaceDocument(createWorkspace("Relative dates"));
+  const page = doc.addPage("Events");
+  const database = doc.addDatabase({ id: "events", pageId: page.id, name: "Events", properties: [
+    { id: "name", name: "Name", type: "title" }, { id: "date", name: "Date", type: "date" }
+  ], rows: [], views: [] });
+  const inside = doc.addRecord(database.id, "Inside", { date: "2026-03-16T23:59:59.999Z" });
+  doc.addRecord(database.id, "Boundary", { date: "2026-03-17T00:00:00.000Z" });
+  assert.deepEqual(doc.queryRecords(database.id, { kind: "condition", propertyId: "date", operator: "relative-date", value: "today" }, [], () => clock).map(record => record.id), [inside.id]);
+});
+
+test("relative-date ranges overlap UTC windows and compose through nested boolean filters", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Relative ranges"));
+  const page = doc.addPage("Events");
+  const database = doc.addDatabase({ id: "events", pageId: page.id, name: "Events", properties: [
+    { id: "name", name: "Name", type: "title" }, { id: "window", name: "Window", type: "date-range" }, { id: "state", name: "State", type: "plain-text" }
+  ], rows: [], views: [] });
+  const overlap = doc.addRecord(database.id, "Overlap", { window: { start: "2026-03-14T00:00:00.000Z", end: "2026-03-16T00:00:00.000Z" }, state: "open" });
+  doc.addRecord(database.id, "Ends before", { window: { start: "2026-03-14T00:00:00.000Z", end: "2026-03-15T23:59:59.999Z" }, state: "open" });
+  doc.addRecord(database.id, "Negated", { window: { start: "2026-03-16T00:00:00.000Z" }, state: "closed" });
+  const filter: FilterExpression = { kind: "and", children: [
+    { kind: "condition", propertyId: "window", operator: "relative-date", value: "today" },
+    { kind: "not", child: { kind: "condition", propertyId: "state", operator: "equals", value: "closed" } }
+  ] };
+  assert.deepEqual(doc.queryRecords(database.id, filter, [], () => new Date("2026-03-16T12:00:00.000Z")).map(record => record.id), [overlap.id]);
+});
+
+test("relative-date saved filters persist presets and invalid shapes fail closed", () => {
+  const doc = new WorkspaceDocument(createWorkspace("Saved relative filter"));
+  const page = doc.addPage("Events");
+  const database = doc.addDatabase({ id: "events", pageId: page.id, name: "Events", properties: [
+    { id: "date", name: "Date", type: "date" }, { id: "text", name: "Text", type: "plain-text" }
+  ], rows: [], views: [] });
+  const filter = { kind: "condition", propertyId: "date", operator: "relative-date", value: "tomorrow" } as const;
+  doc.addView(database.id, { id: "upcoming", name: "Upcoming", type: "table", visiblePropertyIds: ["date"], filters: filter });
+  const reloaded = new WorkspaceDocument(JSON.parse(JSON.stringify(doc.data)));
+  assert.deepEqual(reloaded.data.databases[0]?.views[0]?.filters, filter);
+
+  for (const invalid of [
+    { kind: "condition", propertyId: "date", operator: "relative-date", value: "someday" },
+    { kind: "condition", propertyId: "text", operator: "relative-date", value: "today" },
+    { kind: "condition", propertyId: "date", operator: "relative-date", value: "today", injected: true },
+    { kind: "not", child: filter, injected: true }
+  ]) {
+    const before = structuredClone(doc.data);
+    assert.throws(() => doc.updateView(database.id, "upcoming", { filters: invalid as any }), /relative-date|shape|invalid/i);
     assert.deepEqual(doc.data, before);
   }
 });

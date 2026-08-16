@@ -1,5 +1,6 @@
 import { CANONICAL_MAX_ID_LENGTH, type Attachment, type Block, type Database, type DatabaseProperty, type ID, type Page, type PropertyValidation, type PropertyValue, type Workspace } from "./model.js";
 import { MAX_ATTACHMENT_BYTES } from "./attachment-policy.js";
+import { isRelativeDatePreset } from "./relative-date.js";
 
 export interface ValidationLimits {
   maxPages: number; maxBlocks: number; maxBlockDepth: number; maxDatabases: number;
@@ -185,14 +186,22 @@ function validateFilter(value: unknown, path: string, limits: ValidationLimits, 
   if (depth > limits.maxBlockDepth || !plain(value)) fail(`${path} must be a valid filter object`);
   const filter = value as Record<string, unknown>;
   if (filter.kind === "condition") {
+    if (Object.keys(filter).some(key => !["kind", "propertyId", "operator", "value"].includes(key))) fail(`${path} condition has an invalid shape`);
     const propertyId = stableId(filter.propertyId, `${path}.propertyId`, limits), property = properties.get(propertyId);
     if (!property) fail(`${path} references unknown property ${propertyId}`);
-    oneOf(filter.operator, FILTER_OPERATORS, `${path}.operator`, limits);
-    if (filter.value !== undefined) validatePropertyValue(filter.value, property!, `${path}.value`, limits, attachmentIds);
+    const operator = oneOf(filter.operator, FILTER_OPERATORS, `${path}.operator`, limits);
+    if (operator === "relative-date") {
+      if (!["date", "date-range", "created-time", "updated-time"].includes(property!.type)) fail(`${path} relative-date requires a date property`);
+      if (!isRelativeDatePreset(filter.value)) fail(`${path}.value has an invalid relative-date preset`);
+    } else if (filter.value !== undefined) validatePropertyValue(filter.value, property!, `${path}.value`, limits, attachmentIds);
   } else if (filter.kind === "and" || filter.kind === "or") {
+    if (Object.keys(filter).some(key => !["kind", "children"].includes(key))) fail(`${path} group has an invalid shape`);
     if (!Array.isArray(filter.children)) fail(`${path}.children must be an array`);
     (filter.children as unknown[]).forEach((child, index) => validateFilter(child, `${path}.children[${index}]`, limits, properties, attachmentIds, depth + 1));
-  } else if (filter.kind === "not") validateFilter(filter.child, `${path}.child`, limits, properties, attachmentIds, depth + 1);
+  } else if (filter.kind === "not") {
+    if (Object.keys(filter).some(key => !["kind", "child"].includes(key))) fail(`${path} negation has an invalid shape`);
+    validateFilter(filter.child, `${path}.child`, limits, properties, attachmentIds, depth + 1);
+  }
   else fail(`${path}.kind is invalid`);
 }
 function validateBlocks(blocks: unknown, path: string, limits: ValidationLimits, ids: Set<ID>, pageId: ID, blockOwners: Map<ID, ID>, attachmentIds: Set<ID>, state: { count: number; viewRefs: { id: ID; path: string }[] }, depth = 0): void {

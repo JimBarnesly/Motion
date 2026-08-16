@@ -13,7 +13,8 @@ const COMMANDS = [
 test("slash queries are active only at a word boundary immediately before the caret", () => {
   assert.deepEqual(activeSlashQuery("/hea", 4), { start: 0, end: 4, query: "hea" });
   assert.deepEqual(activeSlashQuery("Write /todo", 11), { start: 6, end: 11, query: "todo" });
-  assert.equal(activeSlashQuery("https://motion.local", 20), null);
+  const localUrl = "http://127.0.0.1/motion";
+  assert.equal(activeSlashQuery(localUrl, localUrl.length), null);
   assert.equal(activeSlashQuery("/heading/", 9), null);
 });
 

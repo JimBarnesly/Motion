@@ -212,7 +212,7 @@ test("typed table records open as pages and retain view state", async ({ page })
   await page.locator("#filterProperty").selectOption({ label: "Status" });
   await page.locator("#filterOperator").selectOption("not-equals");
   const statusValue = await page.getByLabel("Status", { exact: true }).inputValue();
-  await page.locator("#filterValue").fill(statusValue);
+  await page.locator("[data-filter-value]").fill(statusValue);
   await page.getByRole("button", { name: "Apply" }).click();
   await expect(page.getByRole("button", { name: "Replace heat pump", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Filter" }).click();
@@ -226,7 +226,7 @@ test("typed table records open as pages and retain view state", async ({ page })
   await page.getByRole("button", { name: "Filter" }).click();
   await page.locator("#filterProperty").selectOption({ label: "Status" });
   await page.locator("#filterOperator").selectOption("not-equals");
-  await page.locator("#filterValue").fill(statusValue);
+  await page.locator("[data-filter-value]").fill(statusValue);
   await page.getByRole("button", { name: "Apply" }).click();
   await expect(page.getByRole("button", { name: "Replace heat pump", exact: true })).toHaveCount(0);
   await page.getByRole("combobox", { name: "Active database view" }).selectOption({ label: "Table · table" });

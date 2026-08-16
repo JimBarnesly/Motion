@@ -91,7 +91,7 @@ test("the editor exposes an accessible at-mention chooser and persists the selec
   assert.match(source, /runCanonicalOperation\("creating linked page"/);
   assert.match(source, /commit\("page\.create",\{title,parentId:null\}/);
   assert.match(source, /event\.key==="ArrowDown"&&activeMention/);
-  assert.match(source, /Type text, or \[\[Page name\]\] to link or create/);
+  assert.match(source, /Type '\/' for commands or \[\[Page name\]\] to link or create/);
   assert.match(html, /id="mentionChooser"[^>]+role="listbox"/);
   assert.match(build, /"mention-entry\.js"/);
 });

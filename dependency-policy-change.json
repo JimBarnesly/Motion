@@ -2,10 +2,10 @@
   "schemaVersion": 2,
   "oldPolicySha256": "e6f39d7b204bf45a00e3a5f67a378ea529396cfcdfb1295ad95ffab91734a679",
   "newPolicySha256": "e6f39d7b204bf45a00e3a5f67a378ea529396cfcdfb1295ad95ffab91734a679",
-  "rationale": "The workflow repair preserves fail-closed controls while passing Cargo lock enforcement through the correct Tauri runner boundary; dependency policy scope and all pinned security controls remain unchanged.",
+  "rationale": "The packaged native data-root preflight now directly uses the already locked and policy-approved libc and rustix crates for architecture-correct open flags and a safe effective-UID query; the allowed dependency versions, licences, sources, and policy scope remain unchanged.",
   "approverRole": "Operations & Security Director",
   "scopeDiff": [],
   "controlPlaneDiff": [
-    ".github/workflows/ci.yml:sha256:0963b19a6fdd9579466fecb6627cb43ed041ad50560a79ac84bdce2535a5e6f6->sha256:fb73d224d561d49732aa2c9a9b854601f9c2a9e6b39faf2d8e321ad52246c732"
+    "docs/dependency-inventory.json:sha256:d51ec6ef6e68faf3a7d7fe6a49a3e152e155cd21fba2da84b71ad761161348a5->sha256:62595be382580ce18b3050a7d2cbb72d16e17a1bab4d215319c9b733af941bf8"
   ]
 }

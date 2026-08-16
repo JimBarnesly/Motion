@@ -1313,7 +1313,7 @@
       "name": "libc",
       "version": "0.2.189",
       "licence": "MIT OR Apache-2.0",
-      "direct": false,
+      "direct": true,
       "sourcePackage": "registry+https://github.com/rust-lang/crates.io-index"
     },
     {
@@ -1969,7 +1969,7 @@
       "name": "rustix",
       "version": "1.1.4",
       "licence": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
-      "direct": false,
+      "direct": true,
       "sourcePackage": "registry+https://github.com/rust-lang/crates.io-index"
     },
     {

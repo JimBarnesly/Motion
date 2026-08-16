@@ -9,7 +9,7 @@ test("database title preserves slow sequential typing across canonical saves", a
   }));
   await page.reload();
 
-  await page.getByRole("button", { name: "New table", exact: true }).click();
+  await page.getByRole("navigation", { name: "Workspace pages" }).getByRole("button", { name: "New table", exact: true }).click();
   const title = page.getByRole("textbox", { name: "Database title" });
   await expect(title).toBeFocused();
   await title.pressSequentially("Todo", { delay: 250 });

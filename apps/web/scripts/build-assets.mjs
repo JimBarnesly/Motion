@@ -1,0 +1,31 @@
+export const WEB_ASSETS = Object.freeze([
+  "index.html",
+  "app.js",
+  "app-adapter.js",
+  "app-adapter.d.ts",
+  "attachment-access.js",
+  "attachment-ingestion.js",
+  "block-presentation.js",
+  "browser-edit-confirmation.js",
+  "browser-mutation.js",
+  "canonical-security.js",
+  "command-router.js",
+  "edit-recovery.js",
+  "editor-history.js",
+  "editor-structure.js",
+  "id-security.js",
+  "internal-links.js",
+  "markdown-paste.js",
+  "mention-entry.js",
+  "operation-coordinator.js",
+  "property-editors.js",
+  "property-lifecycle.js",
+  "reference-reconciliation.js",
+  "search-recovery.js",
+  "slash-entry.js",
+  "workspace-v1.js",
+  "link-presentation.js",
+  "styles.css"
+]);
+
+export const EXTERNAL_ASSETS = Object.freeze(["attachment-policy.js"]);

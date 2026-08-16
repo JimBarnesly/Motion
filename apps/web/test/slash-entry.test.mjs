@@ -47,5 +47,12 @@ test("the Web editor wires an accessible slash chooser through one canonical blo
   assert.match(source, /candidate:\{type:"block\.batch",payload:\{commands:selected\.commands\}\}/);
   assert.match(source, /dataset\.slashType/);
   assert.match(source, /ArrowDown.*activeSlash/s);
+  assert.match(source, /ArrowUp/);
+  assert.match(source, /Home/);
+  assert.match(source, /End/);
+  assert.match(source, /closeEditorChooser/);
+  assert.match(source, /aria-selected/);
+  assert.match(source, /aria-expanded/);
+  assert.match(source, /aria-autocomplete/);
   assert.match(html, /id="slashChooser"[^>]*role="listbox"[^>]*aria-label="Block types"/);
 });

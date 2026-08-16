@@ -23,6 +23,9 @@ async function rootCreation(page: Page, name: "Add page" | "New table") {
 
 async function exportWorkspace(page: Page) {
   if ((page.viewportSize()?.width ?? 1280) <= 720) await page.getByRole("button", { name: "Open navigation" }).click();
+  const tools = page.locator("details.workspace-tools");
+  if (!(await tools.evaluate(element => (element as HTMLDetailsElement).open)))
+    await tools.getByText("Workspace tools", { exact: true }).click();
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export JSON" }).click();
   const stream = await (await downloadPromise).createReadStream();
@@ -220,6 +223,7 @@ test("MOTION-UX-008: native verified backup restores created content and stable 
   await expect(page.getByRole("status")).toHaveText("Saved to Motion");
   const before = await page.evaluate(() => (window as any).__TAURI__.core.invoke("motion_ui_load", { request: { schemaVersion: 1 } }));
 
+  await page.locator("details.workspace-tools").getByText("Workspace tools", { exact: true }).click();
   await page.getByRole("button", { name: "Verified backup" }).click();
   await expect(page.getByRole("status")).toHaveText("Verified backup saved safely.");
   const bundle = await page.evaluate(() => (window as any).__motionSavedBackup);

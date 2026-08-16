@@ -59,7 +59,7 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:109a67a35bc2c9fbfc014f769d5e3fe8405b90a44a3c53c7386eb89185fd9a34",
+      "fingerprint": "sha256:f935c591a549a3741b0647cd6083da987436ca403bcef796efc5738c62fe5b34",
       "evidence": "apps/web/test/record-order.test.mjs canonical exact-order, hidden-slot, keyboard/pointer, and labelled-control tests; apps/web/test/property-editors.test.mjs escaping/projection tests; apps/web/test/canonical-security.test.mjs hostile canonical ID matrix",
       "owner": "Operations & Security Director",
       "rationale": "Database table/list, record-order controls, and property-definition order composition attribute-escape every persisted ID and HTML-escape record titles and property names; property text and controls use reviewed escaping helpers, view types are closed enums, and system metadata renders without mutation authority.",

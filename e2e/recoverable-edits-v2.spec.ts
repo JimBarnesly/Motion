@@ -122,6 +122,7 @@ for (const layout of layouts) {
       await page.goto("/");
       await page.evaluate(() => (window as any).__motionEditV2.pauseExport());
       if (layout.viewport.width <= 720) await page.getByRole("button", { name: "Open navigation" }).click();
+      await page.locator("details.workspace-tools").getByText("Workspace tools", { exact: true }).click();
       const exportButton = page.getByRole("button", { name: "Export JSON" });
       await exportButton.click();
       await expect.poll(() => page.evaluate(() => (window as any).__motionEditV2.exportCalls)).toBe(1);
@@ -150,6 +151,7 @@ for (const layout of layouts) {
       await page.getByRole("button", { name: "Close search" }).click();
 
       if (layout.viewport.width <= 720) await page.getByRole("button", { name: "Open navigation" }).click();
+      await page.locator("details.workspace-tools").getByText("Workspace tools", { exact: true }).click();
       await page.getByRole("button", { name: "Export JSON" }).click();
       await expect(page.locator("#editRecovery")).toContainText("before exporting");
       expect(await page.evaluate(() => (window as any).__motionEditV2.exportCalls)).toBe(0);

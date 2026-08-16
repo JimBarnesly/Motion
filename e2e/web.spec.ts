@@ -32,6 +32,7 @@ test("local Web workspace persists, searches and exports without external networ
   await expect(page.locator("#searchResults").getByRole("button", { name: /Pump commissioning notes/ })).toBeVisible();
   await page.getByRole("button", { name: "Close search" }).click();
 
+  await page.locator("details.workspace-tools").getByText("Workspace tools", { exact: true }).click();
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export JSON" }).click();
   const download = await downloadPromise;

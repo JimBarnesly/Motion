@@ -47,6 +47,13 @@ async function consequenceDialog(page: Page, action: () => Promise<void>) {
   return message;
 }
 
+async function openWorkspaceTools(page: Page) {
+  if ((page.viewportSize()?.width ?? 1280) <= 720) await page.getByRole("button", { name: "Open navigation" }).click();
+  const tools = page.locator("details.workspace-tools");
+  if (!(await tools.evaluate(element => (element as HTMLDetailsElement).open)))
+    await tools.getByText("Workspace tools", { exact: true }).click();
+}
+
 for (const layout of layouts) {
   test.describe(layout.name, () => {
     test.use({ viewport: layout.viewport });
@@ -68,6 +75,7 @@ for (const layout of layouts) {
 
     test("workspace file selection requires replacement confirmation and cancellation", async ({ page }) => {
       await seed(page);
+      await openWorkspaceTools(page);
       const restore = page.getByRole("button", { name: "Restore", exact: true });
       await restore.focus();
       let message: string | null = null;
@@ -91,6 +99,7 @@ for (const layout of layouts) {
 
     test("Tab leaves the editor and can reach footer restore controls", async ({ page }) => {
       await seed(page);
+      await openWorkspaceTools(page);
       const editor = page.locator('[contenteditable="true"][data-block]').first();
       const restore = page.getByRole("button", { name: "Restore", exact: true });
       await editor.focus();
@@ -144,6 +153,7 @@ for (const layout of layouts) {
 
     test("restore failure uses a consequence-specific live announcement", async ({ page }) => {
       await seed(page);
+      await openWorkspaceTools(page);
       const status = page.getByRole("status");
       const restore = page.getByRole("button", { name: "Restore", exact: true });
       const chooser = page.waitForEvent("filechooser");

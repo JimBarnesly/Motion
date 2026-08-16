@@ -45,7 +45,8 @@ for (const layout of layouts) {
         return { color: style.color, width: bounds.width, height: bounds.height };
       });
       expect(presentation.color).not.toBe("transparent");
-      expect(presentation.width).toBeGreaterThanOrEqual(76);
+      expect(presentation.width).toBeGreaterThanOrEqual(28);
+      expect(presentation.width).toBeLessThanOrEqual(44);
       expect(presentation.height).toBeGreaterThan(24);
 
       for (const [value, label] of [["heading-1", "Heading 1"], ["task", "Task"], ["code", "Code"], ["divider", "Divider"], ["paragraph", "Text"]] as const) {

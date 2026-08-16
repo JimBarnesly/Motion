@@ -792,3 +792,14 @@ test("verified backup creation delegates publication to the native safe-save bou
   assert.match(source, /Workspace restored\./);
   assert.doesNotMatch(source, /createVerifiedBackup[^\n]+downloadJson\(bundle/);
 });
+
+test("workspace tools remain keyboard-disclosed and database action IDs are unique", async () => {
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app.js", import.meta.url), "utf8");
+  assert.match(html, /<details class="workspace-tools">\s*<summary>Workspace tools<\/summary>/);
+  const viewToolbar = source.match(/function viewToolbar\(database,view\)\{[^\n]+/)?.[0] ?? "";
+  const renderDatabase = source.match(/function renderDatabase\(page,database\)\{[^\n]+/)?.[0] ?? "";
+  const databaseMarkup = `${viewToolbar}\n${renderDatabase}`;
+  for (const id of ["filterButton", "sortButton", "addProperty", "viewControls"])
+    assert.equal(databaseMarkup.match(new RegExp(`id=\\"${id}\\"`, "g"))?.length, 1, `${id} must be unique`);
+});

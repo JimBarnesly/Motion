@@ -172,7 +172,7 @@ test("typed table records open as pages and retain view state", async ({ page })
 
   page.once("dialog", dialog => dialog.accept("Cost"));
   await page.getByRole("button", { name: "+ Property" }).click();
-  await page.locator('[data-property-menu]').filter({ hasText: "Cost" }).click();
+  await page.getByRole("toolbar", { name: "Database views" }).getByRole("button", { name: "Cost", exact: true }).click();
   await page.locator("#propertyType").selectOption("number");
   await page.getByRole("button", { name: "Save" }).click();
 

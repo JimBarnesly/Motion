@@ -1,4 +1,5 @@
 use rfd::{FileDialog, MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
+use libc::{geteuid, O_CLOEXEC, O_DIRECTORY, O_NOFOLLOW};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -267,13 +268,6 @@ fn data_root_security_error() -> IpcError {
 // Authenticate that exact owner-controlled inode before narrowing its permissions;
 // the Node lock still rejects every untrusted root and remains authoritative.
 fn prepare_native_data_root(data_root: &Path) -> Result<(), IpcError> {
-    const O_DIRECTORY: i32 = 0o200000;
-    const O_NOFOLLOW: i32 = 0o400000;
-    const O_CLOEXEC: i32 = 0o2000000;
-    unsafe extern "C" {
-        fn geteuid() -> u32;
-    }
-
     let reject_root = |_| data_root_security_error();
     let path_metadata = match fs::symlink_metadata(data_root) {
         Ok(metadata) => metadata,

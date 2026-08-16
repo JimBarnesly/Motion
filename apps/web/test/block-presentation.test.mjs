@@ -20,7 +20,7 @@ test("the web renderer and build use the safe block type option boundary", async
   assert.match(build, /block-presentation\.js/);
 });
 
-test("block type control visibly names its current canonical type", () => {
+test("block type control announces its current type from a contextual gutter handle", () => {
   const select = renderBlockTypeSelect({
     blockId: "block-1",
     type: "heading-1",
@@ -28,7 +28,11 @@ test("block type control visibly names its current canonical type", () => {
     labels: { paragraph: "Text", "heading-1": "Heading 1", task: "Task" }
   });
 
-  assert.match(select, /^<select class="block-type-select"/);
+  assert.match(select, /^<label class="block-type-control"/);
+  assert.match(select, /data-block-type-label="Heading 1"/);
+  assert.match(select, /title="Change Heading 1 block type"/);
+  assert.match(select, /<span class="block-type-handle" aria-hidden="true">⋮⋮<\/span>/);
+  assert.match(select, /<select class="block-type-select"/);
   assert.match(select, /aria-label="Block type: Heading 1"/);
   assert.match(select, /<option value="heading-1" selected>Heading 1<\/option>/);
   assert.match(select, /<option value="paragraph">Text<\/option>/);
@@ -47,18 +51,20 @@ test("block type control keeps hostile preserved types inert", () => {
   assert.match(select, /Block type: Unsupported/);
 });
 
-test("block type control is compact, readable, and gains chrome on interaction", async () => {
+test("block type control stays out of the reading column until its row is active", async () => {
   const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
-  const baseRule = styles.match(/\.block-type-select\s*\{([^}]*)\}/s)?.[1] ?? "";
-  const interactiveRule = styles.match(/\.block-type-select:hover,\.block-type-select:focus\s*\{([^}]*)\}/s)?.[1] ?? "";
+  const controlRule = styles.match(/\.block-type-control\s*\{([^}]*)\}/s)?.[1] ?? "";
+  const selectRule = styles.match(/\.block-type-select\s*\{([^}]*)\}/s)?.[1] ?? "";
+  const revealRule = styles.match(/\.block-row:hover \.block-type-control,\.block-row:focus-within \.block-type-control\s*\{([^}]*)\}/s)?.[1] ?? "";
+  const focusRule = styles.match(/\.block-type-control:focus-within\s*\{([^}]*)\}/s)?.[1] ?? "";
 
-  assert.match(baseRule, /field-sizing:\s*content/);
-  assert.match(baseRule, /min-width:\s*76px/);
-  assert.doesNotMatch(baseRule, /min-width:\s*140px/);
-  assert.match(baseRule, /min-height:\s*(?:2[5-9]|[3-9]\d)px/);
-  assert.match(baseRule, /color:\s*var\(--muted\)/);
-  assert.match(interactiveRule, /border-color:\s*var\(--line\)/);
-  assert.match(interactiveRule, /background:\s*var\(--surface\)/);
-  assert.match(interactiveRule, /color:\s*var\(--text\)/);
-  assert.doesNotMatch(styles, /\.block-row select\s*\{[^}]*color:\s*transparent/s);
+  assert.match(controlRule, /width:\s*28px/);
+  assert.match(controlRule, /height:\s*28px/);
+  assert.match(controlRule, /opacity:\s*0/);
+  assert.doesNotMatch(controlRule, /min-width:\s*(?:76|140)px/);
+  assert.match(selectRule, /position:\s*absolute/);
+  assert.match(selectRule, /inset:\s*0/);
+  assert.match(selectRule, /opacity:\s*0/);
+  assert.match(revealRule, /opacity:\s*1/);
+  assert.match(focusRule, /outline:\s*2px solid var\(--accent\)/);
 });

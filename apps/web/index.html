@@ -31,16 +31,19 @@
         </nav>
         <footer class="sidebar-footer">
           <div><span class="status-dot" aria-hidden="true"></span> Local workspace</div>
-          <div class="backup-actions">
-            <button id="exportWorkspace" type="button">Export JSON</button>
-            <button id="restoreWorkspace" type="button">Restore</button>
-            <input id="restoreFile" type="file" accept="application/json,.json" hidden />
-            <button id="attachFile" type="button">Attach file</button>
-            <input id="attachmentFile" type="file" hidden />
-            <button id="createVerifiedBackup" type="button">Verified backup</button>
-            <button id="restoreVerifiedBackup" type="button">Restore verified</button>
-            <input id="verifiedBackupFile" type="file" accept="application/json,.json" hidden />
-          </div>
+          <details class="workspace-tools">
+            <summary>Workspace tools</summary>
+            <div class="backup-actions">
+              <button id="exportWorkspace" type="button">Export JSON</button>
+              <button id="restoreWorkspace" type="button">Restore</button>
+              <input id="restoreFile" type="file" accept="application/json,.json" hidden />
+              <button id="attachFile" type="button">Attach file</button>
+              <input id="attachmentFile" type="file" hidden />
+              <button id="createVerifiedBackup" type="button">Verified backup</button>
+              <button id="restoreVerifiedBackup" type="button">Restore verified</button>
+              <input id="verifiedBackupFile" type="file" accept="application/json,.json" hidden />
+            </div>
+          </details>
         </footer>
       </aside>
 
@@ -48,7 +51,7 @@
         <header class="topbar">
           <button class="icon-button mobile-only" id="openSidebar" type="button" aria-label="Open navigation">☰</button>
           <div id="breadcrumbs" class="breadcrumbs" aria-label="Breadcrumb"></div>
-          <button class="icon-button context-toggle" id="openContext" aria-controls="contextPanel" aria-expanded="false" type="button">Page context</button>
+          <button class="icon-button context-toggle" id="openContext" aria-controls="contextPanel" aria-expanded="false" type="button">Links &amp; files</button>
           <span class="save-state" id="saveState" role="status">Saved locally</span>
         </header>
         <section id="editRecovery" class="edit-recovery" role="alert" aria-live="assertive" aria-atomic="true" hidden>
@@ -62,7 +65,7 @@
       </main>
 
       <aside class="context-panel" id="contextPanel" aria-label="Page context">
-        <div class="context-heading"><h2 id="contextPanelTitle" tabindex="-1">Page context</h2><span><button class="quiet" id="copyPageLink" type="button" hidden>Copy page link</button><button class="icon-button context-close" id="closeContext" type="button" aria-label="Close page context">×</button></span></div>
+        <div class="context-heading"><h2 id="contextPanelTitle" tabindex="-1">Links &amp; files</h2><span><button class="quiet" id="copyPageLink" type="button" hidden>Copy page link</button><button class="icon-button context-close" id="closeContext" type="button" aria-label="Close links and files">×</button></span></div>
         <section><h3>Linked pages</h3><div id="outgoingLinks"></div></section>
         <section><h3>Backlinks</h3><div id="backlinks"></div></section>
         <section><h3>Workspace attachments</h3><div id="attachments" aria-live="polite"></div></section>

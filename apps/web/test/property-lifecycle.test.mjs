@@ -62,7 +62,9 @@ test("browser schema-v2 lifecycle validation rejects crafted canonical state", (
 
 test("schema-v2 restore validates lifecycle state and escapes view labels independently", async () => {
   const source = await readFile(new URL("../app.js", import.meta.url), "utf8");
-  assert.match(source, /canonicalWorkspace[^\n]+assertSafePropertyLifecycle/);
+  const restore = source.match(/async function restoreWorkspace\(file\)\{[^\n]+/)?.[0] ?? "";
+  assert.match(restore, /canonicalWorkspace\(candidate\)/);
+  assert.doesNotMatch(restore, /assertSafeCanonicalWorkspaceIds\(candidate\)/);
   assert.match(source, /escapeHtml\(candidate\.type\)/);
 });
 

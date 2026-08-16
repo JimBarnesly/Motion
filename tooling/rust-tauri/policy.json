@@ -14,7 +14,7 @@
     "cargoSha256": "c5dcff701935f50505c9c5df7ee941a9de4f29d84ab91627c396848accef1808"
   },
   "inputs": {
-    "cargoLockSha256": "febfb116bd39e5aa86d640b046f9965f8ebc0e3f207a546621cb019377be017f",
+    "cargoLockSha256": "afa6104bf7c2d937e81bd1942df4c5544cdc245ae50aafd182ee013c8223af1d",
     "packageLockSha256": "99c8d6b3e86964e2cd77a9379fc54b7ff8fc9617a5dd383b2bfe8fb8a81d51f6"
   }
 }

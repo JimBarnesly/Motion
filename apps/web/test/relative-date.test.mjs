@@ -44,6 +44,7 @@ test("browser relative-date filtering projects created-time and updated-time lik
 });
 
 test("filter UI exposes readable bounded presets and persists the selected preset", () => {
+  assert.doesNotThrow(() => filterValueControlHtml({ type: "date" }, null));
   assert.ok(FILTER_OPERATOR_CHOICES.some(choice => choice.value === "relative-date" && choice.label === "Relative date"));
   const html = filterValueControlHtml({ type: "date" }, { operator: "relative-date", value: "past-week" });
   assert.match(html, /<select[^>]+data-filter-value/);

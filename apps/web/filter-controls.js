@@ -10,11 +10,13 @@ const dateTypes = new Set(["date", "date-range", "created-time", "updated-time"]
 const escape = value => String(value ?? "").replace(/[&<>'"]/g, char => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char]);
 
 export function filterValueControlHtml(property, condition = {}) {
+  condition ??= {};
   if (condition.operator === "relative-date") return `<select data-filter-value aria-label="Relative date preset">${RELATIVE_DATE_PRESETS.map(value => `<option value="${value}" ${condition.value === value ? "selected" : ""}>${RELATIVE_DATE_LABELS[value]}</option>`).join("")}</select>`;
   return `<input data-filter-value value="${escape(condition.value)}" placeholder="Value">`;
 }
 
 export function createFilterValueControl(document, condition = {}) {
+  condition ??= {};
   if (condition.operator === "relative-date") {
     const select = document.createElement("select");
     select.dataset.filterValue = "";

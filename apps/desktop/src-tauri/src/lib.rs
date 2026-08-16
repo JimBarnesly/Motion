@@ -2,7 +2,9 @@ use rfd::{FileDialog, MessageButtons, MessageDialog, MessageDialogResult, Messag
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
-    io::{BufRead, BufReader, Write},
+    fs::{self, OpenOptions, Permissions},
+    io::{BufRead, BufReader, ErrorKind, Write},
+    os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
     sync::{Arc, Mutex},
@@ -254,7 +256,83 @@ fn select_node_binary(
         .unwrap_or_else(|| PathBuf::from("node"))
 }
 
+fn data_root_security_error() -> IpcError {
+    reject(
+        "STORAGE_FAILURE",
+        "Motion cannot secure its local data folder. Make sure it is owned by your account, set its permissions to 700, and restart Motion",
+    )
+}
+
+// Tauri may pre-create app_local_data_dir with the process umask (0755/0775).
+// Authenticate that exact owner-controlled inode before narrowing its permissions;
+// the Node lock still rejects every untrusted root and remains authoritative.
+fn prepare_native_data_root(data_root: &Path) -> Result<(), IpcError> {
+    const O_DIRECTORY: i32 = 0o200000;
+    const O_NOFOLLOW: i32 = 0o400000;
+    const O_CLOEXEC: i32 = 0o2000000;
+    unsafe extern "C" {
+        fn geteuid() -> u32;
+    }
+
+    let reject_root = |_| data_root_security_error();
+    let path_metadata = match fs::symlink_metadata(data_root) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(_) => return Err(data_root_security_error()),
+    };
+    let expected_uid = unsafe { geteuid() };
+    let path_mode = path_metadata.mode() & 0o777;
+    if !path_metadata.is_dir()
+        || path_metadata.file_type().is_symlink()
+        || path_metadata.uid() != expected_uid
+        || path_metadata.nlink() < 2
+        || !matches!(path_mode, 0o700 | 0o755 | 0o775)
+    {
+        return Err(data_root_security_error());
+    }
+
+    let root = OpenOptions::new()
+        .read(true)
+        .custom_flags(O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        .open(data_root)
+        .map_err(reject_root)?;
+    let opened = root.metadata().map_err(reject_root)?;
+    let current = fs::symlink_metadata(data_root).map_err(reject_root)?;
+    if !opened.is_dir()
+        || opened.uid() != expected_uid
+        || opened.nlink() < 2
+        || opened.mode() & 0o777 != path_mode
+        || opened.dev() != path_metadata.dev()
+        || opened.ino() != path_metadata.ino()
+        || current.file_type().is_symlink()
+        || current.mode() & 0o777 != path_mode
+        || current.dev() != opened.dev()
+        || current.ino() != opened.ino()
+    {
+        return Err(data_root_security_error());
+    }
+
+    if path_mode != 0o700 {
+        root.set_permissions(Permissions::from_mode(0o700))
+            .and_then(|_| root.sync_all())
+            .map_err(reject_root)?;
+    }
+    let secured = root.metadata().map_err(reject_root)?;
+    let secured_path = fs::symlink_metadata(data_root).map_err(reject_root)?;
+    if secured.uid() != expected_uid
+        || secured.nlink() < 2
+        || secured.permissions().mode() & 0o777 != 0o700
+        || secured_path.file_type().is_symlink()
+        || secured_path.dev() != secured.dev()
+        || secured_path.ino() != secured.ino()
+    {
+        return Err(data_root_security_error());
+    }
+    Ok(())
+}
+
 fn start_service(node: &Path, runner: &Path, data_root: &Path) -> Result<ServiceProcess, IpcError> {
+    prepare_native_data_root(data_root)?;
     let mut child = Command::new(node)
         .arg(runner)
         .arg(data_root)
@@ -475,11 +553,94 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        select_node_binary, validate_dispatch_request, validate_ui_state_document,
-        BackupSaveRequest, IpcRequest, MAX_ATTACHMENT_BYTES,
+        prepare_native_data_root, select_node_binary, validate_dispatch_request,
+        validate_ui_state_document, BackupSaveRequest, IpcRequest, MAX_ATTACHMENT_BYTES,
     };
     use serde_json::json;
-    use std::{ffi::OsString, fs, path::PathBuf};
+    use std::{
+        ffi::OsString,
+        fs,
+        os::unix::fs::{symlink, PermissionsExt},
+        path::PathBuf,
+    };
+
+    #[test]
+    fn packaged_owned_data_root_is_hardened_before_native_service_start() {
+        let root = std::env::temp_dir().join(format!(
+            "motion-packaged-data-root-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir(&root).unwrap();
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o775)).unwrap();
+        fs::write(root.join("motion.sqlite3"), b"existing-data").unwrap();
+
+        prepare_native_data_root(&root).unwrap();
+
+        assert_eq!(
+            fs::symlink_metadata(&root).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        assert_eq!(fs::read(root.join("motion.sqlite3")).unwrap(), b"existing-data");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn unexpected_owner_controlled_mode_is_rejected_without_repair() {
+        let root = std::env::temp_dir().join(format!(
+            "motion-unexpected-data-root-mode-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir(&root).unwrap();
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o777)).unwrap();
+
+        let error = prepare_native_data_root(&root).unwrap_err();
+
+        assert_eq!(error.code, "STORAGE_FAILURE");
+        assert_eq!(
+            fs::symlink_metadata(&root).unwrap().permissions().mode() & 0o777,
+            0o777
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn symlink_data_root_is_rejected_without_chmodding_its_target() {
+        let base = std::env::temp_dir().join(format!(
+            "motion-symlink-data-root-{}",
+            std::process::id()
+        ));
+        let target = base.join("target");
+        let link = base.join("link");
+        let _ = fs::remove_dir_all(&base);
+        fs::create_dir(&base).unwrap();
+        fs::create_dir(&target).unwrap();
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o775)).unwrap();
+        symlink(&target, &link).unwrap();
+
+        let error = prepare_native_data_root(&link).unwrap_err();
+
+        assert_eq!(error.code, "STORAGE_FAILURE");
+        assert_eq!(
+            fs::symlink_metadata(&target).unwrap().permissions().mode() & 0o777,
+            0o775
+        );
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn absent_data_root_remains_available_for_the_locked_runner_to_create() {
+        let root = std::env::temp_dir().join(format!(
+            "motion-absent-data-root-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+
+        prepare_native_data_root(&root).unwrap();
+
+        assert!(!root.exists());
+    }
 
     #[test]
     fn bundled_runtime_wins_over_development_override() {

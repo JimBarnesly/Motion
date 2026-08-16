@@ -205,9 +205,10 @@ test("typed table records open as pages and retain view state", async ({ page })
   await page.locator("[data-sort-property]").nth(1).selectOption({ label: "Cost" });
   await page.locator("[data-sort-direction]").nth(1).selectOption("desc");
   await page.getByRole("button", { name: "Apply sorts" }).click();
-  await expect(page.locator("#saveState")).toHaveText(/Saved (?:in browser \(development mode\)|to Motion)/);
+  await expect(page.locator("#sortClauses")).toHaveCount(0);
 
   await page.getByRole("button", { name: "Filter" }).click();
+  await expect(page.locator("#filterProperty")).toBeVisible();
   await page.locator("#filterProperty").selectOption({ label: "Status" });
   await page.locator("#filterOperator").selectOption("not-equals");
   const statusValue = await page.getByLabel("Status", { exact: true }).inputValue();

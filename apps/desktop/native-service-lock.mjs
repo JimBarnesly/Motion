@@ -5,6 +5,7 @@ import {
   openSync, readSync, renameSync, statSync, unlinkSync, writeFileSync
 } from "node:fs";
 import { join } from "node:path";
+import { acquireWindowsServiceLock } from "./windows-service-lock.mjs";
 
 const BUSY_MESSAGE = "Motion data is already open in another desktop process";
 // The directory flock is authoritative. This versioned file is diagnostics only;
@@ -201,6 +202,10 @@ async function stopGuardian(guardian) {
 }
 
 export async function acquireNativeServiceLock(dataRoot) {
+  if (process.platform === "win32") {
+    try { return await acquireWindowsServiceLock(dataRoot); }
+    catch { reject(); }
+  }
   let rootDescriptor;
   let createdRootIdentity;
   let guardian;

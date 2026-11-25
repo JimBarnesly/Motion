@@ -145,6 +145,177 @@
       "owner": "Operations & Security Director",
       "rationale": "Dynamically added sort rows use sortRow's reviewed attribute escaping for persisted property IDs and fixed direction choices.",
       "expires": "2027-02-23"
+    },
+    {
+      "rule": "rust-no-unsafe",
+      "file": "apps/desktop/src-tauri/src/windows_platform/filesystem.rs",
+      "fingerprint": "sha256:48c2ebdd70f327a5f36a9daac0c9633f6a88df4a669e34fbaa1de4cb89243083",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and inspect at reviewed line 67; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "owner": "Operations & Security Director",
+      "rationale": "Live File owns the handle; initialized SDK output structs and exact ABI sizes; returned attributes/identity are checked.",
+      "expires": "2026-12-25"
+    },
+    {
+      "rule": "rust-no-unsafe",
+      "file": "apps/desktop/src-tauri/src/windows_platform/filesystem.rs",
+      "fingerprint": "sha256:d350d0b953a39f924304b64ced48528dada4e2c10078657813a40e71e29b32ca",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and nt_error at reviewed line 86; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "owner": "Operations & Security Director",
+      "rationale": "Pure SDK conversion of a scalar NTSTATUS to a Win32 error; no borrowed buffer or handle transfer.",
+      "expires": "2026-12-25"
+    },
+    {
+      "rule": "rust-no-unsafe",
+      "file": "apps/desktop/src-tauri/src/windows_platform/filesystem.rs",
+      "fingerprint": "sha256:d3235e08f50b9e7abfbc8f853f6e8d0a369b1225ed4b4da025da9d94aff95ac1",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and open_volume_root at reviewed line 150; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "owner": "Operations & Security Director",
+      "rationale": "Retained handle; bounded writable UTF-16 array; zero/oversized return lengths rejected before reading output.",
+      "expires": "2026-12-25"
+    },
+    {
+      "rule": "rust-no-unsafe",
+      "file": "apps/desktop/src-tauri/src/windows_platform/filesystem.rs",
+      "fingerprint": "sha256:47858a586c28ac5c003b4911c6a7ed36f30cf18adfa0a6e9718e3a0c2359bcd2",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and relative_open at reviewed line 179; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "owner": "Operations & Security Director",
+      "rationale": "One validated component, bounded UTF-16 length, live parent/security descriptor, synchronous mode plus SYNCHRONIZE, checked status/handle, immediate File ownership and shape check.",
+      "expires": "2026-12-25"
+    },
+    {
+      "rule": "rust-no-unsafe",
+      "file": "apps/desktop/src-tauri/src/windows_platform/filesystem.rs",
+      "fingerprint": "sha256:8bb972cb534ad25e1385c4cfedf2b41e9339fe59903062a6b5f870648a65b5b5",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and PinnedFile::remove at reviewed line 307; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "owner": "Operations & Security Director",
+      "rationale": "DELETE-capable exact file handle; fixed SDK disposition struct; consumes the wrapper and closes that handle after marking deletion.",
+      "expires": "2026-12-25"
+    },
+    {
+      "rule": "rust-no-unsafe",
+      "file": "apps/desktop/src-tauri/src/windows_platform/filesystem.rs",
+      "fingerprint": "sha256:687d0ff77a83d164d939a6dca52df224b3ddf59f3debc8a07518c6db4f742b89",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and publish_no_replace at reviewed line 418; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "owner": "Operations & Security Director",
+      "rationale": "Generated FILE_LINK_INFORMATION layout; usize-aligned allocation covers header and name; no-replace flag and live source/destination handles; native status checked.",
+      "expires": "2026-12-25"
+    },
+    {
+      "rule": "rust-no-unsafe",
+      "file": "apps/desktop/src-tauri/src/windows_platform/filesystem.rs",
+      "fingerprint": "sha256:b8889db61184cc24f4e035580e7b0f977648c94881f341c5da657ab494d70250",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and replace_private_file at reviewed line 449; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "owner": "Operations & Security Director",
+      "rationale": "Generated FILE_RENAME_INFORMATION layout; checked byte length/alignment; retained same-volume source/target; no fallible post-rename work in the primitive.",
+      "expires": "2026-12-25"
+    },
+    {
+      "rule": "rust-no-unsafe",
+      "file": "apps/desktop/src-tauri/src/windows_platform/process.rs",
+      "fingerprint": "sha256:5c6ecadc29ca5aff61628f778e47e6ad762f4cbdde85e439ca4dd1e7bbd950c4",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and ServiceJob::new at reviewed line 24; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "owner": "Operations & Security Director",
+      "rationale": "Unnamed non-inheritable job; null failure checked before one OwnedHandle owner is constructed.",
+      "expires": "2026-12-25"
+    },
+    {
+      "rule": "rust-no-unsafe",
+      "file": "apps/desktop/src-tauri/src/windows_platform/process.rs",
+      "fingerprint": "sha256:226bd41628525c1cb5de1564ac12a0e517d6be8821646c4adf292926e5736ba0",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and ServiceJob::new limits at reviewed line 33; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "owner": "Operations & Security Director",
+      "rationale": "Live job and exact initialized SDK limits struct; call is synchronous and does not retain the pointer.",
+      "expires": "2026-12-25"
+    },
+    {
+      "rule": "rust-no-unsafe",
+      "file": "apps/desktop/src-tauri/src/windows_platform/process.rs",
+      "fingerprint": "sha256:f1475a24778dea3628b1664d4a1a378ec70e3ae227896293d191490556bf4d87",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and ServiceJob::attach at reviewed line 46; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "owner": "Operations & Security Director",
+      "rationale": "Job and child process handles remain owned; failure kills/waits for the startup-gated child.",
+      "expires": "2026-12-25"
+    },
+    {
+      "rule": "rust-no-unsafe",
+      "file": "apps/desktop/src-tauri/src/windows_platform/process.rs",
+      "fingerprint": "sha256:5002cfe4cc2f45a04d3d0763c64d35bc723d1f0359dff4abb50d9fecd2e6352f",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and ParentPins::for_current_parent at reviewed line 69; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "owner": "Operations & Security Director",
+      "rationale": "Snapshot/process handles become RAII-owned; initialized entry/time buffers; OS parent ID plus creation-time/SID checks; retained process object prevents PID reuse.",
+      "expires": "2026-12-25"
+    },
+    {
+      "rule": "rust-no-unsafe",
+      "file": "apps/desktop/src-tauri/src/windows_platform/process.rs",
+      "fingerprint": "sha256:003d456a4eedaa9cb3626e76cf1cb4e6dc5403481881d82fef8dd219316a1f49",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and ParentPins::duplicate at reviewed line 110; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "owner": "Operations & Security Director",
+      "rationale": "Live source/target process and file handles; non-inheritable duplicate tracked only within the native protocol.",
+      "expires": "2026-12-25"
+    },
+    {
+      "rule": "rust-no-unsafe",
+      "file": "apps/desktop/src-tauri/src/windows_platform/process.rs",
+      "fingerprint": "sha256:f52af515850c90313fa3f3c8d04490c2386da5bf422d001c9ea23cd053aa580a",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and ParentPins::release at reviewed line 131; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "owner": "Operations & Security Director",
+      "rationale": "Retained parent object and exact private remote IDs; CLOSE_SOURCE is never retried; recovered local handles immediately owned and closed.",
+      "expires": "2026-12-25"
+    },
+    {
+      "rule": "rust-no-unsafe",
+      "file": "apps/desktop/src-tauri/src/windows_platform/security.rs",
+      "fingerprint": "sha256:cd9e5e9c0a501484676990a26e18038234dd234f49ae57c1b2cc174ecd5f16cb",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and LocalAllocation::drop at reviewed line 43; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "owner": "Operations & Security Director",
+      "rationale": "One non-cloned owner frees the documented LocalAlloc-compatible result exactly once.",
+      "expires": "2026-12-25"
+    },
+    {
+      "rule": "rust-no-unsafe",
+      "file": "apps/desktop/src-tauri/src/windows_platform/security.rs",
+      "fingerprint": "sha256:b9cfedb9e45c0657f82f761dc4b5e38ebefa703edc4f7c647962fe2b6f2516b2",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and sid_text at reviewed line 51; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "owner": "Operations & Security Director",
+      "rationale": "SID is validated; converted string allocation remains owned; bounded scan and UTF-16 decode precede release.",
+      "expires": "2026-12-25"
+    },
+    {
+      "rule": "rust-no-unsafe",
+      "file": "apps/desktop/src-tauri/src/windows_platform/security.rs",
+      "fingerprint": "sha256:0f8c4340a608d63efa44bd61e0bd755b02b60abadea49571cb621894a15651e6",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and current_user_sid at reviewed line 68; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "owner": "Operations & Security Director",
+      "rationale": "Current-process pseudo-handle is borrowed only for a synchronous token query, never closed as owned.",
+      "expires": "2026-12-25"
+    },
+    {
+      "rule": "rust-no-unsafe",
+      "file": "apps/desktop/src-tauri/src/windows_platform/security.rs",
+      "fingerprint": "sha256:bb1c25329e5313ba2e1fb12a614f29b7d26334ea9faf63ff575290853a68f246",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and process_user_sid at reviewed line 76; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "owner": "Operations & Security Director",
+      "rationale": "Token handle immediately owned; bounded size query; usize-aligned TOKEN_USER buffer lives through SID conversion.",
+      "expires": "2026-12-25"
+    },
+    {
+      "rule": "rust-no-unsafe",
+      "file": "apps/desktop/src-tauri/src/windows_platform/security.rs",
+      "fingerprint": "sha256:1a5655f0885b87c13c90102a19313970dd6aeca5d0d5f3f9f2cefdf2089acf87",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and PrivateDescriptor::new at reviewed line 106; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "owner": "Operations & Security Director",
+      "rationale": "OS-derived SID forms a NUL-terminated descriptor string; conversion result has one RAII allocation owner.",
+      "expires": "2026-12-25"
+    },
+    {
+      "rule": "rust-no-unsafe",
+      "file": "apps/desktop/src-tauri/src/windows_platform/security.rs",
+      "fingerprint": "sha256:53c7a2f4a2aae115db2d7faa035055f9f90a2bf6426323ac0712caba9e096370",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and validate_private at reviewed line 129; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "owner": "Operations & Security Director",
+      "rationale": "Security descriptor owns all returned pointers; ACL validity and ACE/SID sizes/type checked before reads; no pointer escapes.",
+      "expires": "2026-12-25"
     }
   ]
 }

@@ -9,6 +9,13 @@ Resumption review: 2026-11-25, based on recovered `d413253` and
 "Complete" labels do not establish installed Windows or current release
 acceptance. See [the resumption record](DEVELOPMENT_RESUMPTION.md).
 
+Current delivery order: **Windows installer and installed offline acceptance
+first**, then practical local feature parity, under
+[the 25 November delivery contract](WINDOWS_1_0_DELIVERY.md). Cloud-only features
+remain outside that local parity target. Current work and evidence are recorded
+in [delivery state](DELIVERY_STATE.json); no historical "shipped" label is a
+claim that a Windows installer has passed.
+
 Research basis: [Notion product review](./NOTION_PRODUCT_REVIEW.md)
 
 ## Status vocabulary

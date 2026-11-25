@@ -1,5 +1,18 @@
 # Motion V1.0 feature register
 
+## Current delivery direction — 25 November 2026
+
+Jacob has authorized Windows installation first, followed by practical local
+Notion feature parity, with no cloud runtime dependency. Use
+[Windows-first delivery](WINDOWS_1_0_DELIVERY.md),
+[the current parity inventory](NOTION_PARITY_MATRIX.md), and
+[continuation state](DELIVERY_STATE.json) for active work. The earlier table-only
+and Linux-only scope below is retained as historical context; its Windows and
+non-table-view deferrals do not override the new instruction. Historical
+implementation labels do not establish current installed Windows acceptance.
+
+## Earlier release baseline
+
 Owner: Product Director
 Decision authority: Managing Director
 Last reviewed: 2026-08-11

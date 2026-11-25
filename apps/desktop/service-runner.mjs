@@ -7,9 +7,17 @@ import { SqliteWorkspaceStore, ContentAddressedAttachmentStore, hardenPrivateFil
 import { createAtomicBackupFile, inspectAtomicBackupDestination } from "./backup-file.mjs";
 import { isValidUiState } from "./ui-state-validation.mjs";
 import { acquireNativeServiceLock } from "./native-service-lock.mjs";
+import { createWindowsUiStateStore } from "./windows-ui-state.mjs";
 
 const [dataRoot] = process.argv.slice(2);
 if (!dataRoot) throw new Error("Usage: service-runner <data-root>");
+
+const lines = createInterface({ input: process.stdin, crlfDelay: Infinity, terminal: false });
+const requests = lines[Symbol.asyncIterator]();
+if (process.env.MOTION_SERVICE_START_GATE === "1") {
+  const gate = await requests.next();
+  if (gate.done || gate.value !== "MOTION_SERVICE_START") throw new Error("Native service startup was not authorized");
+}
 
 const revive = value => {
   if (Array.isArray(value)) return value.map(revive);
@@ -34,10 +42,13 @@ try {
 store = new SqliteWorkspaceStore(join(mutableRoot, "motion.sqlite3"));
 const service = new MotionAppService(store, new ContentAddressedAttachmentStore(join(mutableRoot, "attachments")));
 const uiStatePath = join(mutableRoot, "ui-state.json");
-const readUiState = () => { try { hardenPrivateFile(uiStatePath); return JSON.parse(readFileSync(uiStatePath, "utf8")); } catch (error) { if (error?.code === "ENOENT") return {}; throw error; } };
+const windowsUiState = process.platform === "win32" ? createWindowsUiStateStore(uiStatePath) : undefined;
+const readUiState = () => { if (windowsUiState) return windowsUiState.read(); try { hardenPrivateFile(uiStatePath); return JSON.parse(readFileSync(uiStatePath, "utf8")); } catch (error) { if (error?.code === "ENOENT") return {}; throw error; } };
 const writeUiState = state => {
+  const document = { schemaVersion: 1, workspaceId: state.workspaceId, activePageId: state.activePageId ?? null, expandedPageIds: Array.isArray(state.expandedPageIds) ? state.expandedPageIds : [], activeViewIds: state.activeViewIds ?? {} };
+  if (windowsUiState) { windowsUiState.write(document); return; }
   const temporary = `${uiStatePath}.${randomUUID()}.tmp`;
-  writeFileSync(temporary, JSON.stringify({ schemaVersion: 1, workspaceId: state.workspaceId, activePageId: state.activePageId ?? null, expandedPageIds: Array.isArray(state.expandedPageIds) ? state.expandedPageIds : [], activeViewIds: state.activeViewIds ?? {} }), { flag: "wx", mode: 0o600 });
+  writeFileSync(temporary, JSON.stringify(document), { flag: "wx", mode: 0o600 });
   renameSync(temporary, uiStatePath);
   hardenPrivateFile(uiStatePath);
 };
@@ -121,8 +132,7 @@ async function dispatch(rawRequest) {
   return encode(result);
 }
 
-const lines = createInterface({ input: process.stdin, crlfDelay: Infinity, terminal: false });
-for await (const line of lines) {
+for await (const line of requests) {
   let reply;
   try {
     if (Buffer.byteLength(line) > 16 * 1024 * 1024) throw new MotionAppError("INVALID_INPUT", "Service request exceeds 16 MiB");

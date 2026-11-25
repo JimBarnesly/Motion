@@ -8,7 +8,7 @@ const POLICY_PATH = "dependency-policy.json";
 const TRUST_PATH = "dependency-policy-trust.json";
 const RECORD_PATH = "dependency-policy-change.json";
 export const CONTROL_PLANE_PATHS = [
-  ".github/CODEOWNERS", ".github/workflows/ci.yml", ".github/workflows/release-provenance.yml",
+  ".github/CODEOWNERS", ".github/workflows/ci.yml", ".github/workflows/release-provenance.yml", ".github/workflows/windows.yml",
   "docs/dependency-inventory.json", "scripts/dependency-inventory.mjs", "scripts/dependency-inventory.test.mjs",
   "scripts/dependency-policy-change-gate.mjs", "scripts/dependency-policy-change-gate.test.mjs",
   "scripts/vulnerability-collector.mjs", "scripts/vulnerability-collector.test.mjs", "scripts/vulnerability-gate.mjs", "scripts/vulnerability-gate.test.mjs", "vulnerability-policy.json",

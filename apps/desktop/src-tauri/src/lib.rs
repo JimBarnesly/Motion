@@ -1,17 +1,24 @@
 use rfd::{FileDialog, MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
+#[cfg(unix)]
 use libc::{O_CLOEXEC, O_DIRECTORY, O_NOFOLLOW};
+#[cfg(unix)]
 use rustix::process::geteuid;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
-    fs::{self, OpenOptions, Permissions},
-    io::{BufRead, BufReader, ErrorKind, Write},
-    os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
+    io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
     sync::{Arc, Mutex},
 };
+#[cfg(unix)]
+use std::{fs::{self, OpenOptions, Permissions}, io::ErrorKind, os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt}};
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use tauri::Manager;
+
+#[cfg(windows)]
+mod windows_platform;
 
 const MAX_REQUEST_BYTES: usize = 16 * 1024 * 1024;
 include!(concat!(env!("OUT_DIR"), "/attachment_policy.rs"));
@@ -245,6 +252,10 @@ struct ServiceProcess {
     child: Child,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
+    #[cfg(windows)]
+    _data_root: windows_platform::PinnedDirectory,
+    #[cfg(windows)]
+    _job: windows_platform::ServiceJob,
 }
 
 impl Drop for ServiceProcess {
@@ -264,15 +275,16 @@ fn select_node_binary(
     resource_dir: &Path,
     development_override: Option<std::ffi::OsString>,
 ) -> PathBuf {
-    let bundled = resource_dir.join("node-runtime");
+    let bundled = resource_dir.join(if cfg!(windows) { "node-runtime.exe" } else { "node-runtime" });
     if bundled.is_file() {
         return bundled;
     }
     development_override
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("node"))
+        .unwrap_or_else(|| PathBuf::from(if cfg!(windows) { "node.exe" } else { "node" }))
 }
 
+#[cfg(unix)]
 fn data_root_security_error() -> IpcError {
     reject(
         "STORAGE_FAILURE",
@@ -283,6 +295,7 @@ fn data_root_security_error() -> IpcError {
 // Tauri may pre-create app_local_data_dir with the process umask (0755/0775).
 // Authenticate that exact owner-controlled inode before narrowing its permissions;
 // the Node lock still rejects every untrusted root and remains authoritative.
+#[cfg(unix)]
 fn prepare_native_data_root(data_root: &Path) -> Result<(), IpcError> {
     let reject_root = |_| data_root_security_error();
     let path_metadata = match fs::symlink_metadata(data_root) {
@@ -342,13 +355,25 @@ fn prepare_native_data_root(data_root: &Path) -> Result<(), IpcError> {
 }
 
 fn start_service(node: &Path, runner: &Path, data_root: &Path) -> Result<ServiceProcess, IpcError> {
+    #[cfg(unix)]
     prepare_native_data_root(data_root)?;
-    let mut child = Command::new(node)
-        .arg(runner)
+    #[cfg(windows)]
+    let pinned_root = windows_platform::pin_private_directory(data_root, true)
+        .map_err(|_| reject("STORAGE_FAILURE", "Motion cannot authenticate its private Windows data folder"))?;
+    #[cfg(windows)]
+    let job = windows_platform::ServiceJob::new()
+        .map_err(|_| reject("INTERNAL_ERROR", "Motion cannot create its local service job"))?;
+    let mut command = Command::new(node);
+    command.arg(runner)
         .arg(data_root)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    #[cfg(windows)]
+    command.creation_flags(windows_sys::Win32::System::Threading::CREATE_NO_WINDOW)
+        .env("MOTION_NATIVE_HELPER", std::env::current_exe().map_err(|_| reject("INTERNAL_ERROR", "Native helper path unavailable"))?)
+        .env("MOTION_SERVICE_START_GATE", "1");
+    let mut child = command
         .spawn()
         .map_err(|e| {
             reject(
@@ -356,6 +381,12 @@ fn start_service(node: &Path, runner: &Path, data_root: &Path) -> Result<Service
                 format!("Could not start local service: {e}"),
             )
         })?;
+    #[cfg(windows)]
+    if job.attach(&child).is_err() {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(reject("INTERNAL_ERROR", "Motion cannot contain its local service process"));
+    }
     let stdin = child
         .stdin
         .take()
@@ -364,10 +395,22 @@ fn start_service(node: &Path, runner: &Path, data_root: &Path) -> Result<Service
         .stdout
         .take()
         .ok_or_else(|| reject("INTERNAL_ERROR", "Service stdout unavailable"))?;
+    #[cfg(windows)]
+    let mut stdin = stdin;
+    #[cfg(windows)]
+    if stdin.write_all(b"MOTION_SERVICE_START\n").and_then(|_| stdin.flush()).is_err() {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(reject("INTERNAL_ERROR", "Motion could not release its local service startup gate"));
+    }
     Ok(ServiceProcess {
         child,
         stdin,
         stdout: BufReader::new(stdout),
+        #[cfg(windows)]
+        _data_root: pinned_root,
+        #[cfg(windows)]
+        _job: job,
     })
 }
 
@@ -560,20 +603,39 @@ pub fn run() {
         .expect("failed to run Motion desktop");
 }
 
+/// Native subprocess modes are handled before constructing Tauri or a WebView.
+/// A helper cannot turn an invalid mode into a normal GUI launch.
+pub fn run_native_helper_if_requested() -> bool {
+    let arguments: Vec<_> = std::env::args_os().skip(1).collect();
+    let Some(mode) = arguments.first() else { return false; };
+    if !mode.to_string_lossy().starts_with("--motion-") { return false; }
+    #[cfg(windows)]
+    std::process::exit(windows_platform::run_helper(mode, &arguments[1..]));
+    #[cfg(not(windows))]
+    {
+        eprintln!("Windows native helpers are unavailable on this platform");
+        std::process::exit(1);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        prepare_native_data_root, select_node_binary, validate_dispatch_request,
+        select_node_binary, validate_dispatch_request,
         validate_ui_state_document, BackupSaveRequest, IpcRequest, MAX_ATTACHMENT_BYTES,
     };
+    #[cfg(unix)]
+    use super::prepare_native_data_root;
     use serde_json::json;
     use std::{
         ffi::OsString,
         fs,
-        os::unix::fs::{symlink, PermissionsExt},
         path::PathBuf,
     };
+    #[cfg(unix)]
+    use std::os::unix::fs::{symlink, PermissionsExt};
 
+    #[cfg(unix)]
     #[test]
     fn packaged_owned_data_root_is_hardened_before_native_service_start() {
         let root = std::env::temp_dir().join(format!(
@@ -595,6 +657,7 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 
+    #[cfg(unix)]
     #[test]
     fn unexpected_owner_controlled_mode_is_rejected_without_repair() {
         let root = std::env::temp_dir().join(format!(
@@ -615,6 +678,7 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 
+    #[cfg(unix)]
     #[test]
     fn symlink_data_root_is_rejected_without_chmodding_its_target() {
         let base = std::env::temp_dir().join(format!(
@@ -639,6 +703,7 @@ mod tests {
         fs::remove_dir_all(base).unwrap();
     }
 
+    #[cfg(unix)]
     #[test]
     fn absent_data_root_remains_available_for_the_locked_runner_to_create() {
         let root = std::env::temp_dir().join(format!(
@@ -657,10 +722,11 @@ mod tests {
         let root =
             std::env::temp_dir().join(format!("motion-node-selection-{}", std::process::id()));
         fs::create_dir_all(&root).unwrap();
-        fs::write(root.join("node-runtime"), b"runtime").unwrap();
+        let runtime = if cfg!(windows) { "node-runtime.exe" } else { "node-runtime" };
+        fs::write(root.join(runtime), b"runtime").unwrap();
         assert_eq!(
             select_node_binary(&root, Some(OsString::from("/development/node"))),
-            root.join("node-runtime")
+            root.join(runtime)
         );
         fs::remove_dir_all(root).unwrap();
     }

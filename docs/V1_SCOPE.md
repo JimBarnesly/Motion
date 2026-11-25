@@ -17,6 +17,15 @@ direction. No existing quality or data-integrity acceptance requirement is
 relaxed by that change. See [the resumption record](DEVELOPMENT_RESUMPTION.md)
 and [Windows guide](WINDOWS.md) for the current implementation and evidence.
 
+Jake's subsequent direction on the same date makes the Windows installer the
+first delivery priority, followed by practical local Notion feature parity,
+targeting the laptop's expected arrival on 3 December 2026. The current delivery
+contract is [Windows-first 1.0 delivery](WINDOWS_1_0_DELIVERY.md), with the
+[parity matrix](NOTION_PARITY_MATRIX.md) as its implementation inventory. The
+earlier Windows and non-table-view deferrals below are superseded for this work.
+Existing integrity and evidence requirements still apply; the target date does
+not authorize a version bump or a release with failing gates.
+
 ## Release outcome
 
 Motion V1.0 is a dependable, offline, single-user Linux knowledge workspace. A

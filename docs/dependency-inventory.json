@@ -2169,7 +2169,7 @@
       "name": "sha2",
       "version": "0.10.9",
       "licence": "MIT OR Apache-2.0",
-      "direct": false,
+      "direct": true,
       "sourcePackage": "registry+https://github.com/rust-lang/crates.io-index"
     },
     {
@@ -3281,7 +3281,7 @@
       "name": "windows-sys",
       "version": "0.61.2",
       "licence": "MIT OR Apache-2.0",
-      "direct": false,
+      "direct": true,
       "sourcePackage": "registry+https://github.com/rust-lang/crates.io-index"
     },
     {

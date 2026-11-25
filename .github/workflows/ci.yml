@@ -227,6 +227,14 @@ jobs:
         env:
           MOTION_ISOLATED_VALIDATION_DEBUG: "1"
         run: npm run validate:isolated-rust-tauri
+      - name: Retain isolated ARM64 validation or failure evidence
+        if: always() && matrix.arch == 'aarch64'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: isolated-rust-tauri-aarch64
+          path: artifacts/rust-tauri/*.json
+          if-no-files-found: warn
+          retention-days: 14
       - name: Run pinned Rust Clippy security/compiler gate
         run: |
           mkdir -p artifacts/static-analysis

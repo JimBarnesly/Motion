@@ -59,12 +59,63 @@ function Get-ProcessIdentity($Process) {
     }
 }
 
+function Get-IdentityDifferences($Expected, $Actual, [string[]]$Fields, [string]$Source) {
+    foreach ($field in $Fields) {
+        $same = if ($field -ceq 'executablePath') {
+            [string]::Equals($Actual.$field, $Expected.$field, [StringComparison]::OrdinalIgnoreCase)
+        } else { $Actual.$field -ceq $Expected.$field }
+        if (-not $same) { [ordered]@{ source = $Source; field = $field; expected = $Expected.$field; actual = $Actual.$field } }
+    }
+}
+
+function Get-DialogDecision($Expected, $Retained, [object[]]$Found, [long]$ElapsedMilliseconds) {
+    if ($ElapsedMilliseconds -lt 0) { throw 'Invalid dialog readiness elapsed time.' }
+    $identityFields = @('processId', 'nativeWindowHandle', 'runtimeId', 'title')
+    $changes = @(Get-IdentityDifferences $Expected $Retained $identityFields 'retained')
+    if ($Found.Count -ne 1) {
+        $changes += [ordered]@{ source = 'found'; field = 'count'; expected = 1; actual = $Found.Count }
+    }
+    $observations = @([pscustomobject]@{ source = 'retained'; value = $Retained })
+    for ($index = 0; $index -lt $Found.Count; $index++) {
+        $source = "found[$index]"
+        $changes += @(Get-IdentityDifferences $Expected $Found[$index] $identityFields $source)
+        $observations += [pscustomobject]@{ source = $source; value = $Found[$index] }
+    }
+    $pending = @()
+    $invalid = @()
+    foreach ($observation in $observations) {
+        foreach ($field in @('enabled', 'offscreen')) {
+            if ($observation.value.$field -isnot [bool]) {
+                $invalid += [ordered]@{ source = $observation.source; field = $field;
+                    expected = $Expected.$field; actual = $observation.value.$field }
+            } else {
+                $pending += @(Get-IdentityDifferences $Expected $observation.value @($field) $observation.source)
+            }
+        }
+    }
+    $action = if ($changes.Count -ne 0) { 'reject-identity' }
+        elseif ($invalid.Count -ne 0) { 'reject-state' }
+        elseif ($ElapsedMilliseconds -ge 3000) { 'readiness-timeout' }
+        elseif ($pending.Count -ne 0) { 'wait-readiness' }
+        else { 'ready' }
+    return [ordered]@{ action = $action; rejectedFields = $changes; invalidReadiness = $invalid; pendingReadiness = $pending;
+        elapsedMilliseconds = $ElapsedMilliseconds; timeoutMilliseconds = 3000 }
+}
+
 function Assert-ProcessIdentity {
+    $proof['processObservation'] = [ordered]@{ expected = $identity; actual = $null; rejectedFields = @(); readStep = 'retained-process' }
+    $targetProcess.Refresh()
+    if ($targetProcess.HasExited) {
+        $proof.processObservation.rejectedFields = @([ordered]@{ source = 'process'; field = 'hasExited'; expected = $false; actual = $true })
+        throw 'The selected Motion process has exited.'
+    }
     $actual = Get-ProcessIdentity $targetProcess
-    if ($actual.processId -ne $identity.processId -or $actual.sessionId -ne $identity.sessionId -or
-        $actual.startTimeFileTimeUtc -cne $identity.startTimeFileTimeUtc -or
-        -not [string]::Equals($actual.executablePath, $identity.executablePath, [StringComparison]::OrdinalIgnoreCase)) {
-        throw 'The selected Motion process identity changed.'
+    $changes = @(Get-IdentityDifferences $identity $actual @('processId', 'sessionId', 'startTimeFileTimeUtc', 'executablePath') 'process')
+    $proof.processObservation.actual = $actual
+    $proof.processObservation.rejectedFields = $changes
+    $proof.processObservation.readStep = 'complete'
+    if ($changes.Count -ne 0) {
+        throw ('The selected Motion process identity changed: ' + (($changes | ForEach-Object { $_.field }) -join ', ') + '.')
     }
 }
 
@@ -95,13 +146,63 @@ function Get-SaveDialog {
 
 function Get-RuntimeKey($Element) { return ($Element.GetRuntimeId() -join ',') }
 
+function Get-DialogSnapshot($Element) {
+    $current = $Element.Current
+    $title = [string]$current.Name
+    $runtime = Get-RuntimeKey $Element
+    if ($title.Length -gt 512 -or $runtime.Length -gt 256) { throw 'Dialog identity observation exceeded its bound.' }
+    return [ordered]@{ processId = $current.ProcessId; nativeWindowHandle = $current.NativeWindowHandle;
+        runtimeId = $runtime; title = $title; enabled = $current.IsEnabled; offscreen = $current.IsOffscreen }
+}
+
 function Assert-DialogIdentity {
-    Assert-ProcessIdentity
-    $found = Get-SaveDialog
-    if ($null -eq $found -or (Get-RuntimeKey $found) -cne $dialogRuntime -or
-        $found.Current.NativeWindowHandle -ne $dialogHandle -or $found.Current.ProcessId -ne $identity.processId -or
-        $dialog.Current.Name -cne $dialogTitle -or $dialog.Current.IsOffscreen -or -not $dialog.Current.IsEnabled) {
-        throw 'The retained backup dialog is no longer the active authenticated dialog.'
+    $readinessClock = [Diagnostics.Stopwatch]::StartNew()
+    $waited = $false
+    $expected = [ordered]@{ processId = $identity.processId; nativeWindowHandle = $dialogHandle;
+        runtimeId = $dialogRuntime; title = $dialogTitle; enabled = $true; offscreen = $false }
+    while ($true) {
+        Assert-Deadline
+        Assert-ProcessIdentity
+        $observation = [ordered]@{ phase = $proof.phase; expected = $expected; retained = $null; found = @();
+            enumeratedWindowCount = $null; readStep = 'retained'; decision = $null }
+        $proof['dialogObservation'] = $observation
+        $observation.retained = Get-DialogSnapshot $dialog
+        $observation.readStep = 'enumerate-top-level'
+        $windows = @(Get-TargetWindows)
+        $observation.enumeratedWindowCount = $windows.Count
+        foreach ($window in $windows) {
+            $observation.readStep = 'find-exact-title'
+            if ($window.Current.Name -ceq $dialogTitle) {
+                $observation.readStep = "found[$($observation.found.Count)]"
+                $observation.found += Get-DialogSnapshot $window
+            }
+        }
+        Assert-Deadline
+        $observation.readStep = 'complete'
+        $decision = Get-DialogDecision $expected $observation.retained $observation.found $readinessClock.ElapsedMilliseconds
+        $observation.decision = $decision
+        if ($decision.action -ceq 'reject-identity') {
+            throw ('The retained backup dialog identity changed: ' + (($decision.rejectedFields | ForEach-Object { $_.source + '.' + $_.field }) -join ', ') + '.')
+        }
+        if ($decision.action -ceq 'reject-state') { throw 'The retained backup dialog returned invalid readiness state.' }
+        if ($decision.action -ceq 'readiness-timeout') { throw 'The retained backup dialog did not become ready within 3000ms.' }
+        if ($decision.action -ceq 'ready') {
+            if ($waited) {
+                $proof.lastReadinessWait.resolved = $true
+                $proof.lastReadinessWait.elapsedMilliseconds = $decision.elapsedMilliseconds
+                $proof.lastReadinessWait.readyObservation = $observation
+            }
+            return
+        }
+        # IsEnabled/IsOffscreen describe current interaction/visibility state.
+        # Wait only on the same retained and independently found identity. No
+        # reselection, focus/input retry or Save action occurs in this loop.
+        if (-not $waited) {
+            $proof['lastReadinessWait'] = [ordered]@{ phase = $proof.phase; firstPendingObservation = $observation;
+                resolved = $false; elapsedMilliseconds = $decision.elapsedMilliseconds; readyObservation = $null }
+            $waited = $true
+        } else { $proof.lastReadinessWait.elapsedMilliseconds = $decision.elapsedMilliseconds }
+        Start-Sleep -Milliseconds 50
     }
 }
 
@@ -116,6 +217,7 @@ function Set-DialogControlFocus($Element) {
     $focusDeadline = $clock.ElapsedMilliseconds + 3000
     while ($true) {
         Assert-DialogIdentity
+        if ($clock.ElapsedMilliseconds -ge $focusDeadline) { throw 'The retained dialog control did not receive focus.' }
         if ((Get-RuntimeKey $Element) -cne $runtime -or $Element.Current.ProcessId -ne $identity.processId -or
             -not $Element.Current.IsEnabled -or $Element.Current.IsOffscreen) {
             throw 'The retained dialog control changed while receiving focus.'
@@ -125,7 +227,6 @@ function Set-DialogControlFocus($Element) {
             $focused.Current.ProcessId -eq $identity.processId -and (Get-RuntimeKey $focused) -ceq $runtime) {
             return [ordered]@{ observed = $true; runtimeId = $runtime; control = Get-ControlSummary $Element }
         }
-        if ($clock.ElapsedMilliseconds -ge $focusDeadline) { throw 'The retained dialog control did not receive focus.' }
         Start-Sleep -Milliseconds 50
     }
 }
@@ -468,9 +569,9 @@ try {
         $inputDeadline = $clock.ElapsedMilliseconds + 5000
         while ($true) {
             [void](Assert-FilenameKeyboardFocus)
+            if ($clock.ElapsedMilliseconds -ge $inputDeadline) { throw 'The typed filename did not exactly retain the requested destination.' }
             if ($filename.pattern.Current.IsReadOnly) { throw 'The filename edit became read-only.' }
             if ($filename.pattern.Current.Value -ceq $request.destination) { break }
-            if ($clock.ElapsedMilliseconds -ge $inputDeadline) { throw 'The typed filename did not exactly retain the requested destination.' }
             Start-Sleep -Milliseconds 50
         }
         $proof['filename'] = [ordered]@{ observedControlMatched = $true;

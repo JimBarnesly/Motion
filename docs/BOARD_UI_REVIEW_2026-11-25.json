@@ -1,0 +1,789 @@
+{
+  "schemaVersion": 1,
+  "status": "source-reviewed integrated candidate; actual Windows board execution pending",
+  "sourceBase": "2cffa9a97b75e0eecb4d9b3627c75376b6cd4094",
+  "integrationBase": "c6844f99579257f6d71136c25042a79896424b40",
+  "files": [
+    {
+      "path": "apps/web/app.js",
+      "sha256": "56138ce2517ec1ef0ad540df79e6319c9e74ec4b1d5a3af12607bb7d907e1a80",
+      "bytes": 113988
+    },
+    {
+      "path": "apps/web/styles.css",
+      "sha256": "a99b5b1d29748458968c8814bde4b2278e84dc4397dcc3f60a2602174cfddd65",
+      "bytes": 24862
+    },
+    {
+      "path": "e2e/board-writing.spec.ts",
+      "sha256": "64446f4551d514c4e8d890cd04c64201c1614d43414f156c72cfcc4d8040eca4",
+      "bytes": 19986
+    },
+    {
+      "path": "e2e/board-native.spec.ts",
+      "sha256": "9ac87dd5908131e8b274dab0525fd1d9ff90647d7719ad33b4e3ce6a9a7276f7",
+      "bytes": 12051
+    }
+  ],
+  "scope": [
+    "Create/select table/list/board views using canonical commands and confirmed UI persistence; honest partial success if view creation saves but selection fails.",
+    "Status/select option-ordered board lanes plus Unassigned null; accessible Move-to edits only the existing record property; no filtered-subset record reorder.",
+    "Shared table/list/board filters and sorts, explicit null filter-clear caller; full record Pages and opaque imported view settings preserved.",
+    "Literal DOM board rendering; explicit unsupported grouping/subgroup state; recoverable edits and focus restoration."
+  ],
+  "authorValidation": [
+    {
+      "command": "npx playwright test --config /tmp/motion-browser/playwright-board-ui.config.mts e2e/board-writing.spec.ts e2e/board-native.spec.ts",
+      "result": "11 passed, 0 skipped",
+      "log": "/tmp/motion-board-ui-focused-first.txt"
+    },
+    {
+      "command": "npx playwright test --config /tmp/motion-browser/playwright-board-ui.config.mts e2e/web.spec.ts e2e/nested-filters.spec.ts e2e/recoverable-edits-v2.spec.ts",
+      "result": "15 passed, 0 skipped",
+      "log": "/tmp/motion-board-ui-existing-browser.txt"
+    },
+    {
+      "command": "node --test apps/web/test/web.test.mjs apps/web/test/record-order.test.mjs apps/web/test/property-editors.test.mjs apps/web/test/record-selector.test.mjs apps/web/test/board-projection.test.mjs scripts/e2e-offline-fixture.test.mjs",
+      "result": "99 passed, 0 skipped",
+      "log": "/tmp/motion-board-ui-final-node.txt"
+    },
+    {
+      "command": "npm run build --workspace @motion/app-service",
+      "result": "passed",
+      "log": "/tmp/motion-board-ui-service-build.txt"
+    },
+    {
+      "command": "npm run build --workspace @motion/web",
+      "result": "passed; app, styles, selector and board projection assets byte-match source",
+      "log": "/tmp/motion-board-ui-web-build.txt"
+    },
+    {
+      "command": "node scripts/check-offline-assets.mjs",
+      "result": "passed",
+      "log": "/tmp/motion-board-ui-offline.txt"
+    },
+    {
+      "command": "node --check apps/web/app.js; git diff --check",
+      "result": "both passed"
+    },
+    {
+      "command": "unchanged validateFixtureBindings + validateNoUnprotectedContexts on both new untracked specs",
+      "result": "passed"
+    },
+    {
+      "command": "empty-suppression static analysis on owned JS/TS source",
+      "result": "16 pre-existing HTML sinks before/current; no other findings; no policy edits",
+      "report": "/tmp/motion-board-ui-source-review.json"
+    },
+    {
+      "command": "npx playwright test --config /tmp/motion-browser/playwright-board-ui.config.mts e2e/board-writing.spec.ts --grep 'creating a board refuses a pending width edit'",
+      "result": "1 passed, 0 skipped; additional case on unchanged production code",
+      "log": "/tmp/motion-board-ui-pending-width.txt"
+    }
+  ],
+  "independentReview": {
+    "schemaVersion": 1,
+    "reviewer": "independent AI source review by /root/notion_behavior",
+    "base": "2cffa9a97b75e0eecb4d9b3627c75376b6cd4094",
+    "worktree": "/workspace/scratch/26e5117382b4/Motion-board-ui",
+    "files": [
+      {
+        "path": "apps/web/app.js",
+        "sha256": "56138ce2517ec1ef0ad540df79e6319c9e74ec4b1d5a3af12607bb7d907e1a80",
+        "bytes": 113988
+      },
+      {
+        "path": "apps/web/styles.css",
+        "sha256": "a99b5b1d29748458968c8814bde4b2278e84dc4397dcc3f60a2602174cfddd65",
+        "bytes": 24862
+      },
+      {
+        "path": "e2e/board-writing.spec.ts",
+        "sha256": "64446f4551d514c4e8d890cd04c64201c1614d43414f156c72cfcc4d8040eca4",
+        "bytes": 19986
+      },
+      {
+        "path": "e2e/board-native.spec.ts",
+        "sha256": "9ac87dd5908131e8b274dab0525fd1d9ff90647d7719ad33b4e3ce6a9a7276f7",
+        "bytes": 12051
+      }
+    ],
+    "verdict": "No blocking source defect found in the frozen four-file board UI increment, including the final pending-width regression.",
+    "reviewed": [
+      "The shared selector is used for table, list and board records; projection retains canonical Page objects and manual membership order. Rendering does not mutate the record or grouping data.",
+      "New board headings, labels, fields, options and metadata use createElement/textContent/dataset. Required-property Unassigned is disabled and command preparation rejects null for required grouping.",
+      "Card moves use the existing database.record-update command with explicit null for Unassigned. No board drag/reorder control or filtered-subset record.reorder command is introduced.",
+      "Grouping edits and card moves retain exact candidates through existing recoverable edits. Failed saves leave confirmed canonical pages/views untouched. Retry and discard preserve page bodies, IDs, unknown payloads and unrelated properties. Successful filtered disappearance restores focus to the board and reports saved removal from the visible projection.",
+      "View selection uses awaited persistBlockView with a cloned UI candidate, canonical-operation ownership and temporary readonly/disabled editor controls. A failed selection retains the durable prior selection; creating a canonical view followed by selection failure truthfully leaves that view available rather than recreating or rolling it back.",
+      "The ordinary click path refuses pending width edits before createDatabaseView; the added same-task input/click regression confirms refusal, then Retry and subsequent creation copying confirmed settings through reload. No stale-reference production fix was needed.",
+      "Unsupported subgroup/grouping states remain explicit; imported layout/cardPreview/subgroup metadata is preserved. New views copy relevant visible fields, widths, filters and sorts without altering original views.",
+      "Actual service browser tests substitute only Tauri transport and execute typed canonical validation, SQLite storage, UI-state persistence and restart. Browser failure tests abort actual IndexedDB transactions after successful put requests.",
+      "The existing 500-record display cap is applied globally before lane rendering; membership order is never rewritten. Empty lane counts/state remain available."
+    ],
+    "sourceBinding": {
+      "allFourHashesMatched": true,
+      "allTwelveOverlayHashesMatched": true,
+      "rawHtmlSinkInventoryIndependentlyRecomputed": 16,
+      "unchangedSinkSourceLines": 15,
+      "changedSinkSourceLine": "renderDatabase adds only the static board mount/type branch; new user-controlled board content is rendered through DOM text APIs. Existing escaping boundaries remain.",
+      "orderedMapping": "/tmp/motion-board-ui-html-sink-rebinding.json",
+      "policyEdited": false
+    },
+    "validationReviewed": [
+      {
+        "command": "npx playwright test --config /tmp/motion-browser/playwright-board-ui.config.mts e2e/board-writing.spec.ts e2e/board-native.spec.ts",
+        "result": "11 passed, 0 skipped",
+        "log": "/tmp/motion-board-ui-focused-first.txt"
+      },
+      {
+        "command": "npx playwright test --config /tmp/motion-browser/playwright-board-ui.config.mts e2e/web.spec.ts e2e/nested-filters.spec.ts e2e/recoverable-edits-v2.spec.ts",
+        "result": "15 passed, 0 skipped",
+        "log": "/tmp/motion-board-ui-existing-browser.txt"
+      },
+      {
+        "command": "node --test apps/web/test/web.test.mjs apps/web/test/record-order.test.mjs apps/web/test/property-editors.test.mjs apps/web/test/record-selector.test.mjs apps/web/test/board-projection.test.mjs scripts/e2e-offline-fixture.test.mjs",
+        "result": "99 passed, 0 skipped",
+        "log": "/tmp/motion-board-ui-final-node.txt"
+      },
+      {
+        "command": "npm run build --workspace @motion/app-service",
+        "result": "passed",
+        "log": "/tmp/motion-board-ui-service-build.txt"
+      },
+      {
+        "command": "npm run build --workspace @motion/web",
+        "result": "passed; app, styles, selector and board projection assets byte-match source",
+        "log": "/tmp/motion-board-ui-web-build.txt"
+      },
+      {
+        "command": "node scripts/check-offline-assets.mjs",
+        "result": "passed",
+        "log": "/tmp/motion-board-ui-offline.txt"
+      },
+      {
+        "command": "node --check apps/web/app.js; git diff --check",
+        "result": "both passed"
+      },
+      {
+        "command": "unchanged validateFixtureBindings + validateNoUnprotectedContexts on both new untracked specs",
+        "result": "passed"
+      },
+      {
+        "command": "empty-suppression static analysis on owned JS/TS source",
+        "result": "16 pre-existing HTML sinks before/current; no other findings; no policy edits",
+        "report": "/tmp/motion-board-ui-source-review.json"
+      },
+      {
+        "command": "npx playwright test --config /tmp/motion-browser/playwright-board-ui.config.mts e2e/board-writing.spec.ts --grep 'creating a board refuses a pending width edit'",
+        "result": "1 passed, 0 skipped; additional case on unchanged production code",
+        "log": "/tmp/motion-board-ui-pending-width.txt"
+      }
+    ],
+    "limits": [
+      "Actual Windows WebView execution is pending root CI; real Linux SQLite service integration substitutes only the Tauri transport.",
+      "Subgroups and unsupported grouping types are explicit unsupported states with original data preserved.",
+      "Cards move through accessible native select controls; pointer drag/drop and board lane reordering are not implemented.",
+      "Existing first500 record display cap is retained. Board grouping does not modify canonical recordPageIds.",
+      "Actual Windows WebView board execution is pending; no installed-Windows pass inferred from Linux browser/service tests.",
+      "This was a read-only source review; I did not rerun the already-passing browser suites or alter the repository."
+    ],
+    "repositoryEdits": false
+  },
+  "rootIntegration": {
+    "sourceReview": "passed",
+    "visualReview": "Viewed actual desktop1440px and narrow640px screenshots; legible cards, control wrapping and horizontal board lane layout; no source visual fix required",
+    "fullBrowser": {
+      "passed": 119,
+      "failed": 0,
+      "skipped": 0,
+      "logSha256": "75eba92e023a9829889ef4c83eb84f47f00754c1b26e3d6ce2a0f29ce8ac7acf"
+    },
+    "build": "full workspace build passed",
+    "filterClearRegression": {
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0
+    },
+    "typecheck": "Every workspace passed; web required additive null-patch declaration alignment, then the unchanged exhaustive command-equivalence check passed.",
+    "htmlSinkRebinding": {
+      "before": 16,
+      "after": 16,
+      "unchangedSourceLines": 15,
+      "changedFunction": "renderDatabase",
+      "unchangedRuleset": "1.2.0",
+      "existingSuppressionCount": 35,
+      "noNewSuppression": true,
+      "ownersAndExpiriesUnchanged": true,
+      "mapping": [
+        {
+          "old": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 312,
+            "column": 17,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 312,
+              "column": 17,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:cbb6c50ee9c10c1ec665a9874cbab7f3ea84a9bff705bc9e079b3a03f9fab826",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "new": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 315,
+            "column": 17,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 315,
+              "column": 17,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:bc23ee292541f521839bccb09a3b0169e2af735808c0d8b016bbc670845f3722",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "sourceLineUnchanged": true,
+          "oldFunction": null,
+          "newFunction": null
+        },
+        {
+          "old": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 313,
+            "column": 150,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 313,
+              "column": 150,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:409f118f211bbcd8e8f3057e5b6bce437b31cfcb98c8a2d20d2fe7c4f6bf5bba",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "new": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 316,
+            "column": 150,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 316,
+              "column": 150,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:f8464496683f17415ae18e8e5fdaca2254935e32406158f54bb98325edd5b22f",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "sourceLineUnchanged": true,
+          "oldFunction": null,
+          "newFunction": null
+        },
+        {
+          "old": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 314,
+            "column": 84,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 314,
+              "column": 84,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:ec1d336a6ef2e9ac54bf7d85208233a4afb07a46a7dd06e5e99606856fe3e35e",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "new": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 317,
+            "column": 84,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 317,
+              "column": 84,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:e003264223091a6e5f104ef17ddb0d421bdc27a977adbb83e8ef73952158f0fb",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "sourceLineUnchanged": true,
+          "oldFunction": null,
+          "newFunction": null
+        },
+        {
+          "old": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 318,
+            "column": 111,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 318,
+              "column": 111,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:10b4c7cf08b0f2081555d0dfa78d976eb031f4467eadbaf0e6ab7551868d9ad3",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "new": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 321,
+            "column": 111,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 321,
+              "column": 111,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:1e80f51474fb3903f842098aa9c548b5fa65bd064471889d3492cd36b8ae12b6",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "sourceLineUnchanged": true,
+          "oldFunction": null,
+          "newFunction": null
+        },
+        {
+          "old": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 322,
+            "column": 51,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 322,
+              "column": 51,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:3a5c0582696186d7ee1d7859df8006c20910312ee429123be89dd4bacc10c211",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "new": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 325,
+            "column": 51,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 325,
+              "column": 51,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:ed198019289fd7d6dd022110b29e8e75b30f060b97ac71e46e4c383ad3f73507",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "sourceLineUnchanged": true,
+          "oldFunction": "renderBreadcrumbs",
+          "newFunction": "renderBreadcrumbs"
+        },
+        {
+          "old": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 348,
+            "column": 325,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 348,
+              "column": 325,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:b1007465211f68c4f97c55f1c49478537d899e1584875affc2dcdf4f409dd991",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "new": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 351,
+            "column": 325,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 351,
+              "column": 325,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:99a73bcc90bc2f8ba4d19e036d674033e3fee7a71b051d6cfdf2c811ed63028d",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "sourceLineUnchanged": true,
+          "oldFunction": "renderDocument",
+          "newFunction": "renderDocument"
+        },
+        {
+          "old": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 357,
+            "column": 2140,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 357,
+              "column": 2140,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:670bcde5d188f609e22eb9ee2736ba120849896fac30f26bd4d5a9906e339ec5",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "new": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 423,
+            "column": 2190,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 423,
+              "column": 2190,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:aa1c5d22efc0ca47ae66aedcf31bcc92c6ceb5c4a0ce2be71c7810b80036e21f",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "sourceLineUnchanged": false,
+          "oldFunction": "renderDatabase",
+          "newFunction": "renderDatabase"
+        },
+        {
+          "old": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 358,
+            "column": 59,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 358,
+              "column": 59,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:cee07d50a9d9c6efee9eadc7a575420bc95636f90044c36aaad34a228d1d5b41",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "new": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 424,
+            "column": 59,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 424,
+              "column": 59,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:c6ed885ba43a585c3e0ab5007acffb936441e21a1db4af4432cb1dcc66ad2511",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "sourceLineUnchanged": true,
+          "oldFunction": "renderContext",
+          "newFunction": "renderContext"
+        },
+        {
+          "old": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 358,
+            "column": 85,
+            "occurrence": 1,
+            "coordinate": {
+              "line": 358,
+              "column": 85,
+              "occurrence": 1
+            },
+            "fingerprint": "sha256:f2afdf5627009af12a43c397d57c6a4dbbf6afd5055349ff741921b8ad794cce",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "new": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 424,
+            "column": 85,
+            "occurrence": 1,
+            "coordinate": {
+              "line": 424,
+              "column": 85,
+              "occurrence": 1
+            },
+            "fingerprint": "sha256:04de306c27842d43b49e9aeaf83570a8cacb4d5e70fae3c6b047d6e2d7140506",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "sourceLineUnchanged": true,
+          "oldFunction": "renderContext",
+          "newFunction": "renderContext"
+        },
+        {
+          "old": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 358,
+            "column": 688,
+            "occurrence": 2,
+            "coordinate": {
+              "line": 358,
+              "column": 688,
+              "occurrence": 2
+            },
+            "fingerprint": "sha256:3c0139a2b32ffff7b7530ac398bf1a6529b1378191178b930c4738313716dce9",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "new": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 424,
+            "column": 688,
+            "occurrence": 2,
+            "coordinate": {
+              "line": 424,
+              "column": 688,
+              "occurrence": 2
+            },
+            "fingerprint": "sha256:0d45a23e2deffa023b0f2870a36fecb8a96ff2a7c3cb416c680d1d8d9f3f83ee",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "sourceLineUnchanged": true,
+          "oldFunction": "renderContext",
+          "newFunction": "renderContext"
+        },
+        {
+          "old": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 358,
+            "column": 756,
+            "occurrence": 3,
+            "coordinate": {
+              "line": 358,
+              "column": 756,
+              "occurrence": 3
+            },
+            "fingerprint": "sha256:2d508d56fc663596987be845da72c1a6e964cfe0f706c2050736bffa7624dea2",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "new": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 424,
+            "column": 756,
+            "occurrence": 3,
+            "coordinate": {
+              "line": 424,
+              "column": 756,
+              "occurrence": 3
+            },
+            "fingerprint": "sha256:eb74b56c3e48c969471fc062d5fb3cf1911ee48729a46b54e491657036917a4c",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "sourceLineUnchanged": true,
+          "oldFunction": "renderContext",
+          "newFunction": "renderContext"
+        },
+        {
+          "old": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 358,
+            "column": 819,
+            "occurrence": 4,
+            "coordinate": {
+              "line": 358,
+              "column": 819,
+              "occurrence": 4
+            },
+            "fingerprint": "sha256:99f2fe382812ff39afd089b48a71c2afbdddf8a90dd7c16caa690fdb388bd812",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "new": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 424,
+            "column": 819,
+            "occurrence": 4,
+            "coordinate": {
+              "line": 424,
+              "column": 819,
+              "occurrence": 4
+            },
+            "fingerprint": "sha256:16d91b8dcbefbd51585b9a55cc61d22b8b0f9f56851d47ea26de1329f65c43d0",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "sourceLineUnchanged": true,
+          "oldFunction": "renderContext",
+          "newFunction": "renderContext"
+        },
+        {
+          "old": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 364,
+            "column": 958,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 364,
+              "column": 958,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:02d9f38a4082e0efe2d0fd45a060500507b6cd7a5914e2d505500e98f1a17885",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "new": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 430,
+            "column": 958,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 430,
+              "column": 958,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:a81a4a3872e21fedfcfd5ecbe812e42a29d207aad0656d2f6579a82adbd4fc99",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "sourceLineUnchanged": true,
+          "oldFunction": "showPageMenu",
+          "newFunction": "showPageMenu"
+        },
+        {
+          "old": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 365,
+            "column": 207,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 365,
+              "column": 207,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:d372188db20236ff93cb9e2d8a069d4ba5a437365ab90ac61431de25713baa12",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "new": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 431,
+            "column": 207,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 431,
+              "column": 207,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:2280d1d77a4148644f7cb61e73b1764eb755f34dbe2edce7ab931ff84123262e",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "sourceLineUnchanged": true,
+          "oldFunction": "showPropertyMenu",
+          "newFunction": "showPropertyMenu"
+        },
+        {
+          "old": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 385,
+            "column": 156,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 385,
+              "column": 156,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:2172650cb4c4311aa448b6165ae1f0b551b6bbef19ccbec598ac95d8f93e3a42",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "new": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 451,
+            "column": 156,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 451,
+              "column": 156,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:583e2515ea23da46de1e108f0bdd3c5e067a8516ccb03dbd15a37387ce4bb0f9",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "sourceLineUnchanged": true,
+          "oldFunction": "showSort",
+          "newFunction": "showSort"
+        },
+        {
+          "old": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 437,
+            "column": 52,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 437,
+              "column": 52,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:7845bfe13c36b4288c1d0dc00942ce3d0cb517607bff3a128044b5dadacb3a4e",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "new": {
+            "ruleId": "js-no-html-sink",
+            "file": "apps/web/app.js",
+            "line": 503,
+            "column": 52,
+            "occurrence": 0,
+            "coordinate": {
+              "line": 503,
+              "column": 52,
+              "occurrence": 0
+            },
+            "fingerprint": "sha256:384516ec61801484ad890104ef146a6c8334a059cf62792c969f7e0e6ecc6c61",
+            "severity": "error",
+            "message": "Raw HTML sinks require a reviewed sanitizer boundary."
+          },
+          "sourceLineUnchanged": true,
+          "oldFunction": null,
+          "newFunction": null
+        }
+      ]
+    }
+  },
+  "limits": [
+    "Actual Windows WebView execution is pending root CI; real Linux SQLite service integration substitutes only the Tauri transport.",
+    "Subgroups and unsupported grouping types are explicit unsupported states with original data preserved.",
+    "Cards move through accessible native select controls; pointer drag/drop and board lane reordering are not implemented.",
+    "Existing first500 record display cap is retained. Board grouping does not modify canonical recordPageIds.",
+    "No staged files, commits, publication, dependency/policy/capability changes."
+  ],
+  "reviewAuthority": "AI source review only; not a human Code Owner approval or release certification"
+}

@@ -68,7 +68,7 @@ export interface NativeDatabaseViewPatch {
   visiblePropertyIds?: string[];
   propertyOrder?: string[];
   columnWidths?: Record<string, number>;
-  filters?: NativeFilterExpression;
+  filters?: NativeFilterExpression | null;
   sorts?: Array<{ propertyId: string; direction: "asc" | "desc"; nulls?: "first" | "last"; locale?: string }>;
   groupByPropertyId?: string;
   subgroupByPropertyId?: string;
@@ -109,7 +109,7 @@ export interface NativeCommandPayloads {
   "database.record-create": { databaseId: string; title: string; values?: Record<string, NativePropertyValue> };
   "database.record-update": { pageId: string; title?: string; values: Record<string, NativePropertyValue | undefined> };
   "database.record-reorder": { databaseId: string; orderedRecordPageIds: readonly string[] };
-  "database.view-create": { databaseId: string; view: NativeDatabaseViewPatch & { id?: string; name: string; type: NativeDatabaseViewType; visiblePropertyIds: string[] } };
+  "database.view-create": { databaseId: string; view: Omit<NativeDatabaseViewPatch, "filters"> & { id?: string; name: string; type: NativeDatabaseViewType; visiblePropertyIds: string[]; filters?: NativeFilterExpression } };
   "database.view-update": { databaseId: string; viewId: string; patch: NativeDatabaseViewPatch };
   "database.view-duplicate": { databaseId: string; viewId: string; name?: string; newViewId?: string };
   "database.view-reorder": { databaseId: string; viewId: string; beforeViewId: string | null };

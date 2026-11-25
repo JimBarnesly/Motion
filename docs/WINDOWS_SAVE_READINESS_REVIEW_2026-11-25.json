@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 1,
+  "status": "independently source-reviewed candidate; actual Windows execution pending",
+  "head": "c6844f99579257f6d71136c25042a79896424b40",
+  "root": "/workspace/scratch/26e5117382b4/Motion",
+  "files": [
+    {
+      "path": "scripts/windows-native-save-dialog.ps1",
+      "bytes": 35653,
+      "sha256": "c1f5c53e7a66a7d8ac2561d589a2d0529d597de01599c43b25b169b4fad44234"
+    },
+    {
+      "path": "scripts/windows-native-save-dialog-contract.test.ps1",
+      "bytes": 14944,
+      "sha256": "d8779db903c0d8fec505754e1bede54ca854e9c1a5f9cc709eb8f7512ff2ebdf"
+    },
+    {
+      "path": "apps/desktop/test/windows/native-save-dialog.test.mjs",
+      "bytes": 3229,
+      "sha256": "69db410094da50a451e429db1a3195413c72f20151f70faf2bd25e6b1ff56881"
+    },
+    {
+      "path": "scripts/windows-installed-ui.mjs",
+      "bytes": 48965,
+      "sha256": "6eda80c1ba567c27b8aaad525b265a275b167d36a75a9118a73744eacac601f8"
+    }
+  ],
+  "actualFailure": {
+    "record": "/tmp/motion-main-c6844f9-diagnosis.json",
+    "runId": 45656813638,
+    "jobId": 139355595423,
+    "head": "c6844f99579257f6d71136c25042a79896424b40",
+    "testedMerge": "e4e0249020e321a0981038c89f1d96517ccd176e",
+    "artifactId": 15043542809,
+    "artifactBytes": 68096,
+    "artifactSha256": "e71fcf78d6e517b3894bce72845fbd6b4dcd4b4ee98187f374dc3c8133753ff1",
+    "members": 15,
+    "keyboardEventsInserted": 166,
+    "keyboardEventsExpected": 166,
+    "firstFailure": "Combined found/retained dialog check at phase filename, before exact filename readback or Save invocation",
+    "exactRejectedFieldObserved": false
+  },
+  "changes": [
+    "Record expected/current process, retained UIA dialog and independently found exact-title matches separately, including every mismatched identity/readiness field and last read step.",
+    "Immediately reject missing/ambiguous found matches or changed PID/HWND/runtime ID/exact title; no title normalization or re-selection.",
+    "Wait at most 3000ms only for boolean enabled/offscreen changes on both exact identities; strict readiness/focus/readback deadlines.",
+    "Preserve completed container helper result immediately in a fresh <=32768-byte installed-container-writing.json bound to commit/phase/instance. No helper rerun or canonical mutation."
+  ],
+  "preserved": {
+    "embeddedCSharpIdenticalToHead": true,
+    "embeddedCSharpSha256": "6df398a395ee4728c3c984f0a3cafa777d3a3a029c57638cb7cd273fac752a8d",
+    "singleKeyboardBatchInvocation": true,
+    "singleSaveInvocation": true,
+    "filesystemAndProductionSourcesUnchanged": true,
+    "frozenFilterFilesUntouched": true,
+    "embeddedCSharpSha256Scope": "Exact UTF-8 substring from four spaces + Add-Type -TypeDefinition @' through the following closing newline + '@ inclusive, excluding the next newline; includes invocation and here-string delimiters."
+  },
+  "validation": {
+    "portableContract": {
+      "path": "/tmp/motion-native-save-readiness-contract.json",
+      "count": 23,
+      "status": "passed",
+      "powerShell": "7.5.4 Core on Linux",
+      "nativeInputExecuted": false,
+      "cSharp5Compiled": true
+    },
+    "nodeSyntax": [
+      "scripts/windows-installed-ui.mjs",
+      "apps/desktop/test/windows/native-save-dialog.test.mjs"
+    ],
+    "gitDiffCheck": "passed"
+  },
+  "primarySources": [
+    "https://learn.microsoft.com/en-us/dotnet/api/system.windows.automation.automationelement.automationelementinformation.isenabled?view=windowsdesktop-9.0",
+    "https://learn.microsoft.com/en-us/dotnet/api/system.windows.automation.automationelement.automationelementinformation.isoffscreen?view=windowsdesktop-9.0"
+  ],
+  "limits": [
+    "The old rejected predicate remains unknown because its actual failing snapshots were not retained.",
+    "UIA readiness can change according to Microsoft documentation; that is a bounded handling rule, not a claim that readiness caused c684 failure.",
+    "Actual Windows PowerShell5.1 and installed UI execution of this correction are pending.",
+    "Current c684 installed container completion is source-order inference only; the new structured proof requires future actual execution.",
+    "No file creation, backup restore, second-GUI retry, restart or reinstall pass is inferred from delivered keyboard events."
+  ],
+  "independentReview": {
+    "schemaVersion": 1,
+    "reviewer": "independent AI source review by /root/notion_behavior",
+    "sourceRoot": "/workspace/scratch/26e5117382b4/Motion",
+    "base": "c6844f99579257f6d71136c25042a79896424b40",
+    "files": [
+      {
+        "path": "scripts/windows-native-save-dialog.ps1",
+        "bytes": 35653,
+        "sha256": "c1f5c53e7a66a7d8ac2561d589a2d0529d597de01599c43b25b169b4fad44234"
+      },
+      {
+        "path": "scripts/windows-native-save-dialog-contract.test.ps1",
+        "bytes": 14944,
+        "sha256": "d8779db903c0d8fec505754e1bede54ca854e9c1a5f9cc709eb8f7512ff2ebdf"
+      },
+      {
+        "path": "apps/desktop/test/windows/native-save-dialog.test.mjs",
+        "bytes": 3229,
+        "sha256": "69db410094da50a451e429db1a3195413c72f20151f70faf2bd25e6b1ff56881"
+      },
+      {
+        "path": "scripts/windows-installed-ui.mjs",
+        "bytes": 48965,
+        "sha256": "6eda80c1ba567c27b8aaad525b265a275b167d36a75a9118a73744eacac601f8"
+      }
+    ],
+    "verdict": "No blocking source defect found in the frozen four-file Save As readiness/observation correction.",
+    "reviewed": [
+      "The retained process remains bound to PID, session, creation generation and executable path. New diagnostics retain each difference and partial observation step.",
+      "The retained UIA dialog and separately found top-level exact-title match are compared against the original process ID, HWND, runtime ID and exact title. Missing or multiple matches reject immediately; no new dialog is selected.",
+      "Only boolean enabled/offscreen mismatch may wait. Invalid readiness values reject. Identity rejection precedes readiness, so disabled/offscreen state cannot excuse a changed identity.",
+      "Every readiness call is limited to strictly less than3000ms, with existing55s driver and65s controller bounds retained. Focus and filename readback check their deadlines before accepting late observations. The readiness loop performs no keyboard input, focus action or Save retry.",
+      "Single keyboard batch and single Save Invoke remain; the embedded C# declaration/here-string is byte-identical to HEAD. Native foreground/focus and exact filename readback gates remain.",
+      "Controller assertions require final complete ready observations for both identities, exact selected dialog fields, no rejected/pending fields, and any prior readiness wait resolved within its limit. Existing actual disk bytes/backup/neighbor/storage checks remain the later authority.",
+      "The new container-writing evidence is written only after the existing helper resolves, with commit/phase/instance fields, a32768-byte bound and exclusive wx creation. It neither reruns the helper nor adds canonical writes.",
+      "New contracts extract the exact pure driver functions and check missing/ambiguous/changed identities, readiness-only waits,2999/3000/late deadlines, all-field evidence and strict title casing. Windows wrapper requires actual PowerShell5.1Desktop and exact source hash; no platform skip or native-input success is fabricated."
+    ],
+    "keyboardBinding": {
+      "sameAsHead": true,
+      "scope": "Exact UTF-8 substring starting with four spaces then Add-Type -TypeDefinition and opening here-string delimiter, through closing newline+here-string delimiter inclusive; excludes following newline.",
+      "sha256": "6df398a395ee4728c3c984f0a3cafa777d3a3a029c57638cb7cd273fac752a8d",
+      "bodyOnlySha256": "e8b75e06dbe30e379dbf7001158749c91cd2e920942787a5324dfab2589790f5"
+    },
+    "actualEvidence": {
+      "record": "/tmp/motion-main-c6844f9-diagnosis.json",
+      "runId": 45656813638,
+      "jobId": 139355595423,
+      "head": "c6844f99579257f6d71136c25042a79896424b40",
+      "testedMerge": "e4e0249020e321a0981038c89f1d96517ccd176e",
+      "artifactId": 15043542809,
+      "artifactBytes": 68096,
+      "artifactSha256": "e71fcf78d6e517b3894bce72845fbd6b4dcd4b4ee98187f374dc3c8133753ff1",
+      "members": 15,
+      "keyboardEventsInserted": 166,
+      "keyboardEventsExpected": 166,
+      "firstFailure": "Combined found/retained dialog check at phase filename, before exact filename readback or Save invocation",
+      "exactRejectedFieldObserved": false,
+      "artifactHashIndependentlyRecomputed": true
+    },
+    "validationReviewed": {
+      "portableContract": {
+        "path": "/tmp/motion-native-save-readiness-contract.json",
+        "count": 23,
+        "status": "passed",
+        "powerShell": "7.5.4 Core on Linux",
+        "nativeInputExecuted": false,
+        "cSharp5Compiled": true
+      },
+      "nodeSyntax": [
+        "scripts/windows-installed-ui.mjs",
+        "apps/desktop/test/windows/native-save-dialog.test.mjs"
+      ],
+      "gitDiffCheck": "passed"
+    },
+    "primarySources": [
+      {
+        "url": "https://learn.microsoft.com/en-us/dotnet/api/system.windows.automation.automationelement.automationelementinformation.isenabled?view=windowsdesktop-9.0",
+        "retrievalRef": "turn861134840view0",
+        "finding": "Boolean enabled state can change with UI interactions."
+      },
+      {
+        "url": "https://learn.microsoft.com/en-us/dotnet/api/system.windows.automation.automationelement.automationelementinformation.isoffscreen?view=windowsdesktop-9.0",
+        "retrievalRef": "turn861134840view1",
+        "finding": "Offscreen is a Boolean visibility state, not proof of window occlusion or foreground identity."
+      }
+    ],
+    "limits": [
+      "The old rejected predicate remains unknown because its actual failing snapshots were not retained.",
+      "UIA readiness can change according to Microsoft documentation; that is a bounded handling rule, not a claim that readiness caused c684 failure.",
+      "Actual Windows PowerShell5.1 and installed UI execution of this correction are pending.",
+      "Current c684 installed container completion is source-order inference only; the new structured proof requires future actual execution.",
+      "No file creation, backup restore, second-GUI retry, restart or reinstall pass is inferred from delivered keyboard events.",
+      "Independent source review only; no new Windows UIA, keyboard, Save As or installer execution performed."
+    ],
+    "repositoryEdits": false
+  },
+  "rootReview": {
+    "status": "passed",
+    "reviewed": "Complete four-file diff, exact C# preservation, immutable identity versus bounded readiness decisions, final controller assertions, one keyboard batch, one Save call, exact saved disk bytes still required.",
+    "sourcesOpened": [
+      "https://learn.microsoft.com/en-us/dotnet/api/system.windows.automation.automationelement.automationelementinformation.isenabled?view=windowsdesktop-9.0",
+      "https://learn.microsoft.com/en-us/dotnet/api/system.windows.automation.automationelement.automationelementinformation.isoffscreen?view=windowsdesktop-9.0"
+    ]
+  }
+}

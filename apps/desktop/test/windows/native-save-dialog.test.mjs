@@ -6,7 +6,7 @@ import { win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-test("Windows PowerShell compiles the actual Save As keyboard driver and verifies its pure input contract", { timeout: 60_000 }, async () => {
+test("Windows PowerShell compiles the actual Save As driver and verifies its pure input and identity contracts", { timeout: 60_000 }, async () => {
   assert.equal(process.platform, "win32", "This contract must execute on Windows; it cannot pass through a platform skip");
   assert.ok(process.env.SystemRoot && win32.isAbsolute(process.env.SystemRoot));
   const script = fileURLToPath(new URL("../../../../scripts/windows-native-save-dialog-contract.test.ps1", import.meta.url));
@@ -29,11 +29,15 @@ test("Windows PowerShell compiles the actual Save As keyboard driver and verifie
   assert.equal(proof.powerShellMajor, 5);
   assert.equal(proof.powerShellMinor, 1);
   assert.equal(proof.powerShellEdition, "Desktop");
-  assert.equal(proof.count, 10);
+  assert.equal(proof.count, 23);
   assert.equal(proof.checks.length, proof.count);
   assert.ok(proof.checks.includes("x64 INPUT, union offset, KEYBDINPUT, MOUSEINPUT, HARDWAREINPUT and GUITHREADINFO ABI sizes"));
   assert.ok(proof.checks.includes("Non-ASCII and surrogate-pair code units are preserved without normalization"));
   assert.ok(proof.checks.includes("Empty, null, oversized and control-character text is rejected before native input"));
   assert.ok(proof.checks.includes("Every partial-prefix case releases only a pending key; completed batch emits no cleanup"));
+  assert.ok(proof.checks.includes("Every retained PID, HWND, runtime ID and exact title change rejects even while disabled"));
+  assert.ok(proof.checks.includes("Every found PID, HWND, runtime ID and exact title change rejects without reselection"));
+  assert.ok(proof.checks.includes("The 3000ms readiness deadline rejects pending and newly ready observations at or after expiry"));
+  assert.ok(proof.checks.includes("Diagnostics retain every rejected field separately for retained and found observations"));
   assert.ok(proof.checks.includes("No ValuePattern.SetValue remains and exactly one Save Invoke remains"));
 });

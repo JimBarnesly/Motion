@@ -1,4 +1,4 @@
-import { CANONICAL_MAX_ID_LENGTH, WORKSPACE_SCHEMA_VERSION, assertWorkspace, migrateWorkspace, type Block, type Database, type DatabaseProperty, type DatabaseRow, type DatabaseView, type FilterExpression, type ID, type Page, type PageLink, type PropertyValue, type SortClause, type Workspace } from "./model.js";
+import { CANONICAL_MAX_ID_LENGTH, WORKSPACE_SCHEMA_VERSION, assertWorkspace, migrateWorkspace, type Block, type Database, type DatabaseProperty, type DatabaseRow, type DatabaseView, type DatabaseViewPatch, type FilterExpression, type ID, type Page, type PageLink, type PropertyValue, type SortClause, type Workspace } from "./model.js";
 import { DEFAULT_VALIDATION_LIMITS, assertBlockTypePayload, stableId } from "./validation.js";
 import { matchesRelativeDate, type RelativeDatePreset } from "./relative-date.js";
 const now = () => new Date().toISOString();
@@ -192,10 +192,15 @@ export class WorkspaceDocument {
     const candidate = structuredClone(this.data), candidateDatabase = candidate.databases.find(database => database.id === db.id)!;
     candidateDatabase.views.push(structuredClone(result)); assertWorkspace(candidate); db.views.push(result); this.touch(); return result;
   }
-  updateView(databaseId: ID, viewId: ID, patch: Partial<Omit<DatabaseView, "id" | "collectionId" | "type">>) {
+  updateView(databaseId: ID, viewId: ID, patch: DatabaseViewPatch) {
     const db = this.requiredDatabase(databaseId), index = db.views.findIndex(candidate => candidate.id === viewId); if (index < 0) throw new Error(`Database view not found: ${viewId}`);
-    const patchValue = structuredClone(patch) as Partial<DatabaseView>, { id: _patchId, collectionId: _patchCollectionId, type: _patchType, ...safePatch } = patchValue;
-    const result = { ...structuredClone(db.views[index]!), ...safePatch, id: viewId, collectionId: db.id, type: db.views[index]!.type };
+    const patchValue = structuredClone(patch) as DatabaseViewPatch & Partial<Pick<DatabaseView, "id" | "collectionId" | "type">>;
+    const { id: _patchId, collectionId: _patchCollectionId, type: _patchType, filters, ...safePatch } = patchValue;
+    const result: DatabaseView = { ...structuredClone(db.views[index]!), ...safePatch, id: viewId, collectionId: db.id, type: db.views[index]!.type };
+    if (Object.hasOwn(patchValue, "filters")) {
+      if (filters == null) delete result.filters;
+      else result.filters = filters;
+    }
     const candidate = structuredClone(this.data), candidateDatabase = candidate.databases.find(database => database.id === db.id)!; candidateDatabase.views[index] = structuredClone(result); assertWorkspace(candidate);
     db.views[index] = result; this.touch(); return result;
   }

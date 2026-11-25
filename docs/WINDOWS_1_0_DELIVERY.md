@@ -236,3 +236,38 @@ failure is licence-page inspection after Welcome Next: one diagnostic combines
 immutable identity and transient readiness, so the exact cause is not established.
 The probe did not agree to the licence, and cleanup passed. The offline firewall
 window, runtime upgrade and active-engine proof were not reached.
+
+### Current Save As and Board candidate after `c6844f9`
+
+All three general/Linux CI jobs passed at `c6844f9`, including107 browser cases.
+Actual Windows passed28 Rust,24 filesystem/service,3 startup and24 installed
+native tests, built and installed the package, and passed payload and mapped-SMB
+checks. The real keyboard batch delivered166 of166 events under the retained
+native foreground/edit identity. The next combined dialog guard refused before
+exact filename readback or Save. Its failed field was not recorded, so neither
+a successful filename commit nor saved backup is inferred.
+
+The reviewed correction records retained/found process and dialog fields
+separately, rejects identity changes immediately, and permits only bounded
+enabled/offscreen readiness on those same identities. It keeps one input batch,
+one Save call and the existing exact disk-byte/restore requirements. Completed
+container-writing evidence is now retained immediately before later steps. See
+`WINDOWS_SAVE_DIALOG_EVIDENCE_c6844f9.json` and
+`WINDOWS_SAVE_READINESS_REVIEW_2026-11-25.json`. Actual execution is pending.
+
+The Board UI now uses the existing canonical views and record pages, supports
+status/select lanes, recoverable moves including explicit Unassigned, shared
+filters/sorts and durable view selection. The actual SQLite service exposed a
+filter-clear serialization defect; explicit null now clears the optional stored
+filter, while omission preserves it. All119 integrated browser cases and8 focused
+service/browser regressions pass. The mandatory type gate also caught and now
+verifies the adapter declaration alignment, without admitting null on view
+creation. See `BOARD_UI_REVIEW_2026-11-25.json` and
+`FILTER_CLEAR_REVIEW_2026-11-25.json`. Installed Windows Board interaction remains
+pending, and the version remains in development.
+
+Offline pilot `f7f3ea6` passed all three general/Linux CI jobs and rebuilt the
+verified installer. Its Windows run stopped at the retained UI worker's
+executable/session check, before sending the request for licence inspection.
+The differing field was not recorded. Cleanup passed; licence-page, firewall,
+runtime upgrade and active-engine acceptance remain unproved by that run.

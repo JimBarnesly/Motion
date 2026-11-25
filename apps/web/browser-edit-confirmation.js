@@ -100,7 +100,12 @@ export function applyLocalEdit(document, candidate, timestamp) {
   } else if (candidate.type === "database.view-update") {
     const database = document.workspace.databases.find(item => item.id === candidate.payload.databaseId);
     const view = database.views.find(item => item.id === candidate.payload.viewId);
-    Object.assign(view, structuredClone(candidate.payload.patch));
+    const patch = structuredClone(candidate.payload.patch);
+    if (Object.hasOwn(patch, "filters") && patch.filters == null) {
+      delete view.filters;
+      delete patch.filters;
+    }
+    Object.assign(view, patch);
   } else {
     throw new Error("Unsupported local edit command");
   }

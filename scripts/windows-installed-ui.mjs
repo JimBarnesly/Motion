@@ -453,6 +453,25 @@ async function saveNativeBackupThroughDialog(current) {
     assert.equal(selected.ok, true, selected.error?.message);
     assert.equal(selected.dialog?.title, "Save verified Motion backup");
     assert.equal(selected.dialog?.processId, current.child.pid);
+    assert.deepEqual(selected.processObservation?.rejectedFields, []);
+    assert.equal(selected.dialogObservation?.readStep, "complete");
+    assert.equal(selected.dialogObservation?.decision?.action, "ready");
+    assert.deepEqual(selected.dialogObservation?.decision?.rejectedFields, []);
+    assert.deepEqual(selected.dialogObservation?.decision?.invalidReadiness, []);
+    assert.deepEqual(selected.dialogObservation?.decision?.pendingReadiness, []);
+    assert.equal(selected.dialogObservation?.found?.length, 1);
+    for (const observation of [selected.dialogObservation.retained, ...selected.dialogObservation.found]) {
+      assert.equal(observation.processId, current.child.pid);
+      assert.equal(observation.nativeWindowHandle, selected.dialog.nativeWindowHandle);
+      assert.equal(observation.runtimeId, selected.dialog.runtimeId);
+      assert.equal(observation.title, selected.dialog.title);
+      assert.equal(observation.enabled, true);
+      assert.equal(observation.offscreen, false);
+    }
+    if (selected.lastReadinessWait) {
+      assert.equal(selected.lastReadinessWait.resolved, true);
+      assert.ok(selected.lastReadinessWait.elapsedMilliseconds < 3000);
+    }
     assert.equal(selected.filename?.observedControlMatched, true);
     assert.equal(selected.filename?.control?.name, "File name:");
     assert.equal(selected.filename?.control?.automationId, "1001");
@@ -710,6 +729,12 @@ try {
     await current.page.locator('[contenteditable="true"][data-block]').first().fill(notebookText);
     await expect(current.page.locator("#saveState")).toHaveText("Saved to Motion");
     containerWriting = await exerciseContainerWriting({ page: current.page, readSnapshot: nativeSnapshot, notebookTitle, notebookText });
+    // Retain completed writing evidence even if a later native-dialog or
+    // lifecycle check fails. This records the helper result without rerunning it.
+    const writingProof = `${JSON.stringify({ schemaVersion: 1, commit: process.env.GITHUB_SHA,
+      phase, instance: current.label, status: "passed", containerWriting }, null, 2)}\n`;
+    assert.ok(Buffer.byteLength(writingProof, "utf8") <= 32_768, "Installed writing evidence stays bounded");
+    await writeFile(join(output, `${phase}-container-writing.json`), writingProof, { flag: "wx" });
     await current.page.locator("#attachmentFile").setInputFiles({ name: attachmentName, mimeType: "text/plain", buffer: attachmentBytes });
     await expect(current.page.locator(".block-input.file")).toContainText(attachmentName);
     ({ baseline, evidence: backupEvidence } = await restoreVerifiedNotebook(current));

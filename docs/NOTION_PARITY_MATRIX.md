@@ -136,12 +136,12 @@ A permissive type union or migration field is not a shipped feature.
 | Table view | Complete | Editing, widths, column order, visible properties | shipped |
 | List view | Complete | Saved view sharing same record identities | shipped |
 | Saved view create/duplicate/delete/select | Complete | Stable saved-view IDs and canonical persistence | shipped |
-| Nested AND/OR/NOT filters | Candidate | Recursive draft UI retains nested trees, saves through view-update, and preserves drafts on failed Apply/Clear; browser regression coverage | Slice DB-1 |
+| Nested AND/OR/NOT filters | Candidate | Recursive draft UI retains nested trees and failed Apply/Clear drafts. Explicit-null clearing now survives native JSON transport, SQLite reopen and export; omitted filters preserve prior state. Full119 browser suite and8 focused service/browser cases pass. | Slice DB-1 |
 | Multi-sort | Complete | Ordered stable clauses | shipped |
 | Relative-date filters | Candidate | Core/browser evaluation, bounded preset controls, parity tests and saved-view persistence exist | Slice DB-1 |
 | Manual record ordering | Candidate | Canonical record-reorder command, pointer/keyboard UI, membership checks and restart/export tests exist | Slice DB-1 |
-| Group/subgroup configuration | Model only | View fields exist; no complete UI/runtime | Slice BOARD-1 |
-| Board view | Model only in recovered source | Historical isolated candidate was reported but its checkout is absent and no implementation was found in advertised remote branches; recover it if available before rebuilding the renderer | Slice BOARD-1 |
+| Group/subgroup configuration | Candidate / partial | Status/select grouping has confirmed local persistence and explicit unsupported-state handling; imported subgroup settings are preserved but rendering remains absent. | Slice BOARD-1 |
+| Board view | Candidate | Recovered canonical model extended with safe DOM lanes/cards, explicit-null moves, shared queries, original record pages and durable selection. All119 integrated browser cases pass, including actual SQLite-service restart; installed Windows board interaction remains pending. Dragging/lane reorder and subgroups remain gaps. | Slice BOARD-1 |
 | Calendar view | Absent | Type accepted but no renderer/interaction | Slice CALENDAR-1 |
 | Gallery view | Absent | Type accepted but no renderer/card configuration | Slice GALLERY-1 |
 | Timeline view | Absent | Type accepted but no date-range renderer | Slice TIMELINE-1 |

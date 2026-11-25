@@ -1,3 +1,5 @@
+import { findBlockLocation } from "./block-tree.js";
+
 const MAX_BATCH_COMMANDS = 10_000;
 const MAX_STRING_LENGTH = 10_000_000;
 
@@ -90,16 +92,17 @@ function contentFor(text, resolveReferences, stableReferences = []) {
 }
 
 export function multilinePasteCommands({ pageId, blocks, activeBlockId, text, prefix = "", suffix = "", createId, resolveReferences }) {
-  const activeIndex = blocks.findIndex(block => block.id === activeBlockId);
-  if (activeIndex < 0) throw new Error("Active paste block was not found");
+  const location = findBlockLocation(blocks, activeBlockId);
+  if (!location) throw new Error("Active paste block was not found");
   const normalizedText = String(text);
   const lineCount = normalizedText.split(/\r\n|\r|\n/).length;
   if (lineCount > MAX_BATCH_COMMANDS - 1) throw new Error("Multiline paste is limited to 9,999 blocks");
   if ([normalizedText, prefix, suffix].some(value => String(value).length > MAX_STRING_LENGTH)) throw new Error("Paste blocks are limited to 10,000,000 characters");
 
   const parsed = markdownBlocksFromPlainText(normalizedText, createId, resolveReferences);
-  const { prefixReferences, suffixReferences } = stableReferencesOutsideSelection(blocks[activeIndex], String(prefix), String(suffix));
-  const beforeBlockId = blocks[activeIndex + 1]?.id ?? null;
+  const { prefixReferences, suffixReferences } = stableReferencesOutsideSelection(location.block, String(prefix), String(suffix));
+  const parentBlockId = location.parent?.id ?? null;
+  const beforeBlockId = location.blocks[location.index + 1]?.id ?? null;
   const first = parsed[0];
   let last = parsed.at(-1);
   if (first.type !== "divider") first.text = `${prefix}${first.text}`;
@@ -124,7 +127,7 @@ export function multilinePasteCommands({ pageId, blocks, activeBlockId, text, pr
     ...parsed.map(block => ({
       type: "block.create",
       pageId,
-      position: { parentBlockId: null, beforeBlockId },
+      position: { parentBlockId, beforeBlockId },
       block
     }))
   ] : [
@@ -133,7 +136,7 @@ export function multilinePasteCommands({ pageId, blocks, activeBlockId, text, pr
     ...parsed.slice(1).map(block => ({
       type: "block.create",
       pageId,
-      position: { parentBlockId: null, beforeBlockId },
+      position: { parentBlockId, beforeBlockId },
       block
     }))
   ];

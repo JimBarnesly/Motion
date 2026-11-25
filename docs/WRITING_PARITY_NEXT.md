@@ -160,3 +160,33 @@ view-state validation; then app/slash/presentation/CSS integration. New modules
 must enter the existing local asset list. Verify real browser failure recovery,
 canonical service restart/export/restore and a final installed Windows writing
 case before changing the feature rows to complete.
+
+
+## Implementation checkpoint after the first Windows baseline
+
+The installed Windows baseline is green at `8209982`. The next reviewed candidate
+contains the shared tree/duplication/leaf guard, actual-parent Markdown paste and
+Ctrl+D integration, with three real browser durability cases and existing keyboard
+regressions. It also repairs native nested-search classification and existing
+derived indexes, preserving canonical schema/revision/JSON. These foundations do
+not activate toggle/callout UI. Exact hashes and evidence are in the renderer
+review and delivery state.
+
+The complete container increment still needs coordinated work. Add bounded
+ancestor/visible-tree helpers with real sibling positions; explicit header Enter
+and paste branches preserving header identity, children, suffix and references;
+and optional bounded folded IDs across every existing UI-state validator. Native
+stored UI-state format 1 and IPC 2 can retain optional-field compatibility. Browser
+search must return actual block targets, and its link-index traversal must include
+all descendants. Route search/backlink reveal through one awaited save/render/focus
+path; leave navigation surfaces open if saving fails.
+
+Fold changes must wait for composition and pending edits, persist before hiding
+content and preserve focus/drafts on failure. Guard beforeinput and structural
+history while a fold write is pending. New/indented children reveal their target
+first. Undo must ignore only fold preferences when comparing editor history and
+retain current surviving fold IDs; browser block history needs the confirmed
+page.replace-blocks path instead of an unawaited whole-state replacement. Test
+save/transaction failures as well as successful keyboard, focus, duplicate,
+paste, search/backlink and restart/export/backup flows. Add the finished writing
+flow to installed Windows acceptance before declaring the container slice done.

@@ -347,3 +347,86 @@ locally after this test-only correction. The earlier 86-case application run
 remains valid local evidence; complete CI for the corrected test is still needed.
 
 Corrected regression SHA-256: `f06d2b6397377fe1545b2a109f2666cbf9bdd14789d9e4252345372f386a4ebc`.
+
+
+## Nested writing foundation after `8209982`
+
+This bounded increment reuses the existing native command, browser confirmation,
+canonical history and IndexedDB paths. The shared block-tree helper locates the
+actual parent and sibling list, checks canonical ID/depth/count limits and copies
+subtrees with fresh descendant IDs using the same path scheme as the native
+WorkspaceDocument. References, attachment targets and opaque imported payloads
+remain unchanged. Workspace-wide collision checks include pages, blocks,
+attachments, databases, properties, options, rows and views. The candidate is
+validated before insertion; rejected copies do not partially mutate the tree.
+
+Both standalone and batched browser transforms now share the native guard that
+rejects converting a block with children into a leaf type. Multiline Markdown
+paste derives its actual parent/sibling position, including leading-divider and
+last-child cases. The only app.js change delegates its Ctrl+D browser callback
+to that existing typed reducer instead of copying only the root ID. No toggle
+controls, folding, rich-text schema, capability, dependency or policy is added.
+
+The independently implemented browser regression first failed on the previous
+callback because three copied descendants retained their source IDs. After the
+correction, all three new cases pass through the actual DOM and transaction-
+complete IndexedDB reads: nested duplication with opaque/reference/attachment
+preservation, independent copied-grandchild editing, ordinary nested paste,
+leading-divider paste, undo/redo and durable reload. Twelve existing keyboard,
+Enter, composition and accessibility browser cases also pass. Thirteen actual
+core/browser parity tests and twenty unchanged confinement/release-contract
+tests pass; the web build and offline asset check pass.
+
+The independent editor previously reviewed the five pure foundation files, and
+root reviewed the final seven-file integration and actual pre/post-fix evidence.
+The app retains exactly the same sixteen raw HTML findings/fingerprints; the new
+helpers introduce none. Root reran the unchanged source policy successfully over
+123 first-party files. No suppression is added or broadened. Native installed
+writing coverage and full candidate CI remain separate requirements; browser
+development evidence is not recorded as Windows graphical acceptance.
+
+| Reviewed source | SHA-256 |
+| --- | --- |
+| `apps/web/app.js` | `364b5da25f1454686500002232d7710e9197a56788dfdeaf22f3f2f219dd4692` |
+| `e2e/nested-writing.spec.ts` | `ff0d4d6d45244944ba64a1b5061051e1b5fac2d1a31ed99a4fece90f1e3b47d3` |
+| `apps/web/block-tree.js` | `7de91897bdd472b780f08b000b5226488ce28ee08458167c18afc246a4835983` |
+| `apps/web/browser-edit-confirmation.js` | `edc56814cbece2126a85ef399aecfc097003bc54f157b49ea4984866c495c20c` |
+| `apps/web/markdown-paste.js` | `43cb97daa9e0808f3e3607925cd906ce73ebf02ca483851580e1d41d6cbe24d3` |
+| `apps/web/scripts/build-assets.mjs` | `ee5d30742f8bda7b76e14f78e017b48bc72248bb6c3d82cbc6d2c127ff7ad105` |
+| `apps/web/test/block-tree.test.mjs` | `c478a7b9e7d1e559333903ae1d1e7d975bb7e920f6006833de82e90e7624980a` |
+
+
+## Native nested-search repair after `8209982`
+
+A full core-validated three-level fixture reproduced a native search defect:
+nested canonical block text was indexed as a generic entity, so the existing
+navigation resolver could not target it. Stored blocks use top-level `text`;
+BlockContent is a command payload, not a stored `content` object.
+
+The bounded fix carries block type and owning-page identity only along the actual
+page root's canonical block/children tree. Independent review caught that a
+simple inherited hint also treated opaque `unknownData.blocks[].children` as
+canonical. Its negative regression failed on the initial draft and passes with
+separate canonical-origin tracking; metadata edges clear the new context.
+
+Migration 6 appends a derived-index repair using the existing pending-job
+mechanism. The exact first five SQL strings/checksums are unchanged. Repair does
+not rewrite canonical JSON, workspace schema, revision or update timestamps.
+Tests inspect raw rows, old migration records and historical jobs; a second open
+leaves FTS row IDs and job records unchanged. Real service tests cover nested
+content edits, subtree moves between pages, correct ownership and reopening;
+incremental rollback and unchanged other-page FTS rows are also checked.
+
+All 70 storage/service tests pass, with zero failures/skips, and builds pass.
+The four-file empty-policy static scan has zero findings. Independent editor
+review and root integration review found no remaining blocker. This changes the
+derived database migration version, not canonical workspace schema 2. Actual
+candidate CI and installed acceptance remain required. No browser search/folding
+behavior, dependency, policy or suppression changes are included here.
+
+| Reviewed source | SHA-256 |
+| --- | --- |
+| `packages/storage/src/index.ts` | `d9c64b4a1a180b0a63ace3364b2dd5faf8361ddfee69a2559df148330b1d90b6` |
+| `packages/storage/src/test/nested-search.test.ts` | `1a076b34be65e0459d23abfb8bf86d163a6f4f44997dcd67c7e5ae30d476a8ee` |
+| `packages/storage/src/test/storage.test.ts` | `2d49d9fd271fa9ae781b228f1d4dd59b6d708407faf68de53be8ba26610ee8a8` |
+| `packages/app-service/src/test/nested-search.test.ts` | `3499c75f987ce71e0a790ae95b76cbf28982f489b465764aa1486a6ccca5917e` |

@@ -79,8 +79,8 @@ A permissive type union or migration field is not a shipped feature.
 | To-do blocks | Complete | Checked state and list exit behavior | shipped |
 | Quote, code, divider | Complete | Canonical typed payloads | shipped |
 | Nested blocks / indent / outdent | Complete | Stable nested model and non-trapping shortcuts | shipped |
-| Split, merge, duplicate and move blocks | Partial | Native canonical batches/history exist; browser Ctrl+D must remap descendant IDs and container leaf conversions must match the native guard | Slice BLOCK-1 |
-| Multiline Markdown paste | Partial | Root-block paste uses one canonical batch; helper still assumes root parent and must preserve the actual parent for nested paste | Slice BLOCK-1 |
+| Split, merge, duplicate and move blocks | Candidate | Native batches/history reused; browser Ctrl+D remaps all descendant IDs and rejects destructive leaf conversion. Actual nested undo/redo/reload regressions pass; candidate CI and installed writing acceptance remain. | Slice BLOCK-1 |
+| Multiline Markdown paste | Candidate | Actual parent/sibling placement retained for nested ordinary and leading-divider paste; real browser undo/redo/reload and native-core parity tests pass. Container-header semantics remain in the later toggle/callout slice. | Slice BLOCK-1 |
 | Markdown typing shortcuts | Complete | Headings, lists, task, quote, code and divider | shipped |
 | `@` page mentions and `[[…]]` links | Complete | Stable ID references; duplicate-title safe | shipped |
 | File block | Complete | Native canonical attachment identity and restart-safe access | shipped |

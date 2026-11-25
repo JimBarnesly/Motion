@@ -1,19 +1,21 @@
-const LEAF_BLOCK_TYPES = new Set(["divider", "image", "file", "bookmark", "child-page", "page-mention", "date-mention", "simple-table", "collection-view"]);
-
-function locateBlock(blocks, id, parent = null) {
-  for (let index = 0; index < blocks.length; index += 1) {
-    const block = blocks[index];
-    if (block.id === id) return { block, blocks, index, parent };
-    const nested = locateBlock(block.children ?? [], id, block);
-    if (nested) return nested;
-  }
-  return null;
-}
+import { canContainBlockChildren, cloneBlockSubtree, findBlockLocation } from "./block-tree.js";
 
 function requiredBlock(page, id) {
-  const location = locateBlock(page.blocks, id);
+  const location = findBlockLocation(page.blocks, id);
   if (!location) throw new Error("Block was not found");
   return location;
+}
+
+function transformBlock(block, transform) {
+  if (!canContainBlockChildren(transform.type) && block.children.length) throw new Error(`Block type ${transform.type} cannot contain children`);
+  for (const key of ["checked", "language", "attachmentId", "headingLevel", "pageId", "viewId", "date", "url"]) delete block[key];
+  Object.assign(block, structuredClone(transform));
+}
+
+function duplicateBlock(workspace, page, blockId, newBlockId) {
+  const location = requiredBlock(page, blockId);
+  const copy = cloneBlockSubtree(workspace, location.block, newBlockId);
+  location.blocks.splice(location.index + 1, 0, copy);
 }
 
 export function applyLocalEdit(document, candidate, timestamp) {
@@ -37,8 +39,11 @@ export function applyLocalEdit(document, candidate, timestamp) {
   } else if (candidate.type === "block.transform") {
     const target = page(candidate.payload.pageId);
     const { block } = requiredBlock(target, candidate.payload.blockId);
-    for (const key of ["checked", "language", "attachmentId", "headingLevel", "pageId", "viewId", "date", "url"]) delete block[key];
-    Object.assign(block, structuredClone(candidate.payload.transform));
+    transformBlock(block, candidate.payload.transform);
+    target.updatedAt = timestamp;
+  } else if (candidate.type === "block.duplicate") {
+    const target = page(candidate.payload.pageId);
+    duplicateBlock(document.workspace, target, candidate.payload.blockId, candidate.payload.newBlockId);
     target.updatedAt = timestamp;
   } else if (candidate.type === "block.indent" || candidate.type === "block.outdent") {
     const target = page(candidate.payload.pageId);
@@ -46,7 +51,7 @@ export function applyLocalEdit(document, candidate, timestamp) {
     if (candidate.type === "block.indent") {
       if (location.index === 0) throw new Error("Block has no previous sibling to indent under");
       const parent = location.blocks[location.index - 1];
-      if (LEAF_BLOCK_TYPES.has(parent.type)) throw new Error(`Block type ${parent.type} cannot contain children`);
+      if (!canContainBlockChildren(parent.type)) throw new Error(`Block type ${parent.type} cannot contain children`);
       const moving = location.blocks.splice(location.index, 1)[0];
       (parent.children ??= []).push(moving);
     } else {
@@ -69,11 +74,12 @@ export function applyLocalEdit(document, candidate, timestamp) {
         else delete block.references;
       } else if (command.type === "block.transform") {
         const { block } = requiredBlock(target, command.blockId);
-        for (const key of ["checked", "language", "attachmentId", "headingLevel", "pageId", "viewId", "date", "url"]) delete block[key];
-        Object.assign(block, structuredClone(command.transform));
+        transformBlock(block, command.transform);
+      } else if (command.type === "block.duplicate") {
+        duplicateBlock(document.workspace, target, command.blockId, command.newBlockId);
       } else if (command.type === "block.create") {
         const parent = command.position.parentBlockId === null ? null : requiredBlock(target, command.position.parentBlockId).block;
-        if (parent && LEAF_BLOCK_TYPES.has(parent.type)) throw new Error(`Block type ${parent.type} cannot contain children`);
+        if (parent && !canContainBlockChildren(parent.type)) throw new Error(`Block type ${parent.type} cannot contain children`);
         const siblings = parent ? (parent.children ??= []) : target.blocks;
         const index = command.position.beforeBlockId === null ? siblings.length : siblings.findIndex(block => block.id === command.position.beforeBlockId);
         if (index < 0) throw new Error("Paste insertion target was not found");

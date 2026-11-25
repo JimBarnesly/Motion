@@ -88,59 +88,49 @@ there is no network listener.
 
 ## Current release evidence — 25 November 2026
 
-The newest built candidate, `28a4180`, stopped **before installation** in
-[Windows run45619140961](https://github.com/JimBarnesly/Motion/actions/runs/45619140961):
-all native tests passed, but the new all-signatures prerequisite check rejected
-an extra self-signed EdgeBuild signature inside the exact official Microsoft
-wrapper. The reviewed correction deliberately selects Microsoft's pinned primary
-signature, preserving strict zero-exit Windows trust and all byte/certificate
-checks. Its next native result is pending. Both Linux jobs passed; general
-verification needs the confinement-compatible lifecycle-test correction, which
-passes its local gate and eight focused browser cases. The failed prerequisite
-run is retained separately and is not counted as installed GUI evidence.
+**The first complete installed Windows baseline passes at `8209982`.**
+[Windows run45624078077](https://github.com/JimBarnesly/Motion/actions/runs/45624078077)
+built and installed current-user NSIS, authenticated its exact Microsoft
+prerequisite and passed 28 native Rust tests, 23 filesystem/service tests, three
+startup-gate cases and 23 installed native cases. Mapped-SMB positive controls,
+refusal, unchanged filesystem/security state and cleanup also passed.
 
-The most recent actual installed-application evidence remains:
+The actual installed GUI created/edited a page, ingested an attachment,
+created/verified/previewed a native backup, confirmed restore into a new workspace
+and preserved the original canonical state and revision. Exact restored attachment
+bytes, concurrent-GUI exclusion, same-GUI Retry after owner close, normal restart,
+search and uninstall/reinstall preservation all passed. Application, local service
+and WebView outbound traffic was blocked before GUI launch.
 
-Candidate `a64ceb03a9fb773285ca8633e5c84981d396c5db` built and installed its
-current-user NSIS package in [Windows run45612288185](https://github.com/JimBarnesly/Motion/actions/runs/45612288185).
-All **28 Rust**, **23 Windows native/service**, **three startup-gate**, and
-**23 installed native** tests passed. Actual mapped-SMB controls, refusals,
-unchanged physical/security snapshots and fixture cleanup passed as well.
+The downloaded candidate ZIP and all 25 entries were independently hashed. The
+installer is 323,707,772 bytes with SHA-256
+`819fe5c375fc9be10d1c4605678562b9fbe49d3b929d2fa1d19733b6ffe64e09`.
+See [candidate artifact](https://github.com/JimBarnesly/Motion/actions/runs/45624078077/artifacts/15028359148)
+and `WINDOWS_INSTALLED_EVIDENCE_8209982.json`. This is a development installer,
+not a 1.0 release.
 
-The actual installed GUI opened, created a page and saved its title and body.
-Attachment selection then exposed a production defect: the renderer retained a
-live `FileList`, cleared the input, and therefore handed an empty selection to
-the ingestion controller. The next candidate copies the selected `File` objects
-before clearing the input. A real browser file-input regression reproduced the
-failure and now passes, including exact bytes and selecting the same file again.
-The installed attachment, backup/restore, concurrent-GUI, restart and
-uninstall/reinstall checks still have to complete; none is inferred from the
-portable tests. This remains a development candidate, not 1.0.
+[General CI run45624078178](https://github.com/JimBarnesly/Motion/actions/runs/45624078178)
+passed every job: full verification including all 86 browser cases, Linux x64
+packaged/offline acceptance and ARM64 isolated/native/package/offline acceptance.
+The confinement-compatible lifecycle correction is proven in complete CI. The
+older failed 28a4180 prerequisite attempt remains a failure; selected Microsoft
+primary0 and the independent Windows payload probe succeeded in the new run,
+without trusting EdgeBuild.
 
-All three jobs in [general CI run45612288566](https://github.com/JimBarnesly/Motion/actions/runs/45612288566)
-passed: complete core verification, Linux x64 packaged acceptance and ARM64
-isolated/native/package/offline acceptance. This also confirms the unchanged
-secret scanner accepts the corrected public-document hash metadata. The real
-service backup roundtrip passes with nonempty canonical content and binary
-attachments. Native Save As dialog automation remains separate coverage.
+The next reviewed candidate extends the real Windows backup button through native
+Save As and restores its exact saved disk bytes. Reviewed nested writing and native
+nested-search repair are also ready for candidate CI. These later changes have
+not executed on Windows and do not imply toggle/callout UI or inline rich text.
 
-The next installer increment authenticates the exact embedded Evergreen payload
-and its Windows signature before execution, gates installer upload on successful
-verification, and records before/after runtime inventory. It preserves the
-existing offline packaging mode. The inventory explicitly does not establish
-genuine runtime absence. These new Windows-specific checks require execution in
-the next native job.
+The hosted runner already contains WebView2: before/after registry and file
+inventory show 131.0.2903.86 unchanged. This proves neither runtime absence nor the
+selected running engine. Fully offline first installation on a clean Windows 11
+machine remains open. The locked minimum-version path must be reviewed before
+assuming it upgrades an older runtime offline.
 
-Browser regressions also exposed a page-restore durability race and a stale
-selection that could reopen a trashed page. The candidate now waits for the real
-IndexedDB transaction to complete, persists page selection with the browser
-canonical mutation, rejects overlapping lifecycle actions, and reports native
-selection-save failure separately from a successful canonical change. The
-existing desktop CSP remains unchanged; numeric layout styles now use validated
-CSSOM assignments so indentation and column widths render under that policy.
-
-Offline operation uses executable-specific firewall rules; fully offline
-installation with initially absent WebView2 still needs clean-image evidence.
-The Evergreen payload's binary-policy classification remains release work, as
-do required review items. See `DELIVERY_STATE.json` and
-`WINDOWS_INSTALLED_EVIDENCE_a64ceb0.json` for exact current evidence and ownership.
+Glib renewal and exact current PR-base governance pass machine checks; existing
+Code Owner review remains outstanding. Evergreen binary/notice classification
+and downstream terms remain evidence work, distinct from npm/Cargo checks and
+payload signature verification. No separate pre-existing binary-approval form is
+implied. Practical local feature work continues under `DELIVERY_STATE.json`;
+version and release status remain in development.

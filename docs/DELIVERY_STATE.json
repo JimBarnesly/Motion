@@ -5,12 +5,12 @@
   "branch": "feat/windows-notebook-resume",
   "pullRequest": 2,
   "releaseStatus": "in-development",
-  "priority": "Pass exact Microsoft prerequisite signature verification, then installed attachment/backup/restart/reinstall acceptance",
-  "lastVerifiedCommit": "fed424dd9681e047ad74f0396f501928e70ccf8b",
+  "priority": "Execute native Save As and reviewed nested writing/search candidate; resolve offline prerequisite handling",
+  "lastVerifiedCommit": "820998286a9083c0edbe663e6981945e59ad0ec4",
   "activeLease": {
     "owner": "interactive-windows-installer-2026-11-25",
-    "startedAt": "2026-11-25T13:24:40Z",
-    "expiresAt": "2026-11-25T15:24:40Z",
+    "startedAt": "2026-11-25T13:50:50Z",
+    "expiresAt": "2026-11-25T15:50:50Z",
     "scope": "Windows installed attachment/backup/lifecycle acceptance and continuation"
   },
   "continuationAutomation": "Automation_1b45f83f28188191b31f671c6229efd8",
@@ -33,26 +33,26 @@
     "Both Linux x64 and ARM64 native/package/offline jobs passed at fbdbbd8",
     "Complete core verification and both Linux native/package/offline jobs passed at a64ceb0",
     "Actual installed Windows page/title and body editing passed at a64ceb0; all prior native and mapped-SMB checks remained green",
-    "Reproduced and corrected the real attachment FileList clearing defect, strict-CSP layout defect and browser page lifecycle durability race"
+    "Reproduced and corrected the real attachment FileList clearing defect, strict-CSP layout defect and browser page lifecycle durability race",
+    "8209982 passed complete installed Windows baseline: exact Microsoft prerequisite trust, installation, 23 installed native cases, actual attachment/backup/confirmed restore, same-GUI ownership Retry, restart/search and uninstall/reinstall preservation under outbound firewall blocking",
+    "8209982 passed complete core CI including all 86 browser cases and both Linux x64 and ARM64 native/package/offline jobs"
   ],
   "next": [
-    "Execute the next payload-verification gate on actual Windows before NSIS installation; retain the exact hash and Windows trust evidence",
-    "Execute the corrected real attachment-picker path and installed backup create/verify/preview/confirmed restore, preserving the original workspace and exact restored bytes",
-    "Prove second installed GUI rejection while owner remains open, then same-GUI Retry after owner closes",
-    "Complete normal window close/restart and uninstall/reinstall data preservation with outbound networking blocked",
-    "Exercise offline installation with WebView2 initially absent on a clean Windows image; inventory alone cannot prove absence",
-    "Continue the concrete writing slice in WRITING_PARITY_NEXT.md after Windows baseline acceptance"
+    "Execute the real Verified backup button and native Save As candidate, then verify/restore its exact disk bytes",
+    "Execute the reviewed nested duplicate/paste and native nested-search repair through full CI and installed baseline",
+    "Resolve offline prerequisite handling: current inventory observes existing WebView2 131.0.2903.86, unchanged after setup; do not assume the minimum-version option upgrades offline",
+    "Complete exact-payload runtime terms/notices mapping and determine whether an actual policy decision is necessary",
+    "Continue complete toggle/callout writing in WRITING_PARITY_NEXT.md, including folded focus/search and recoverable editing",
+    "Obtain genuine initially-absent-WebView and Windows 11 first-install evidence"
   ],
   "openBlockers": [
-    "Latest Windows28a4180 built NSIS but correctly withheld execution/upload: SignTool /all rejected the pinned official wrapper's additional EdgeBuild self-signed signature. Reviewed correction selects exact Microsoft primary0 with strict exit0 and unchanged complete-file/certificate/Windows trust requirements; actual Windows selected-primary and payload probe are pending.",
-    "Latest core28a4180 verify rejected a new test dynamic import under the unchanged browser confinement rule. The test now exercises actual startup read-abort and Retry; unchanged confinement19/19 and lifecycle8/8 pass locally. Complete corrected CI is pending.",
-    "The a64ceb0 installed GUI saved a page/title and body, then attachment input supplied an empty live FileList after clearing it. The next candidate captures File objects before clearing; its focused real file-input regression passes. Later installed acceptance remains unproven.",
-    "Actual-service backup byte transport and roundtrip pass, and complete core CI at a64ceb0 passes. Installed restore and native Save As dialog coverage remain separate outstanding evidence.",
-    "Initially absent WebView2 and fully offline installation still require a clean Windows image; the hosted runner already has WebView2. Before/after inventory explicitly does not claim genuine absence.",
-    "The glib exception renewal and governed changes remain draft CODEOWNERS review items.",
-    "Current Evergreen third-party notices require explicit binary-policy classification before release. The next fail-closed payload/signature gate does not confer distribution approval. No exception or human approval is inferred."
+    "Native Save As source is independently reviewed but execution is pending;8209982 covers installed adapter backup plus real UI confirmed restore. Native cancellation/overwrite dialog acceptance remains separate.",
+    "Initially absent WebView2 and fully offline first installation are unproven. Existing registry/file version131.0.2903.86 is not running-engine identity evidence. The locked older-runtime upgrade path requires review before modification.",
+    "Glib renewal and exact five-file governance record pass the actual PR-base machine gate. Existing Code Owner review is outstanding; no submitted PR reviews observed, and live branch-protection settings are unverified.",
+    "Evergreen classification/downstream terms are unfinished evidence work, not an observed npm/Cargo licence-gate failure or a separate existing binary-signoff form. Resolve applicable exact-payload terms/notices before deciding if policy changes are needed.",
+    "Practical local feature parity remains unfinished; writing/search fixes are candidates, while toggle/callout UI, inline marks, additional database views and interchange remain delivery work."
   ],
-  "notes": "The latest Windows28a4180 attempt failed prerequisite verification before install, so a64ceb0 remains the most recent actually installed GUI evidence. Read WINDOWS_PREREQUISITE_EVIDENCE_28a4180.json and WINDOWS_EVERGREEN_SIGNATURES_28a4180.json for exact failed-run/secondary-signature evidence. The next verifier explicitly authenticates primary Microsoft index0, without accepting any nonzero exit, trusting EdgeBuild or changing payload/primary certificate pins. Two Linux jobs passed at28a4180; the general verify job requires the corrected confinement-compatible lifecycle test. All prior installed attachment/restore/restart/reinstall obligations remain open. Native Save As acceptance and nested-editor foundations are separate work in progress, not evidence for this candidate. No1.0 or human approval is inferred; the active lease prevents overlapping writes.",
+  "notes": "First complete installed Windows baseline passes at 8209982, PR merge f1f0e6b180fa50269c955bc64203819b4699c74e. Downloaded installer and all 25 entries were independently hashed; see WINDOWS_INSTALLED_EVIDENCE_8209982.json. Exact primary Microsoft verification and payload Windows trust probe pass. All core/Linux jobs pass. The next candidate adds actual native Save As, seven-file nested-writing foundation and four-file native nested-search/derived repair. Their local reviews/tests pass, but8209982 installed evidence does not cover these later changes. Release remains in development; no 1.0 or full parity claim.",
   "candidateVerification": {
     "portableWorkspaceTests": {
       "passed": 426,
@@ -64,11 +64,11 @@
     "build": "passed",
     "dependencyInventory": "436 production packages, passed",
     "sourceSecurity": "122 first-party files, 8 unchanged rules passed; one existing HTML fingerprint rebound after reviewed strict-CSP layout fix",
-    "windowsNativeCompile": "Passed full Windows debug and release Tauri compilation at a64ceb0 on windows-2022",
-    "fullWindowsTauriBuild": "NSIS built, installed and launched at a64ceb0; page/title/body save passed, attachment input exposed production FileList defect",
+    "windowsNativeCompile": "Passed full debug/release Tauri compilation at 8209982",
+    "fullWindowsTauriBuild": "NSIS built, installed and full installed baseline passed at 8209982 on Windows Server 2022",
     "windowsExecution": {
-      "commit": "a64ceb03a9fb773285ca8633e5c84981d396c5db",
-      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45612288185",
+      "commit": "820998286a9083c0edbe663e6981945e59ad0ec4",
+      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45624078077",
       "rust": {
         "passed": 28,
         "failed": 0,
@@ -97,17 +97,17 @@
       "installer": {
         "built": true,
         "installed": true,
-        "sha256": "c6374c9d0dfdfec0b72a1053577a23c170df4c6780484cea80595161fc3ec5c4",
-        "artifact": "https://github.com/JimBarnesly/Motion/actions/runs/45612288185/artifacts/15021887477"
+        "sha256": "819fe5c375fc9be10d1c4605678562b9fbe49d3b929d2fa1d19733b6ffe64e09",
+        "artifact": "https://github.com/JimBarnesly/Motion/actions/runs/45624078077/artifacts/15028359148"
       },
-      "installedAcceptance": "STARTUP AND PAGE/TITLE/BODY SAVE PASSED; attachment input failed with No file selected. Backup/restore and later lifecycle checks await next candidate.",
-      "uninstallReinstall": "not reached",
-      "testedMergeCommit": "124e65bd8b8283847fa3683b2cf9423286e6b968",
+      "installedAcceptance": "PASS: native adapter, empty profile, page/title/body, attachment, backup verify/preview/confirmed new-identity restore, original/attachment preservation, concurrent GUI rejection and same-GUI Retry, normal close/restart/search",
+      "uninstallReinstall": "PASS: all notebook files survive uninstall; selected original/restored snapshots and exact attachment bytes survive reinstall",
+      "testedMergeCommit": "f1f0e6b180fa50269c955bc64203819b4699c74e",
       "mappedShare": "PASSED: reachable local and mapped controls, five native refusals, service refusal, unchanged physical/security snapshots, exact cleanup"
     },
-    "linuxX64Packaged": "Passed entire Linux x64 job139222344505 at28a4180, run45619140898",
-    "completeCoreCi": "Passed complete verify job139198629866 at a64ceb0, run45612288566, including browser/offline/security/benchmark gates",
-    "arm64IsolatedValidation": "Passed entire ARM64 job139222344354 at28a4180, run45619140898",
+    "linuxX64Packaged": "Passed job139239559103 at 8209982, run45624078178",
+    "completeCoreCi": "Passed complete verify139239558671 at 8209982, run45624078178, including86 browser cases and offline/security/benchmark gates",
+    "arm64IsolatedValidation": "Passed job139239559131 at 8209982, run45624078178",
     "startupRecoveryBrowserTests": {
       "passed": 75,
       "failed": 0,
@@ -119,7 +119,7 @@
       "officialRelease": "https://nodejs.org/en/blog/release/v24.22.3",
       "namespacedPathFix": "https://github.com/nodejs/node/pull/65378",
       "focusedRuntimeContractTests": 26,
-      "windowsExecution": "PASSED at a64ceb0: 28 Rust tests including exact canonical-path regression; actual installed GUI opened and saved page/title/body",
+      "windowsExecution": "PASSED at 8209982: full installed notebook/backup/restore/ownership/restart/reinstall baseline",
       "verifiedArchives": [
         "linux-x64.tar.xz",
         "win-x64.zip"
@@ -131,17 +131,17 @@
       },
       "windowsRegressionCompile": "Full actual Windows Tauri debug/release builds and native regression execution passed at a64ceb0"
     },
-    "latestCoreCi": "28a4180 verify139222344125 failed confinement contract on dynamic import in new lifecycle regression; production tests/typechecks and preceding security gates passed. Corrected real startup regression and unchanged confinement gate pass locally.",
+    "latestCoreCi": "All three jobs passed at 8209982, run45624078178",
     "backupCodecCandidate": {
       "actualServiceRoundtrip": "passed locally and in complete core CI at a64ceb0, with real workspace and binary attachment, file publication, corruption rejection and new-identity restore",
       "webAdapterTests": 54,
-      "installedAcceptance": "pending",
-      "nativeSaveDialog": "not automated by the new GUI test"
+      "installedAcceptance": "PASSED at 8209982 with encoded native backup and real UI restore",
+      "nativeSaveDialog": "Source-reviewed actual native Save As candidate awaiting Windows execution"
     },
     "installerPayloadGateCandidate": {
       "localContractTests": 8,
-      "windowsExecution": "28a4180 verified complete bytes/tools but /all failed on EdgeBuild; exact-primary correction requires next Windows run",
-      "inventory": "read-only before/after; genuineAbsenceProven remains false",
+      "windowsExecution": "PASSED at 8209982: actual SignTool /pa /ds 0 /tw /v exit0, independent embedded Authenticode Valid Microsoft certificate/timestamp/version, exact byte pins and cleanup",
+      "inventory": "Actual before/after observes existing machine 131.0.2903.86 unchanged; genuineAbsenceProven=false",
       "upload": "NSIS candidate upload requires payload verification success; diagnostic evidence is retained separately"
     },
     "rendererDurabilityCandidate": {
@@ -160,12 +160,12 @@
       "lint": "passed: 162 JavaScript files and 51 JSON files",
       "secretScan": "passed: 425 tracked/non-ignored files with unchanged scanner policy",
       "nativeSelectionSaveFailure": "source reviewed; no new injected native failure fixture",
-      "windowsExecution": "pending next native run",
+      "windowsExecution": "Full installed baseline passed at 8209982",
       "confinementCorrection": {
         "unchangedGatePassed": 19,
         "lifecycleCasesPassed": 8,
         "sourceReview": "passed independently",
-        "completeCi": "pending"
+        "completeCi": "Passed at 8209982 including all 86 browser cases"
       }
     },
     "windowsPrerequisiteAttempt": {
@@ -181,7 +181,25 @@
       "status": "failed: all-signatures trust requirement rejected additional untrusted EdgeBuild signature",
       "completePayloadBytesAndSdkTrust": "passed",
       "correctedPrimarySignatureAndPayloadProbe": "pending next Windows candidate"
+    },
+    "nestedWritingCandidate": {
+      "newBrowserPassed": 3,
+      "existingKeyboardAccessibilityPassed": 12,
+      "nativeParityAndConfinementPassed": 33,
+      "review": "editor foundation review and root integration review passed",
+      "ci": "pending candidate",
+      "windowsWriting": "not exercised by baseline"
+    },
+    "nestedSearchCandidate": {
+      "storageAndServicePassed": 70,
+      "failures": 0,
+      "skips": 0,
+      "priorMigrationSqlUnchanged": 5,
+      "derivedRepairMigration": 6,
+      "canonicalJsonSchemaRevisionTimestampPreserved": true,
+      "review": "independent editor and root review passed",
+      "ci": "pending candidate"
     }
   },
-  "lastObservedCommit": "28a41800a80ae23125768e820e1f9b8ddabadd26"
+  "lastObservedCommit": "820998286a9083c0edbe663e6981945e59ad0ec4"
 }

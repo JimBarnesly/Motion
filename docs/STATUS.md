@@ -2,7 +2,33 @@
 
 Updated: 2026-11-25
 
-## Current resumption — local Windows notebook
+## Active Windows-first continuation
+
+The live branch is `feat/windows-notebook-resume`,
+[PR #2](https://github.com/JimBarnesly/Motion/pull/2). Read
+[delivery state](DELIVERY_STATE.json) for the current remote checkpoint, active
+work lease, exact CI evidence and immediate next action, and
+[Windows 1.0 delivery](WINDOWS_1_0_DELIVERY.md) for acceptance and scope. The
+initial resumption audit below is retained as historical evidence; its earlier
+host limitations and unimplemented Windows checklist are no longer current.
+
+The first complete installed Windows baseline passes at `8209982`, in
+[Windows run45624078077](https://github.com/JimBarnesly/Motion/actions/runs/45624078077).
+All native and installed storage tests pass. Actual GUI editing, attachments,
+native backup/confirmed new-identity restore, concurrent-GUI rejection and Retry,
+restart/search and uninstall/reinstall preservation pass with app/service/WebView
+outbound traffic blocked. The downloaded installer and all 25 entries are
+independently hashed in `WINDOWS_INSTALLED_EVIDENCE_8209982.json`. Complete core
+verification, all 86 browser cases, Linux x64 and ARM64 native/package/offline
+jobs pass at the same head.
+
+The next reviewed candidate adds actual native Save As acceptance and nested
+writing/search repairs; those changes are not covered by preceding installed
+evidence. Absent-WebView/Windows 11 first installation, existing owner review,
+runtime distribution evidence and practical local feature work remain. Release
+remains **in development**. The hourly continuation observes the active lease.
+
+## Initial resumption checkpoint — historical local audit
 
 Development has resumed on `feat/windows-notebook-resume`, continuing from
 `d4132534ea2512ae3886500a026b95fa31d66213` on `feat/notion-editor-chrome`.
@@ -27,7 +53,7 @@ for the current local launch path.
 release acceptance are incomplete.** These results describe the resumption
 working tree, not an immutable CI run or an installed desktop release.
 
-## Evidence verified locally on 2026-11-25
+## Evidence at the initial local resumption checkpoint
 
 Runtime: Node `24.22.3`.
 
@@ -67,7 +93,7 @@ fail-closed HTTP(S)/WebSocket denial fixture was unchanged. This is useful local
 browser evidence, not a substitute for the normal pinned CI browser or installed
 native testing.
 
-## Current outstanding work and evidence
+## Outstanding work at the initial checkpoint — historical
 
 - No native Windows build or installer has been built or installed. Windows
   single-writer ownership, filesystem security, atomic attachment/backup

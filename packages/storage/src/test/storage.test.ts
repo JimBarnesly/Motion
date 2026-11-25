@@ -497,7 +497,7 @@ test("hostile FTS syntax is tokenized and migrations are idempotent", async () =
     first.close();
     const second = new SqliteWorkspaceStore(path);
     const migrations = second.database.prepare("SELECT version FROM motion_migrations ORDER BY version").all() as { version: number }[];
-    assert.deepEqual(migrations.map(({ version }) => version), [1, 2, 3, 4, 5]);
+    assert.deepEqual(migrations.map(({ version }) => version), [1, 2, 3, 4, 5, 6]);
     const indexes = second.database.prepare("PRAGMA index_list('workspace_links')").all() as { name: string }[];
     assert.equal(indexes.filter(index => index.name === "workspace_links_backlinks_idx").length, 1);
     assert.throws(() => second.save("ws", 1, { id: "p", title: "stale" }, 0), /Revision conflict/);

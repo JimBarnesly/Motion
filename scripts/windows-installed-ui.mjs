@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { once } from "node:events";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { fileURLToPath } from "node:url";
 import { chromium, expect } from "@playwright/test";
+import { invokeWindowsNativeHelper } from "@motion/storage";
 
 assert.equal(process.platform, "win32", "Installed UI acceptance requires Windows");
 assert.equal(process.env.GITHUB_ACTIONS, "true", "Use a disposable CI profile for installed UI acceptance");
@@ -26,6 +28,7 @@ const baselinePath = join(output, "installed-notebook-baseline.json");
 const forbiddenRequests = [], pageErrors = [], unexpectedDialogs = [];
 const localOrigins = new Set(["http://tauri.localhost", "https://tauri.localhost", "http://ipc.localhost", "https://ipc.localhost"]);
 const activeInstances = new Set();
+const activeNativeDrivers = new Set();
 let instanceSequence = 0;
 let running;
 
@@ -118,13 +121,15 @@ async function launch({ startup = "ready", role = "owner" } = {}) {
   assert.ok(["ready", "blocked"].includes(startup));
   const webviewProfile = await mkdtemp(join(tmpdir(), "motion-webview-acceptance-"));
   const port = await freePort();
+  const launchStartedAt = Date.now();
   const child = spawn(executable, [], { windowsHide: false, stdio: ["ignore", "pipe", "pipe"], env: {
     ...process.env,
     WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port} --remote-debugging-address=127.0.0.1`,
     WEBVIEW2_USER_DATA_FOLDER: webviewProfile
   } });
+  const launchReturnedAt = Date.now();
   let launchError;
-  const current = { child, port, webviewProfile, label: `${role}-${++instanceSequence}`,
+  const current = { child, port, webviewProfile, launchStartedAt, launchReturnedAt, label: `${role}-${++instanceSequence}`,
     browser: null, page: null, stderr: "", stdout: "", console: [], browserLog: [],
     failedRequests: [], failedResponses: [], dialogs: [], expectedDialog: null };
   child.stderr.on("data", bytes => { current.stderr = `${current.stderr}${bytes}`.slice(-12_000); });
@@ -265,23 +270,226 @@ async function expectNotebook(current, baseline) {
   return snapshot;
 }
 
+function startNativeDialogDriver(request) {
+  const powershellRoot = join(process.env.SystemRoot, "System32", "WindowsPowerShell", "v1.0");
+  const environment = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.toUpperCase() !== "PSMODULEPATH"));
+  const input = `${JSON.stringify(request)}\n`;
+  assert.ok(Buffer.byteLength(input) <= 16_384);
+  const child = spawn(join(powershellRoot, "powershell.exe"), ["-NoLogo", "-NoProfile", "-NonInteractive", "-Mta", "-File",
+    fileURLToPath(new URL("./windows-native-save-dialog.ps1", import.meta.url))], {
+    windowsHide: true, stdio: ["pipe", "pipe", "pipe"],
+    env: { ...environment, PSModulePath: join(powershellRoot, "Modules") }
+  });
+  const messages = [];
+  let buffer = "", stderr = "", outputBytes = 0, failure, stopping = false, progress = 0, resolveReady, resolveClosed, closedResult;
+  const ready = new Promise(resolve => { resolveReady = resolve; });
+  const closed = new Promise(resolve => { resolveClosed = resolve; });
+  const fail = error => {
+    failure ??= error;
+    resolveReady(null);
+    if (!stopping && child.exitCode === null && child.signalCode === null) { stopping = true; child.kill(); }
+  };
+  const timer = setTimeout(() => fail(new Error("Native dialog helper exceeded its 65-second deadline")), 65_000);
+  child.on("error", fail);
+  child.stdin.on("error", fail);
+  child.stdout.setEncoding("utf8").on("data", chunk => {
+    outputBytes += Buffer.byteLength(chunk);
+    if (outputBytes > 128 * 1024) { fail(new Error("Native dialog helper exceeded its output limit")); return; }
+    buffer += chunk;
+    for (;;) {
+      const newline = buffer.indexOf("\n");
+      if (newline < 0) break;
+      const line = buffer.slice(0, newline).replace(/\r$/, ""); buffer = buffer.slice(newline + 1);
+      try {
+        const message = JSON.parse(line);
+        assert.equal(message.schemaVersion, 1);
+        assert.equal(message.operation, request.operation);
+        assert.ok(!messages.some(previous => previous.event === "result"), "No native dialog output may follow its result");
+        if (message.event === "result") {
+          assert.equal(typeof message.ok, "boolean");
+          if (message.ok && request.operation === "save") assert.equal(progress, 3, "All actual UI actions must have been observed");
+        } else {
+          assert.equal(request.operation, "save");
+          assert.equal(message.event, ["ready", "dialog", "filename"][progress++]);
+        }
+        assert.ok(messages.length < 4);
+        messages.push(message);
+        if (message.event === "ready") resolveReady(message);
+      } catch (error) { fail(error); }
+    }
+  });
+  child.stderr.setEncoding("utf8").on("data", chunk => {
+    outputBytes += Buffer.byteLength(chunk);
+    stderr = `${stderr}${chunk}`.slice(-8192);
+    if (outputBytes > 128 * 1024) fail(new Error("Native dialog helper exceeded its output limit"));
+  });
+  child.on("close", (code, signal) => {
+    clearTimeout(timer);
+    closedResult = { code, signal };
+    resolveReady(null);
+    resolveClosed(closedResult);
+  });
+  const driver = {
+    child,
+    evidence: () => ({ messages, stderr, failure: failure?.message, exit: closedResult }),
+    async ready() {
+      const message = await ready;
+      if (!message || failure) throw failure ?? new Error("Native dialog helper closed before becoming ready");
+      assert.equal(child.exitCode, null);
+      return message;
+    },
+    async finish() {
+      const exit = await bounded(closed, 70_000, "Native dialog helper completion");
+      if (failure) throw failure;
+      assert.equal(buffer.trim(), "", "Native dialog helper must finish a complete JSON line");
+      assert.equal(exit.signal, null);
+      const result = messages.at(-1);
+      assert.equal(result?.event, "result", `Native dialog helper did not report a result: ${stderr}`);
+      assert.equal(exit.code, result.ok ? 0 : 1);
+      return result;
+    },
+    async stop() {
+      if (!closedResult && child.exitCode === null && child.signalCode === null) child.kill();
+      try { await bounded(closed, 5000, "Native dialog helper cleanup"); }
+      catch (error) {
+        child.stdout.destroy(); child.stderr.destroy(); child.stdin.destroy(); child.unref();
+        throw error;
+      }
+      activeNativeDrivers.delete(driver);
+    }
+  };
+  activeNativeDrivers.add(driver);
+  child.stdin.end(input);
+  return driver;
+}
+
+async function saveNativeBackupThroughDialog(current) {
+  assert.equal(process.env.MOTION_NATIVE_HELPER, executable, "Fixture setup and read-back use the installed native helper");
+  assert.ok(process.env.RUNNER_TEMP && isAbsolute(process.env.RUNNER_TEMP));
+  const fixture = await mkdtemp(join(process.env.RUNNER_TEMP, "Motion native Save As "));
+  const directory = join(fixture, "Private backups");
+  const destination = join(directory, "Saved notebook proof.json");
+  const neighbour = join(directory, "preserve.txt");
+  const neighbourBytes = Buffer.from("Unrelated native save fixture remains unchanged.");
+  const proof = { schemaVersion: 1, commit: process.env.GITHUB_SHA, phase, instance: current.label, status: "failed",
+    scope: "Actual fresh-file native Save As; native cancellation and overwrite confirmations remain untested.", drivers: [] };
+  let savedBytes, operationFailure;
+  async function runDriver(request, onReady) {
+    const driver = startNativeDialogDriver(request);
+    try {
+      if (onReady) await onReady(await driver.ready());
+      return await driver.finish();
+    } finally {
+      try { await driver.stop(); }
+      finally { proof.drivers.push(driver.evidence()); }
+    }
+  }
+  try {
+    const privateRoot = invokeWindowsNativeHelper({ operation: "private.directory", path: directory, create: true });
+    assert.match(privateRoot.identity, /^[a-f0-9]{64}$/);
+    await writeFile(neighbour, neighbourBytes, { flag: "wx" });
+    await assert.rejects(lstat(destination), { code: "ENOENT" });
+    assert.equal(current.child.exitCode, null);
+    assert.equal(current.child.signalCode, null);
+    const identified = await runDriver({ schemaVersion: 1, operation: "identify", processId: current.child.pid, executablePath: executable });
+    assert.equal(identified.ok, true, identified.error?.message);
+    const identity = identified.identity;
+    assert.equal(identity.processId, current.child.pid);
+    assert.equal(identity.executablePath.toLowerCase(), executable.toLowerCase());
+    assert.ok(Number.isSafeInteger(identity.sessionId) && identity.sessionId >= 0);
+    assert.match(identity.startTimeFileTimeUtc, /^\d{15,20}$/);
+    const startedAt = Number((BigInt(identity.startTimeFileTimeUtc) - 116444736000000000n) / 10000n);
+    assert.ok(startedAt >= current.launchStartedAt - 1000 && startedAt <= current.launchReturnedAt + 1000,
+      "The authenticated process creation belongs to this controller's actual spawn");
+    assert.equal(current.child.exitCode, null);
+    proof.processIdentity = identity;
+    const request = { schemaVersion: 1, operation: "save", processId: current.child.pid, executablePath: executable,
+      expectedIdentity: identity, destination };
+
+    // Real Windows negative control: a stale creation identity must fail before
+    // UI Automation becomes ready or changes any control or destination.
+    const stale = await runDriver({ ...request, expectedIdentity: { ...identity,
+      startTimeFileTimeUtc: String(BigInt(identity.startTimeFileTimeUtc) + 1n) } });
+    assert.equal(stale.ok, false);
+    assert.equal(stale.phase, "authenticate");
+    assert.equal(stale.error?.code, "PROCESS_IDENTITY_MISMATCH");
+    assert.deepEqual(proof.drivers.at(-1).messages.map(message => message.event), ["result"]);
+    await assert.rejects(lstat(destination), { code: "ENOENT" });
+    assert.deepEqual(await readFile(neighbour), neighbourBytes);
+    proof.staleProcessIdentityRejectedBeforeUiAction = true;
+
+    const tools = current.page.locator("details.workspace-tools");
+    if (await tools.getAttribute("open") === null) await tools.locator("summary").click();
+    await expect(current.page.locator("#createVerifiedBackup")).toBeVisible();
+    await expect(current.page.locator("#createVerifiedBackup")).toBeEnabled();
+    const selected = await runDriver(request, async ready => {
+      assert.deepEqual(ready.identity, identity);
+      assert.equal(current.child.exitCode, null);
+      await current.page.locator("#createVerifiedBackup").click();
+    });
+    assert.equal(selected.ok, true, selected.error?.message);
+    assert.equal(selected.dialog?.title, "Save verified Motion backup");
+    assert.equal(selected.dialog?.processId, current.child.pid);
+    assert.equal(selected.filename?.defaultMatched, true);
+    assert.equal(selected.filename?.exactDestinationReadBack, true);
+    assert.equal(selected.filename?.valuePattern, true);
+    assert.equal(selected.invokePattern, true);
+    assert.equal(selected.dialogClosed, true);
+    await expect(current.page.locator("#saveState")).toHaveText("Verified backup saved safely.", { timeout: 30_000 });
+
+    const metadata = await lstat(destination);
+    assert.ok(metadata.isFile() && !metadata.isSymbolicLink() && metadata.nlink === 1 && metadata.size > 0 && metadata.size <= 16 * 1024 * 1024);
+    // The installed helper independently authenticates the saved file's owner,
+    // DACL, ancestry and single-link identity before returning its bounded bytes.
+    const inspected = invokeWindowsNativeHelper({ operation: "backup.inspect", path: destination });
+    assert.equal(inspected.exists, true);
+    assert.match(inspected.identity, /^[a-f0-9]{64}$/);
+    assert.equal(typeof inspected.contents, "string");
+    savedBytes = Buffer.from(inspected.contents, "utf8");
+    assert.equal(savedBytes.byteLength, metadata.size);
+    assert.deepEqual(await readFile(destination), savedBytes, "The exact selected file contains the native-authenticated backup bytes");
+    assert.deepEqual(await readFile(neighbour), neighbourBytes);
+    assert.equal((await readdir(directory)).filter(name => name.endsWith(".tmp")).length, 0);
+    proof.savedFile = { name: "Saved notebook proof.json", byteLength: savedBytes.byteLength,
+      sha256: createHash("sha256").update(savedBytes).digest("hex"), privateSingleLinkAuthenticated: true,
+      selectedPathContainsSpaces: true, unrelatedFileUnchanged: true, noTemporaryFiles: true };
+    proof.nativeDialog = selected;
+    proof.status = "passed";
+  } catch (error) {
+    operationFailure = error;
+    proof.failure = String(error.message).slice(0, 2000);
+  } finally {
+    try { await rm(fixture, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); proof.cleanupPassed = true; }
+    catch (error) { operationFailure ??= error; proof.cleanupPassed = false; proof.cleanupFailure = error.message; }
+    if (operationFailure) proof.status = "failed";
+    await writeFile(join(output, "installed-native-save-dialog.json"), `${JSON.stringify(proof, null, 2)}\n`, { flag: "wx" });
+  }
+  if (operationFailure) throw operationFailure;
+  return { bytes: savedBytes, evidence: { freshFileSavedThroughRealButtonAndDialog: true,
+    processIdentityAuthenticated: true, staleProcessIdentityRejectedBeforeUiAction: true,
+    filenameValuePatternAndSaveInvokePattern: true, savedFile: proof.savedFile, cleanupPassed: true,
+    scope: proof.scope } };
+}
+
 async function restoreVerifiedNotebook(current) {
   const page = current.page;
   const before = await nativeSnapshot(page);
   assert.equal(before.workspaces.length, 1, "The fixture contains exactly the original notebook before restore");
   const original = before.documents[0];
-  const prepared = await bounded(page.evaluate(async () => {
-    const { createMotionUiAdapter, encodeBinary } = await import(new URL("./app-adapter.js", location.href).href);
+  const saved = await saveNativeBackupThroughDialog(current);
+  const serialized = saved.bytes.toString("utf8");
+  assert.deepEqual(await nativeSnapshot(page), before, "Native Save As must preserve the entire original workspace and revision");
+  const prepared = await bounded(page.evaluate(async serialized => {
+    const { createMotionUiAdapter, decodeBinary } = await import(new URL("./app-adapter.js", location.href).href);
     const adapter = createMotionUiAdapter();
     if (adapter.kind !== "tauri") throw new Error("Expected the actual native adapter");
     const loaded = await adapter.load();
-    const bundle = await adapter.createBackup();
+    const bundle = decodeBinary(JSON.parse(serialized));
     if (Object.values(bundle.files).some(bytes => !(bytes instanceof Uint8Array))) throw new Error("Native backup payloads were not decoded");
     const verification = await adapter.verifyBackup(bundle);
     const preview = await adapter.previewBackup(bundle);
-    return { workspaceId: loaded.workspace.id, revision: loaded.revision, verification, preview,
-      serialized: JSON.stringify(encodeBinary(bundle)) };
-  }), 30_000, "Create, verify and preview the real native backup");
+    return { workspaceId: loaded.workspace.id, revision: loaded.revision, verification, preview };
+  }, serialized), 30_000, "Verify and preview the actual native-saved backup");
   assert.equal(prepared.workspaceId, original.workspace.id);
   assert.equal(prepared.revision, original.revision);
   assert.deepEqual(prepared.verification, { valid: true, errors: [] });
@@ -292,7 +500,7 @@ async function restoreVerifiedNotebook(current) {
   assert.equal(prepared.preview.databases, original.workspace.databases.length);
   assert.equal(prepared.preview.records, 0);
   assert.equal(prepared.preview.attachments, 1);
-  const encoded = JSON.parse(prepared.serialized);
+  const encoded = JSON.parse(serialized);
   assert.equal(encoded.manifest.workspaceId, original.workspace.id);
   assert.equal(encoded.manifest.format, "motion-workspace-backup");
   assert.equal(encoded.manifest.files.length, 2, "The backup includes its canonical workspace and attachment bytes");
@@ -301,19 +509,21 @@ async function restoreVerifiedNotebook(current) {
     const bytes = Buffer.from(encoded.files[file.path].$motionBytes);
     assert.equal(bytes.length, file.byteLength);
     assert.equal(createHash("sha256").update(bytes).digest("hex"), file.sha256);
+    if (file.path === "workspace.json") assert.deepEqual(JSON.parse(bytes.toString("utf8")), original.workspace);
+    else assert.deepEqual(bytes, attachmentBytes, "The saved backup contains the exact original attachment bytes");
   }
   assert.equal(prepared.preview.totalBytes, encoded.manifest.files.reduce((sum, file) => sum + file.byteLength, 0));
   assert.deepEqual(await nativeSnapshot(page), before, "Backup creation, verification and preview do not mutate the original");
 
-  // This proves the real adapter's backup codec and the UI file/confirmation
-  // restore path. The native Save As dialog is deliberately outside this check.
-  await writeFile(join(output, "installed-verified-backup.json"), prepared.serialized);
+  // Preserve and restore the exact bytes written by Motion after the real native
+  // Save As interaction. The controller never constructs the backup file.
+  await writeFile(join(output, "installed-verified-backup.json"), saved.bytes, { flag: "wx" });
   const confirmation = { type: "confirm", observed: false,
     message: `Restore ${prepared.preview.workspaceName ?? "workspace"} with ${prepared.preview.pages} pages as a new workspace?` };
   current.expectedDialog = confirmation;
   await expect(page.locator("#restoreVerifiedBackup")).toBeEnabled();
   await page.locator("#verifiedBackupFile").setInputFiles({
-    name: "installed-verified-backup.json", mimeType: "application/json", buffer: Buffer.from(prepared.serialized)
+    name: "installed-verified-backup.json", mimeType: "application/json", buffer: saved.bytes
   });
   await expect.poll(() => confirmation.observed, { timeout: 15_000, message: "The actual restore confirmation must be observed and accepted" }).toBe(true);
   await expect(page.locator("#saveState")).toHaveText("Verified backup restored.", { timeout: 30_000 });
@@ -331,10 +541,10 @@ async function restoreVerifiedNotebook(current) {
     activePageId: after.selected.activePageId, original, restored, workspaces: after.workspaces };
   await expectNotebook(current, baseline);
   await writeFile(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
-  return { baseline, evidence: { nativeCreateVerifyPreview: true, exactEncodedFileRestore: true,
+  return { baseline, evidence: { nativeCreateVerifyPreview: true, nativeSaveAs: saved.evidence, exactEncodedFileRestore: true,
     confirmationObserved: true, newWorkspaceIdentity: true, originalSnapshotAndRevisionUnchanged: true,
     addedWorkspaces: 1, exactRestoredAttachmentBytes: true,
-    scope: "Installed adapter backup creation/verification/preview and UI file-input confirmation/restore; native Save As dialog is not automated." } };
+    scope: "Real Verified backup button and fresh-file native Save As, exact disk-byte verification/preview and UI confirmation/restore; native cancellation and overwrite remain untested." } };
 }
 
 async function exerciseSecondGui(owner, baseline) {
@@ -375,6 +585,10 @@ async function exerciseSecondGui(owner, baseline) {
 
 async function cleanupInstances() {
   const failures = [];
+  for (const driver of [...activeNativeDrivers]) {
+    try { await driver.stop(); }
+    catch (error) { failures.push({ operation: "native dialog helper cleanup", message: error.message }); }
+  }
   for (const current of [...activeInstances]) {
     try {
       if (current.child.pid && current.child.exitCode === null && current.child.signalCode === null) {
@@ -442,7 +656,7 @@ try {
   assert.deepEqual(pageErrors, [], "Installed UI has no unhandled page errors");
   assert.deepEqual(unexpectedDialogs, [], "Only the explicitly checked restore confirmation may appear");
   result = { schemaVersion: 1, commit: process.env.GITHUB_SHA, phase, verdict: "PASS",
-    checks: ["native adapter", ...(phase === "installed" ? ["empty profile", "page editing", "attachment ingest", "verified backup create/verify/preview", "UI confirmation and restore into new workspace"] : ["selected restored notebook after uninstall/reinstall"]),
+    checks: ["native adapter", ...(phase === "installed" ? ["empty profile", "page editing", "attachment ingest", "real Verified backup button and native Save As", "verified saved-backup bytes and preview", "UI confirmation and restore into new workspace"] : ["selected restored notebook after uninstall/reinstall"]),
       "unchanged original workspace and revision", "exact restored attachment bytes", "second installed GUI exclusion", "same GUI retry after owner closes",
       "normal window close", "selected restored notebook after restart", "native search", "no external renderer requests observed after CDP connection"],
     backup: backupEvidence, singleWriter: exclusion.evidence,

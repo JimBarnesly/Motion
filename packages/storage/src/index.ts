@@ -183,7 +183,12 @@ const migrations = [
     SELECT workspace_id, revision, 'pending', updated_at FROM workspaces WHERE true
     ON CONFLICT(workspace_id, workspace_revision) DO UPDATE SET status='pending', completed_at=NULL;`,
   `CREATE INDEX IF NOT EXISTS workspace_links_backlinks_idx
-    ON workspace_links(workspace_id, target_page_id, source_page_id, block_id);`
+    ON workspace_links(workspace_id, target_page_id, source_page_id, block_id);`,
+  // Earlier indexes classified nested block text as a generic entity. Rebuild
+  // derived rows at the existing revision without changing the canonical document.
+  `INSERT INTO reindex_jobs(workspace_id, workspace_revision, status, created_at)
+    SELECT workspace_id, revision, 'pending', updated_at FROM workspaces WHERE true
+    ON CONFLICT(workspace_id, workspace_revision) DO UPDATE SET status='pending', completed_at=NULL;`
 ];
 
 const digest = (input: string | Uint8Array) => createHash("sha256").update(input).digest("hex");
@@ -701,8 +706,8 @@ function extractSearchEntries(document: unknown, fallbackId: string, scopeType: 
     if (value && typeof value === "object") return Object.values(value as Record<string, unknown>).flatMap(scalarText);
     return [];
   };
-  const visit = (value: unknown, path: string, contextTitle = "", ownerEntityId?: string, hint?: "page" | "block" | "row"): void => {
-    if (Array.isArray(value)) { value.forEach((child, index) => visit(child, `${path}.${index}`, contextTitle, ownerEntityId, hint)); return; }
+  const visit = (value: unknown, path: string, contextTitle = "", ownerEntityId?: string, hint?: "page" | "block" | "row", canonicalBlockTree = false): void => {
+    if (Array.isArray(value)) { value.forEach((child, index) => visit(child, `${path}.${index}`, contextTitle, ownerEntityId, hint, canonicalBlockTree)); return; }
     if (!value || typeof value !== "object") return;
     const record = value as Record<string, unknown>;
     const id = typeof record.id === "string" ? record.id : path;
@@ -714,7 +719,9 @@ function extractSearchEntries(document: unknown, fallbackId: string, scopeType: 
     for (const [key, child] of Object.entries(record)) {
       if (typeof child !== "object" || child === null || key === "values") continue;
       if (key === "pages" && Array.isArray(child)) child.forEach((page, index) => visit(page, `${path}.${key}.${index}`, "", undefined, "page"));
-      else if (key === "blocks") visit(child, `${path}.${key}`, title, id, "block");
+      else if (key === "blocks") visit(child, `${path}.${key}`, title, id, "block", scopeType === "page" && value === document);
+      // Only the page root's real block tree grants ancestry; metadata may also contain a key named blocks.
+      else if (key === "children" && canonicalBlockTree && Array.isArray(child)) visit(child, `${path}.${key}`, title, ownerEntityId, "block", true);
       else if (key === "rows") visit(child, `${path}.${key}`, title, typeof record.pageId === "string" ? record.pageId : id, "row");
       else visit(child, `${path}.${key}`, title, ownerEntityId);
     }

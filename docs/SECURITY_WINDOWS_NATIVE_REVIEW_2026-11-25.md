@@ -924,3 +924,80 @@ all-signatures run as success or approve redistribution.
 | `scripts/windows-verify-installer-payload.mjs` | `4d34d814877cb19091171e7e816bcc1036f9443704d296110c905cbcaae1a0ca` |
 | `scripts/windows-installer-payload-pin.json` | `60f7f9715f60e003357a59f2ed1df39c7c671d8c298942f9b2fedf170eb11433` |
 | `scripts/windows-installer-payload.test.mjs` | `d0b367e98446b04d4b5038b4db6910c0124f51ec7ae352e426dd089a52384e53` |
+
+
+## Native Save As acceptance candidate after `8209982`
+
+The next acceptance increment replaces the test controller's constructed backup
+file with the exact file saved by Motion's real **Verified backup** button and
+native **Save verified Motion backup** dialog. It changes acceptance code only;
+no native production command, capability, workflow, dependency or policy is
+changed. This section records source review, not Windows execution.
+
+The PowerShell 5.1 MTA helper authenticates the actual spawned Motion PID, full
+executable path, creation FILETIME and interactive session, retains the process
+handle and rechecks identity throughout automation. The controller first runs a
+real stale-creation-identity negative control, requiring failure before any ready
+event, UI action or destination creation. The positive path searches only
+top-level windows in that process and the exact backup-dialog title, retains its
+runtime ID and HWND, and confines further control traversal to that dialog.
+
+The helper selects one enabled writable filename control by its observed default
+value, uses ValuePattern to set and read back a fresh full path with spaces, and
+invokes the unique observed Save button through InvokePattern. It uses no
+desktop-wide keys, coordinate targeting, guessed AutomationIds or destination
+IPC shortcut. Control traversal, process duration, protocol output and cleanup
+are bounded and fail closed. An unexpected remaining native window fails the
+test rather than being dismissed.
+
+The destination is a fresh private directory created through the installed
+Motion helper. After the real UI reports its saved status, that same installed
+helper authenticates the resulting regular private single-link file and reads
+its bounded bytes. The controller checks exact file equality, canonical JSON,
+manifest hashes, all attachment bytes, source workspace/revision equality, an
+unrelated neighbouring file and temporary-file cleanup. The identical disk bytes
+then go through installed verification/preview and the real confirmation/restore
+flow. Later single-writer, Retry, restart and uninstall/reinstall checks remain
+mandatory. Native cancellation and overwrite confirmations remain separate
+unexecuted acceptance cases.
+
+Independent editor review found no blocking source defect. Node syntax, scoped
+diff checking and the actual JavaScript source scanner with an empty suppression
+policy pass. Root also inspected the process identity protocol, exact-file
+authentication and restore integration. Actual PowerShell 5.1/UIAutomation
+execution, including the Windows common dialog's filename/Save control exposure,
+requires the next Windows candidate. The current `8209982` run uses the previous
+installed test and cannot establish this new native-dialog coverage.
+
+| Source-reviewed candidate | SHA-256 |
+| --- | --- |
+| `scripts/windows-installed-ui.mjs` | `84e180f3e37763b49d9848393d881f5498450b6a7d7b85a4a3600088e0d29151` |
+| `scripts/windows-native-save-dialog.ps1` | `b0777895060b100a2639750d5cc872d1787502195ca768bd8f2fc450195df095` |
+
+
+## Executed full installed baseline at `8209982`
+
+Windows run45624078077/job139239558205 completed successfully against PR merge
+`f1f0e6b180fa50269c955bc64203819b4699c74e`. The exact primary0 command returned
+exit0 and the independent payload probe reported embedded Microsoft Authenticode
+Valid with the pinned signer, timestamp and wrapper version. Byte/tool pins,
+outer-installer remeasurement and owned temporary cleanup all passed. The failed
+older all-signatures attempt is retained as failed evidence.
+
+The final installer actually installed and passed all 23 installed native cases,
+including real cancellation/replacement/identity checks at the native boundary.
+The two GUI phases passed actual attachment ingestion, native backup verification
+and UI confirmed restore, exact original/new workspace and attachment preservation,
+concurrent-GUI exclusion, same-GUI Retry, normal close/restart/search and
+uninstall/reinstall preservation. Firewall blocking covered Motion, its local
+service and the enumerated WebView programs before GUI launch. Native Save As UI
+coverage described above is a later candidate and is not inferred from this run.
+
+The downloaded artifact ZIP hash and every member were independently measured;
+all reports bind the tested merge and installer SHA. Full bounded evidence is
+`WINDOWS_INSTALLED_EVIDENCE_8209982.json`. The before/after inventory really ran:
+it observed existing machine WebView2 131.0.2903.86 unchanged and set
+`genuineAbsenceProven=false`. It does not identify the running engine or establish
+first-time installation offline. General verification and both Linux jobs also
+passed at the same head; all 86 browser regressions passed under the unchanged
+network-denial fixture. No outer-installer signing or 1.0 acceptance is inferred.

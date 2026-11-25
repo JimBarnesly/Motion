@@ -6,6 +6,7 @@ export const WEB_ASSETS = Object.freeze([
   "attachment-access.js",
   "attachment-ingestion.js",
   "block-presentation.js",
+  "block-tree.js",
   "browser-edit-confirmation.js",
   "browser-mutation.js",
   "canonical-security.js",

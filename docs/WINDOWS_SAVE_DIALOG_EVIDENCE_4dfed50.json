@@ -1,0 +1,945 @@
+{
+  "schemaVersion": 1,
+  "headCommit": "4dfed50c012debcdffe26a2351e2385abe0934af",
+  "testedMergeCommit": "005c55015cc0972946c91cae11e221cd3a0ee01f",
+  "run": "https://github.com/JimBarnesly/Motion/actions/runs/45649097779",
+  "job": 139328319282,
+  "conclusion": "failed",
+  "evidenceArtifact": {
+    "id": 15039019506,
+    "bytes": 61428,
+    "sha256": "dab7edddd1e15badfd6f5b9e8760e966e76810e945122b022cd7a0b7d94386be",
+    "members": [
+      {
+        "path": "installed-native-save-dialog.json",
+        "bytes": 24577,
+        "sha256": "a830904a0201b507135672c0d840f34c75018825eb96446df722b0c2183f7cf3"
+      },
+      {
+        "path": "installed-startup-diagnostics.json",
+        "bytes": 3455,
+        "sha256": "542604ab324b218742a2e9f7c94eecfe27f05c36f66ed19a6bbe88d98dc684fe"
+      },
+      {
+        "path": "installed-native-tests.log",
+        "bytes": 2562,
+        "sha256": "b8a9084c6e87ed567f53f0a4063a0fc93f64b325557e9d32939fb4c77ccf0a20"
+      },
+      {
+        "path": "installed-ui-failure.png",
+        "bytes": 50207,
+        "sha256": "a7b69d00c6751c44a9e9c4f474e4238ea3958266e621fc26c42b45f155a4f2de"
+      },
+      {
+        "path": "installed-ui-failure.txt",
+        "bytes": 1299,
+        "sha256": "0fc39bb39a5be5e410ce63cb513648d05931dd68fc2589f0baa4fdc76b4b266e"
+      },
+      {
+        "path": "installer-payload-verification.json",
+        "bytes": 5071,
+        "sha256": "d4cf10566484d36ba5cf79b9846d5f5cc00fb8d8d611fb9326daacaaa7c74860"
+      },
+      {
+        "path": "installer-payload-verification.json.extraction.txt",
+        "bytes": 629,
+        "sha256": "dfcc11200adb02c959b8a5caa335b1be654f7f489a1cb04ee3db2502aaa00d9f"
+      },
+      {
+        "path": "installer-payload-verification.json.listing.txt",
+        "bytes": 2288,
+        "sha256": "6cd45ea3190ff3e534165e11c671aa2074f00da877819b36f1416ac578a74d18"
+      },
+      {
+        "path": "installer-payload-verification.json.signtool.txt",
+        "bytes": 1912,
+        "sha256": "14ae94b3a796c0a40da063420aeadf04e4db35189fdde08cf491d60660b0e532"
+      },
+      {
+        "path": "mapped-share-acceptance.json",
+        "bytes": 858,
+        "sha256": "98a14738c4490c65c44efcf8a644f409f44a3f48fc77e83e488b56f10ff3bfc2"
+      },
+      {
+        "path": "mapped-share-prepare.log",
+        "bytes": 60,
+        "sha256": "708456506b04f61fca80a572f77d70f815d70c27c47d0efb48c6852a9ddd493a"
+      },
+      {
+        "path": "SHA256SUMS.txt",
+        "bytes": 94,
+        "sha256": "ea302e73a075da37831c05ca4af7328026a369cb3aacf8e14f5fb13a9cbfb3b5"
+      },
+      {
+        "path": "mapped-share-verify.log",
+        "bytes": 469,
+        "sha256": "597ccd5c338e035420545bf72390f341a9a2e20ca1ce45600961e57ae304828a"
+      },
+      {
+        "path": "webview-after-install.json",
+        "bytes": 2680,
+        "sha256": "8907bf31274a13b1fdeb1d9503eecae0433569d846706a4ca7fb5f18ca41f8ed"
+      },
+      {
+        "path": "webview-before-install.json",
+        "bytes": 2681,
+        "sha256": "0277af03e05edacecaa6e82fed3c9379740dfaed85ea90bde03fc571fff65437"
+      }
+    ]
+  },
+  "generalCi": {
+    "run": "https://github.com/JimBarnesly/Motion/actions/runs/45649097527",
+    "verify": 139328318161,
+    "linuxX64": 139328318708,
+    "linuxArm64": 139328318655,
+    "allPassed": true
+  },
+  "windowsTests": {
+    "rustPassed": 28,
+    "nativeServicePassed": 23,
+    "startupPassed": 3,
+    "installedNativePassed": 23,
+    "mappedSmb": "passed"
+  },
+  "diagnosis": {
+    "focusObserved": true,
+    "exactEditReadback": true,
+    "actualReturnedPath": "Original controlled default under the CI working directory, unchanged from 9444028.",
+    "actualReturnedLength": 46,
+    "nativeCode": "EACCES",
+    "normalizedPathSha256": "dd71e5c55c0e834f79c7fc52ae5ae663a04584d8bc8649fb896fa6a316a2a793",
+    "normalizedParentSha256": "b26496cd0fa3e882407527dc27e7e0a31c14b871b948a2ca5a5170cab4f39720",
+    "pathResolutionChangedFingerprint": false,
+    "intendedFileExists": false,
+    "intendedPathIndependentlyInspectable": true,
+    "productionStorageChangeJustified": false
+  },
+  "nativeSaveDialog": {
+    "schemaVersion": 1,
+    "commit": "005c55015cc0972946c91cae11e221cd3a0ee01f",
+    "phase": "installed",
+    "instance": "owner-1",
+    "status": "failed",
+    "scope": "Actual fresh-file native Save As; native cancellation and overwrite confirmations remain untested.",
+    "drivers": [
+      {
+        "messages": [
+          {
+            "schemaVersion": 1,
+            "event": "result",
+            "operation": "identify",
+            "ok": true,
+            "phase": "complete",
+            "identity": {
+              "processId": 6200,
+              "executablePath": "D:\\a\\_temp\\Motion installed acceptance\\motion-desktop.exe",
+              "startTimeFileTimeUtc": "134400960056160903",
+              "sessionId": 2
+            }
+          }
+        ],
+        "stderr": "",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "messages": [
+          {
+            "schemaVersion": 1,
+            "event": "result",
+            "operation": "save",
+            "ok": false,
+            "phase": "authenticate",
+            "error": {
+              "code": "PROCESS_IDENTITY_MISMATCH",
+              "message": "The original process identity no longer matches the selected Motion process."
+            }
+          }
+        ],
+        "stderr": "",
+        "exit": {
+          "code": 1,
+          "signal": null
+        }
+      },
+      {
+        "messages": [
+          {
+            "schemaVersion": 1,
+            "operation": "save",
+            "event": "ready",
+            "identity": {
+              "processId": 6200,
+              "executablePath": "D:\\a\\_temp\\Motion installed acceptance\\motion-desktop.exe",
+              "startTimeFileTimeUtc": "134400960056160903",
+              "sessionId": 2
+            }
+          },
+          {
+            "schemaVersion": 1,
+            "operation": "save",
+            "event": "dialog",
+            "dialog": {
+              "title": "Save verified Motion backup",
+              "processId": 6200,
+              "nativeWindowHandle": 66126,
+              "runtimeId": "42,66126",
+              "className": "#32770"
+            }
+          },
+          {
+            "schemaVersion": 1,
+            "operation": "save",
+            "event": "filename",
+            "exactDestinationReadBack": true
+          },
+          {
+            "schemaVersion": 1,
+            "event": "result",
+            "operation": "save",
+            "ok": true,
+            "phase": "complete",
+            "identity": {
+              "processId": 6200,
+              "executablePath": "D:\\a\\_temp\\Motion installed acceptance\\motion-desktop.exe",
+              "startTimeFileTimeUtc": "134400960056160903",
+              "sessionId": 2
+            },
+            "dialog": {
+              "title": "Save verified Motion backup",
+              "processId": 6200,
+              "nativeWindowHandle": 66126,
+              "runtimeId": "42,66126",
+              "className": "#32770"
+            },
+            "controls": [
+              {
+                "name": "Save verified Motion backup",
+                "automationId": "",
+                "controlType": "ControlType.Window",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "",
+                "automationId": "",
+                "controlType": "ControlType.Pane",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": true
+              },
+              {
+                "name": "",
+                "automationId": "",
+                "controlType": "ControlType.ToolBar",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Save",
+                "automationId": "1",
+                "controlType": "ControlType.Button",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Cancel",
+                "automationId": "2",
+                "controlType": "ControlType.Button",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "",
+                "automationId": "",
+                "controlType": "ControlType.Pane",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "",
+                "automationId": "40965",
+                "controlType": "ControlType.Pane",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Save verified Motion backup",
+                "automationId": "TitleBar",
+                "controlType": "ControlType.TitleBar",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Command Module",
+                "automationId": "FolderBandModuleInner",
+                "controlType": "ControlType.ToolBar",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Control Host",
+                "automationId": "ProperTreeHost",
+                "controlType": "ControlType.Pane",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Shell Folder View",
+                "automationId": "listview",
+                "controlType": "ControlType.Pane",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "File name:",
+                "automationId": "SaveDialogLabel",
+                "controlType": "ControlType.Text",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "File name:",
+                "automationId": "FileNameControlHost",
+                "controlType": "ControlType.ComboBox",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Save as type:",
+                "automationId": "SaveDialogLabel",
+                "controlType": "ControlType.Text",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Save as type:",
+                "automationId": "FileTypeControlHost",
+                "controlType": "ControlType.ComboBox",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Save Fields",
+                "automationId": "SaveDialogPreviewMetadataInner",
+                "controlType": "ControlType.Tree",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": true,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Application Controls",
+                "automationId": "AppControlsModuleInner",
+                "controlType": "ControlType.Tree",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": true,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Hide Folders",
+                "automationId": "Item 103",
+                "controlType": "ControlType.Button",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Navigation buttons",
+                "automationId": "",
+                "controlType": "ControlType.ToolBar",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Up band",
+                "automationId": "",
+                "controlType": "ControlType.ToolBar",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "",
+                "automationId": "",
+                "controlType": "ControlType.ProgressBar",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "",
+                "automationId": "",
+                "controlType": "ControlType.Pane",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "",
+                "automationId": "",
+                "controlType": "ControlType.Pane",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "",
+                "automationId": "",
+                "controlType": "ControlType.Pane",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "System Menu Bar",
+                "automationId": "SystemMenuBar",
+                "controlType": "ControlType.MenuBar",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": true,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Close",
+                "automationId": "Close",
+                "controlType": "ControlType.Button",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "&Help",
+                "automationId": "HelpButton",
+                "controlType": "ControlType.Button",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Views",
+                "automationId": "ViewControl",
+                "controlType": "ControlType.SplitButton",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Organize",
+                "automationId": "{7DDC1264-7E4D-4F74-BBC0-D191987C8D0F}",
+                "controlType": "ControlType.Button",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "New folder",
+                "automationId": "{E44616AD-6DF1-4B94-85A4-E465AE8A19DB}",
+                "controlType": "ControlType.Button",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Namespace Tree Control",
+                "automationId": "100",
+                "controlType": "ControlType.Tree",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Items View",
+                "automationId": "",
+                "controlType": "ControlType.List",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "File name:",
+                "automationId": "1001",
+                "controlType": "ControlType.Edit",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": true
+              },
+              {
+                "name": "File name:",
+                "automationId": "ListBox",
+                "controlType": "ControlType.List",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": true,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Drop Down Button",
+                "automationId": "DropDown",
+                "controlType": "ControlType.Button",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Save as type:",
+                "automationId": "ListBox",
+                "controlType": "ControlType.List",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": true,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Drop Down Button",
+                "automationId": "DropDown",
+                "controlType": "ControlType.Button",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Back (Alt + Left Arrow)",
+                "automationId": "Item 256",
+                "controlType": "ControlType.Button",
+                "processId": 6200,
+                "enabled": false,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Forward (Alt + Right Arrow)",
+                "automationId": "Item 257",
+                "controlType": "ControlType.Button",
+                "processId": 6200,
+                "enabled": false,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Recent locations",
+                "automationId": "Item 258",
+                "controlType": "ControlType.Button",
+                "processId": 6200,
+                "enabled": false,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Up to \"Motion\" (Alt + Up Arrow)",
+                "automationId": "Item 256",
+                "controlType": "ControlType.Button",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "",
+                "automationId": "",
+                "controlType": "ControlType.Pane",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Address band toolbar",
+                "automationId": "",
+                "controlType": "ControlType.ToolBar",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "",
+                "automationId": "",
+                "controlType": "ControlType.Pane",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "System",
+                "automationId": "Item 1",
+                "controlType": "ControlType.MenuItem",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "View Slider",
+                "automationId": "SplitMenuButton",
+                "controlType": "ControlType.Button",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": false,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Quick access",
+                "automationId": "",
+                "controlType": "ControlType.TreeItem",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              },
+              {
+                "name": "Desktop",
+                "automationId": "",
+                "controlType": "ControlType.TreeItem",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": true,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": false
+              }
+            ],
+            "matchingControls": {
+              "filename": 1,
+              "save": 1
+            },
+            "candidatePatterns": {
+              "filename": [
+                {
+                  "valuePatternAvailable": true,
+                  "control": {
+                    "name": "File name:",
+                    "automationId": "1001",
+                    "controlType": "ControlType.Edit",
+                    "processId": 6200,
+                    "enabled": true,
+                    "offscreen": false,
+                    "keyboardFocusable": true,
+                    "hasKeyboardFocus": true
+                  },
+                  "isReadOnly": false,
+                  "originalValue": "motion-verified-backup"
+                }
+              ],
+              "save": [
+                {
+                  "invokePatternAvailable": true,
+                  "control": {
+                    "name": "Save",
+                    "automationId": "1",
+                    "controlType": "ControlType.Button",
+                    "processId": 6200,
+                    "enabled": true,
+                    "offscreen": false,
+                    "keyboardFocusable": true,
+                    "hasKeyboardFocus": false
+                  }
+                }
+              ]
+            },
+            "filenameBeforeWrite": {
+              "originalValue": "motion-verified-backup",
+              "control": {
+                "name": "File name:",
+                "automationId": "1001",
+                "controlType": "ControlType.Edit",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": true
+              }
+            },
+            "filenameFocus": {
+              "observed": true,
+              "runtimeId": "42,66250",
+              "control": {
+                "name": "File name:",
+                "automationId": "1001",
+                "controlType": "ControlType.Edit",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": true
+              }
+            },
+            "filename": {
+              "observedControlMatched": true,
+              "originalValue": "motion-verified-backup",
+              "exactDestinationReadBack": true,
+              "valuePattern": true,
+              "control": {
+                "name": "File name:",
+                "automationId": "1001",
+                "controlType": "ControlType.Edit",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": true
+              },
+              "exactDestinationAfterFocusChange": true
+            },
+            "saveFocus": {
+              "observed": true,
+              "runtimeId": "42,66162",
+              "control": {
+                "name": "Save",
+                "automationId": "1",
+                "controlType": "ControlType.Button",
+                "processId": 6200,
+                "enabled": true,
+                "offscreen": false,
+                "keyboardFocusable": true,
+                "hasKeyboardFocus": true
+              }
+            },
+            "saveButton": {
+              "name": "Save",
+              "automationId": "1",
+              "controlType": "ControlType.Button",
+              "processId": 6200,
+              "enabled": true,
+              "offscreen": false,
+              "keyboardFocusable": true,
+              "hasKeyboardFocus": true
+            },
+            "dialogClosed": true,
+            "invokePattern": true,
+            "scope": "Fresh-file native Save As only; cancellation and overwrite confirmations are not automated."
+          }
+        ],
+        "stderr": "",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      }
+    ],
+    "expectedDestination": {
+      "shape": "drive",
+      "length": 81,
+      "normalizedPathSha256": "0063e164cc13f7c4b088d5e12810a16543a8d030568af6533d7e6d409ab58251",
+      "normalizedParentSha256": "7f8c1f2849943a24972c1dc18eba1707432af116ec2aa8029a2d1768ab4c9d3a"
+    },
+    "processIdentity": {
+      "processId": 6200,
+      "executablePath": "D:\\a\\_temp\\Motion installed acceptance\\motion-desktop.exe",
+      "startTimeFileTimeUtc": "134400960056160903",
+      "sessionId": 2
+    },
+    "staleProcessIdentityRejectedBeforeUiAction": true,
+    "failure": "expect(locator).toHaveText(expected) failed\n\nLocator:  locator('#saveState')\nExpected: \"Verified backup saved safely.\"\nReceived: \"Backup save could not be confirmed. Check the selected destination, then try Verified backup again.\"\nTimeout:  30000ms\n\nCall log:\n  - Expect \"to.have.text\" with timeout 30000ms\n  - waiting for locator('#saveState')\n    63 \u00d7 locator resolved to <span role=\"status\" id=\"saveState\" class=\"save-state\" data-backup-stage=\"save\" data-backup-state=\"failed\" data-backup-error-code=\"VALIDATION_FAILED\">Backup save could not be confirmed. Check the sel\u2026</span>\n       - unexpected value \"Backup save could not be confirmed. Check the selected destination, then try Verified backup again.\"\n",
+    "applicationStatus": {
+      "text": "Backup save could not be confirmed. Check the selected destination, then try Verified backup again.",
+      "state": "failed",
+      "stage": "save",
+      "code": "VALIDATION_FAILED"
+    },
+    "destinationAfterFailure": {
+      "exists": false
+    },
+    "nativeInspectionAfterFailure": {
+      "exists": false,
+      "identity": null,
+      "byteLength": null,
+      "sha256": null
+    },
+    "cleanupPassed": true
+  },
+  "startupDiagnostic": {
+    "schemaVersion": 1,
+    "commit": "005c55015cc0972946c91cae11e221cd3a0ee01f",
+    "phase": "installed",
+    "instance": "owner-1",
+    "process": {
+      "exitCode": null,
+      "signalCode": null,
+      "stderr": "{\"schemaVersion\":1,\"event\":\"native-backup-inspection-rejected\",\"nativeCode\":\"EACCES\",\"errorType\":\"Error\",\"destinationShape\":\"drive\",\"destinationLength\":46,\"normalizedPathSha256\":\"dd71e5c55c0e834f79c7fc52ae5ae663a04584d8bc8649fb896fa6a316a2a793\",\"normalizedParentSha256\":\"b26496cd0fa3e882407527dc27e7e0a31c14b871b948a2ca5a5170cab4f39720\",\"resolvedNativePathSha256\":\"dd71e5c55c0e834f79c7fc52ae5ae663a04584d8bc8649fb896fa6a316a2a793\"}\n",
+      "stdout": ""
+    },
+    "console": [
+      {
+        "type": "error",
+        "text": "Refused to connect to 'http://ipc.localhost/motion_ui_load' because it violates the following Content Security Policy directive: \"connect-src 'none'\".\n",
+        "location": {
+          "url": "",
+          "line": 82,
+          "column": 0,
+          "lineNumber": 82,
+          "columnNumber": 0
+        }
+      },
+      {
+        "type": "error",
+        "text": "Refused to connect to 'http://ipc.localhost/motion_ui_load' because it violates the document's Content Security Policy.",
+        "location": {
+          "url": "",
+          "line": 82,
+          "column": 0,
+          "lineNumber": 82,
+          "columnNumber": 0
+        }
+      },
+      {
+        "type": "warning",
+        "text": "IPC custom protocol failed, Tauri will now use the postMessage interface instead TypeError: Failed to fetch\n    at Object.sendIpcMessage (<anonymous>:83:7)\n    at Object.<anonymous> (<anonymous>:177:38)\n    at action (<anonymous>:336:38)\n    at <anonymous>:345:11\n    at new Promise (<anonymous>)\n    at Object.value (<anonymous>:325:14)\n    at h (<anonymous>:1:2176)\n    at http://tauri.localhost/app-adapter.js:225:30\n    at transitionWorkspace (http://tauri.localhost/app-adapter.js:162:28)\n    at Object.load (http://tauri.localhost/app-adapter.js:224:14)",
+        "location": {
+          "url": "",
+          "line": 105,
+          "column": 20,
+          "lineNumber": 105,
+          "columnNumber": 20
+        }
+      }
+    ],
+    "browserLog": [
+      {
+        "level": "error",
+        "source": "security",
+        "text": "Refused to connect to 'http://ipc.localhost/motion_ui_load' because it violates the following Content Security Policy directive: \"connect-src 'none'\".\n",
+        "lineNumber": 82
+      },
+      {
+        "level": "error",
+        "source": "javascript",
+        "text": "Refused to connect to 'http://ipc.localhost/motion_ui_load' because it violates the document's Content Security Policy.",
+        "lineNumber": 82
+      }
+    ],
+    "failedRequests": [],
+    "failedResponses": [],
+    "pageErrors": [],
+    "forbiddenRequests": [],
+    "dialogs": [],
+    "unexpectedDialogs": [],
+    "startup": {
+      "url": "http://tauri.localhost/",
+      "readyState": "complete",
+      "contentChildren": 1,
+      "saveState": "Backup save could not be confirmed. Check the selected destination, then try Verified backup again.",
+      "backupState": "failed",
+      "backupStage": "save",
+      "backupErrorCode": "VALIDATION_FAILED",
+      "scripts": [
+        {
+          "type": "module",
+          "src": "http://tauri.localhost/app.js"
+        }
+      ],
+      "invokeAvailable": true,
+      "unhandledRejections": [],
+      "nativeLoad": {
+        "outcome": "resolved",
+        "schemaVersion": 2,
+        "revision": 6,
+        "emptyWorkspace": false,
+        "pageCount": 1
+      }
+    }
+  },
+  "nextCandidate": "Authenticate the retained dialog, actual native keyboard focus and foreground before bounded real keyboard path entry; retain readback, one Save invocation and actual disk-byte verification.",
+  "limits": [
+    "This run did not save or restore the intended file.",
+    "UIA focus and ValuePattern readback are insufficient to establish the Shell-selected destination.",
+    "The latest fully passing installed baseline remains 8209982."
+  ]
+}

@@ -36,7 +36,8 @@ export async function auditCandidate(root, expectedSourceFingerprint) {
   const cargoLock = await readFile(join(root, "apps/desktop/src-tauri/Cargo.lock"));
   const cargoToml = await readFile(join(root, "apps/desktop/src-tauri/Cargo.toml"), "utf8");
   if (!/^version = 4$/m.test(cargoLock.toString("utf8")) || !/^\[package\]/m.test(cargoToml)) throw new Error("Cargo lock or manifest is missing or malformed");
-  const workflowPaths = [".github/workflows/ci.yml", ".github/workflows/release-provenance.yml"];
+  const workflowPaths = (await readdir(join(root, ".github/workflows"))).filter(name => /\.ya?ml$/.test(name)).sort().map(name => `.github/workflows/${name}`);
+  if (![".github/workflows/ci.yml", ".github/workflows/release-provenance.yml"].every(path => workflowPaths.includes(path))) throw new Error("required release workflow is missing");
   const buildSources = [];
   for (const path of workflowPaths) buildSources.push([path, await readFile(join(root, path), "utf8")]);
   for (const name of (await readdir(root)).filter(value => /^Dockerfile(?:\.|$)/.test(value))) buildSources.push([name, await readFile(join(root, name), "utf8")]);
@@ -47,8 +48,12 @@ export async function auditCandidate(root, expectedSourceFingerprint) {
   }
   const runtimeSource = await readFile(join(root, "apps/desktop/scripts/prepare-node-runtime.mjs"), "utf8");
   const runtimeMatches = [...runtimeSource.matchAll(/sha256:\s*"([a-f0-9]{64})"/g)].map(match => match[1]);
-  const runtimeUrls = [...runtimeSource.matchAll(/url:\s*"(https:\/\/nodejs\.org\/dist\/[^"\s]+)"/g)].map(match => match[1]);
-  if (runtimeMatches.length !== 2 || runtimeUrls.length !== 2 || /fetch\(/.test(runtimeSource) && !runtimeSource.includes("redirect: \"error\"")) throw new Error("packaged runtime source is not completely pinned");
+  const runtimePins = [...runtimeSource.matchAll(/url:\s*"(https:\/\/nodejs\.org\/dist\/v([^/"\s]+)\/node-v\2-(linux-(?:x64|arm64)\.tar\.xz|win-(?:x64|arm64)\.zip))"\s*,\s*sha256:\s*"([a-f0-9]{64})"/g)];
+  const expectedArchives = ["linux-arm64.tar.xz", "linux-x64.tar.xz", "win-arm64.zip", "win-x64.zip"];
+  if (runtimeMatches.length !== 4 || runtimePins.length !== 4
+      || JSON.stringify(runtimePins.map(match => match[3]).sort()) !== JSON.stringify(expectedArchives)
+      || new Set(runtimePins.map(match => match[2])).size !== 1 || new Set(runtimeMatches).size !== 4
+      || /fetch\(/.test(runtimeSource) && !runtimeSource.includes("redirect: \"error\"")) throw new Error("packaged runtime source is not completely pinned");
   return { schemaVersion: 1, sourceFingerprint: fingerprint, npmLockSha256: hash(lockBytes), cargoLockSha256: hash(cargoLock),
     packageManifestSha256: hash(Buffer.from(files.map(file => `${file}\0`).join("") + (await Promise.all(files.map(file => readFile(join(root, file))))).map(hash).join(""))),
     packageManifestCount: files.length, runtimeSha256: runtimeMatches.sort(), buildPathCount: buildSources.length };

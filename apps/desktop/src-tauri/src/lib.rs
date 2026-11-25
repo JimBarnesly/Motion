@@ -1,17 +1,24 @@
 use rfd::{FileDialog, MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
+#[cfg(unix)]
 use libc::{O_CLOEXEC, O_DIRECTORY, O_NOFOLLOW};
+#[cfg(unix)]
 use rustix::process::geteuid;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
-    fs::{self, OpenOptions, Permissions},
-    io::{BufRead, BufReader, ErrorKind, Write},
-    os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
+    io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, ChildStdout, Command, Stdio},
     sync::{Arc, Mutex},
 };
+#[cfg(unix)]
+use std::{fs::{self, OpenOptions, Permissions}, io::ErrorKind, os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt}};
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use tauri::Manager;
+
+#[cfg(windows)]
+mod windows_platform;
 
 const MAX_REQUEST_BYTES: usize = 16 * 1024 * 1024;
 include!(concat!(env!("OUT_DIR"), "/attachment_policy.rs"));
@@ -85,23 +92,25 @@ fn validate_ui_state_document(document: &Value) -> Result<(), IpcError> {
         .ok_or_else(|| reject("INVALID_INPUT", "Invalid UI state request"))?;
     if state
         .keys()
-        .any(|key| !matches!(key.as_str(), "workspaceId" | "activePageId" | "expandedPageIds" | "activeViewIds"))
+        .any(|key| !matches!(key.as_str(), "workspaceId" | "activePageId" | "expandedPageIds" | "activeViewIds" | "collapsedBlockIds"))
         || !state.get("workspaceId").is_none_or(valid_ui_state_id)
         || !state.get("activePageId").is_none_or(valid_ui_state_id)
     {
         return Err(reject("INVALID_INPUT", "Invalid UI state request"));
     }
-    if let Some(expanded) = state.get("expandedPageIds") {
-        let ids = expanded
-            .as_array()
-            .filter(|ids| ids.len() <= 256)
-            .ok_or_else(|| reject("INVALID_INPUT", "Invalid UI state request"))?;
-        let mut unique = std::collections::HashSet::new();
-        if ids.iter().any(|id| {
-            let Some(id_text) = id.as_str() else { return true; };
-            !valid_ui_state_id(id) || !unique.insert(id_text)
-        }) {
-            return Err(reject("INVALID_INPUT", "Invalid UI state request"));
+    for field in ["expandedPageIds", "collapsedBlockIds"] {
+        if let Some(value) = state.get(field) {
+            let ids = value
+                .as_array()
+                .filter(|ids| ids.len() <= 256)
+                .ok_or_else(|| reject("INVALID_INPUT", "Invalid UI state request"))?;
+            let mut unique = std::collections::HashSet::new();
+            if ids.iter().any(|id| {
+                let Some(id_text) = id.as_str() else { return true; };
+                !valid_ui_state_id(id) || !unique.insert(id_text)
+            }) {
+                return Err(reject("INVALID_INPUT", "Invalid UI state request"));
+            }
         }
     }
     if let Some(active_views) = state.get("activeViewIds") {
@@ -245,6 +254,10 @@ struct ServiceProcess {
     child: Child,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
+    #[cfg(windows)]
+    _data_root: windows_platform::PinnedDirectory,
+    #[cfg(windows)]
+    _job: windows_platform::ServiceJob,
 }
 
 impl Drop for ServiceProcess {
@@ -264,15 +277,16 @@ fn select_node_binary(
     resource_dir: &Path,
     development_override: Option<std::ffi::OsString>,
 ) -> PathBuf {
-    let bundled = resource_dir.join("node-runtime");
+    let bundled = resource_dir.join(if cfg!(windows) { "node-runtime.exe" } else { "node-runtime" });
     if bundled.is_file() {
         return bundled;
     }
     development_override
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("node"))
+        .unwrap_or_else(|| PathBuf::from(if cfg!(windows) { "node.exe" } else { "node" }))
 }
 
+#[cfg(unix)]
 fn data_root_security_error() -> IpcError {
     reject(
         "STORAGE_FAILURE",
@@ -283,6 +297,7 @@ fn data_root_security_error() -> IpcError {
 // Tauri may pre-create app_local_data_dir with the process umask (0755/0775).
 // Authenticate that exact owner-controlled inode before narrowing its permissions;
 // the Node lock still rejects every untrusted root and remains authoritative.
+#[cfg(unix)]
 fn prepare_native_data_root(data_root: &Path) -> Result<(), IpcError> {
     let reject_root = |_| data_root_security_error();
     let path_metadata = match fs::symlink_metadata(data_root) {
@@ -342,13 +357,29 @@ fn prepare_native_data_root(data_root: &Path) -> Result<(), IpcError> {
 }
 
 fn start_service(node: &Path, runner: &Path, data_root: &Path) -> Result<ServiceProcess, IpcError> {
+    #[cfg(unix)]
     prepare_native_data_root(data_root)?;
-    let mut child = Command::new(node)
-        .arg(runner)
-        .arg(data_root)
+    #[cfg(windows)]
+    let pinned_root = windows_platform::pin_private_directory(data_root, true)
+        .map_err(|_| reject("STORAGE_FAILURE", "Motion cannot authenticate its private Windows data folder"))?;
+    #[cfg(windows)]
+    let job = windows_platform::ServiceJob::new()
+        .map_err(|_| reject("INTERNAL_ERROR", "Motion cannot create its local service job"))?;
+    let mut command = Command::new(node);
+    command.arg(runner);
+    #[cfg(windows)]
+    command.arg(pinned_root.path());
+    #[cfg(not(windows))]
+    command.arg(data_root);
+    command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    #[cfg(windows)]
+    command.creation_flags(windows_sys::Win32::System::Threading::CREATE_NO_WINDOW)
+        .env("MOTION_NATIVE_HELPER", std::env::current_exe().map_err(|_| reject("INTERNAL_ERROR", "Native helper path unavailable"))?)
+        .env("MOTION_SERVICE_START_GATE", "1");
+    let mut child = command
         .spawn()
         .map_err(|e| {
             reject(
@@ -356,6 +387,12 @@ fn start_service(node: &Path, runner: &Path, data_root: &Path) -> Result<Service
                 format!("Could not start local service: {e}"),
             )
         })?;
+    #[cfg(windows)]
+    if job.attach(&child).is_err() {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(reject("INTERNAL_ERROR", "Motion cannot contain its local service process"));
+    }
     let stdin = child
         .stdin
         .take()
@@ -364,10 +401,22 @@ fn start_service(node: &Path, runner: &Path, data_root: &Path) -> Result<Service
         .stdout
         .take()
         .ok_or_else(|| reject("INTERNAL_ERROR", "Service stdout unavailable"))?;
+    #[cfg(windows)]
+    let mut stdin = stdin;
+    #[cfg(windows)]
+    if stdin.write_all(b"MOTION_SERVICE_START\n").and_then(|_| stdin.flush()).is_err() {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(reject("INTERNAL_ERROR", "Motion could not release its local service startup gate"));
+    }
     Ok(ServiceProcess {
         child,
         stdin,
         stdout: BufReader::new(stdout),
+        #[cfg(windows)]
+        _data_root: pinned_root,
+        #[cfg(windows)]
+        _job: job,
     })
 }
 
@@ -424,6 +473,26 @@ async fn motion_ui_save(app: tauri::AppHandle, request: UiSaveRequest) -> Result
     run_service(app, serde_json::json!({ "lane": "ui-save", "payload": { "schemaVersion": request.schema_version, "document": request.document } })).await
 }
 
+#[cfg(windows)]
+fn windows_backup_replacement_identity(inspected: &Value) -> Result<Option<String>, IpcError> {
+    let invalid = || reject("STORAGE_FAILURE", "Backup inspection could not be authenticated");
+    let fields = inspected.as_object().ok_or_else(invalid)?;
+    if fields.keys().any(|key| !matches!(key.as_str(), "exists" | "replacement" | "replacementIdentity")) {
+        return Err(invalid());
+    }
+    match (fields.get("exists").and_then(Value::as_bool), fields.get("replacement").and_then(Value::as_bool)) {
+        (Some(false), Some(false)) if !fields.contains_key("replacementIdentity") => Ok(None),
+        (Some(true), Some(true)) => {
+            let identity = fields.get("replacementIdentity").and_then(Value::as_str)
+                .filter(|value| value.len() == 64 && value.bytes().all(|byte|
+                    byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)))
+                .ok_or_else(invalid)?;
+            Ok(Some(identity.to_owned()))
+        },
+        _ => Err(invalid()),
+    }
+}
+
 #[tauri::command]
 async fn motion_backup_save(
     app: tauri::AppHandle,
@@ -462,6 +531,8 @@ async fn motion_backup_save(
         .get("replacement")
         .and_then(Value::as_bool)
         .unwrap_or(false);
+    #[cfg(windows)]
+    let expected_identity = windows_backup_replacement_identity(&inspected)?;
     if replacement {
         let confirmed = tauri::async_runtime::spawn_blocking(|| {
             MessageDialog::new()
@@ -475,9 +546,21 @@ async fn motion_backup_save(
             return Ok(serde_json::json!({ "saved": false, "cancelled": true }));
         }
     }
+    let payload = serde_json::json!({
+        "destination": destination_text, "replaceConfirmed": replacement, "bundle": request.bundle
+    });
+    #[cfg(windows)]
+    let payload = {
+        let mut payload = payload;
+        // Keep the identity inspected before the native confirmation dialog.
+        // A later service inspection must not authorize a replacement target
+        // that appeared or changed while the user was reading that dialog.
+        if let Some(identity) = expected_identity { payload["expectedIdentity"] = Value::String(identity); }
+        payload
+    };
     let saved = run_service(app, serde_json::json!({
         "lane": "native-backup-save",
-        "payload": { "destination": destination_text, "replaceConfirmed": replacement, "bundle": request.bundle }
+        "payload": payload
     })).await?;
     Ok(serde_json::json!({
         "saved": true,
@@ -548,7 +631,7 @@ async fn run_service(app: tauri::AppHandle, envelope: Value) -> Result<Value, Ip
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(ServiceState::default())
         .invoke_handler(tauri::generate_handler![
             app_dispatch,
@@ -556,24 +639,58 @@ pub fn run() {
             motion_ui_load,
             motion_ui_save
         ])
-        .run(tauri::generate_context!())
-        .expect("failed to run Motion desktop");
+        .build(tauri::generate_context!())
+        .expect("failed to build Motion desktop");
+    #[cfg(windows)]
+    {
+        // Tauri creates configured WebViews during App::run, before Builder's
+        // setup hook. Establish the explicit current-user owner/DACL first,
+        // then retain its authenticated ancestry for the application's lifetime.
+        let path = app.path().app_local_data_dir().expect("Motion local data path unavailable");
+        let root = windows_platform::pin_private_directory(&path, true)
+            .expect("Motion cannot authenticate its private Windows data folder");
+        app.manage(root);
+    }
+    app.run(|_, _| {});
 }
+
+/// Native subprocess modes are handled before constructing Tauri or a WebView.
+/// A helper cannot turn an invalid mode into a normal GUI launch.
+pub fn run_native_helper_if_requested() -> bool {
+    let arguments: Vec<_> = std::env::args_os().skip(1).collect();
+    let Some(mode) = arguments.first() else { return false; };
+    if !mode.to_string_lossy().starts_with("--motion-") { return false; }
+    #[cfg(windows)]
+    std::process::exit(windows_platform::run_helper(mode, &arguments[1..]));
+    #[cfg(not(windows))]
+    {
+        eprintln!("Windows native helpers are unavailable on this platform");
+        std::process::exit(1);
+    }
+}
+
+#[cfg(all(test, windows))]
+#[path = "windows_startup_tests.rs"]
+mod windows_startup_tests;
 
 #[cfg(test)]
 mod tests {
     use super::{
-        prepare_native_data_root, select_node_binary, validate_dispatch_request,
+        select_node_binary, validate_dispatch_request,
         validate_ui_state_document, BackupSaveRequest, IpcRequest, MAX_ATTACHMENT_BYTES,
     };
+    #[cfg(unix)]
+    use super::prepare_native_data_root;
     use serde_json::json;
     use std::{
         ffi::OsString,
         fs,
-        os::unix::fs::{symlink, PermissionsExt},
         path::PathBuf,
     };
+    #[cfg(unix)]
+    use std::os::unix::fs::{symlink, PermissionsExt};
 
+    #[cfg(unix)]
     #[test]
     fn packaged_owned_data_root_is_hardened_before_native_service_start() {
         let root = std::env::temp_dir().join(format!(
@@ -595,6 +712,7 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 
+    #[cfg(unix)]
     #[test]
     fn unexpected_owner_controlled_mode_is_rejected_without_repair() {
         let root = std::env::temp_dir().join(format!(
@@ -615,6 +733,7 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 
+    #[cfg(unix)]
     #[test]
     fn symlink_data_root_is_rejected_without_chmodding_its_target() {
         let base = std::env::temp_dir().join(format!(
@@ -639,6 +758,7 @@ mod tests {
         fs::remove_dir_all(base).unwrap();
     }
 
+    #[cfg(unix)]
     #[test]
     fn absent_data_root_remains_available_for_the_locked_runner_to_create() {
         let root = std::env::temp_dir().join(format!(
@@ -657,10 +777,11 @@ mod tests {
         let root =
             std::env::temp_dir().join(format!("motion-node-selection-{}", std::process::id()));
         fs::create_dir_all(&root).unwrap();
-        fs::write(root.join("node-runtime"), b"runtime").unwrap();
+        let runtime = if cfg!(windows) { "node-runtime.exe" } else { "node-runtime" };
+        fs::write(root.join(runtime), b"runtime").unwrap();
         assert_eq!(
             select_node_binary(&root, Some(OsString::from("/development/node"))),
-            root.join("node-runtime")
+            root.join(runtime)
         );
         fs::remove_dir_all(root).unwrap();
     }
@@ -895,12 +1016,18 @@ mod tests {
     #[test]
     fn ui_state_boundary_accepts_only_bounded_ephemeral_fields() {
         assert!(validate_ui_state_document(&json!({
-            "workspaceId": "workspace-1", "activePageId": null, "expandedPageIds": ["page-1"], "activeViewIds": { "database-1": "view-1" }
+            "workspaceId": "workspace-1", "activePageId": null, "expandedPageIds": ["page-1"], "activeViewIds": { "database-1": "view-1" }, "collapsedBlockIds": ["toggle-1"]
         }))
         .is_ok());
         for invalid in [
             json!({ "workspace": { "pages": [] }, "workspaceId": "workspace-1" }),
             json!({ "pages": [] }),
+            json!({ "collapsedBlockIds": null }),
+            json!({ "collapsedBlockIds": ["toggle-1", "toggle-1"] }),
+            json!({ "collapsedBlockIds": ["bad/id"] }),
+            json!({ "collapsedBlockIds": ["toggle-1\n"] }),
+            json!({ "collapsedBlockIds": [null] }),
+            json!({ "collapsedBlockIds": (0..257).map(|i| format!("block-{i}")).collect::<Vec<_>>() }),
             json!({ "workspaceId": "workspace-1", "expandedPageIds": ["page-1", "page-1"] }),
             json!({ "workspaceId": "workspace-1", "activeViewIds": { "bad/id": "view-1" } }),
             json!({ "workspaceId": "workspace-1", "activePageId": "bad/id" }),
@@ -921,5 +1048,31 @@ mod tests {
             "replaceConfirmed": true
         });
         assert!(serde_json::from_value::<BackupSaveRequest>(injected).is_err());
+        assert!(serde_json::from_value::<BackupSaveRequest>(json!({
+            "schemaVersion": 1, "bundle": {}, "expectedIdentity": "a".repeat(64)
+        })).is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn native_backup_confirmation_requires_the_complete_inspected_identity() {
+        use super::windows_backup_replacement_identity;
+        let expected = "a1".repeat(32);
+        assert_eq!(windows_backup_replacement_identity(&json!({
+            "exists": true, "replacement": true, "replacementIdentity": expected
+        })).unwrap(), Some(expected));
+        assert_eq!(windows_backup_replacement_identity(&json!({
+            "exists": false, "replacement": false
+        })).unwrap(), None);
+        for invalid in [
+            json!({ "exists": true, "replacement": true }),
+            json!({ "exists": true, "replacement": true, "replacementIdentity": "a".repeat(63) }),
+            json!({ "exists": true, "replacement": true, "replacementIdentity": "G".repeat(64) }),
+            json!({ "exists": false, "replacement": false, "replacementIdentity": "a".repeat(64) }),
+            json!({ "exists": true, "replacement": false }),
+            json!({ "exists": true, "replacement": true, "replacementIdentity": "a".repeat(64), "path": "untrusted" }),
+        ] {
+            assert_eq!(windows_backup_replacement_identity(&invalid).unwrap_err().code, "STORAGE_FAILURE");
+        }
     }
 }

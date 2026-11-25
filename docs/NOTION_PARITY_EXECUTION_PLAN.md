@@ -1,7 +1,18 @@
 # Motion V1.0 core-workspace execution plan
 
-Status: active
-Scope authority: `V1_SCOPE.md`
+Status: historical phase plan retained beneath the current delivery direction
+
+## Current direction — 25 November 2026
+
+Jacob has authorized Windows installation first, then practical local Notion
+feature parity without a cloud runtime dependency. The current authority and
+execution order are `WINDOWS_1_0_DELIVERY.md`, `NOTION_PARITY_MATRIX.md` and
+`DELIVERY_STATE.json`. The earlier Linux/table-only scope below is historical;
+its Windows, non-table-view and broader local-editor deferrals do not override
+the current instruction. Preserve existing canonical data, commands, migrations,
+exports and recovery while implementing complete usable increments.
+
+Historical scope authority: `V1_SCOPE.md`
 
 ## Objective
 

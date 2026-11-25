@@ -5,11 +5,20 @@ import { createInterface } from "node:readline";
 import { MotionAppService, MotionAppError } from "@motion/app-service";
 import { SqliteWorkspaceStore, ContentAddressedAttachmentStore, hardenPrivateFile } from "@motion/storage";
 import { createAtomicBackupFile, inspectAtomicBackupDestination } from "./backup-file.mjs";
-import { isValidUiState } from "./ui-state-validation.mjs";
+import { isValidUiState, survivingCollapsedBlockIds } from "./ui-state-validation.mjs";
 import { acquireNativeServiceLock } from "./native-service-lock.mjs";
+import { createWindowsUiStateStore } from "./windows-ui-state.mjs";
+import { recordBackupInspectionFailure } from "./backup-diagnostics.mjs";
 
 const [dataRoot] = process.argv.slice(2);
 if (!dataRoot) throw new Error("Usage: service-runner <data-root>");
+
+const lines = createInterface({ input: process.stdin, crlfDelay: Infinity, terminal: false });
+const requests = lines[Symbol.asyncIterator]();
+if (process.env.MOTION_SERVICE_START_GATE === "1") {
+  const gate = await requests.next();
+  if (gate.done || gate.value !== "MOTION_SERVICE_START") throw new Error("Native service startup was not authorized");
+}
 
 const revive = value => {
   if (Array.isArray(value)) return value.map(revive);
@@ -34,10 +43,13 @@ try {
 store = new SqliteWorkspaceStore(join(mutableRoot, "motion.sqlite3"));
 const service = new MotionAppService(store, new ContentAddressedAttachmentStore(join(mutableRoot, "attachments")));
 const uiStatePath = join(mutableRoot, "ui-state.json");
-const readUiState = () => { try { hardenPrivateFile(uiStatePath); return JSON.parse(readFileSync(uiStatePath, "utf8")); } catch (error) { if (error?.code === "ENOENT") return {}; throw error; } };
+const windowsUiState = process.platform === "win32" ? createWindowsUiStateStore(uiStatePath) : undefined;
+const readUiState = () => { if (windowsUiState) return windowsUiState.read(); try { hardenPrivateFile(uiStatePath); return JSON.parse(readFileSync(uiStatePath, "utf8")); } catch (error) { if (error?.code === "ENOENT") return {}; throw error; } };
 const writeUiState = state => {
+  const document = { schemaVersion: 1, workspaceId: state.workspaceId, activePageId: state.activePageId ?? null, expandedPageIds: Array.isArray(state.expandedPageIds) ? state.expandedPageIds : [], activeViewIds: state.activeViewIds ?? {}, collapsedBlockIds: state.collapsedBlockIds ?? [] };
+  if (windowsUiState) { windowsUiState.write(document); return; }
   const temporary = `${uiStatePath}.${randomUUID()}.tmp`;
-  writeFileSync(temporary, JSON.stringify({ schemaVersion: 1, workspaceId: state.workspaceId, activePageId: state.activePageId ?? null, expandedPageIds: Array.isArray(state.expandedPageIds) ? state.expandedPageIds : [], activeViewIds: state.activeViewIds ?? {} }), { flag: "wx", mode: 0o600 });
+  writeFileSync(temporary, JSON.stringify(document), { flag: "wx", mode: 0o600 });
   renameSync(temporary, uiStatePath);
   hardenPrivateFile(uiStatePath);
 };
@@ -48,18 +60,32 @@ async function dispatch(rawRequest) {
     case "native-backup-inspect": {
       if (typeof request.payload?.destination !== "string" || Object.keys(request.payload).some(key => key !== "destination")) throw new MotionAppError("INVALID_INPUT", "Invalid native backup inspection request");
       try { result = await inspectAtomicBackupDestination(request.payload.destination); }
-      catch { throw new MotionAppError("VALIDATION_FAILED", "Selected target is not a valid private Motion backup"); }
+      catch (error) {
+        recordBackupInspectionFailure(error, request.payload.destination);
+        throw new MotionAppError("VALIDATION_FAILED", "Selected target is not a valid private Motion backup");
+      }
       break;
     }
     case "native-backup-save": {
+      const windows = process.platform === "win32";
+      const allowed = windows ? ["destination", "replaceConfirmed", "bundle", "expectedIdentity"]
+        : ["destination", "replaceConfirmed", "bundle"];
       if (typeof request.payload?.destination !== "string" || typeof request.payload?.replaceConfirmed !== "boolean"
-          || !request.payload?.bundle || Object.keys(request.payload).some(key => !["destination", "replaceConfirmed", "bundle"].includes(key))) {
+          || !request.payload?.bundle || Object.keys(request.payload).some(key => !allowed.includes(key))
+          || (windows && (request.payload.replaceConfirmed
+            ? typeof request.payload.expectedIdentity !== "string" || !/^[a-f0-9]{64}$/.test(request.payload.expectedIdentity)
+            : Object.hasOwn(request.payload, "expectedIdentity")))) {
         throw new MotionAppError("INVALID_INPUT", "Invalid native backup save request");
       }
       try {
         result = await createAtomicBackupFile(request.payload.destination, request.payload.bundle,
-          request.payload.replaceConfirmed ? { confirmReplace: async () => true } : {});
-      } catch { throw new MotionAppError("STORAGE_FAILURE", "Backup could not be written safely; existing data was preserved"); }
+          request.payload.replaceConfirmed ? { confirmReplace: async () => true,
+            ...(windows ? { expectedIdentity: request.payload.expectedIdentity } : {}) } : {});
+      } catch {
+        throw new MotionAppError("STORAGE_FAILURE", windows
+          ? "Backup could not be confirmed; check the destination before retrying"
+          : "Backup could not be written safely; existing data was preserved");
+      }
       break;
     }
     case "command": result = service.execute(request.payload); break;
@@ -86,7 +112,7 @@ async function dispatch(rawRequest) {
         const uiState = readUiState();
         const selected = summaries.find(summary => summary.id === uiState.workspaceId) ?? summaries[0];
         const loaded = service.query({ type: "workspace.get", workspaceId: selected.id });
-        result = { schemaVersion: 2, ...loaded, activePageId: loaded.workspace.pages.some(page => page.id === uiState.activePageId && !page.deletedAt) ? uiState.activePageId : loaded.workspace.pages.find(page => !page.deletedAt)?.id ?? null, expandedPageIds: Array.isArray(uiState.expandedPageIds) ? uiState.expandedPageIds : [], activeViewIds: uiState.activeViewIds ?? {} };
+        result = { schemaVersion: 2, ...loaded, activePageId: uiState.activePageId === null ? null : loaded.workspace.pages.some(page => page.id === uiState.activePageId && !page.deletedAt) ? uiState.activePageId : loaded.workspace.pages.find(page => !page.deletedAt)?.id ?? null, expandedPageIds: Array.isArray(uiState.expandedPageIds) ? uiState.expandedPageIds : [], activeViewIds: uiState.activeViewIds ?? {}, collapsedBlockIds: survivingCollapsedBlockIds(loaded.workspace, uiState.workspaceId === selected.id ? uiState.collapsedBlockIds : []) };
         break;
       }
       if (!summaries.length) { result = { schemaVersion: 1, pages: [], activePageId: null }; break; }
@@ -111,7 +137,7 @@ async function dispatch(rawRequest) {
             || Object.keys(request.payload).some(key => !["schemaVersion", "document"].includes(key))
             || !isValidUiState(candidate)) throw new MotionAppError("INVALID_INPUT", "Invalid UI state request");
         const summaries = service.query({ type: "workspace.list" }); const current = summaries.find(summary => summary.id === candidate?.workspaceId) ?? summaries[0];
-        if (current) writeUiState({ workspaceId: current.id, activePageId: candidate?.activePageId ?? null, expandedPageIds: candidate?.expandedPageIds, activeViewIds: candidate?.activeViewIds });
+        if (current) writeUiState({ workspaceId: current.id, activePageId: candidate?.activePageId ?? null, expandedPageIds: candidate?.expandedPageIds, activeViewIds: candidate?.activeViewIds, collapsedBlockIds: survivingCollapsedBlockIds(service.query({ type: "workspace.get", workspaceId: current.id }).workspace, candidate?.collapsedBlockIds) });
         result = { saved: true }; break;
       }
       throw new MotionAppError("INVALID_INPUT", "Whole-workspace UI save is not supported");
@@ -121,8 +147,7 @@ async function dispatch(rawRequest) {
   return encode(result);
 }
 
-const lines = createInterface({ input: process.stdin, crlfDelay: Infinity, terminal: false });
-for await (const line of lines) {
+for await (const line of requests) {
   let reply;
   try {
     if (Buffer.byteLength(line) > 16 * 1024 * 1024) throw new MotionAppError("INVALID_INPUT", "Service request exceeds 16 MiB");

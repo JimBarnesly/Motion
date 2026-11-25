@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "task": "Authenticated keyboard entry in installed Save As acceptance",
+  "sourceRoot": "repository",
+  "files": [
+    {
+      "path": "scripts/windows-native-save-dialog.ps1",
+      "sha256": "467fc417a644a764c3aa8ad4e195eedfe98c5fefc7942e4866ef9bf59672d755"
+    },
+    {
+      "path": "scripts/windows-installed-ui.mjs",
+      "sha256": "5eb7d3e4851a447cf50b7f702dddbe74984efd7e320d1a3a3f1ec47115d0e13a"
+    },
+    {
+      "path": "scripts/windows-native-save-dialog-contract.test.ps1",
+      "sha256": "128547b90f7dc2d413dd96c42f9f74339cc05f52461785e8253e8001fd3ff7c3"
+    },
+    {
+      "path": "apps/desktop/test/windows/native-save-dialog.test.mjs",
+      "sha256": "c234a97490c64f3a6723a443106e686d9b51964c5bc5582ff9211c35cad052f6"
+    }
+  ],
+  "actualPriorWindows": {
+    "head": "4dfed50",
+    "runId": 45649097779,
+    "jobId": 139328319282,
+    "artifactId": 15039019506,
+    "bytes": 61428,
+    "sha256": "dab7edddd1e15badfd6f5b9e8760e966e76810e945122b022cd7a0b7d94386be",
+    "observed": "Both retained filename and Save focus were true, exact requested edit value was read back, and dialog closed; application still received the original 46-character default path and correctly rejected its untrusted parent with EACCES. The expected fresh private destination remained absent.",
+    "inference": "ValuePattern text mutation did not update the dialog result. The new keyboard method remains an unexecuted correction candidate."
+  },
+  "implementation": [
+    "No ValuePattern.SetValue. One SendInput batch includes Ctrl+A and exact UTF-16 down/up pairs.",
+    "Retained process generation/session, dialog runtime/HWND and UIA filename focus remain mandatory.",
+    "Native foreground HWND, process/thread and focused edit HWND are authenticated immediately before and after input.",
+    "Existing pressed modifiers or A fail before injection; inserted count must equal expected count.",
+    "Partial insertion never retries text/Save; only pending key-up cleanup may run once under the same native target authentication.",
+    "ValuePattern is read-only exact readback, awaited for at most5seconds without retyping; one Save Invoke and actual installed-helper/disk byte assertions remain.",
+    "No application, storage, config, policy, workflow or dependency changes."
+  ],
+  "validation": {
+    "schemaVersion": 1,
+    "status": "passed",
+    "sourceSha256": "467fc417a644a764c3aa8ad4e195eedfe98c5fefc7942e4866ef9bf59672d755",
+    "checks": [
+      "PowerShell parse and scriptblock creation without executing the driver",
+      "Source-bound C# compiles with C# 5-compatible syntax",
+      "x64 INPUT, union offset, KEYBDINPUT, MOUSEINPUT, HARDWAREINPUT and GUITHREADINFO ABI sizes",
+      "Fresh filename with spaces emits one ordered Ctrl+A and exact Unicode batch",
+      "Non-ASCII and surrogate-pair code units are preserved without normalization",
+      "Maximum bounded input is accepted",
+      "Empty, null, oversized and control-character text is rejected before native input",
+      "Every partial-prefix case releases only a pending key; completed batch emits no cleanup",
+      "Out-of-bounds insertion count is rejected",
+      "No ValuePattern.SetValue remains and exactly one Save Invoke remains"
+    ],
+    "count": 10,
+    "nativeInputExecuted": false,
+    "powerShellMajor": 7,
+    "powerShellMinor": 5,
+    "powerShellEdition": "Core",
+    "limitation": "Portable source/ABI/builder validation only. Foreground focus, SendInput and saved-file success are not exercised by this contract; installed GUI acceptance must prove them."
+  },
+  "additionalChecks": {
+    "nodeSyntax": "passed",
+    "gitDiffCheck": "passed"
+  },
+  "sources": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-input",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-keybdinput",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getguithreadinfo",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-guithreadinfo",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getforegroundwindow",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getasynckeystate",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getwindowthreadprocessid"
+  ],
+  "sdkBindings": "Locked windows-sys0.61.2 Win32/UI/Input/KeyboardAndMouse and Win32/UI/WindowsAndMessaging",
+  "limitations": [
+    "No Windows UI Automation, native keyboard or Save As execution performed locally.",
+    "Cancellation and overwrite-confirmation coverage remain outside this fresh-file fixture."
+  ],
+  "repositoryContract": {
+    "script": "scripts/windows-native-save-dialog-contract.test.ps1",
+    "windowsNodeWrapper": "apps/desktop/test/windows/native-save-dialog.test.mjs",
+    "integration": "Existing apps/desktop/test/windows/*.test.mjs glob; no workflow change",
+    "execution": "Portable source contract passed; Windows wrapper intentionally not run on Linux and requires actual OS/WindowsPowerShell5.1"
+  },
+  "reviewCorrection": "Reworded focus comments to describe observed before/after checks without promising atomic foreground isolation.",
+  "independentSourceReview": "Notion and root reviews passed; exact four frozen source hashes matched before integration. Input focus observations are not an atomic HWND lock.",
+  "controllerIntegration": {
+    "change": "Added source-reviewed GUI container-writing helper before attachment/backup flow; the complete native Save As function is byte-identical to its reviewed candidate.",
+    "sha256": "2f10eb3ebaae3ee89bd877a96683c9ed3c03f69ea7339d72b2c7b9fd49302a55",
+    "saveFunctionSha256": "3a237242f7d0afe0b86830d179fd258a2d67053d7c6b93aa1c98506db0ad0bf5",
+    "helperSha256": "5835d2779ec09b6068fa73bc318d11d0feadd6d2f212a608f09f3ef71624defc"
+  },
+  "powerShell51CompatibilityCorrection": {
+    "observedHead": "2cffa9a97b75e0eecb4d9b3627c75376b6cd4094",
+    "workflowRun": 45655062659,
+    "job": 139349405078,
+    "failure": "The new pure contract failed at its UTF-16 assertion because Windows PowerShell 5.1 cannot resolve [ushort]. The actual driver C# had compiled and its ABI checks had executed before that assertion.",
+    "change": "Use explicit [System.UInt16] for the expected UTF-16 code unit. All assertions and the driver remain unchanged.",
+    "contractSha256": "128547b90f7dc2d413dd96c42f9f74339cc05f52461785e8253e8001fd3ff7c3",
+    "portableChecksPassed": 10,
+    "actualWindowsAfterCorrection": "pending"
+  }
+}

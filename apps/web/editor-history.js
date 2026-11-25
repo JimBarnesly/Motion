@@ -5,6 +5,7 @@ function activePage(document) {
 function nonEditorState(document) {
   const copy = structuredClone(document);
   delete copy.revision;
+  delete copy.collapsedBlockIds;
   if (copy.workspace) {
     delete copy.workspace.updatedAt;
     delete copy.workspace.linkIndex;
@@ -15,6 +16,11 @@ function nonEditorState(document) {
     delete page.updatedAt;
   }
   return copy;
+}
+
+export function editorHistoryUnchanged(current, target) {
+  return JSON.stringify(nonEditorState(current)) === JSON.stringify(nonEditorState(target))
+    && JSON.stringify(activePage(current)?.blocks ?? []) === JSON.stringify(activePage(target)?.blocks ?? []);
 }
 
 export function editorHistoryCommand(current, target) {

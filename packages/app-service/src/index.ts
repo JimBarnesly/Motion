@@ -19,6 +19,7 @@ import {
   type FullExport,
   type DatabaseProperty,
   type DatabaseView,
+  type DatabaseViewPatch,
   type PropertyValue,
   type Page,
   type PageLink,
@@ -80,7 +81,7 @@ export type AppCommand =
   | { type: "database.record-update"; workspaceId: string; expectedRevision: number; pageId: string; title?: string; values: Record<string, PropertyValue | undefined> }
   | { type: "database.record-reorder"; workspaceId: string; expectedRevision: number; databaseId: string; orderedRecordPageIds: readonly string[] }
   | { type: "database.view-create"; workspaceId: string; expectedRevision: number; databaseId: string; view: Omit<DatabaseView, "id" | "collectionId"> & { id?: string } }
-  | { type: "database.view-update"; workspaceId: string; expectedRevision: number; databaseId: string; viewId: string; patch: Partial<Omit<DatabaseView, "id" | "collectionId" | "type">> }
+  | { type: "database.view-update"; workspaceId: string; expectedRevision: number; databaseId: string; viewId: string; patch: DatabaseViewPatch }
   | { type: "database.view-duplicate"; workspaceId: string; expectedRevision: number; databaseId: string; viewId: string; name?: string; newViewId?: string }
   | { type: "database.view-reorder"; workspaceId: string; expectedRevision: number; databaseId: string; viewId: string; beforeViewId: string | null }
   | { type: "database.view-delete"; workspaceId: string; expectedRevision: number; databaseId: string; viewId: string };

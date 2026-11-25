@@ -1,0 +1,636 @@
+{
+  "schemaVersion": 1,
+  "status": "Integrated candidate; exact-candidate CI and installed Windows writing execution pending.",
+  "sourceBase": "b295a52468a00aa8d985e905711ee5dc72e8fb99",
+  "integrationBase": "4dfed50c012debcdffe26a2351e2385abe0934af",
+  "sourceFiles": [
+    {
+      "path": "apps/desktop/service-runner.mjs",
+      "sha256": "3c5988183c2e8b3260474448a6c7c2d2cce23f06ff84895546286f7f461fea74",
+      "integratedSha256": "48b8eef4040ce12aa551da42a396252eaa7ba878fb417f2e1455016950bcf031"
+    },
+    {
+      "path": "apps/desktop/src-tauri/src/lib.rs",
+      "sha256": "0261a8b5fefe4f31cf61b6470307e21ada1646de05e9d63965e4f07794b8d506",
+      "integratedSha256": "0261a8b5fefe4f31cf61b6470307e21ada1646de05e9d63965e4f07794b8d506"
+    },
+    {
+      "path": "apps/desktop/test/container-writing.test.mjs",
+      "sha256": "6ad8e3e5ed6fca2fa69016bbdca0d4d7646a54d9dc252af83cdf8d42bec22a52",
+      "integratedSha256": "6ad8e3e5ed6fca2fa69016bbdca0d4d7646a54d9dc252af83cdf8d42bec22a52"
+    },
+    {
+      "path": "apps/desktop/test/ui-state-validation.test.mjs",
+      "sha256": "cf3908b5cf49c6440ebe749192468b9aa1ab45d6b90629c9080fbc92123e8adf",
+      "integratedSha256": "cf3908b5cf49c6440ebe749192468b9aa1ab45d6b90629c9080fbc92123e8adf"
+    },
+    {
+      "path": "apps/desktop/ui-state-validation.mjs",
+      "sha256": "0c8990b333325fca6e75b790b8bf1228e030fca1d31dd23e8ab124f8801e134d",
+      "integratedSha256": "0c8990b333325fca6e75b790b8bf1228e030fca1d31dd23e8ab124f8801e134d"
+    },
+    {
+      "path": "apps/web/app-adapter.js",
+      "sha256": "764ba20f0f9d0cfa695f2756e83a00d9a4db76d0395278ba0415f92e78c64044",
+      "integratedSha256": "764ba20f0f9d0cfa695f2756e83a00d9a4db76d0395278ba0415f92e78c64044"
+    },
+    {
+      "path": "apps/web/app.js",
+      "sha256": "db339d60ce91ffe0d68c0264579ebc49b097b0feb89157de253371aabbcff297",
+      "integratedSha256": "db339d60ce91ffe0d68c0264579ebc49b097b0feb89157de253371aabbcff297"
+    },
+    {
+      "path": "apps/web/block-tree.js",
+      "sha256": "d38105ca446fcf347504ec8d055b33578f2e9c0e5948527a2f8a4e77159adaa1",
+      "integratedSha256": "d38105ca446fcf347504ec8d055b33578f2e9c0e5948527a2f8a4e77159adaa1"
+    },
+    {
+      "path": "apps/web/editor-history.js",
+      "sha256": "b36831596b1e344654dd599c3009c31f268de91e721c7e2b5d6de7df5198a4f9",
+      "integratedSha256": "b36831596b1e344654dd599c3009c31f268de91e721c7e2b5d6de7df5198a4f9"
+    },
+    {
+      "path": "apps/web/editor-structure.js",
+      "sha256": "dd1740b61346d37cbb32a0708f1dfb80a68437fa7c5d328f57584aa75889b242",
+      "integratedSha256": "dd1740b61346d37cbb32a0708f1dfb80a68437fa7c5d328f57584aa75889b242"
+    },
+    {
+      "path": "apps/web/markdown-paste.js",
+      "sha256": "d4e7948c67f15e9dcb565ce697a1f484d9c3cee9ef35529e5eecd63f45292508",
+      "integratedSha256": "d4e7948c67f15e9dcb565ce697a1f484d9c3cee9ef35529e5eecd63f45292508"
+    },
+    {
+      "path": "apps/web/search-recovery.js",
+      "sha256": "0047a543792d767fd00dcace94c3262b62b8479a847a43312857e08bfc8f76b1",
+      "integratedSha256": "0047a543792d767fd00dcace94c3262b62b8479a847a43312857e08bfc8f76b1"
+    },
+    {
+      "path": "apps/web/slash-entry.js",
+      "sha256": "4dc543409cf0a2ec98d174c83062573cc7c8959c9b622983b02e917c4a41fa30",
+      "integratedSha256": "4dc543409cf0a2ec98d174c83062573cc7c8959c9b622983b02e917c4a41fa30"
+    },
+    {
+      "path": "apps/web/styles.css",
+      "sha256": "7cba3a0a4c78cf63146eedd05083c031c16336186cb0374979c1e4da83ba7ad9",
+      "integratedSha256": "d22f59294b3f46ef31ced04162c35ae9c82ccaec6cb5f3f63f98bb720f14e7f0"
+    },
+    {
+      "path": "apps/web/test/block-presentation.test.mjs",
+      "sha256": "afb73c1d4234aa816716eeac09b57e0e84024ab01bdd2cf26a06ae1aa0fa15d5",
+      "integratedSha256": "afb73c1d4234aa816716eeac09b57e0e84024ab01bdd2cf26a06ae1aa0fa15d5"
+    },
+    {
+      "path": "apps/web/test/container-writing.test.mjs",
+      "sha256": "339d2e786da4233dbe0527250ff4ad74155b94a022ee1a2a758c414833f1cebb",
+      "integratedSha256": "339d2e786da4233dbe0527250ff4ad74155b94a022ee1a2a758c414833f1cebb"
+    },
+    {
+      "path": "apps/web/test/search-recovery.test.mjs",
+      "sha256": "e0b7bc6d93d6752a4cff65306bb59c50b287387593cbd930a7e4b774758201ac",
+      "integratedSha256": "e0b7bc6d93d6752a4cff65306bb59c50b287387593cbd930a7e4b774758201ac"
+    },
+    {
+      "path": "apps/web/test/web.test.mjs",
+      "sha256": "2302b7352bb9f16893017307c658180f5d07dcaa7d48ef8a477f461259de4b2d",
+      "integratedSha256": "2302b7352bb9f16893017307c658180f5d07dcaa7d48ef8a477f461259de4b2d"
+    },
+    {
+      "path": "e2e/container-writing.spec.ts",
+      "sha256": "d7210581fb45cf95fa15853d0a89ec0fae8ba014ace42bfde375f13e7696c8df",
+      "integratedSha256": "d7210581fb45cf95fa15853d0a89ec0fae8ba014ace42bfde375f13e7696c8df"
+    },
+    {
+      "path": "e2e/nested-writing.spec.ts",
+      "sha256": "4d46b7faf1506e79a43f7f9082fe9e0b3b96aeded4a92ad90c2bfe43007faa16",
+      "integratedSha256": "4d46b7faf1506e79a43f7f9082fe9e0b3b96aeded4a92ad90c2bfe43007faa16"
+    }
+  ],
+  "preservedBackupDiagnostics": true,
+  "validation": {
+    "focusedNodePassed": 236,
+    "focusedBrowserPassed": 34,
+    "fullBrowser": {
+      "passed": 107,
+      "failed": 0,
+      "skipped": 0,
+      "scope": "Complete integrated local Chromium suite, including all prior backup, navigation, editing and database cases."
+    },
+    "newContainerBrowserCases": 13,
+    "build": "passed",
+    "nativeRust": "pending actual CI",
+    "installedWindowsWriting": "pending"
+  },
+  "htmlSinkReview": {
+    "schemaVersion": 1,
+    "reviewer": "notion_behavior",
+    "scope": "Independent AI source review; no human approval or policy edit",
+    "oldHead": "4dfed50c012debcdffe26a2351e2385abe0934af",
+    "oldAppSha256": "f9932e07312ea4e32349e2f629618cc88732d42cb99243bb2976418701dc2ceb",
+    "newAppSha256": "db339d60ce91ffe0d68c0264579ebc49b097b0feb89157de253371aabbcff297",
+    "integratedMainMatchesCandidate": true,
+    "oldPolicySha256": "4686d7e0b198b2950abaf418b9fca45a2f3586a320647b3d97d829bed6cada20",
+    "counts": {
+      "old": 16,
+      "new": 16,
+      "existingSuppressions": 16
+    },
+    "mapping": [
+      {
+        "index": 1,
+        "semanticSite": "page tree",
+        "rule": "js-no-html-sink",
+        "file": "apps/web/app.js",
+        "old": {
+          "coordinate": {
+            "line": 230,
+            "column": 17,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:8f2c76d2a19e11f8c53a998b39e0090379077ead034ed5c7ce395759506788eb",
+          "lineTextSha256": "3203ef3421d43ed6159db23e4ee8bbc52306a5dd4059be6e74a4e7fe8386df84"
+        },
+        "new": {
+          "coordinate": {
+            "line": 312,
+            "column": 17,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:cbb6c50ee9c10c1ec665a9874cbab7f3ea84a9bff705bc9e079b3a03f9fab826",
+          "lineTextSha256": "3203ef3421d43ed6159db23e4ee8bbc52306a5dd4059be6e74a4e7fe8386df84"
+        },
+        "fingerprintLineTextChanged": false,
+        "owner": "Operations & Security Director",
+        "expires": "2027-02-23",
+        "existingRationale": "Page-tree templates attribute-escape every persisted page ID and HTML-escape every persisted title; remaining interpolations are internal booleans/numeric depth.",
+        "reviewNote": "Fingerprint line text is byte-identical; only source coordinates move."
+      },
+      {
+        "index": 2,
+        "semanticSite": "favourites",
+        "rule": "js-no-html-sink",
+        "file": "apps/web/app.js",
+        "old": {
+          "coordinate": {
+            "line": 231,
+            "column": 150,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:adf6c91138bf01f66c29adb598d0b4a77533c93fd7aae0e0ea0a901d3890597e",
+          "lineTextSha256": "6ce24c89a25a85358f36d95cf9d3cacc819e2c6ddcccbb60804eb08fa3735a4f"
+        },
+        "new": {
+          "coordinate": {
+            "line": 313,
+            "column": 150,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:409f118f211bbcd8e8f3057e5b6bce437b31cfcb98c8a2d20d2fe7c4f6bf5bba",
+          "lineTextSha256": "6ce24c89a25a85358f36d95cf9d3cacc819e2c6ddcccbb60804eb08fa3735a4f"
+        },
+        "fingerprintLineTextChanged": false,
+        "owner": "Operations & Security Director",
+        "expires": "2027-02-23",
+        "existingRationale": "Favourite navigation attribute-escapes persisted page IDs and HTML-escapes persisted titles before template composition.",
+        "reviewNote": "Fingerprint line text is byte-identical; only source coordinates move."
+      },
+      {
+        "index": 3,
+        "semanticSite": "Trash",
+        "rule": "js-no-html-sink",
+        "file": "apps/web/app.js",
+        "old": {
+          "coordinate": {
+            "line": 232,
+            "column": 84,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:b1fece949553f5b946287b7ca034b2ca56bdf57c21f985c4d9756cc1f996b95b",
+          "lineTextSha256": "1a2df093230fde7879b50a5a0760bef6f4fe9dd600b2e690500d00946544e6b3"
+        },
+        "new": {
+          "coordinate": {
+            "line": 314,
+            "column": 84,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:ec1d336a6ef2e9ac54bf7d85208233a4afb07a46a7dd06e5e99606856fe3e35e",
+          "lineTextSha256": "1a2df093230fde7879b50a5a0760bef6f4fe9dd600b2e690500d00946544e6b3"
+        },
+        "fingerprintLineTextChanged": false,
+        "owner": "Operations & Security Director",
+        "expires": "2027-02-23",
+        "existingRationale": "Trash navigation attribute-escapes persisted page IDs and HTML-escapes persisted titles in text and aria-label contexts.",
+        "reviewNote": "Fingerprint line text is byte-identical; only source coordinates move."
+      },
+      {
+        "index": 4,
+        "semanticSite": "empty workspace",
+        "rule": "js-no-html-sink",
+        "file": "apps/web/app.js",
+        "old": {
+          "coordinate": {
+            "line": 236,
+            "column": 111,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:fa521fbc092566e8365c7866d806a526d98ff8852e7241859666a0854ea1ecf4",
+          "lineTextSha256": "241a53d747465797773fe58a22567b2377ce0748b87699d098344e5e1f9ae61d"
+        },
+        "new": {
+          "coordinate": {
+            "line": 318,
+            "column": 111,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:10b4c7cf08b0f2081555d0dfa78d976eb031f4467eadbaf0e6ab7551868d9ad3",
+          "lineTextSha256": "241a53d747465797773fe58a22567b2377ce0748b87699d098344e5e1f9ae61d"
+        },
+        "fingerprintLineTextChanged": false,
+        "owner": "Operations & Security Director",
+        "expires": "2027-02-23",
+        "existingRationale": "The empty-workspace renderer contains fixed application markup only and has no persisted dynamic values.",
+        "reviewNote": "Fingerprint line text is byte-identical; only source coordinates move."
+      },
+      {
+        "index": 5,
+        "semanticSite": "breadcrumbs",
+        "rule": "js-no-html-sink",
+        "file": "apps/web/app.js",
+        "old": {
+          "coordinate": {
+            "line": 240,
+            "column": 51,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:33dd0db2996900e036e1a0833f773810a09333c1d9fd775ff0f6723c323bab4b",
+          "lineTextSha256": "9634b7d4ee9da630b4eba78b038de9d7b50646437461eb05d59317f0131ae1ac"
+        },
+        "new": {
+          "coordinate": {
+            "line": 322,
+            "column": 51,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:3a5c0582696186d7ee1d7859df8006c20910312ee429123be89dd4bacc10c211",
+          "lineTextSha256": "9634b7d4ee9da630b4eba78b038de9d7b50646437461eb05d59317f0131ae1ac"
+        },
+        "fingerprintLineTextChanged": false,
+        "owner": "Operations & Security Director",
+        "expires": "2027-02-23",
+        "existingRationale": "Breadcrumb controls attribute-escape each persisted page ID and HTML-escape each persisted page title.",
+        "reviewNote": "Fingerprint line text is byte-identical; only source coordinates move."
+      },
+      {
+        "index": 6,
+        "semanticSite": "document composition",
+        "rule": "js-no-html-sink",
+        "file": "apps/web/app.js",
+        "old": {
+          "coordinate": {
+            "line": 252,
+            "column": 325,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:864d748371541c42fe878abfa7c2fec40d0b21ef056f7432df192600483597b2",
+          "lineTextSha256": "5e99074abb2d3c1c1af8a6abeda611147f1393d0af7804646256cda27f9c6fd6"
+        },
+        "new": {
+          "coordinate": {
+            "line": 348,
+            "column": 325,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:b1007465211f68c4f97c55f1c49478537d899e1584875affc2dcdf4f409dd991",
+          "lineTextSha256": "5e99074abb2d3c1c1af8a6abeda611147f1393d0af7804646256cda27f9c6fd6"
+        },
+        "fingerprintLineTextChanged": false,
+        "owner": "Operations & Security Director",
+        "expires": "2027-02-23",
+        "existingRationale": "Document composition filters tombstoned definitions and delegates live values to escaping property controls. File block metadata uses escaped text/attributes plus an independent safe-integer byte-length guard aligned with the canonical core; browser validation rejects invalid sizes before persistence. Other block controls use reviewed escaping and fixed type choices.",
+        "reviewNote": "Unchanged assignment line; reviewed hierarchy/disclosure/list-number helper changes. Hostile filename attribute-injection reproduction is fixed by structural attributes only in the editable branch. No direct metadata HTML insertion or post-HTML replacement remains."
+      },
+      {
+        "index": 7,
+        "semanticSite": "database table/list",
+        "rule": "js-no-html-sink",
+        "file": "apps/web/app.js",
+        "old": {
+          "coordinate": {
+            "line": 261,
+            "column": 2140,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:5ce05a7c3d6d1e006c894cd355c06e420d7fe44914bb90d8a9c6f4c3d4587a63",
+          "lineTextSha256": "bb2b0a35d4bb6d5094ec7b75473a0db9e9b7ad1bbb2eed688e95c475ddc6b50f"
+        },
+        "new": {
+          "coordinate": {
+            "line": 357,
+            "column": 2140,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:670bcde5d188f609e22eb9ee2736ba120849896fac30f26bd4d5a9906e339ec5",
+          "lineTextSha256": "bb2b0a35d4bb6d5094ec7b75473a0db9e9b7ad1bbb2eed688e95c475ddc6b50f"
+        },
+        "fingerprintLineTextChanged": false,
+        "owner": "Operations & Security Director",
+        "expires": "2027-02-23",
+        "existingRationale": "Database table/list, record-order controls, and property-definition order composition attribute-escape every persisted ID and HTML-escape record titles and property names; property text and controls use reviewed escaping helpers, view types are closed enums, and system metadata renders without mutation authority. Column widths pass finite-positive-number validation before rendering. Widths now enter escaped data attributes and are applied only as validated positive finite numbers through a fixed CSSOM width property; no inline-style policy grant is introduced.",
+        "reviewNote": "Fingerprint line text is byte-identical; only source coordinates move."
+      },
+      {
+        "index": 8,
+        "semanticSite": "no-page outgoing context",
+        "rule": "js-no-html-sink",
+        "file": "apps/web/app.js",
+        "old": {
+          "coordinate": {
+            "line": 262,
+            "column": 59,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:305a8c5eeeaba7e982527f06b1e952fd5fd9f08431b8076531e549ec555de952",
+          "lineTextSha256": "b168d32a4456c7a0958b6cecbfeadf23fa6bb06cc0a8eee607795bac2a2c439e"
+        },
+        "new": {
+          "coordinate": {
+            "line": 358,
+            "column": 59,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:cee07d50a9d9c6efee9eadc7a575420bc95636f90044c36aaad34a228d1d5b41",
+          "lineTextSha256": "9a05c7dde8af6fb674422b3f76928b5def81df2c2f8a06a32920714fbca995a7"
+        },
+        "fingerprintLineTextChanged": true,
+        "owner": "Operations & Security Director",
+        "expires": "2027-02-23",
+        "existingRationale": "The legacy no-page context branch assigns fixed application markup only.",
+        "reviewNote": "Shared renderContext line changed only to consume a pure derived link array. Assignment markup and escaped persisted identifiers/titles remain unchanged."
+      },
+      {
+        "index": 9,
+        "semanticSite": "no-page backlink context",
+        "rule": "js-no-html-sink",
+        "file": "apps/web/app.js",
+        "old": {
+          "coordinate": {
+            "line": 262,
+            "column": 85,
+            "occurrence": 1
+          },
+          "fingerprint": "sha256:cbae9a4a105a347a6231513197dc54b41e1113cebd09703464680069cab54fa5",
+          "lineTextSha256": "b168d32a4456c7a0958b6cecbfeadf23fa6bb06cc0a8eee607795bac2a2c439e"
+        },
+        "new": {
+          "coordinate": {
+            "line": 358,
+            "column": 85,
+            "occurrence": 1
+          },
+          "fingerprint": "sha256:f2afdf5627009af12a43c397d57c6a4dbbf6afd5055349ff741921b8ad794cce",
+          "lineTextSha256": "9a05c7dde8af6fb674422b3f76928b5def81df2c2f8a06a32920714fbca995a7"
+        },
+        "fingerprintLineTextChanged": true,
+        "owner": "Operations & Security Director",
+        "expires": "2027-02-23",
+        "existingRationale": "The legacy no-page context branch assigns fixed application markup only; this second chained sink has no dynamic values.",
+        "reviewNote": "Shared renderContext line changed only to consume a pure derived link array. Assignment markup and escaped persisted identifiers/titles remain unchanged."
+      },
+      {
+        "index": 10,
+        "semanticSite": "outgoing links",
+        "rule": "js-no-html-sink",
+        "file": "apps/web/app.js",
+        "old": {
+          "coordinate": {
+            "line": 262,
+            "column": 714,
+            "occurrence": 2
+          },
+          "fingerprint": "sha256:ae00c73721f3ac8db7e991877efba800c7cce9b1e7ce9920e5d29d2ebb0bc6bf",
+          "lineTextSha256": "b168d32a4456c7a0958b6cecbfeadf23fa6bb06cc0a8eee607795bac2a2c439e"
+        },
+        "new": {
+          "coordinate": {
+            "line": 358,
+            "column": 688,
+            "occurrence": 2
+          },
+          "fingerprint": "sha256:3c0139a2b32ffff7b7530ac398bf1a6529b1378191178b930c4738313716dce9",
+          "lineTextSha256": "9a05c7dde8af6fb674422b3f76928b5def81df2c2f8a06a32920714fbca995a7"
+        },
+        "fingerprintLineTextChanged": true,
+        "owner": "Operations & Security Director",
+        "expires": "2027-02-23",
+        "existingRationale": "Legacy outgoing-link composition attribute-escapes persisted page IDs and HTML-escapes titles before assignment.",
+        "reviewNote": "Shared renderContext line changed only to consume a pure derived link array. Assignment markup and escaped persisted identifiers/titles remain unchanged."
+      },
+      {
+        "index": 11,
+        "semanticSite": "backlinks",
+        "rule": "js-no-html-sink",
+        "file": "apps/web/app.js",
+        "old": {
+          "coordinate": {
+            "line": 262,
+            "column": 782,
+            "occurrence": 3
+          },
+          "fingerprint": "sha256:a3403dd622bce7ec53ca9b0437f27f99adc5fb7042f1a5657c6ef4f4df6b28a5",
+          "lineTextSha256": "b168d32a4456c7a0958b6cecbfeadf23fa6bb06cc0a8eee607795bac2a2c439e"
+        },
+        "new": {
+          "coordinate": {
+            "line": 358,
+            "column": 756,
+            "occurrence": 3
+          },
+          "fingerprint": "sha256:2d508d56fc663596987be845da72c1a6e964cfe0f706c2050736bffa7624dea2",
+          "lineTextSha256": "9a05c7dde8af6fb674422b3f76928b5def81df2c2f8a06a32920714fbca995a7"
+        },
+        "fingerprintLineTextChanged": true,
+        "owner": "Operations & Security Director",
+        "expires": "2027-02-23",
+        "existingRationale": "Legacy backlink composition attribute-escapes persisted page IDs and HTML-escapes titles before assignment.",
+        "reviewNote": "Shared renderContext line changed only to consume a pure derived link array. Assignment markup and escaped persisted identifiers/titles remain unchanged."
+      },
+      {
+        "index": 12,
+        "semanticSite": "attachment context fallback",
+        "rule": "js-no-html-sink",
+        "file": "apps/web/app.js",
+        "old": {
+          "coordinate": {
+            "line": 262,
+            "column": 845,
+            "occurrence": 4
+          },
+          "fingerprint": "sha256:05e8c574af12a4a0fd8c27b3d560c7ddf9c1b749aea915b7802004b736f836d7",
+          "lineTextSha256": "b168d32a4456c7a0958b6cecbfeadf23fa6bb06cc0a8eee607795bac2a2c439e"
+        },
+        "new": {
+          "coordinate": {
+            "line": 358,
+            "column": 819,
+            "occurrence": 4
+          },
+          "fingerprint": "sha256:99f2fe382812ff39afd089b48a71c2afbdddf8a90dd7c16caa690fdb388bd812",
+          "lineTextSha256": "9a05c7dde8af6fb674422b3f76928b5def81df2c2f8a06a32920714fbca995a7"
+        },
+        "fingerprintLineTextChanged": true,
+        "owner": "Operations & Security Director",
+        "expires": "2027-02-23",
+        "existingRationale": "Legacy attachment context fallback assigns fixed application markup only.",
+        "reviewNote": "Shared renderContext line changed only to consume a pure derived link array. Assignment markup and escaped persisted identifiers/titles remain unchanged."
+      },
+      {
+        "index": 13,
+        "semanticSite": "page menu",
+        "rule": "js-no-html-sink",
+        "file": "apps/web/app.js",
+        "old": {
+          "coordinate": {
+            "line": 268,
+            "column": 958,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:a492e8bf28e1d27611b445d14d78e030d49fe377e45c2e2f61f26e2b26756b90",
+          "lineTextSha256": "0c029e099c7d08215705c04df6e9e3bf3db3c413a086b0ffade3770fe5627fcf"
+        },
+        "new": {
+          "coordinate": {
+            "line": 364,
+            "column": 958,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:02d9f38a4082e0efe2d0fd45a060500507b6cd7a5914e2d505500e98f1a17885",
+          "lineTextSha256": "0c029e099c7d08215705c04df6e9e3bf3db3c413a086b0ffade3770fe5627fcf"
+        },
+        "fingerprintLineTextChanged": false,
+        "owner": "Operations & Security Director",
+        "expires": "2027-02-23",
+        "existingRationale": "Page-menu insertion attribute-escapes every persisted page ID and HTML-escapes every persisted page title/aria label.",
+        "reviewNote": "Fingerprint line text is byte-identical; only source coordinates move."
+      },
+      {
+        "index": 14,
+        "semanticSite": "property menu",
+        "rule": "js-no-html-sink",
+        "file": "apps/web/app.js",
+        "old": {
+          "coordinate": {
+            "line": 269,
+            "column": 207,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:678f5947bf695c592a8982252aff435af4000c08be84360e9fdd076c8c2d26b0",
+          "lineTextSha256": "89065bc4bdf7ff4cea0650ac190f396b046e48ed7176783f6e2d1069d3b5d21c"
+        },
+        "new": {
+          "coordinate": {
+            "line": 365,
+            "column": 207,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:d372188db20236ff93cb9e2d8a069d4ba5a437365ab90ac61431de25713baa12",
+          "lineTextSha256": "89065bc4bdf7ff4cea0650ac190f396b046e48ed7176783f6e2d1069d3b5d21c"
+        },
+        "fingerprintLineTextChanged": false,
+        "owner": "Operations & Security Director",
+        "expires": "2027-02-23",
+        "existingRationale": "Property-menu composition attribute-escapes persisted property IDs, HTML-escapes names/options, and uses fixed property-type choices.",
+        "reviewNote": "Fingerprint line text is byte-identical; only source coordinates move."
+      },
+      {
+        "index": 15,
+        "semanticSite": "sort controls",
+        "rule": "js-no-html-sink",
+        "file": "apps/web/app.js",
+        "old": {
+          "coordinate": {
+            "line": 289,
+            "column": 156,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:fee70285d8ad38e4a1bd961227c79dfae6320c2e7af5ec71202765df3c21b3c9",
+          "lineTextSha256": "fafa6bb78aac29d8c47d6e91010d8143aab2b850647a1a1ecadd1e35db0a7dc3"
+        },
+        "new": {
+          "coordinate": {
+            "line": 385,
+            "column": 156,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:2172650cb4c4311aa448b6165ae1f0b551b6bbef19ccbec598ac95d8f93e3a42",
+          "lineTextSha256": "fafa6bb78aac29d8c47d6e91010d8143aab2b850647a1a1ecadd1e35db0a7dc3"
+        },
+        "fingerprintLineTextChanged": false,
+        "owner": "Operations & Security Director",
+        "expires": "2027-02-23",
+        "existingRationale": "Sort controls compose sortRow output, which attribute-escapes property IDs while directions and indexes are fixed/internal.",
+        "reviewNote": "Fingerprint line text is byte-identical; only source coordinates move."
+      },
+      {
+        "index": 16,
+        "semanticSite": "new sort row",
+        "rule": "js-no-html-sink",
+        "file": "apps/web/app.js",
+        "old": {
+          "coordinate": {
+            "line": 340,
+            "column": 52,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:e4b6256759641fe8153c0bb05ecdc379ac1dd998fe857a1f2b38b67573f2207c",
+          "lineTextSha256": "4e4d726423e0c82878657d77926cd3adb173bcadd1329f355dc55e280738d5e7"
+        },
+        "new": {
+          "coordinate": {
+            "line": 437,
+            "column": 52,
+            "occurrence": 0
+          },
+          "fingerprint": "sha256:7845bfe13c36b4288c1d0dc00942ce3d0cb517607bff3a128044b5dadacb3a4e",
+          "lineTextSha256": "4e4d726423e0c82878657d77926cd3adb173bcadd1329f355dc55e280738d5e7"
+        },
+        "fingerprintLineTextChanged": false,
+        "owner": "Operations & Security Director",
+        "expires": "2027-02-23",
+        "existingRationale": "Dynamically added sort rows use sortRow's reviewed attribute escaping for persisted property IDs and fixed direction choices.",
+        "reviewNote": "Fingerprint line text is byte-identical; only source coordinates move."
+      }
+    ],
+    "reviewConclusion": "Same 16 ordered HTML-sink sites, no added rule category or broadened suppression scope. All 16 old fingerprints match current MAIN policy; all 16 new fingerprints independently match the candidate scanner manifest and integrated MAIN app bytes.",
+    "actualTextChanges": {
+      "unchangedFingerprintLineCount": 11,
+      "changedFingerprintLineCount": 5,
+      "changedSourceFunction": "renderContext",
+      "change": "The five sink findings share one source line. Its mutation-before-render sequence is replaced by const links=rebuildLinks() and filtering that local derived array. All five assignment expressions, fixed fallback markup, and persisted-ID/title escaping remain unchanged.",
+      "documentSink": "The renderDocument assignment source line is byte-identical. Its reviewed renderBlocks/renderBlockContent helpers now render real child hierarchy, toggle controls and numeric sibling positions. ID/text/metadata escaping remains explicit; fixed shortcuts/list attributes are emitted only in the editable branch, never replaced into completed HTML."
+    },
+    "reviewEvidence": [
+      "/tmp/motion-containers-independent-review.json",
+      "/tmp/motion-container-renderer-label-before.html",
+      "/tmp/motion-container-renderer-label-after.html",
+      "e2e/container-writing.spec.ts hostile attachment metadata and real transaction regressions",
+      "apps/web/test/container-writing.test.mjs canonical/native parity and pure visible projection"
+    ]
+  },
+  "humanApproval": "No human or Code Owner approval is claimed; existing role/expiry metadata and all eight source rules are retained.",
+  "sourceReview": "Independent Notion and root source review completed; author reproduced and fixed held native-control projection, derived-index mutation and hostile filename markup defects.",
+  "installedHelper": {
+    "path": "scripts/windows-container-writing.mjs",
+    "sha256": "5835d2779ec09b6068fa73bc318d11d0feadd6d2f212a608f09f3ef71624defc",
+    "independentReview": "passed",
+    "localRealServiceFixturePassed": 1,
+    "incoherentReadRegression": "Actual sequential reads around a real UI commit reproduced the original failure. Only valid revision disagreement is retried; equal-revision content and identity errors remain failures.",
+    "nativeWindows": "pending"
+  },
+  "stylesheetPolish": {
+    "beforeSha256": "7cba3a0a4c78cf63146eedd05083c031c16336186cb0374979c1e4da83ba7ad9",
+    "afterSha256": "d22f59294b3f46ef31ced04162c35ae9c82ccaec6cb5f3f63f98bb720f14e7f0",
+    "scope": "Separate CSS-only attachment card spacing, narrow wrapping, quiet toggle and visible keyboard focus. No markup or behavior change.",
+    "visualQa": "Actual local UI/SQLite fixture passed. Root independently viewed final 1440px and 390px screenshots; attachment text and download action remain separated without horizontal overflow, and toggle keyboard focus is visible.",
+    "semanticSuiteTiming": "107-browser semantic suite passed before this CSS-only change; the final real-service fixture passed after it."
+  }
+}

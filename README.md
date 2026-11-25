@@ -42,14 +42,29 @@ top-bar export/restore controls for portable JSON or a verified native backup.
 Workspace data stays in the current user's local application-data directory.
 See [the release guide](docs/RELEASE.md) for verification and uninstall details.
 
-The active V1.0 scope and delivery sequence are published in
+## Current development
+
+Development resumed on 25 November 2026 from `feat/notion-editor-chrome`
+(`d413253`), which contains 171 commits beyond `main`. The current goal is an
+original Notion-style workspace built on that code, with a local Windows
+notebook as the immediate platform target. See
+[`docs/DEVELOPMENT_RESUMPTION.md`](docs/DEVELOPMENT_RESUMPTION.md) for the recovered
+baseline, implemented changes, validation and remaining work.
+
+Windows can run the local browser development application today. The native
+Windows desktop port is not yet available; its filesystem and process boundaries
+still need platform-specific implementations. See the
+[Windows development guide](docs/WINDOWS.md) for PowerShell commands and the
+precise remaining work.
+
+The earlier Linux V1 acceptance contract remains in
 [`docs/V1_SCOPE.md`](docs/V1_SCOPE.md) and
 [`docs/V1_IMPLEMENTATION_WORKPLAN.md`](docs/V1_IMPLEMENTATION_WORKPLAN.md).
 
 ## Development
 
 ```sh
-npm install
+npm ci --ignore-scripts
 npm test
 npm run test:offline
 npm run test:e2e

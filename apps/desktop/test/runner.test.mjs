@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createInterface } from "node:readline";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 async function listeningTcpSockets(pid) {
@@ -33,7 +34,7 @@ test("real service mutation stays on the authenticated root inode after pathname
   const root = join(parent, "data");
   const displaced = join(parent, "authenticated-data");
   await mkdir(root, { mode: 0o700 });
-  const workerPath = new URL("./fixtures/root-replacement-service-worker.mjs", import.meta.url).pathname;
+  const workerPath = fileURLToPath(new URL("./fixtures/root-replacement-service-worker.mjs", import.meta.url));
   const start = () => {
     const child = spawn(process.execPath, [workerPath, root], { stdio: ["pipe", "pipe", "pipe"] });
     const replies = [];
@@ -89,7 +90,7 @@ test("service ownership precedes every mutable store and releases through nested
 
 test("production service ownership excludes a second attachment writer before request dispatch", async () => {
   const root = await mkdtemp(join(tmpdir(), "motion-attachment-service-owner-"));
-  const bundle = new URL("../dist/service-bundle.mjs", import.meta.url).pathname;
+  const bundle = fileURLToPath(new URL("../dist/service-bundle.mjs", import.meta.url));
   const owner = spawn(process.execPath, [bundle, root], { stdio: ["pipe", "pipe", "pipe"] });
   const replies = [];
   createInterface({ input: owner.stdout, crlfDelay: Infinity }).on("line", line => replies.push(JSON.parse(line)));
@@ -140,8 +141,8 @@ for (const mask of ["0022", "0777"]) {
   test(`bundled service safely creates a fresh private root with umask ${mask}`, async () => {
     const parent = await mkdtemp(join(tmpdir(), "motion-fresh-service-root-"));
     const root = join(parent, "data");
-    const bundle = new URL("../dist/service-bundle.mjs", import.meta.url).pathname;
-    const worker = new URL("./fixtures/restrictive-umask-service-worker.mjs", import.meta.url).pathname;
+    const bundle = fileURLToPath(new URL("../dist/service-bundle.mjs", import.meta.url));
+    const worker = fileURLToPath(new URL("./fixtures/restrictive-umask-service-worker.mjs", import.meta.url));
     const child = spawn(process.execPath, [worker, bundle, root, mask], { stdio: ["pipe", "pipe", "pipe"] });
     const replies = [];
     createInterface({ input: child.stdout, crlfDelay: Infinity }).on("line", line => replies.push(JSON.parse(line)));
@@ -163,7 +164,7 @@ for (const mask of ["0022", "0777"]) {
 
 test("one service process handles errors and multiple durable requests", async () => {
   const root = await mkdtemp(join(tmpdir(), "motion-desktop-runner-"));
-  const child = spawn(process.execPath, [new URL("../dist/service-bundle.mjs", import.meta.url).pathname, root], { stdio: ["pipe", "pipe", "inherit"] });
+  const child = spawn(process.execPath, [fileURLToPath(new URL("../dist/service-bundle.mjs", import.meta.url)), root], { stdio: ["pipe", "pipe", "inherit"] });
   const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
   const replies = [];
   lines.on("line", line => replies.push(JSON.parse(line)));

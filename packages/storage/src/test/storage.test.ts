@@ -3,12 +3,13 @@ import { spawn, spawnSync } from "node:child_process";
 import { chmod, chown, link, mkdir, mkdtemp, readFile, readdir, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { ContentAddressedAttachmentStore, SqliteWorkspaceStore, type WorkspaceChangeSet } from "../index.js";
 
 const runCrashWorker = async (mode: "during-transaction" | "after-commit", databasePath: string) => {
   const worker = new URL("./fixtures/crash-worker.js", import.meta.url);
-  const child = spawn(process.execPath, [worker.pathname, mode, databasePath], { stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(process.execPath, [fileURLToPath(worker), mode, databasePath], { stdio: ["ignore", "pipe", "pipe"] });
   let stderr = "";
   child.stderr.setEncoding("utf8").on("data", chunk => { stderr += chunk; });
   const result = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
@@ -86,7 +87,7 @@ test("promotion rejects a staged pathname replacement without a production race 
   const root = await mkdtemp(join(tmpdir(), "motion-attachment-promotion-race-"));
   try {
     const worker = new URL("./fixtures/promotion-race-worker.js", import.meta.url);
-    const result = spawnSync(process.execPath, [worker.pathname, root], { encoding: "utf8" });
+    const result = spawnSync(process.execPath, [fileURLToPath(worker), root], { encoding: "utf8" });
     assert.equal(result.status, 0, `promotion race worker failed:\n${result.stdout}\n${result.stderr}`);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
@@ -496,7 +497,7 @@ test("hostile FTS syntax is tokenized and migrations are idempotent", async () =
     first.close();
     const second = new SqliteWorkspaceStore(path);
     const migrations = second.database.prepare("SELECT version FROM motion_migrations ORDER BY version").all() as { version: number }[];
-    assert.deepEqual(migrations.map(({ version }) => version), [1, 2, 3, 4, 5]);
+    assert.deepEqual(migrations.map(({ version }) => version), [1, 2, 3, 4, 5, 6]);
     const indexes = second.database.prepare("PRAGMA index_list('workspace_links')").all() as { name: string }[];
     assert.equal(indexes.filter(index => index.name === "workspace_links_backlinks_idx").length, 1);
     assert.throws(() => second.save("ws", 1, { id: "p", title: "stale" }, 0), /Revision conflict/);
@@ -533,7 +534,7 @@ test("private runtime paths ignore permissive and restrictive umasks without fol
     const root = await mkdtemp(join(tmpdir(), `motion-permissions-${mask}-`));
     try {
       const worker = new URL("./fixtures/permission-worker.js", import.meta.url);
-      const result = spawnSync(process.execPath, [worker.pathname, root, mask], { encoding: "utf8" });
+      const result = spawnSync(process.execPath, [fileURLToPath(worker), root, mask], { encoding: "utf8" });
       assert.equal(result.status, 0, result.stderr);
       const report = JSON.parse(result.stdout) as { root: number; attachmentsRoot: number; staging: number; bucket: number; attachment: number; databaseFiles: Record<string, number>; fileSymlinkRejected: boolean; directorySymlinkRejected: boolean; targetFile: number; targetDirectory: number };
       assert.deepEqual({ root: report.root, attachmentsRoot: report.attachmentsRoot, staging: report.staging, bucket: report.bucket }, { root: 0o700, attachmentsRoot: 0o700, staging: 0o700, bucket: 0o700 });

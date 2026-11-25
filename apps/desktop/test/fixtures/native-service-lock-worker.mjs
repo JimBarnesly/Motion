@@ -1,4 +1,5 @@
 import { appendFile } from "node:fs/promises";
+import { writeSync } from "node:fs";
 import { acquireNativeServiceLock } from "../../native-service-lock.mjs";
 
 const [dataRoot, mutationPath] = process.argv.slice(2);
@@ -15,6 +16,11 @@ try {
       } else if (command === "release") {
         await ownership.release();
         process.stdout.write(`${JSON.stringify({ type: "released" })}\n`);
+      } else if (command === "block") {
+        // Synchronous notification followed immediately by a blocked event loop
+        // reproduces SQLite/spawnSync work that cannot observe guardian exit yet.
+        writeSync(1, `${JSON.stringify({ type: "blocked" })}\n`);
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 60_000);
       }
     }
   });

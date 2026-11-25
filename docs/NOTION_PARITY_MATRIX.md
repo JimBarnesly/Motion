@@ -4,6 +4,18 @@ Status: implementation control document
 
 As-of candidate: `feat/notion-editor-chrome` at `1b49f3e` plus this document
 
+Resumption review: 2026-11-25, based on recovered `d413253` and
+`feat/windows-notebook-resume`. Updated rows below are candidates; historical
+"Complete" labels do not establish installed Windows or current release
+acceptance. See [the resumption record](DEVELOPMENT_RESUMPTION.md).
+
+Current delivery order: **Windows installer and installed offline acceptance
+first**, then practical local feature parity, under
+[the 25 November delivery contract](WINDOWS_1_0_DELIVERY.md). Cloud-only features
+remain outside that local parity target. Current work and evidence are recorded
+in [delivery state](DELIVERY_STATE.json); no historical "shipped" label is a
+claim that a Windows installer has passed.
+
 Research basis: [Notion product review](./NOTION_PRODUCT_REVIEW.md)
 
 ## Status vocabulary
@@ -48,7 +60,7 @@ A permissive type union or migration field is not a shipped feature.
 | Stable internal page links | Complete | Page-ID links survive rename and move | shipped |
 | Backlinks and outgoing links | Complete | Lifecycle-aware link context and deep block targets | shipped |
 | Create missing page from `[[…]]` | Complete | Exact-title de-duplication, canonical root page, stable-ID reference | shipped |
-| Page icon | Absent | No model or UI | Slice PAGE-1 |
+| Page icon | Model only | `Page.icon` exists; authoring and native mutation UI remain absent | Slice PAGE-1 |
 | Page cover | Absent | No model or UI | Slice PAGE-1 |
 | Font / small text / full width controls | Absent | Reading width is currently global | Slice PAGE-1 |
 | Page templates | Absent | `templateOriginId` is not an authoring/apply workflow | Slice TEMPLATE-1 |
@@ -67,15 +79,15 @@ A permissive type union or migration field is not a shipped feature.
 | To-do blocks | Complete | Checked state and list exit behavior | shipped |
 | Quote, code, divider | Complete | Canonical typed payloads | shipped |
 | Nested blocks / indent / outdent | Complete | Stable nested model and non-trapping shortcuts | shipped |
-| Split, merge, duplicate and move blocks | Complete | Canonical batch operations and history | shipped |
-| Multiline Markdown paste | Complete | One validated canonical batch | shipped |
+| Split, merge, duplicate and move blocks | Candidate | Native batches/history reused; browser Ctrl+D remaps all descendant IDs and rejects destructive leaf conversion. Actual nested undo/redo/reload regressions pass; candidate CI and installed writing acceptance remain. | Slice BLOCK-1 |
+| Multiline Markdown paste | Candidate | Actual parent/sibling placement retained for nested ordinary and leading-divider paste; real browser undo/redo/reload and native-core parity tests pass. Container-header semantics remain in the later toggle/callout slice. | Slice BLOCK-1 |
 | Markdown typing shortcuts | Complete | Headings, lists, task, quote, code and divider | shipped |
 | `@` page mentions and `[[…]]` links | Complete | Stable ID references; duplicate-title safe | shipped |
 | File block | Complete | Native canonical attachment identity and restart-safe access | shipped |
 | Contextual block gutter | Candidate | Type control is a 28 px six-dot target outside reading flow, shown on hover/focus | Slice UI-1 |
 | Slash command menu | Candidate | Filtered accessible listbox; selected transform and query removal use one `block.batch` | Slice EDIT-1 |
-| Toggle block | Model only | Core type exists; no production authoring/rendering behavior | Slice BLOCK-1 |
-| Callout block | Model only | Core type exists; no product UI | Slice BLOCK-1 |
+| Toggle block | Candidate | Existing canonical type now has slash/type authoring, child Enter/paste, persisted view-only folds, awaited search/backlink reveal and recoverable history. Integrated 107-case browser suite passes; exact-candidate CI and installed Windows writing remain pending. | Slice BLOCK-1 |
+| Callout block | Candidate | Existing canonical type now has authoring, nested writing and neutral presentation; canonical service restart/export/backup tests pass. Exact-candidate CI and installed Windows writing remain pending. | Slice BLOCK-1 |
 | Image block | Model only | Attachment payload exists; no image authoring/rendering workflow | Slice BLOCK-2 |
 | Bookmark block | Model only | URL payload validation exists; no preview UI | Slice BLOCK-2 |
 | Child-page block | Model only | Core payload exists; sidebar child pages are separate | Slice BLOCK-2 |
@@ -110,7 +122,7 @@ A permissive type union or migration field is not a shipped feature.
 | Property create/rename/reorder/delete | Complete | Tombstoned definitions preserve historic values | shipped |
 | Relation | Model only | Core relation config and value validation exist; no creation/editor/filter UI | Slice DB-3 |
 | Rollup | Absent | No canonical rollup property/aggregator | Slice DB-3 |
-| Formula | Absent | No canonical formula AST/evaluator in current exact tree | Slice DB-4 |
+| Formula | Partial component | `packages/formula` has parser, AST, evaluator and dependency tests; formula properties are not integrated into collections | Slice DB-4 |
 | Unique ID | Absent | Stable page ID is internal, not a configurable property | Slice DB-4 |
 | Person | Later | Requires user/identity model | V2 collaboration |
 | Button property | Absent | Requires safe action model | Slice AUTOMATION-1 |
@@ -124,12 +136,12 @@ A permissive type union or migration field is not a shipped feature.
 | Table view | Complete | Editing, widths, column order, visible properties | shipped |
 | List view | Complete | Saved view sharing same record identities | shipped |
 | Saved view create/duplicate/delete/select | Complete | Stable saved-view IDs and canonical persistence | shipped |
-| Nested AND/OR/NOT filters | Partial | Model supports nesting; UI builds one group of conditions | Slice DB-1 |
+| Nested AND/OR/NOT filters | Candidate | Recursive draft UI retains nested trees and failed Apply/Clear drafts. Explicit-null clearing now survives native JSON transport, SQLite reopen and export; omitted filters preserve prior state. Full119 browser suite and8 focused service/browser cases pass. | Slice DB-1 |
 | Multi-sort | Complete | Ordered stable clauses | shipped |
-| Relative-date filters | Model only | Operator accepted; runtime evaluation incomplete | Slice DB-1 |
-| Manual record ordering | Absent | Unsorted order follows canonical record ID list without reorder UI | Slice DB-1 |
-| Group/subgroup configuration | Model only | View fields exist; no complete UI/runtime | Slice BOARD-1 |
-| Board view | Candidate elsewhere | Implemented in isolated `/root/motion-m4-board`, not reviewed/integrated | Slice BOARD-1 |
+| Relative-date filters | Candidate | Core/browser evaluation, bounded preset controls, parity tests and saved-view persistence exist | Slice DB-1 |
+| Manual record ordering | Candidate | Canonical record-reorder command, pointer/keyboard UI, membership checks and restart/export tests exist | Slice DB-1 |
+| Group/subgroup configuration | Candidate / partial | Status/select grouping has confirmed local persistence and explicit unsupported-state handling; imported subgroup settings are preserved but rendering remains absent. | Slice BOARD-1 |
+| Board view | Candidate | Recovered canonical model extended with safe DOM lanes/cards, explicit-null moves, shared queries, original record pages and durable selection. All119 integrated browser cases pass, including actual SQLite-service restart; installed Windows board interaction remains pending. Dragging/lane reorder and subgroups remain gaps. | Slice BOARD-1 |
 | Calendar view | Absent | Type accepted but no renderer/interaction | Slice CALENDAR-1 |
 | Gallery view | Absent | Type accepted but no renderer/card configuration | Slice GALLERY-1 |
 | Timeline view | Absent | Type accepted but no date-range renderer | Slice TIMELINE-1 |
@@ -151,7 +163,7 @@ A permissive type union or migration field is not a shipped feature.
 | Native typed mutation boundary | Complete | Revisioned exact-shape commands |
 | Atomic browser mutation rollback | Complete | Failed browser saves restore exact confirmed state |
 | Durable attachment identity | Complete | Hash, length and canonical object path |
-| Backup/restore | Complete | Versioned verified native backup lane |
+| Backup/restore | Candidate | Versioned native lane exists; a real adapter byte-transport defect is fixed at a64ceb0 with an actual-service roundtrip, while installed UI restore verification is running |
 | Search after restart | Complete | Canonical native index and startup verification |
 | Unknown future block preservation | Complete | Open block type and `unknownData` round trip |
 | Architecture-isolated ARM validation | Complete at stabilization SHA | Fail-closed isolated Rust/Tauri job; lock fingerprint updated |
@@ -160,14 +172,14 @@ A permissive type union or migration field is not a shipped feature.
 | Reduced-motion support | Complete | Global reduced-motion rule |
 | Focus-visible consistency | Partial | Most controls covered; complete focus traversal audit still required |
 | Large-workspace stress | Partial | Storage/performance tests exist; historical 100k rollback defect remains unresolved |
-| Packaged graphical acceptance | Pending | Replacement AppImage must exercise actual UI → Tauri → native service path |
+| Packaged graphical acceptance | Partial | Windows fbdbbd8 installer opens and saves a page; native/installed storage tests pass, but full GUI restore/restart/reinstall is pending. Linux packaged service tests do not substitute for graphical acceptance. |
 
 ## Dependency-ordered delivery graph
 
 1. **Stabilization:** exact-SHA green CI, artifact qualification and graphical AppImage startup.
 2. **UI-1 + EDIT-1:** contextual editor chrome, quiet shell, utility disclosure and slash menu (current candidate).
 3. **DB-1:** relative-date evaluation, manual order and honest nested filter builder.
-4. **BOARD-1:** integrate and independently review the isolated Board candidate.
+4. **BOARD-1:** recover the historical Board candidate if available; no matching checkout or advertised implementation was recovered. Otherwise extend the existing canonical saved-view model and independently review the renderer.
 5. **INLINE-1:** canonical rich-text mark spans, selection toolbar, paste/export and migration behavior.
 6. **BLOCK-1/2:** toggle, callout, image and bookmark through validated payloads.
 7. **DB-2/3:** bulk/property conversion, relations and rollups.
@@ -176,3 +188,19 @@ A permissive type union or migration field is not a shipped feature.
 10. **Completeness pass:** page presentation, remaining blocks, import/export and accessibility/performance qualification.
 
 No slice is complete until its canonical model, typed application/native commands, browser fallback, persistence, backup/export behavior, accessibility contract, tests, exact-SHA CI and packaged behavior agree.
+
+
+### Historical board recovery check — 25 November 2026
+
+A repository-only follow-up searched all 235 reachable commits, retained remote
+PR refs, all-state PR inventory, issue pointers and local unreachable objects.
+The isolated `/root/motion-m4-board` claim first appears in commit
+`5b077dc8d7c107fe59fa4107da47f7fca9d5cf75`; the earlier product review in
+`27707d6115306a979648875210a758a57c2944d6` describes an unfinished worktree.
+Neither records an implementation commit, task artifact or archive. Exact
+board/kanban source history contains only view-type allowlist/model additions;
+no renderer or board acceptance test was recovered. The only retained PR is
+this continuation's PR #2. Board implementation must therefore extend the
+recovered model and database code unless the old worktree or an exact external
+commit/archive becomes available. No claim is made about code that may have
+remained uncommitted in that earlier environment.

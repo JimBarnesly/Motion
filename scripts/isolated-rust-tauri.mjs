@@ -10,6 +10,51 @@ const exactKeys = (value, keys) => value && typeof value === "object" && !Array.
   && Object.keys(value).sort().join("\0") === [...keys].sort().join("\0");
 const arg = name => { const index = process.argv.indexOf(name); return index < 0 ? undefined : process.argv[index + 1]; };
 const fail = () => { throw new Error("isolated Rust/Tauri validation input or environment was rejected"); };
+const MAX_INVENTORY_BYTES = 2 * 1024 * 1024;
+const MAX_INVENTORY_PACKAGES = 10_000;
+
+export function packageInventoryEvidence(result, expectedSha256) {
+  if (!/^[a-f0-9]{64}$/.test(expectedSha256 ?? "")) fail();
+  const status = Number.isSafeInteger(result?.status) && result.status >= 0 && result.status <= 255 ? result.status : null;
+  const signal = ["SIGABRT", "SIGBUS", "SIGFPE", "SIGHUP", "SIGILL", "SIGINT", "SIGKILL", "SIGPIPE", "SIGQUIT", "SIGSEGV", "SIGTERM"].includes(result?.signal)
+    ? result.signal : result?.signal ? "OTHER" : null;
+  const code = result?.error?.code;
+  const errorCode = result?.error ? ["EACCES", "E2BIG", "EIO", "ENOENT", "ENOBUFS", "EPERM", "ETIMEDOUT"].includes(code) ? code : "OTHER" : null;
+  const output = typeof result?.stdout === "string" ? result.stdout : "";
+  let packages = [];
+  let observedSha256 = null;
+  // Only package/version records from the fixed dpkg query may enter evidence.
+  // Never print arbitrary stdout, stderr, spawn errors, or command diagnostics.
+  if (output.length > 0 && Buffer.byteLength(output, "utf8") <= MAX_INVENTORY_BYTES && output.endsWith("\n")) {
+    const records = output.slice(0, -1).split("\n");
+    if (records.length <= MAX_INVENTORY_PACKAGES
+        && records.every(record => /^[a-z0-9][a-z0-9+.-]{0,199}(?::[a-z0-9][a-z0-9-]{0,31})?=[0-9][A-Za-z0-9.+:~\-]{0,255}$/.test(record))) {
+      packages = records.sort((left, right) => Buffer.compare(Buffer.from(left, "ascii"), Buffer.from(right, "ascii")));
+      observedSha256 = sha256(`${packages.join("\n")}\n`);
+    }
+  }
+  const commandSucceeded = status === 0 && signal === null && errorCode === null;
+  const inventoryComplete = commandSucceeded && observedSha256 !== null;
+  return {
+    schemaVersion: 1, check: "package-inventory",
+    verdict: inventoryComplete && observedSha256 === expectedSha256 ? "PASS" : "FAIL",
+    reason: !commandSucceeded ? "command-failed" : observedSha256 === null ? "invalid-inventory-output"
+      : observedSha256 !== expectedSha256 ? "inventory-hash-mismatch" : "matched",
+    expectedSha256, observedSha256, commandStatus: status, signal, errorCode,
+    inventoryComplete, packageCount: packages.length, packages
+  };
+}
+
+export function inspectPackageInventory(imageId, expectedSha256, run = spawnSync) {
+  if (!/^sha256:[a-f0-9]{64}$/.test(imageId ?? "")) fail();
+  let result;
+  try {
+    result = run("docker", ["run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+      "--user", "1000:1000", imageId, "/usr/bin/dpkg-query", "-W", "-f=${Package}=${Version}\\n"],
+    { encoding: "utf8", timeout: 120000, maxBuffer: MAX_INVENTORY_BYTES });
+  } catch (error) { result = { status: null, error }; }
+  return packageInventoryEvidence(result, expectedSha256);
+}
 
 export async function candidateFingerprint(root) {
   const names = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], { cwd: root })
@@ -70,9 +115,16 @@ async function main() {
     const [imageId, imageOs, imageArchitecture, imageUser] = inspect.stdout.trim().split("|");
     if (inspect.status !== 0 || !/^sha256:[a-f0-9]{64}$/.test(imageId)
       || imageOs !== "linux" || imageArchitecture !== "arm64" || imageUser !== "1000:1000") fail();
-    const packages = spawnSync("docker", ["run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-      "--user", "1000:1000", imageId, "sh", "-lc", "dpkg-query -W -f='${Package}=${Version}\\n' | LC_ALL=C sort | sha256sum | cut -d' ' -f1"], { encoding: "utf8", timeout: 120000 });
-    if (packages.status !== 0 || packages.stdout.trim() !== policy.image.packageInventorySha256) fail();
+    const inventory = inspectPackageInventory(imageId, policy.image.packageInventorySha256);
+    if (inventory.verdict !== "PASS") {
+      const summary = { ...inventory };
+      delete summary.packages;
+      process.stderr.write(`Isolated Rust/Tauri package inventory rejected: ${JSON.stringify(summary)}\n`);
+      // A separate failure artifact can be reviewed without being mistaken for
+      // the successful validation report. It contains only validated records.
+      await writePrivate(`${report}.diagnostic.json`, { ...inventory, imageId });
+      fail();
+    }
     const candidate = join(work, "candidate");
     const excluded = [join(root, ".project-office"), join(root, ".cache"), join(root, "artifacts"), join(root, "node_modules"), join(root, "apps/desktop/src-tauri/target")];
     await cp(root, candidate, { recursive: true, filter: path => !excluded.some(item => path === item || path.startsWith(`${item}/`)) });

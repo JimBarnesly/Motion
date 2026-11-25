@@ -15,7 +15,8 @@ export default defineConfig({
     ...devices["Desktop Chrome"]
   },
   webServer: {
-    command: "PORT=4187 npm run dev --workspace @motion/web",
+    command: "npm run dev --workspace @motion/web",
+    env: { PORT: "4187", HOST: "127.0.0.1" },
     url: "http://127.0.0.1:4187",
     reuseExistingServer: !process.env.CI,
     timeout: 30_000

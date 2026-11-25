@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { applyLocalEdit } from "../browser-edit-confirmation.js";
-import { decodeBinary } from "../app-adapter.js";
+import { decodeBinary, encodeBinary } from "../app-adapter.js";
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
@@ -75,7 +75,7 @@ test("schema-v2 typed edits use the canonical recoverable confirmation boundary"
 test("root creation is single-flight, truthful, rollback-safe, and restores deterministic focus", async () => {
   const source = await readFile(resolve(root, "app.js"), "utf8");
   const html = await readFile(resolve(root, "index.html"), "utf8");
-  assert.match(source, /function findBlockLocation\(blocks,id,parent=null\)/);
+  assert.match(source, /import \{[^}]*findBlockLocation[^}]*\} from "\.\/block-tree\.js"/);
   assert.match(source, /location\.blocks\.splice\(location\.index,1\)/);
   assert.match(source, /rootCreationInFlight/);
   assert.match(source, /const previous=structuredClone\(state\)/);
@@ -117,9 +117,11 @@ test("canonical editor exposes non-trapping indent and outdent through typed com
   assert.match(source, /aria-keyshortcuts="Alt\+BracketRight Alt\+BracketLeft"/);
   assert.match(source, /event\.key==="Tab"&&!mod&&!event\.altKey/);
   assert.match(source, /findByDataValue\("\[data-delete-block\]","deleteBlock",input\.dataset\.block\)/);
-  assert.match(source, /render\(\);findByDataValue\("\[data-block\]","block",block\.id\)\?\.focus\(\);return;/);
+  assert.match(source, /restoreVisibleEditorFocus\(\{blockId:block\.id,offset:0\}\);return;/);
   assert.doesNotMatch(source, /render\(\);requestAnimationFrame\(\(\)=>findByDataValue\("\[data-block\]","block",block\.id\)\?\.focus\(\)\);return;/);
-  assert.match(source, /style="--indent:\$\{depth\}"/);
+  assert.match(source, /data-indent="\$\{depth\}"/);
+  assert.match(source, /Number\.isSafeInteger\(value\) && value >= 0/);
+  assert.match(source, /element\.style\.setProperty\(cssProperty, String\(value\)\)/);
 });
 
 test("destructive block deletion and workspace replacement require cancellable confirmations", async () => {
@@ -544,7 +546,7 @@ test("normal native page and block editing source never calls whole-document sav
   assert.doesNotMatch(source, /adapter\.execute\(["']workspace\.import-web-v1/);
   assert.match(source, /confirmEditorHistory\(\{current:state,target/);
   assert.match(source, /nativeCommands\.execute\(type,payload\)/);
-  assert.match(source, /function rebuildLinks\(\) \{ if \(adapter\.kind === "tauri"\) return;/);
+  assert.match(source, /function rebuildLinks\(source=workspace\(\)\) \{ if \(adapter\.kind === "tauri"\) return source\?\.linkIndex/);
   assert.match(source, /nativeCommands\.execute\("workspace\.create"/);
   assert.equal([...source.matchAll(/adapter\.execute\(/g)].length, 1);
   assert.match(source, /createNativeCommandController\(\{execute:\(type,payload\)=>adapter\.execute\(type,payload\)/);
@@ -731,7 +733,9 @@ test("document editor handles multiline paste through one canonical block batch"
   const build = await readFile(resolve(root, "scripts/build.mjs"), "utf8");
   assert.match(source, /from "\.\/markdown-paste\.js"/);
   assert.match(source, /addEventListener\("paste"/);
-  assert.ok(source.indexOf('event.preventDefault();let commands;try{commands=multilinePasteCommands') > -1);
+  const handler=source.slice(source.indexOf('document.addEventListener("paste"'),source.indexOf('document.addEventListener("focusin"'));
+  assert.ok(handler.indexOf("event.preventDefault()") < handler.indexOf("await flushCanonicalEdit"));
+  assert.ok(handler.indexOf("await flushCanonicalEdit") < handler.indexOf("commands=multilinePasteCommands"));
   assert.match(source, /selectionTextParts\(input\)/);
   assert.match(source, /resolveReferences:referencesForText/);
   assert.match(source, /candidate:\{type:"block\.batch"/);
@@ -782,6 +786,27 @@ test("search remains available when every page is in Trash", async () => {
 test("verified backup JSON revives attachment payload byte envelopes", () => {
   const restored = decodeBinary(JSON.parse('{"files":{"attachment":{"$motionBytes":[0,127,255]}}}'));
   assert.deepEqual(restored.files.attachment, Uint8Array.of(0, 127, 255));
+});
+
+test("binary transport preserves nested byte views without changing the source", () => {
+  const backing = Uint8Array.of(99, 0, 127, 255, 88);
+  const source = { files: { proof: backing.subarray(1, 4), empty: new Uint8Array() }, nested: [Uint8Array.of(128)] };
+  const before = structuredClone(source);
+  const encoded = encodeBinary(source);
+  assert.deepEqual(encoded, {
+    files: { proof: { $motionBytes: [0, 127, 255] }, empty: { $motionBytes: [] } },
+    nested: [{ $motionBytes: [128] }]
+  });
+  assert.deepEqual(decodeBinary(JSON.parse(JSON.stringify(encoded))), source);
+  assert.deepEqual(source, before);
+  assert.deepEqual(backing, Uint8Array.of(99, 0, 127, 255, 88));
+});
+
+test("binary decoding rejects malformed byte envelopes instead of coercing their content", () => {
+  for (const bytes of [null, undefined, {}, "bytes", [-1], [256], [1.5], ["1"], [null], [true], [NaN], [Infinity], [undefined], Array(1)]) {
+    assert.throws(() => decodeBinary({ files: { proof: { $motionBytes: bytes } } }),
+      { name: "TypeError", message: "Invalid Motion byte envelope" });
+  }
 });
 
 test("verified backup creation delegates publication to the native safe-save boundary", async () => {

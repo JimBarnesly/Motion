@@ -1,0 +1,275 @@
+{
+  "schemaVersion": 1,
+  "headCommit": "a64ceb03a9fb773285ca8633e5c84981d396c5db",
+  "testedMergeCommit": "124e65bd8b8283847fa3683b2cf9423286e6b968",
+  "run": "https://github.com/JimBarnesly/Motion/actions/runs/45612288185",
+  "job": 139198627950,
+  "jobConclusion": "failure",
+  "artifact": "https://github.com/JimBarnesly/Motion/actions/runs/45612288185/artifacts/15021887477",
+  "artifactZip": {
+    "byteLength": 323821571,
+    "sha256": "e960bbbfbf2170c74563588fd6d96e7f3a119fe52778ff81387c6aafe3919ef8",
+    "independentlyDownloadedAndHashed": true
+  },
+  "installer": {
+    "name": "Motion_0.1.0_x64-setup.exe",
+    "byteLength": 323702624,
+    "sha256": "c6374c9d0dfdfec0b72a1053577a23c170df4c6780484cea80595161fc3ec5c4",
+    "independentlyHashedArchiveMember": true,
+    "built": true,
+    "installedIntoPathWithSpaces": true,
+    "releaseApproved": false
+  },
+  "tests": {
+    "rust": {
+      "passed": 28,
+      "failed": 0,
+      "ignored": 0
+    },
+    "windowsService": {
+      "passed": 23,
+      "failed": 0,
+      "skipped": 0
+    },
+    "startupGate": {
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0
+    },
+    "installedNative": {
+      "passed": 23,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "mappedShare": {
+    "schemaVersion": 1,
+    "commit": "124e65bd8b8283847fa3683b2cf9423286e6b968",
+    "status": "passed",
+    "phase": "complete",
+    "cleanupPassed": true,
+    "localNativeControls": true,
+    "localServiceControl": true,
+    "driveType": "Network",
+    "mappedReadWriteControl": true,
+    "nativeMappedVolumeRejected": true,
+    "installedServiceRejected": true,
+    "physicalTreeUnchanged": true,
+    "securityDescriptorsUnchanged": true,
+    "refusals": {
+      "existingDirectory": "ENOENT",
+      "newDirectory": "ENOENT",
+      "attachments": "ENOENT",
+      "backupInspection": "ENOENT",
+      "backupCreation": "ENOENT"
+    },
+    "node": "v24.22.3",
+    "nativeHelperSha256": "858a54239713718065f2c25661162d7ca98932177f97f38708434fee3d111133",
+    "serviceBundleSha256": "b94f1151abda26a017525cc26bd5d2069aef4a80d8da77fd98c49b99aff40ac1",
+    "cleanupFailures": []
+  },
+  "graphical": {
+    "status": "failed",
+    "startup": "passed",
+    "emptyNativeProfile": "passed",
+    "pageCreationAndTitleSave": "passed",
+    "bodyEditing": "passed: real Add block action, paragraph fill and Saved to Motion assertion completed before attachment selection",
+    "attachmentIngest": "failed: actual file-input selection produced No file selected; the expected attachment block was absent",
+    "failure": {
+      "selector": ".block-input.file",
+      "expectedText": "offline-proof.txt",
+      "timeoutMs": 5000,
+      "source": "scripts/windows-installed-ui.mjs:416",
+      "evidence": "installed-ui-failure.txt"
+    },
+    "nativeLoad": {
+      "outcome": "resolved",
+      "schemaVersion": 2,
+      "revision": 5,
+      "emptyWorkspace": false,
+      "pageCount": 1
+    },
+    "saveState": "No file selected",
+    "pageErrors": [],
+    "failedRequests": [],
+    "failedResponses": [],
+    "forbiddenRequestsObservedAfterControllerConnection": [],
+    "unexpectedDialogs": [],
+    "consoleObservations": [
+      "CSP blocked the IPC custom-protocol fetch; Tauri reported fallback to postMessage and the native load resolved",
+      "CSP rejected inline style attributes at app.js lines 229 and 251; this record does not treat those notices as a passing layout test"
+    ],
+    "installedAdapterBackupCreateVerifyPreview": "not reached",
+    "uiConfirmationAndRestoreIntoNewWorkspace": "not reached",
+    "restoredAttachmentBytesAndOriginalWorkspacePreservation": "not reached",
+    "secondInstalledGuiExclusionAndRetry": "not reached",
+    "normalWindowCloseAndRestart": "not reached",
+    "nativeSearchAfterRestart": "not reached",
+    "restartAndUninstallReinstall": "not reached"
+  },
+  "coreCI": {
+    "run": "https://github.com/JimBarnesly/Motion/actions/runs/45612288566",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "id": 139198629866,
+        "name": "verify",
+        "conclusion": "success"
+      },
+      {
+        "id": 139198629231,
+        "name": "Native desktop (aarch64)",
+        "conclusion": "success"
+      },
+      {
+        "id": 139198630057,
+        "name": "Native desktop (x86_64)",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "environment": {
+    "operatingSystem": "Microsoft Windows Server 2022 Datacenter 10.0.20348",
+    "runnerImage": "windows-2022",
+    "runnerImageVersion": "20261116.370.1",
+    "runnerSoftware": "https://github.com/actions/runner-images/blob/win22/20261116.370/images/windows/Windows2022-Readme.md",
+    "bundledNode": "v24.22.3",
+    "runtimeArchive": {
+      "source": "https://nodejs.org/dist/v24.22.3/node-v24.22.3-win-x64.zip",
+      "sha256": "e612af99f626ab415ea225af6bce5c971feb448cb5cae250bb1c3fa50c5f7d9f",
+      "evidence": "Checksum-verified runtime preparation output in the Windows job log"
+    },
+    "testControllerNode": "v24.18.0"
+  },
+  "evidenceFiles": [
+    {
+      "name": "SHA256SUMS.txt",
+      "byteLength": 94,
+      "sha256": "995f4bfc7ea42417baebc81535db37b3f12511fbde2a414ca9eda1618b391c6e"
+    },
+    {
+      "name": "installed-native-tests.log",
+      "byteLength": 2565,
+      "sha256": "52762ba6debf1bd80de0025449b2fdf6fe40c7c7ebb402c9a7c091cf9ab320c8"
+    },
+    {
+      "name": "installed-startup-diagnostics.json",
+      "byteLength": 8946,
+      "sha256": "a823e86e6948e3325031216b37c4a243552f21bea9b6eb6fbc82b24ea29e7d51"
+    },
+    {
+      "name": "installed-ui-failure.png",
+      "byteLength": 37851,
+      "sha256": "25dd1b5ed414b6f661e040c48511cdcfa9f221987c9def11a3e9bfe075a0776c"
+    },
+    {
+      "name": "installed-ui-failure.txt",
+      "byteLength": 652,
+      "sha256": "4f13bce3c87b9f4197d661e304d23342618aa48c7d68953ba43b66b3d453f616"
+    },
+    {
+      "name": "mapped-share-acceptance.json",
+      "byteLength": 858,
+      "sha256": "c7aa92cbd374edb72d3221b495b798e8129f21274f30fb07e39864cb9f510a7c"
+    },
+    {
+      "name": "mapped-share-prepare.log",
+      "byteLength": 60,
+      "sha256": "708456506b04f61fca80a572f77d70f815d70c27c47d0efb48c6852a9ddd493a"
+    },
+    {
+      "name": "mapped-share-verify.log",
+      "byteLength": 469,
+      "sha256": "a016835f3c3f632d41089f049509a366351937a7ddbb8f6eca8f512a085ca120"
+    }
+  ],
+  "evidenceFilesIndependentlyMatchedToArchive": true,
+  "nextCandidateChecks": {
+    "finalNsisEmbeddedWebViewPayloadGate": "not executed in this run; added for a later candidate",
+    "windowsAuthenticodeAndSignToolPayloadVerification": "not executed in this run; added for a later candidate",
+    "beforeAndAfterInstallWebViewInventory": "not executed in this run; added for a later candidate"
+  },
+  "limits": [
+    "Windows Server 2022 CI; no Windows 11 laptop acceptance yet",
+    "The job failed installed graphical acceptance; build, native tests and mapped-share success do not make this an accepted release",
+    "Initially absent WebView2 and fully offline installation are not proven by this runner",
+    "Installed backup/restore, original workspace preservation, concurrent GUI exclusion, normal close, restart and uninstall/reinstall were not reached",
+    "The native backup and attachment tests passed, but they do not substitute for the unreached installed graphical workflows",
+    "No final embedded WebView payload measurement or Windows trust verdict from a different candidate is attributed to this run",
+    "No outer-installer signature or release approval is inferred"
+  ],
+  "staticExecutableImportReview": {
+    "method": {
+      "extractor": "Verified official Linux 7-Zip 26.06",
+      "extractorSha256": "f94066e93f9a807547a3bff1021b3ec79d5ea4f57dfead018e9698182ad283b5",
+      "reader": "GNU objdump (GNU Binutils for Debian) 2.44",
+      "windowsExecutablesExecuted": false
+    },
+    "executables": [
+      {
+        "file": "motion-desktop.exe",
+        "byteLength": 9165824,
+        "sha256": "858a54239713718065f2c25661162d7ca98932177f97f38708434fee3d111133",
+        "format": "PE32+ x86-64",
+        "directImports": [
+          "bcryptprimitives.dll",
+          "advapi32.dll",
+          "ntdll.dll",
+          "kernel32.dll",
+          "user32.dll",
+          "api-ms-win-core-synch-l1-2-0.dll",
+          "comctl32.dll",
+          "shlwapi.dll",
+          "ole32.dll",
+          "gdi32.dll",
+          "dwmapi.dll",
+          "shell32.dll",
+          "oleaut32.dll",
+          "api-ms-win-crt-math-l1-1-0.dll",
+          "api-ms-win-crt-string-l1-1-0.dll",
+          "api-ms-win-crt-convert-l1-1-0.dll",
+          "api-ms-win-crt-runtime-l1-1-0.dll",
+          "api-ms-win-crt-stdio-l1-1-0.dll",
+          "api-ms-win-crt-locale-l1-1-0.dll",
+          "api-ms-win-crt-heap-l1-1-0.dll"
+        ],
+        "delayImportDirectory": {
+          "rva": 0,
+          "byteLength": 0
+        },
+        "noDynamicVcRuntimeOrStlImports": true
+      },
+      {
+        "file": "node-runtime.exe",
+        "byteLength": 93944648,
+        "sha256": "86fc4785327db5f5c7558dc6156c543b433c313e813a222e088086222ab4afa6",
+        "format": "PE32+ x86-64",
+        "directImports": [
+          "CRYPT32.dll",
+          "WS2_32.dll",
+          "USER32.dll",
+          "dbghelp.dll",
+          "ADVAPI32.dll",
+          "IPHLPAPI.DLL",
+          "USERENV.dll",
+          "SHELL32.dll",
+          "ole32.dll",
+          "WINMM.dll",
+          "KERNEL32.dll"
+        ],
+        "delayImportDirectory": {
+          "rva": 0,
+          "byteLength": 0
+        },
+        "noDynamicVcRuntimeOrStlImports": true
+      }
+    ],
+    "bundledNodeMatchesOfficialArchive": {
+      "archiveByteLength": 37762649,
+      "archiveSha256": "e612af99f626ab415ea225af6bce5c971feb448cb5cae250bb1c3fa50c5f7d9f",
+      "nodeByteLength": 93944648,
+      "nodeSha256": "86fc4785327db5f5c7558dc6156c543b433c313e813a222e088086222ab4afa6"
+    },
+    "limit": "Static direct and delay-import inspection only. Windows system DLLs and the separately installed WebView2 engine were not available for recursive symbol resolution here; clean Windows 11 installation/launch is unproven."
+  }
+}

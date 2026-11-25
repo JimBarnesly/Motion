@@ -1,5 +1,6 @@
 node_modules/
 target/
+/apps/desktop/src-tauri/gen/
 packages/*/package-lock.json
 dist/
 dist-ts/

@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { candidateFingerprint, verifyInputs } from "./isolated-rust-tauri.mjs";
+import { candidateFingerprint, inspectPackageInventory, packageInventoryEvidence, verifyInputs } from "./isolated-rust-tauri.mjs";
 
 const digest = value => createHash("sha256").update(value).digest("hex");
 
@@ -41,4 +41,81 @@ test("rootless validation copies the exact read-only candidate into private exec
   assert.match(source, /name\.startsWith\("\.project-office\/"\) && !name\.startsWith\("\.cache\/"\)/);
   assert.match(source, /const excluded = \[join\(root, "\.project-office"\), join\(root, "\.cache"\)/);
   assert.doesNotMatch(source, /type=bind,src=\$\{candidate\},dst=\/workspace/);
+});
+
+test("package inventory preserves the pinned LC_ALL=C sorted-byte hash and reports exact mismatch evidence", () => {
+  const canonical = "apt=2.6.1\nbase-files=12.4+deb12u12\nlibc6:arm64=2.36-9+deb12u13\n";
+  const observed = digest(canonical);
+  const result = { status: 0, signal: null,
+    stdout: "libc6:arm64=2.36-9+deb12u13\napt=2.6.1\nbase-files=12.4+deb12u12\n" };
+  const matched = packageInventoryEvidence(result, observed);
+  assert.equal(matched.verdict, "PASS");
+  assert.equal(matched.observedSha256, observed);
+  assert.equal(matched.inventoryComplete, true);
+  assert.equal(matched.packageCount, 3);
+  assert.deepEqual(matched.packages, canonical.trim().split("\n"));
+  const rejected = packageInventoryEvidence(result, "f".repeat(64));
+  assert.equal(rejected.verdict, "FAIL");
+  assert.equal(rejected.reason, "inventory-hash-mismatch");
+  assert.equal(rejected.expectedSha256, "f".repeat(64));
+  assert.equal(rejected.observedSha256, observed);
+  assert.equal(rejected.commandStatus, 0);
+});
+
+test("a failed inventory command cannot pass even when stdout matches the pinned hash", () => {
+  const stdout = "apt=2.6.1\n", expected = digest(stdout);
+  for (const execution of [
+    { status: 2, stdout },
+    { status: 0, stdout, signal: "SIGTERM" },
+    { status: 0, stdout, error: Object.assign(new Error("private command diagnostic"), { code: "ENOBUFS" }) }
+  ]) {
+    const result = packageInventoryEvidence(execution, expected);
+    assert.equal(result.verdict, "FAIL");
+    assert.equal(result.reason, "command-failed");
+    assert.equal(result.inventoryComplete, false);
+    assert.equal(result.observedSha256, expected);
+    assert.doesNotMatch(JSON.stringify(result), /private command diagnostic/);
+  }
+});
+
+test("inventory diagnostics bound and validate records and never expose arbitrary process output", () => {
+  const sensitive = "DO_NOT_LOG_private_token";
+  for (const stdout of [
+    sensitive, `apt=2.6.1\n${sensitive}\n`, "apt=2.6.1\r\n", "apt=2.6.1", "", "a".repeat(2 * 1024 * 1024 + 1),
+    "apt=2.6.1\n".repeat(10_001), "../private=1\n", "apt=1;secret\n"
+  ]) {
+    const result = packageInventoryEvidence({ status: 0, stdout, stderr: sensitive }, "a".repeat(64));
+    assert.equal(result.verdict, "FAIL");
+    assert.equal(result.reason, "invalid-inventory-output");
+    assert.equal(result.observedSha256, null);
+    assert.deepEqual(result.packages, []);
+    assert.doesNotMatch(JSON.stringify(result), /DO_NOT_LOG|private_token|stderr|\.\.\//);
+  }
+  const failed = packageInventoryEvidence({ status: null, stdout: sensitive, stderr: sensitive,
+    signal: sensitive, error: { code: sensitive, message: sensitive } }, "a".repeat(64));
+  assert.equal(failed.signal, "OTHER");
+  assert.equal(failed.errorCode, "OTHER");
+  assert.doesNotMatch(JSON.stringify(failed), /DO_NOT_LOG|private_token/);
+});
+
+test("inventory collection preserves confinement and observes dpkg failure directly without a masking shell pipeline", () => {
+  const image = `sha256:${"b".repeat(64)}`, output = "apt=2.6.1\n";
+  let execution;
+  const result = inspectPackageInventory(image, digest(output), (command, args, options) => {
+    execution = { command, args, options };
+    return { status: 0, stdout: output };
+  });
+  assert.equal(result.verdict, "PASS");
+  assert.equal(execution.command, "docker");
+  assert.deepEqual(execution.args, ["run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+    "--user", "1000:1000", image, "/usr/bin/dpkg-query", "-W", "-f=${Package}=${Version}\\n"]);
+  assert.equal(execution.options.maxBuffer, 2 * 1024 * 1024);
+  assert.equal(execution.options.timeout, 120000);
+  const unavailable = inspectPackageInventory(image, digest(output), () => {
+    throw Object.assign(new Error("do not expose an environment secret"), { code: "ENOENT" });
+  });
+  assert.equal(unavailable.reason, "command-failed");
+  assert.equal(unavailable.errorCode, "ENOENT");
+  assert.doesNotMatch(JSON.stringify(unavailable), /environment secret/);
+  assert.throws(() => inspectPackageInventory("untrusted image", digest(output), () => assert.fail("Invalid image must not execute")), /rejected/);
 });

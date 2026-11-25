@@ -52,6 +52,8 @@ export interface DatabaseView {
   calendarDatePropertyId?: ID; timelineStartPropertyId?: ID; timelineEndPropertyId?: ID;
   permissions?: Record<string, unknown>; scope?: "personal" | "shared";
 }
+/** Omitted filters are preserved; explicit null removes them across JSON transport. */
+export type DatabaseViewPatch = Partial<Omit<DatabaseView, "id" | "collectionId" | "type" | "filters">> & { filters?: FilterExpression | null };
 export interface Database { id: ID; pageId: ID; name: string; properties: DatabaseProperty[]; propertyOrder?: ID[]; titlePropertyId?: ID; rows: DatabaseRow[]; recordPageIds?: ID[]; views: DatabaseView[] }
 export interface PageLink { sourcePageId: ID; targetPageId: ID; blockId: ID }
 export interface Workspace { schemaVersion: typeof WORKSPACE_SCHEMA_VERSION; id: ID; name: string; pages: Page[]; databases: Database[]; attachments: Attachment[]; linkIndex: PageLink[]; createdAt: ISODate; updatedAt: ISODate }

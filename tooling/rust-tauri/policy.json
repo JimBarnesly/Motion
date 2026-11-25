@@ -6,7 +6,7 @@
     "rustBaseDigest": "sha256:1e1a513eb893a8638b62724043a1903475ae09fd92b67eb2dfe31996c5ae120d",
     "os": "linux",
     "architecture": "arm64",
-    "packageInventorySha256": "b0688c9fd001227bf2f166933af39adadd24e677be964a08e332cff06dcc349b"
+    "packageInventorySha256": "ae8424483f12f431dacc6b7d44cf0bd596a6b4481cd3d86e9c2f3cad20fd6ba2"
   },
   "rust": {
     "version": "1.97.1",
@@ -14,7 +14,7 @@
     "cargoSha256": "c5dcff701935f50505c9c5df7ee941a9de4f29d84ab91627c396848accef1808"
   },
   "inputs": {
-    "cargoLockSha256": "afa6104bf7c2d937e81bd1942df4c5544cdc245ae50aafd182ee013c8223af1d",
+    "cargoLockSha256": "154f7934089d10ee4d1eb3a944fc1c2fc140da7ffdba4030c2545c42270ee623",
     "packageLockSha256": "99c8d6b3e86964e2cd77a9379fc54b7ff8fc9617a5dd383b2bfe8fb8a81d51f6"
   }
 }

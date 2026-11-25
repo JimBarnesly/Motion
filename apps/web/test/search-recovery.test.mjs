@@ -22,8 +22,8 @@ const workspace = {
 
 test("browser canonical search covers titles, nested blocks, record properties, and attachment filenames", () => {
   assert.deepEqual(buildBrowserSearchHits(workspace, "pump").map(hit => hit.entityId), ["page-z"]);
-  assert.deepEqual(buildBrowserSearchHits(workspace, "nested calibration").map(hit => hit.entityId), ["page-z"]);
-  assert.deepEqual(buildBrowserSearchHits(workspace, "pump photo").map(hit => hit.entityId), ["page-z"]);
+  assert.deepEqual(buildBrowserSearchHits(workspace, "nested calibration").map(hit => hit.entityId), ["block-2"]);
+  assert.deepEqual(buildBrowserSearchHits(workspace, "pump photo").map(hit => hit.entityId), ["block-1"]);
   assert.deepEqual(buildBrowserSearchHits(workspace, "flow stable").map(hit => hit.entityId), ["record-a", "record-b"]);
   const attachment = buildBrowserSearchHits(workspace, "commissioning proof")[0];
   assert.deepEqual({ entityId: attachment?.entityId, ownerEntityId: attachment?.ownerEntityId }, { entityId: "record-b", ownerEntityId: "table-page" });
@@ -97,4 +97,10 @@ test("web integration renders search with DOM text, retry, and stable focus hook
   assert.doesNotMatch(searchSource, /innerHTML|insertAdjacentHTML/);
   assert.match(build, /search-recovery\.js/);
   assert.match(html, /id="searchResults"[^>]+role="status"[^>]+aria-live="polite"/);
+});
+
+test("block search targets require an extant block in their live owning page", () => {
+  assert.equal(resolveSearchTarget({ entityType: "block", entityId: "missing", ownerEntityId: "page-z" }, workspace), null);
+  const trashed = structuredClone(workspace);trashed.pages[0].deletedAt = "2026-11-25T00:00:00Z";
+  assert.equal(resolveSearchTarget({ entityType: "block", entityId: "block-2", ownerEntityId: "page-z" }, trashed), null);
 });

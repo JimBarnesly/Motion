@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "headCommit": "fbdbbd8170781472b0118ef87e9a45ee38ab68ce",
+  "testedMergeCommit": "b62797a0002802c9ce54fc6fbefbe6c38e16c064",
+  "run": "https://github.com/JimBarnesly/Motion/actions/runs/45608035891",
+  "job": 139183935266,
+  "artifact": "https://github.com/JimBarnesly/Motion/actions/runs/45608035891/artifacts/15020031511",
+  "artifactZip": {
+    "byteLength": 323835149,
+    "sha256": "6b7ffb3813f8f2534571b981229db83122e1ce4fc1bfc1454445d30ff0336aa0",
+    "independentlyDownloadedAndHashed": true
+  },
+  "installer": {
+    "name": "Motion_0.1.0_x64-setup.exe",
+    "byteLength": 323719384,
+    "sha256": "adbd9be9d031425d8f6813d4edec96e2c057bf509551353abf9325716631cbe5",
+    "independentlyHashedArchiveMember": true,
+    "built": true,
+    "installedIntoPathWithSpaces": true,
+    "releaseApproved": false
+  },
+  "tests": {
+    "rust": {
+      "passed": 28,
+      "failed": 0,
+      "ignored": 0
+    },
+    "windowsService": {
+      "passed": 23,
+      "failed": 0,
+      "skipped": 0
+    },
+    "startupGate": {
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0
+    },
+    "installedNative": {
+      "passed": 23,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "mappedShare": {
+    "schemaVersion": 1,
+    "commit": "b62797a0002802c9ce54fc6fbefbe6c38e16c064",
+    "status": "passed",
+    "phase": "complete",
+    "cleanupPassed": true,
+    "localNativeControls": true,
+    "localServiceControl": true,
+    "driveType": "Network",
+    "mappedReadWriteControl": true,
+    "nativeMappedVolumeRejected": true,
+    "installedServiceRejected": true,
+    "physicalTreeUnchanged": true,
+    "securityDescriptorsUnchanged": true,
+    "refusals": {
+      "existingDirectory": "ENOENT",
+      "newDirectory": "ENOENT",
+      "attachments": "ENOENT",
+      "backupInspection": "ENOENT",
+      "backupCreation": "ENOENT"
+    },
+    "node": "v24.22.3",
+    "nativeHelperSha256": "578db77348c3c346bc040f852e4b0f93bb04d975b5bb6bcd5597e3d181a40ec9",
+    "serviceBundleSha256": "b94f1151abda26a017525cc26bd5d2069aef4a80d8da77fd98c49b99aff40ac1",
+    "cleanupFailures": []
+  },
+  "graphical": {
+    "status": "failed",
+    "startup": "passed",
+    "pageCreationAndTitleSave": "passed",
+    "bodyEditing": "not reached: fixture omitted the real Add block action",
+    "nativeLoad": {
+      "outcome": "resolved",
+      "schemaVersion": 2,
+      "revision": 3,
+      "emptyWorkspace": false,
+      "pageCount": 1
+    },
+    "saveState": "Saved to Motion",
+    "pageErrors": [],
+    "restartAndUninstallReinstall": "not reached"
+  },
+  "limits": [
+    "Windows Server 2022 CI; no Windows 11 laptop acceptance yet",
+    "Initially absent WebView2 and fully offline installation are not proven by this runner",
+    "Installed restore, concurrent GUI exclusion and restart/reinstall still require successful execution",
+    "No outer-installer signature or release approval is inferred"
+  ],
+  "embeddedWebView": {
+    "member": "$TEMP/MicrosoftEdgeWebView2RuntimeInstaller.exe",
+    "byteLength": 294099168,
+    "sha256": "47bc51387aff95c1275ce38cfbbb5fbab99b43b33214049877bbcdbcc7a970d5",
+    "staticExtractionToolVersion": "7-Zip 26.06 Linux x64",
+    "matchesReviewed0d1dd27Payload": true,
+    "windowsTrust": "Not performed in this static inspection"
+  }
+}

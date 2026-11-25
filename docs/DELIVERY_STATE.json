@@ -1,0 +1,329 @@
+{
+  "schemaVersion": 1,
+  "targetDate": "2026-12-03",
+  "timezone": "Australia/Perth",
+  "branch": "feat/windows-notebook-resume",
+  "pullRequest": 2,
+  "releaseStatus": "in-development",
+  "priority": "Restore executable workspace access; continue actual Windows Save As and offline installer acceptance before local feature expansion",
+  "lastVerifiedCommit": "820998286a9083c0edbe663e6981945e59ad0ec4",
+  "activeLease": null,
+  "continuationAutomation": "Automation_1b45f83f28188191b31f671c6229efd8",
+  "completed": [
+    "Recovered existing advanced branch",
+    "Editor reliability and nested filters",
+    "Attachment metadata import hardening",
+    "Local baseline tests and Linux x64 packaged CI",
+    "Implemented independently source-reviewed Windows native storage, attachments, backup and UI-state candidates",
+    "Added pinned local runtime, per-user offline NSIS packaging and installed acceptance workflow",
+    "Executed real Windows in-place junction and inherited-ACL preservation attack regressions: all four pass at 57db2c8",
+    "Resolved the exact five-package Debian security inventory drift; ARM isolated validation now passes",
+    "Complete core CI and Linux x64 packaged acceptance pass at 57db2c8",
+    "Windows candidate 0d1dd27 passed all 27 native Rust tests and all 23 Windows filesystem/service tests with no skips",
+    "Built and installed the actual current-user Windows NSIS candidate into a path with spaces; installed native suite passed 23/23",
+    "Complete core verification, Linux x64 packaged acceptance and ARM64 isolated/package/offline acceptance all passed at 0d1dd27",
+    "Bundled Node24.22.3 passed the exact Tauri canonical-path regression on Windows; actual installed GUI opened and saved a page at fbdbbd8",
+    "All 28 Windows Rust tests, 23 native/service tests, three startup-gate tests and 23 installed native tests passed at fbdbbd8",
+    "Real mapped-SMB positive controls, all mapped-volume refusals, physical/security preservation and exact fixture cleanup passed at fbdbbd8",
+    "Both Linux x64 and ARM64 native/package/offline jobs passed at fbdbbd8",
+    "Complete core verification and both Linux native/package/offline jobs passed at a64ceb0",
+    "Actual installed Windows page/title and body editing passed at a64ceb0; all prior native and mapped-SMB checks remained green",
+    "Reproduced and corrected the real attachment FileList clearing defect, strict-CSP layout defect and browser page lifecycle durability race",
+    "8209982 passed complete installed Windows baseline: exact Microsoft prerequisite trust, installation, 23 installed native cases, actual attachment/backup/confirmed restore, same-GUI ownership Retry, restart/search and uninstall/reinstall preservation under outbound firewall blocking",
+    "8209982 passed complete core CI including all 86 browser cases and both Linux x64 and ARM64 native/package/offline jobs",
+    "503ae3d passed complete core CI with 89 browser cases plus both Linux packaged/native/offline jobs, covering reviewed nested writing and native nested-search repair",
+    "b295a52 passed all 94 browser cases and complete core/Linux x64/ARM64 CI; real installed Windows now reports the backup validation failure visibly with no unhandled rejection",
+    "c6844f9 passed complete core verification with107 browser cases and both Linux x64/ARM64 native/package/offline jobs",
+    "Integrated independently reviewed local Board UI and explicit-null filter clearing; full119-case browser suite and8 focused real-service/browser tests passed"
+  ],
+  "next": [
+    "Inspect this exact recovery candidate's general/Linux and Windows CI; require native Save As intended disk bytes and complete installed lifecycle",
+    "Restore an executable workspace, inspect all existing worktrees without overwriting them, and recover the reviewed staged changes by exact path/hash from WORKSPACE_RECOVERY_2026-11-25.json",
+    "Correct the inline test-only credential fixture through structured URL components, re-run its focused suite and secret scan, and update evidence hashes before publication; scanner policy remains unchanged",
+    "Recover installed Board helper/actual-service test and canonical backup preview count correction, integrate with current startup controller, and qualify through actual Windows controls",
+    "Recover pilot worker identity diagnostics before retrying real licence inspection and offline runtime qualification; exact mismatched executable/session is still unknown",
+    "Complete Gallery browser and actual-service verification, then coordinate the entire canonical3 formatting slice using INLINE_V3_IMPLEMENTATION_PLAN.md",
+    "Regenerate exact PR2 governance comparison when integrating offline pilot; obtain genuine initially absent WebView2 and Windows11 first-install evidence"
+  ],
+  "openBlockers": [
+    "The development execution environment became unavailable; local filesystem/build/browser/test commands cannot run. GitHub remains accessible. Unpublished work is recorded for exact recovery, not treated as lost or safely persisted.",
+    "At e17b33c, installed acceptance stopped before readiness with an execution context destroyed during initial navigation. This candidate waits for the exact application URL and DOMContentLoaded. Actual execution remains required.",
+    "At c6844f9, real Save As delivered166/166 input events under exact focus but the following combined dialog guard failed before filename readback or Save. Intended saved bytes and full installed lifecycle remain unproven for subsequent candidates.",
+    "Genuinely absent WebView2 and Windows11 hardware first installation remain unproven. Pilot f7f3ea6 stopped at retained worker executable/session guard before licence inspection, firewall, runtime upgrade or active-engine observation.",
+    "Practical local feature parity remains unfinished. Board and toggle/callout are published tested candidates; Gallery is local/unpublished and inline formatting has only a reviewed unused local helper and design.",
+    "Existing human Code Owner review remains outstanding. Preserve all existing release/security gates and regenerate the exact five-file governance comparison for PR2 when integrating the pilot."
+  ],
+  "notes": "At e17b33c, all three general CI jobs failed the same obsolete source-import assertion after filtering moved through record-selector.js. Windows built/installed and passed native gates but stopped at the first page.evaluate during initial navigation, before readiness, container writing or Save As. This narrow recovery candidate corrects that source assertion and synchronizes the acceptance document before evaluation, preserving all later gates. The development environment disconnected on 25 November at about17:47UTC before the prepared15-file MAIN and6-file pilot candidates were published. Their exact local files and validation must be recovered; do not report them as shipped. Larger Gallery and inline-schema work is not released. See WORKSPACE_RECOVERY_2026-11-25.json.",
+  "candidateVerification": {
+    "portableWorkspaceTests": {
+      "passed": 426,
+      "failed": 0,
+      "skipped": 1,
+      "note": "Combined existing full workspace run plus final desktop and storage reruns; skip is the inherited root-privilege test."
+    },
+    "typecheck": "passed",
+    "build": "passed",
+    "dependencyInventory": "436 production packages, passed",
+    "sourceSecurity": "122 first-party files, 8 unchanged rules passed; one existing HTML fingerprint rebound after reviewed strict-CSP layout fix",
+    "windowsNativeCompile": "Passed full debug/release Tauri compilation at 8209982",
+    "fullWindowsTauriBuild": "NSIS built, installed and full installed baseline passed at 8209982 on Windows Server 2022",
+    "windowsExecution": {
+      "commit": "820998286a9083c0edbe663e6981945e59ad0ec4",
+      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45624078077",
+      "rust": {
+        "passed": 28,
+        "failed": 0,
+        "ignored": 0
+      },
+      "adversarialJunctionAndAclTests": {
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0
+      },
+      "javascript": {
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0
+      },
+      "startupGateTests": {
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0
+      },
+      "installedNativeTests": {
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0
+      },
+      "installer": {
+        "built": true,
+        "installed": true,
+        "sha256": "819fe5c375fc9be10d1c4605678562b9fbe49d3b929d2fa1d19733b6ffe64e09",
+        "artifact": "https://github.com/JimBarnesly/Motion/actions/runs/45624078077/artifacts/15028359148"
+      },
+      "installedAcceptance": "PASS: native adapter, empty profile, page/title/body, attachment, backup verify/preview/confirmed new-identity restore, original/attachment preservation, concurrent GUI rejection and same-GUI Retry, normal close/restart/search",
+      "uninstallReinstall": "PASS: all notebook files survive uninstall; selected original/restored snapshots and exact attachment bytes survive reinstall",
+      "testedMergeCommit": "f1f0e6b180fa50269c955bc64203819b4699c74e",
+      "mappedShare": "PASSED: reachable local and mapped controls, five native refusals, service refusal, unchanged physical/security snapshots, exact cleanup"
+    },
+    "linuxX64Packaged": "Passed139312278777 at9444028",
+    "completeCoreCi": "Passed verify139312278102 at9444028 with94 browser cases and existing gates",
+    "arm64IsolatedValidation": "Passed139312278843 at9444028",
+    "startupRecoveryBrowserTests": {
+      "passed": 75,
+      "failed": 0,
+      "skipped": 0,
+      "note": "Complete local Chromium suite after the startup-recovery change; Windows startup diagnostics and mapped-SMB fixture still require the next native CI run."
+    },
+    "runtimeCandidate": {
+      "version": "24.22.3",
+      "officialRelease": "https://nodejs.org/en/blog/release/v24.22.3",
+      "namespacedPathFix": "https://github.com/nodejs/node/pull/65378",
+      "focusedRuntimeContractTests": 26,
+      "windowsExecution": "PASSED at 8209982: full installed notebook/backup/restore/ownership/restart/reinstall baseline",
+      "verifiedArchives": [
+        "linux-x64.tar.xz",
+        "win-x64.zip"
+      ],
+      "linuxBundledStartupGateTests": {
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0
+      },
+      "windowsRegressionCompile": "Full actual Windows Tauri debug/release builds and native regression execution passed at a64ceb0"
+    },
+    "latestCoreCi": "All three jobs failed at e17b33c in run45663035557 on the same obsolete relative-date.test.mjs direct-import assertion; last all-green general/Linux run was c6844f9 run45656813712.",
+    "backupCodecCandidate": {
+      "actualServiceRoundtrip": "passed locally and in complete core CI at a64ceb0, with real workspace and binary attachment, file publication, corruption rejection and new-identity restore",
+      "webAdapterTests": 54,
+      "installedAcceptance": "PASSED at 8209982 with encoded native backup and real UI restore",
+      "nativeSaveDialog": "The real dialog opens, but focus-only text setting at 4dfed50 still returned the original default path. The actual requested destination, saved bytes and complete lifecycle must pass with this keyboard candidate."
+    },
+    "installerPayloadGateCandidate": {
+      "localContractTests": 8,
+      "windowsExecution": "PASSED at 8209982: actual SignTool /pa /ds 0 /tw /v exit0, independent embedded Authenticode Valid Microsoft certificate/timestamp/version, exact byte pins and cleanup",
+      "inventory": "Actual before/after observes existing machine 131.0.2903.86 unchanged; genuineAbsenceProven=false",
+      "upload": "NSIS candidate upload requires payload verification success; diagnostic evidence is retained separately"
+    },
+    "rendererDurabilityCandidate": {
+      "chromium": {
+        "passed": 86,
+        "failed": 0,
+        "skipped": 0,
+        "note": "Complete final suite after attachment FileList, strict-CSP layout, IndexedDB lifecycle durability and mobile restore correction"
+      },
+      "webAndActualServiceTests": {
+        "passed": 55,
+        "failed": 0,
+        "skipped": 0
+      },
+      "allWorkspaceTypecheck": "passed",
+      "lint": "passed: 162 JavaScript files and 51 JSON files",
+      "secretScan": "passed: 425 tracked/non-ignored files with unchanged scanner policy",
+      "nativeSelectionSaveFailure": "source reviewed; no new injected native failure fixture",
+      "windowsExecution": "Full installed baseline passed at 8209982",
+      "confinementCorrection": {
+        "unchangedGatePassed": 19,
+        "lifecycleCasesPassed": 8,
+        "sourceReview": "passed independently",
+        "completeCi": "Passed at 8209982 including all 86 browser cases"
+      }
+    },
+    "windowsPrerequisiteAttempt": {
+      "headCommit": "28a41800a80ae23125768e820e1f9b8ddabadd26",
+      "testedMergeCommit": "2d18bdba66da9ea26ec4f92d767c92fca411e93c",
+      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45619140961",
+      "job": 139222344506,
+      "rust": 28,
+      "nativeService": 23,
+      "installerBuilt": true,
+      "installerExecuted": false,
+      "installerUploaded": false,
+      "status": "failed: all-signatures trust requirement rejected additional untrusted EdgeBuild signature",
+      "completePayloadBytesAndSdkTrust": "passed",
+      "correctedPrimarySignatureAndPayloadProbe": "pending next Windows candidate"
+    },
+    "nestedWritingCandidate": {
+      "newBrowserPassed": 3,
+      "existingKeyboardAccessibilityPassed": 12,
+      "nativeParityAndConfinementPassed": 33,
+      "review": "editor foundation review and root integration review passed",
+      "ci": "Complete general CI and both Linux jobs passed at 503ae3d",
+      "windowsWriting": "not exercised by baseline"
+    },
+    "nestedSearchCandidate": {
+      "storageAndServicePassed": 70,
+      "failures": 0,
+      "skips": 0,
+      "priorMigrationSqlUnchanged": 5,
+      "derivedRepairMigration": 6,
+      "canonicalJsonSchemaRevisionTimestampPreserved": true,
+      "review": "independent editor and root review passed",
+      "ci": "Complete general CI and both Linux jobs passed at 503ae3d"
+    },
+    "nativeSaveDialogAttempt": {
+      "headCommit": "9444028353a2568b2f0bb062cdc0e03be2500c2d",
+      "testedMergeCommit": "9840594e63c933feba955359b2ebb101a4db0c56",
+      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45644660654",
+      "job": 139312277713,
+      "installedNativePassed": 23,
+      "nativeIdentityNegativeControl": "passed",
+      "actualDialogOpened": "passed",
+      "controlSelection": "passed",
+      "exactDestinationReadBack": "passed",
+      "saveInvokedAndDialogClosed": "passed",
+      "applicationSaveCompletion": "Refused unintended original default path with native EACCES; requested fixture destination was not returned by the dialog.",
+      "savedFileValidation": "not reached",
+      "correction": "Authenticate and observe focus on the retained filename Edit before SetValue, move focus to the retained Save control, recheck the exact text, then Invoke once. Actual saved destination bytes remain authoritative.",
+      "selectedExpectedFileExists": false,
+      "independentExpectedPathInspection": "passed: exists false",
+      "unhandledRejections": 0
+    },
+    "backupRecoveryCandidate": {
+      "newBrowserCasesPassed": 5,
+      "existingNativeRestoreBrowserCasesPassed": 1,
+      "existingBackupUnitTestsPassed": 5,
+      "coordinatorAndConfinementTestsPassed": 22,
+      "review": "Independent editor, Notion and root source reviews passed; all 16 existing app HTML-sink fingerprints are unchanged.",
+      "coverage": "Real production service, destination inspection, damaged-bundle rejection, missing or malformed publication acknowledgement, cancellation, exact attachment bytes and successful retry without notebook changes. Rust dialog transport is substituted only in these browser cases.",
+      "actualWindows": "At b295a52, actual save refusal is visible with backup stage save and code VALIDATION_FAILED; unhandledRejections is empty. A successful native retry/save remains unproven."
+    },
+    "backupInspectionDiagnosticsCandidate": {
+      "privacyAndGateSubprocessTestsPassed": 2,
+      "scope": "Failure-only stderr instrumentation requires both GITHUB_ACTIONS=true and MOTION_ACCEPTANCE_TRACE_BACKUP=1. Records closed error-code/type allowlists, path shape/length and SHA-256 fingerprints; no raw path, error message or notebook content.",
+      "actualWindows": "At9444028, the bounded trace established native EACCES and exact normalized default-path/parent hash matches, differing from the expected fixture destination. Raw path/message/content were not logged.",
+      "review": "Independent source review passed, including complete native STORAGE_FAILURE enumeration; two subprocess privacy/gating cases passed and desktop bundle rebuilt."
+    },
+    "nativeSaveFocusCandidate": {
+      "sourceReview": "Windows author, root and independent Notion reviews completed with no blocking source finding; both source hashes matched the frozen review manifest.",
+      "syntax": "PowerShell7.5.4 parse and ScriptBlock creation plus Node syntax passed without UI execution.",
+      "actualWindows": "Failed at4dfed50: both native controls had observed focus and exact edit text, yet Shell returned the original default46-character path. Native EACCES correctly refused that unintended parent. Evidence: WINDOWS_SAVE_DIALOG_EVIDENCE_4dfed50.json."
+    },
+    "offlinePrerequisitePilot": {
+      "branch": "feat/windows-offline-pilot",
+      "pullRequest": 3,
+      "head": "f7f3ea66840b383dd33da35683fac287b0a26373",
+      "base": "9444028353a2568b2f0bb062cdc0e03be2500c2d",
+      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45658791703",
+      "localContractsPassed": 26,
+      "portableHelperSemanticChecksPassed": 31,
+      "actualWindows": "Installer built and payload verified; UI worker executable/session guard refused before request delivery or licence inspection. Exact differing field not recorded. Cleanup passed. No licence-page, firewall, upgrade or active-engine pass is claimed.",
+      "integration": "Regenerate dependency-policy-change.json against continuation PR2 merge base; pilot record intentionally targets its own base. Existing human Code Owner review is not granted by AI source reviews.",
+      "generalCi": "All three jobs passed in run45658791665.",
+      "evidenceRun": "https://github.com/JimBarnesly/Motion/actions/runs/45658791703"
+    },
+    "containerWritingCandidate": {
+      "sourceBase": "b295a52468a00aa8d985e905711ee5dc72e8fb99",
+      "integrationBase": "4dfed50c012debcdffe26a2351e2385abe0934af",
+      "focusedNodePassed": 236,
+      "focusedBrowserPassed": 34,
+      "fullBrowserPassed": 107,
+      "newBrowserCases": 13,
+      "independentReview": "Passed. The original 20-file integration preserves current backup diagnostics; separate helper and CSS increments have exact source bindings. Sixteen existing HTML sink sites were rebound after source review, retaining all eight rules and role/expiry metadata.",
+      "build": "passed",
+      "nativeRust": "28 native Rust tests passed at 2cffa9a on actual Windows; installed writing was not reached.",
+      "installedWindows": "At c6844f9 Save As was reached after the awaited container helper returned. This is source-order inference, because the final helper object was not retained on later failure. Candidate now writes bounded commit/phase/instance-bound helper evidence immediately after completion; full lifecycle still pending.",
+      "evidence": "docs/CONTAINER_WRITING_REVIEW_2026-11-25.json",
+      "generalVerification": "All three jobs passed at c6844f9, including107 browser cases."
+    },
+    "nativeSaveKeyboardCandidate": {
+      "portableChecksPassed": 10,
+      "nativeInputExecutedLocally": false,
+      "independentSourceReview": "passed",
+      "actualWindows": "At c6844f9 the corrected PowerShell5.1 contract passed and the real SendInput batch delivered166/166 events under exact before/after native foreground and edit focus. The following combined dialog guard failed before exact filename readback or Save; no saved-file success is claimed.",
+      "evidence": "docs/WINDOWS_SAVE_KEYBOARD_CANDIDATE.json",
+      "failureEvidence": "docs/WINDOWS_SAVE_KEYBOARD_EVIDENCE_2cffa9a.json",
+      "latestFailureEvidence": "docs/WINDOWS_SAVE_DIALOG_EVIDENCE_c6844f9.json"
+    },
+    "boardFoundationCandidate": {
+      "files": 8,
+      "integratedCoreWebPassed": 312,
+      "focusedNewCasesPassed": 16,
+      "independentReview": "passed",
+      "scope": "Stable board projection and shared native/browser record query parity with derived title projection; the reviewed UI now consumes this foundation.",
+      "evidence": "docs/BOARD_FOUNDATION_REVIEW_2026-11-25.json"
+    },
+    "nativeSaveReadinessCandidate": {
+      "portableChecksPassed": 23,
+      "nativeInputExecutedLocally": false,
+      "independentSourceReview": "passed",
+      "scope": "Immutable process/dialog identity remains fail-fast; only exact retained/found enabled/offscreen readiness may wait less than3000ms. Separate complete observations retained. No input or Save retry.",
+      "evidence": "docs/WINDOWS_SAVE_READINESS_REVIEW_2026-11-25.json",
+      "actualWindows": "23 pure contract checks passed on Windows PowerShell5.1 at e17b33c; real Save As readiness logic was not reached because startup navigation failed first."
+    },
+    "boardUiCandidate": {
+      "ownedFiles": 4,
+      "authorFocusedBrowserPassed": 12,
+      "existingBrowserRegressionsPassed": 15,
+      "focusedNodePassed": 99,
+      "integratedFullBrowserPassed": 119,
+      "sourceReview": "author, independent reviewer and root passed",
+      "scope": "Create/select table/list/board; status/select lanes, explicit-null moves, shared filters/sorts, original record pages, safe literal DOM, retry/discard and confirmed view selection. No canonical schema change.",
+      "limitations": [
+        "Actual Windows board interaction pending",
+        "Pointer dragging, lane reordering and subgroup rendering are not implemented",
+        "Existing first500-record display cap retained"
+      ],
+      "evidence": "docs/BOARD_UI_REVIEW_2026-11-25.json"
+    },
+    "viewFilterClearCandidate": {
+      "focusedActualServiceAndBrowserPassed": 8,
+      "nativeServiceTypeEquivalence": "passed after additive adapter declaration alignment",
+      "scope": "Explicit-null update command clears optional stored filter; omitted preserves, stored view remains non-null, validation precedes mutation. Actual SQLite/JSON/export/reopen regressions pass.",
+      "evidence": "docs/FILTER_CLEAR_REVIEW_2026-11-25.json"
+    },
+    "startupSynchronizationCandidate": {
+      "sourceBase": "e17b33cdf6bd23dee61f70b92d3761694a0747bb",
+      "scope": "Synchronous host observers precede evaluation; rejection observer is idempotent, added to future documents, and evaluated only after exact application URL/DOMContentLoaded. Ready/blocked/CSP/SaveAs/backup/restart gates unchanged.",
+      "localLimitation": "Reconstructed narrowly from exact GitHub source after environment outage. V8 grammar/source checks only after reconstruction; complete Node and actual Windows checks await CI.",
+      "evidence": "docs/WORKSPACE_RECOVERY_2026-11-25.json"
+    }
+  },
+  "lastObservedCommit": "e17b33cdf6bd23dee61f70b92d3761694a0747bb",
+  "lastHandoff": {
+    "at": "2026-11-25T17:56:00Z",
+    "reason": "Execution environment unavailable; release lease for the next authorized bounded continuation. Published source plus checkpoint are authoritative; local staged payload parents are obsolete after this recovery commit.",
+    "recoveryRecord": "docs/WORKSPACE_RECOVERY_2026-11-25.json",
+    "automation": "Automation_1b45f83f28188191b31f671c6229efd8"
+  }
+}

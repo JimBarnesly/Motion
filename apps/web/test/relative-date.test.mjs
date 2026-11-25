@@ -60,10 +60,14 @@ test("filter UI exposes readable bounded presets and persists the selected prese
 
 test("browser app uses canonical relative-date filtering and ships its modules", async () => {
   const app = await readFile(new URL("../app.js", import.meta.url), "utf8");
+  const selector = await readFile(new URL("../record-selector.js", import.meta.url), "utf8");
+  const editor = await readFile(new URL("../filter-editor.js", import.meta.url), "utf8");
   const build = await readFile(new URL("../scripts/build.mjs", import.meta.url), "utf8");
-  assert.match(app, /import \{ matchesFilter \} from "\.\/filtering\.js"/);
-  assert.match(app, /buildFilterCondition/);
-  assert.match(app, /filterValueControlHtml/);
+  assert.match(app, /import \{ selectDatabaseRecords \} from "\.\/record-selector\.js"/);
+  assert.match(selector, /import \{ matchesFilter \} from "\.\/filtering\.js"/);
+  assert.match(app, /createFilterEditor/);
+  assert.match(editor, /buildFilterCondition/);
+  assert.match(editor, /createFilterValueControl/);
   assert.doesNotMatch(app, /function matches\(/);
   for (const file of ["filtering.js", "filter-controls.js", "relative-date.js"]) assert.match(build, new RegExp(`"${file.replace(".", "\\.")}"`));
 });

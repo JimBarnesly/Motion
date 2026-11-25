@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 1,
+  "reviewer": "independent AI source review by /root/notion_behavior",
+  "sourceRoot": "/workspace/scratch/26e5117382b4/Motion",
+  "base": "c6844f99579257f6d71136c25042a79896424b40",
+  "files": [
+    {
+      "path": "packages/core/src/model.ts",
+      "sha256": "2da57b2022a29884a6b71e67a1de1cf4ffdb8d7f6e2a9efe2ab441a8c95943f4"
+    },
+    {
+      "path": "packages/core/src/workspace.ts",
+      "sha256": "401d36dee1e5d21fd97f0f7120601ae0eef97dd075786de6f705eada0b491116"
+    },
+    {
+      "path": "packages/app-service/src/index.ts",
+      "sha256": "c11132237073790128b81b5784d0ac5b785e2d8a889ef1490be3f40b54e7251b"
+    },
+    {
+      "path": "apps/web/browser-edit-confirmation.js",
+      "sha256": "aac46686a8a62ca66f4066353416491fd48af0bbd0bafb973080ed528b786b7b"
+    },
+    {
+      "path": "apps/desktop/test/view-filter-clear.test.mjs",
+      "sha256": "9dad393aa06165cb796ff843a5c5568d802ffebd48d5abd94031769b1f9b29f1"
+    }
+  ],
+  "verdict": "No blocking source defect found in the frozen five-file explicit-null filter-clear increment.",
+  "reviewed": [
+    "DatabaseViewPatch permits a JSON-stable null command sentinel while persisted DatabaseView.filters remains an optional FilterExpression.",
+    "Core clones the patch and prior view; omitted filters retain the prior expression. An own null or undefined filters key deletes it from the candidate. A supplied expression replaces it.",
+    "Existing id/collectionId/type exclusions remain. Unknown compatible view keys are neither narrowed nor discarded.",
+    "The complete candidate workspace is validated before canonical view replacement or touch. The service operates on a cloned loaded workspace and persists only after validation.",
+    "Browser confirmation clones the confirmed state; removal happens on that candidate and save rejection leaves the original filter, revision and timestamp intact.",
+    "Tests cover real SQLite service execution across encodeBinary and JSON transport, result query changes, export, reopen, complete view metadata/page payload preservation, invalid combined patch rollback, and browser/native parity.",
+    "Separately inspected the editor draft caller mapping an empty/cleared filter to null and its direct fallback deleting the null sentinel; full board UI remains a separate pending review."
+  ],
+  "validation": {
+    "independentFocusedRun": {
+      "command": "node --test apps/desktop/test/view-filter-clear.test.mjs apps/web/test/browser-edit-confirmation.test.mjs",
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0
+    },
+    "independentLegacyProbe": {
+      "coreUndefined": "clears without persisted key",
+      "browserUndefined": "clears without persisted key",
+      "originalBrowserState": "unchanged",
+      "unknownExtraViewKey": "preserved",
+      "pageBodiesAndTimestamps": "unchanged"
+    },
+    "beforeEvidence": "/tmp/motion-view-filter-clear-before.log",
+    "logNote": "The older /tmp/motion-view-filter-clear-after.log contains an intermediate 7/8 run before the already-corrected invalid-extra-key fixture; the independent current-source run above passed 8/8."
+  },
+  "limitations": [
+    "No actual Windows run performed for this increment.",
+    "Full board UI has not yet been reviewed or frozen.",
+    "Existing canonical View extra-key compatibility and browser validation architecture are intentionally unchanged."
+  ],
+  "repositoryEdits": false,
+  "additiveIntegration": {
+    "path": "apps/web/app-adapter.d.ts",
+    "sha256": "96d334573b24b1a5bf781f259ba0d7688fbfba252d676e5c2060d21735c5c9a5",
+    "reason": "Mandatory exhaustive native/service payload typecheck exposed the missing null-update declaration. View creation retains optional non-null filters. The exhaustive type gate is unchanged.",
+    "typecheck": "Web workspace typecheck passed after declaration alignment.",
+    "rootActualServiceRegression": {
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "logSha256": "498d413e34c026c4f837069006a30cfc81d0a228ecd7b7753453e6a3e26a18c1"
+    },
+    "fullIntegratedBrowser": 119,
+    "independentReview": {
+      "schemaVersion": 1,
+      "reviewer": "independent AI source review by /root/notion_behavior",
+      "sourceRoot": "/workspace/scratch/26e5117382b4/Motion",
+      "base": "c6844f99579257f6d71136c25042a79896424b40",
+      "files": [
+        {
+          "path": "packages/core/src/model.ts",
+          "sha256": "2da57b2022a29884a6b71e67a1de1cf4ffdb8d7f6e2a9efe2ab441a8c95943f4"
+        },
+        {
+          "path": "packages/core/src/workspace.ts",
+          "sha256": "401d36dee1e5d21fd97f0f7120601ae0eef97dd075786de6f705eada0b491116"
+        },
+        {
+          "path": "packages/app-service/src/index.ts",
+          "sha256": "c11132237073790128b81b5784d0ac5b785e2d8a889ef1490be3f40b54e7251b"
+        },
+        {
+          "path": "apps/web/browser-edit-confirmation.js",
+          "sha256": "aac46686a8a62ca66f4066353416491fd48af0bbd0bafb973080ed528b786b7b"
+        },
+        {
+          "path": "apps/desktop/test/view-filter-clear.test.mjs",
+          "sha256": "9dad393aa06165cb796ff843a5c5568d802ffebd48d5abd94031769b1f9b29f1"
+        },
+        {
+          "path": "apps/web/app-adapter.d.ts",
+          "sha256": "96d334573b24b1a5bf781f259ba0d7688fbfba252d676e5c2060d21735c5c9a5"
+        }
+      ],
+      "verdict": "No blocking source defect found in the frozen five-file explicit-null filter-clear increment.",
+      "reviewed": [
+        "DatabaseViewPatch permits a JSON-stable null command sentinel while persisted DatabaseView.filters remains an optional FilterExpression.",
+        "Core clones the patch and prior view; omitted filters retain the prior expression. An own null or undefined filters key deletes it from the candidate. A supplied expression replaces it.",
+        "Existing id/collectionId/type exclusions remain. Unknown compatible view keys are neither narrowed nor discarded.",
+        "The complete candidate workspace is validated before canonical view replacement or touch. The service operates on a cloned loaded workspace and persists only after validation.",
+        "Browser confirmation clones the confirmed state; removal happens on that candidate and save rejection leaves the original filter, revision and timestamp intact.",
+        "Tests cover real SQLite service execution across encodeBinary and JSON transport, result query changes, export, reopen, complete view metadata/page payload preservation, invalid combined patch rollback, and browser/native parity.",
+        "Separately inspected the editor draft caller mapping an empty/cleared filter to null and its direct fallback deleting the null sentinel; full board UI remains a separate pending review."
+      ],
+      "validation": {
+        "independentFocusedRun": {
+          "command": "node --test apps/desktop/test/view-filter-clear.test.mjs apps/web/test/browser-edit-confirmation.test.mjs",
+          "passed": 8,
+          "failed": 0,
+          "skipped": 0
+        },
+        "independentLegacyProbe": {
+          "coreUndefined": "clears without persisted key",
+          "browserUndefined": "clears without persisted key",
+          "originalBrowserState": "unchanged",
+          "unknownExtraViewKey": "preserved",
+          "pageBodiesAndTimestamps": "unchanged"
+        },
+        "beforeEvidence": "/tmp/motion-view-filter-clear-before.log",
+        "logNote": "The older /tmp/motion-view-filter-clear-after.log contains an intermediate 7/8 run before the already-corrected invalid-extra-key fixture; the independent current-source run above passed 8/8."
+      },
+      "limitations": [
+        "No actual Windows run performed for this increment.",
+        "Full board UI has not yet been reviewed or frozen.",
+        "Existing canonical View extra-key compatibility and browser validation architecture are intentionally unchanged."
+      ],
+      "repositoryEdits": false,
+      "previousReview": "/tmp/motion-filter-clear-independent-review.json",
+      "additiveTypeBoundaryReview": {
+        "path": "apps/web/app-adapter.d.ts",
+        "sha256": "96d334573b24b1a5bf781f259ba0d7688fbfba252d676e5c2060d21735c5c9a5",
+        "verdict": "No blocking issue in the two-line declaration-only correction.",
+        "findings": [
+          "NativeDatabaseViewPatch.filters admits the same null removal sentinel as the service update command.",
+          "view-create omits that patch field and explicitly reintroduces optional non-null NativeFilterExpression, so creation cannot type-admit the removal sentinel.",
+          "All existing required creation fields and the exhaustive mutual-assignability test remain unchanged.",
+          "No runtime codec, validator, canonical View shape or persisted schema changes."
+        ],
+        "validation": "Root running the unchanged focused web typecheck; independent source review only."
+      }
+    },
+    "boardReview": "Subsequent complete four-file board source review passed; see BOARD_UI_REVIEW_2026-11-25.json."
+  }
+}

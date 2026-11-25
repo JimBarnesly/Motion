@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "head": "2cffa9a97b75e0eecb4d9b3627c75376b6cd4094",
+  "testedMerge": "8366c3e0ccff7dccf9128d6fe0054cf4fc410ea1",
+  "run": "https://github.com/JimBarnesly/Motion/actions/runs/45655062659",
+  "job": 139349405078,
+  "conclusion": "failure",
+  "nativeRust": {
+    "passed": 28,
+    "failed": 0,
+    "ignored": 0
+  },
+  "windowsFilesystemService": {
+    "passed": 23,
+    "failed": 1,
+    "skipped": 0
+  },
+  "firstFailure": {
+    "file": "scripts/windows-native-save-dialog-contract.test.ps1",
+    "line": 47,
+    "message": "Unable to find type [ushort].",
+    "scope": "New pure driver test under actual Windows PowerShell 5.1; no keyboard input was executed.",
+    "correction": "Use explicit System.UInt16. Driver and all assertions remain unchanged."
+  },
+  "notReached": [
+    "installer build",
+    "installed toggle/callout writing",
+    "actual keyboard Save As",
+    "saved destination bytes",
+    "complete installed lifecycle"
+  ],
+  "generalCi": {
+    "run": "https://github.com/JimBarnesly/Motion/actions/runs/45655062697",
+    "verifyJob": 139349408810,
+    "verify": "passed",
+    "linuxX64Job": 139349409524,
+    "linuxX64": "passed",
+    "arm64Job": 139349409266,
+    "arm64": "in progress when recorded",
+    "browserCasesPassed": 107
+  },
+  "artifacts": "No Windows acceptance artifacts produced because the failure preceded installer build.",
+  "sourceEvidence": "Actual GitHub job log retrieved; the newline-normalized local diagnostic copy is not an independently signed artifact."
+}

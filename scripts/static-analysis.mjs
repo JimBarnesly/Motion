@@ -2,9 +2,9 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { chmod, lstat, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, extname, posix, relative, resolve, sep } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const ROOT_PATH = resolve(new URL("../", import.meta.url).pathname);
+const ROOT_PATH = resolve(fileURLToPath(new URL("../", import.meta.url)));
 const RULESET_VERSION = "1.2.0";
 const SOURCE_ROOTS = ["apps", "packages", "scripts"];
 const EXCLUDED_DIRECTORIES = new Set(["dist", "dist-ts", "node_modules", "target", "test", "tests", "fixtures"]);

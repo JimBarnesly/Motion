@@ -121,7 +121,10 @@ for (const layout of layouts) {
       if (layout.viewport.width <= 720) await page.getByRole("button", { name: "Open navigation" }).click();
       await expect(page.getByRole("navigation", { name: "Trash" }).getByRole("button", { name: "Restore Persistent readings" })).toBeVisible();
       await page.getByRole("navigation", { name: "Trash" }).getByRole("button", { name: "Restore Persistent readings" }).click();
+      await expect(page.getByRole("status")).toHaveText("Page restored");
       await expect(page.getByRole("textbox", { name: "Database title" })).toHaveValue("Persistent readings");
+      await expect(page.getByRole("textbox", { name: "Database title" })).toBeFocused();
+      await expect(page.locator("#sidebar")).not.toHaveClass(/\bopen\b/);
 
       page.once("dialog", dialog => dialog.accept());
       await page.locator("#restoreFile").setInputFiles({ name: "motion-backup.json", mimeType: "application/json", buffer: backup });
@@ -193,7 +196,7 @@ test("MOTION-UX-008: native verified backup restores created content and stable 
     (window as any).__TAURI__ = { core: { invoke: async (command: string, args: any) => {
       if (command === "motion_ui_load") return structuredClone(loadDocument());
       if (command === "motion_ui_save") { const document=loadDocument(); document.activePageId=args.request.document.activePageId; document.expandedPageIds=args.request.document.expandedPageIds; saveDocument(document); return null; }
-      if (command === "motion_backup_save") { (window as any).__motionSavedBackup = structuredClone(args.request.bundle); return { saved: true, replaced: false, cancelled: false }; }
+      if (command === "motion_backup_save") { (window as any).__motionSavedBackup = structuredClone(args.request.bundle); return { saved: true, replaced: false, cancelled: false, byteLength: new TextEncoder().encode(JSON.stringify(args.request.bundle)).byteLength }; }
       if (command !== "app_dispatch") throw new Error(`unexpected native request: ${command}`);
       const payload = args.request.payload;
       if (payload.type === "workspace.create") return mutate(document => { document.workspace={schemaVersion:2,id:"native-workspace",name:payload.name,pages:[],databases:[],attachments:[],linkIndex:[],createdAt:stamp,updatedAt:stamp}; });

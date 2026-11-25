@@ -52,7 +52,7 @@
           <button class="icon-button mobile-only" id="openSidebar" type="button" aria-label="Open navigation">☰</button>
           <div id="breadcrumbs" class="breadcrumbs" aria-label="Breadcrumb"></div>
           <button class="icon-button context-toggle" id="openContext" aria-controls="contextPanel" aria-expanded="false" type="button">Links &amp; files</button>
-          <span class="save-state" id="saveState" role="status">Saved locally</span>
+          <span class="save-state" id="saveState" role="status">Opening Motion…</span>
         </header>
         <section id="editRecovery" class="edit-recovery" role="alert" aria-live="assertive" aria-atomic="true" hidden>
           <div><strong id="editRecoveryMessage">An edit could not be saved.</strong><span>The exact edit is still shown but is not saved.</span></div>
@@ -61,7 +61,12 @@
             <button id="discardEdit" type="button">Discard unsaved changes</button>
           </div>
         </section>
-        <section class="content" id="content" aria-live="polite"></section>
+        <section class="content" id="content" aria-live="polite" aria-busy="true">
+          <div class="empty-state" data-startup-state="opening">
+            <h1>Opening Motion…</h1>
+            <p>Loading your local workspace.</p>
+          </div>
+        </section>
       </main>
 
       <aside class="context-panel" id="contextPanel" aria-label="Page context">

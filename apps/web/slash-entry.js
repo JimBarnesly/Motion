@@ -7,6 +7,8 @@ export const SLASH_BLOCK_COMMANDS = Object.freeze([
   { type: "numbered-list", label: "Numbered list", keywords: ["number", "ordered", "list"] },
   { type: "task", label: "To-do list", keywords: ["todo", "checkbox", "task", "list"] },
   { type: "quote", label: "Quote", keywords: ["blockquote"] },
+  { type: "toggle", label: "Toggle", keywords: ["collapse", "expand", "children"] },
+  { type: "callout", label: "Callout", keywords: ["note", "aside", "children"] },
   { type: "code", label: "Code", keywords: ["snippet"] },
   { type: "divider", label: "Divider", keywords: ["line", "separator"] }
 ]);

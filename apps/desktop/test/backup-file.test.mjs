@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { chmod, link, lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import { build } from "esbuild";
 import { createBackup } from "@motion/backup";
@@ -181,7 +181,7 @@ test("forged current PID with mismatched process identity remains blocked", () =
 
 test("SIGKILL lock recovery permits retry and unowned temporary cleanup fails closed", () => withRoot(async root => {
   const destination = join(root, "interrupted.json");
-  const child = spawn(process.execPath, [new URL("./fixtures/backup-interrupt-worker.mjs", import.meta.url).pathname, destination], { stdio: ["ignore", "pipe", "inherit"] });
+  const child = spawn(process.execPath, [fileURLToPath(new URL("./fixtures/backup-interrupt-worker.mjs", import.meta.url)), destination], { stdio: ["ignore", "pipe", "inherit"] });
   await new Promise((resolve, reject) => { child.stdout.once("data", resolve); child.once("error", reject); });
   const lockPath = `${destination}.motion-backup.lock`;
   const ownership = JSON.parse(await readFile(lockPath, "utf8"));
@@ -206,7 +206,7 @@ test("SIGKILL lock recovery permits retry and unowned temporary cleanup fails cl
 test("dead-owner symlink and missing temporary evidence fail closed untouched", () => withRoot(async root => {
   const interrupt = async name => {
     const destination = join(root, `${name}.json`);
-    const child = spawn(process.execPath, [new URL("./fixtures/backup-interrupt-worker.mjs", import.meta.url).pathname, destination], { stdio: ["ignore", "pipe", "inherit"] });
+    const child = spawn(process.execPath, [fileURLToPath(new URL("./fixtures/backup-interrupt-worker.mjs", import.meta.url)), destination], { stdio: ["ignore", "pipe", "inherit"] });
     await new Promise((resolve, reject) => { child.stdout.once("data", resolve); child.once("error", reject); });
     child.kill("SIGKILL"); await new Promise(resolve => child.once("close", resolve));
     const lockPath = `${destination}.motion-backup.lock`; const lockBytes = await readFile(lockPath);
@@ -232,8 +232,8 @@ test("dead-owner symlink and missing temporary evidence fail closed untouched", 
 
 test("foreign-owned recovery evidence fails closed without changing any filesystem evidence", () => withRoot(async root => {
   const testBundle = join(root, "foreign-ownership-backup-file.mjs");
-  const replacement = new URL("./fixtures/foreign-ownership-filesystem.mjs", import.meta.url).pathname;
-  await build({ entryPoints: [new URL("./fixtures/foreign-ownership-entry.mjs", import.meta.url).pathname], outfile: testBundle,
+  const replacement = fileURLToPath(new URL("./fixtures/foreign-ownership-filesystem.mjs", import.meta.url));
+  await build({ entryPoints: [fileURLToPath(new URL("./fixtures/foreign-ownership-entry.mjs", import.meta.url))], outfile: testBundle,
     bundle: true, platform: "node", format: "esm", target: "node24", plugins: [{ name: "test-only-foreign-ownership", setup(buildApi) {
       buildApi.onResolve({ filter: /backup-filesystem\.mjs$/ }, () => ({ path: replacement }));
     } }] });
@@ -242,7 +242,7 @@ test("foreign-owned recovery evidence fails closed without changing any filesyst
     const destination = join(root, `foreign-${target}.json`);
     const neighbour = join(root, `foreign-${target}.neighbour`);
     await writeFile(neighbour, `neighbour-${target}`, { mode: 0o640 }); await chmod(neighbour, 0o640);
-    const child = spawn(process.execPath, [new URL("./fixtures/backup-interrupt-worker.mjs", import.meta.url).pathname, destination], { stdio: ["ignore", "pipe", "inherit"] });
+    const child = spawn(process.execPath, [fileURLToPath(new URL("./fixtures/backup-interrupt-worker.mjs", import.meta.url)), destination], { stdio: ["ignore", "pipe", "inherit"] });
     await new Promise((resolve, reject) => { child.stdout.once("data", resolve); child.once("error", reject); });
     child.kill("SIGKILL"); await new Promise(resolve => child.once("close", resolve));
     const lockPath = `${destination}.motion-backup.lock`;

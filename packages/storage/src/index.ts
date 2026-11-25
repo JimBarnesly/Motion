@@ -6,6 +6,9 @@ import { dirname, join } from "node:path";
 import { platform } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { ATTACHMENT_SIZE_LIMIT_ERROR, MAX_ATTACHMENT_BYTES } from "@motion/core";
+import { invokeWindowsNativeHelper } from "./windows-native-helper.js";
+import { WindowsAttachmentStore } from "./windows-attachments.js";
+export { invokeWindowsNativeHelper } from "./windows-native-helper.js";
 
 export interface StoredWorkspace {
   workspaceId: string;
@@ -180,7 +183,12 @@ const migrations = [
     SELECT workspace_id, revision, 'pending', updated_at FROM workspaces WHERE true
     ON CONFLICT(workspace_id, workspace_revision) DO UPDATE SET status='pending', completed_at=NULL;`,
   `CREATE INDEX IF NOT EXISTS workspace_links_backlinks_idx
-    ON workspace_links(workspace_id, target_page_id, source_page_id, block_id);`
+    ON workspace_links(workspace_id, target_page_id, source_page_id, block_id);`,
+  // Earlier indexes classified nested block text as a generic entity. Rebuild
+  // derived rows at the existing revision without changing the canonical document.
+  `INSERT INTO reindex_jobs(workspace_id, workspace_revision, status, created_at)
+    SELECT workspace_id, revision, 'pending', updated_at FROM workspaces WHERE true
+    ON CONFLICT(workspace_id, workspace_revision) DO UPDATE SET status='pending', completed_at=NULL;`
 ];
 
 const digest = (input: string | Uint8Array) => createHash("sha256").update(input).digest("hex");
@@ -311,7 +319,10 @@ function assertChangeSetCovers(workspaceId: string, beforeDocument: unknown, aft
 
 type PrivatePathKind = "file" | "directory";
 function hardenPrivatePath(path: string, kind: PrivatePathKind): void {
-  if (platform() === "win32") return;
+  if (platform() === "win32") {
+    invokeWindowsNativeHelper({ operation: kind === "directory" ? "private.directory" : "private.file", path });
+    return;
+  }
   let metadata: ReturnType<typeof lstatSync>;
   const descriptorRoot = platform() === "linux" && /^\/proc\/self\/fd\/\d+$/.test(path);
   try { metadata = descriptorRoot ? statSync(path) : lstatSync(path); }
@@ -325,6 +336,10 @@ function hardenPrivatePath(path: string, kind: PrivatePathKind): void {
 }
 
 export function ensurePrivateDirectory(path: string): void {
+  if (platform() === "win32") {
+    invokeWindowsNativeHelper({ operation: "private.directory", path, create: true });
+    return;
+  }
   const inheritedUmask = process.umask(0);
   try { mkdirSync(path, { recursive: true, mode: 0o700 }); }
   finally { process.umask(inheritedUmask); }
@@ -431,6 +446,7 @@ export class SqliteWorkspaceStore {
   constructor(databasePath: string) {
     this.databasePath = databasePath;
     const databaseDirectory = dirname(databasePath);
+    if (platform() === "win32") ensurePrivateDirectory(databaseDirectory);
     let databaseDirectoryState: ReturnType<typeof lstatSync> | undefined;
     const descriptorRoot = platform() === "linux" && /^\/proc\/self\/fd\/\d+\/?$/.test(databaseDirectory);
     try { databaseDirectoryState = descriptorRoot ? statSync(databaseDirectory) : lstatSync(databaseDirectory); }
@@ -690,8 +706,8 @@ function extractSearchEntries(document: unknown, fallbackId: string, scopeType: 
     if (value && typeof value === "object") return Object.values(value as Record<string, unknown>).flatMap(scalarText);
     return [];
   };
-  const visit = (value: unknown, path: string, contextTitle = "", ownerEntityId?: string, hint?: "page" | "block" | "row"): void => {
-    if (Array.isArray(value)) { value.forEach((child, index) => visit(child, `${path}.${index}`, contextTitle, ownerEntityId, hint)); return; }
+  const visit = (value: unknown, path: string, contextTitle = "", ownerEntityId?: string, hint?: "page" | "block" | "row", canonicalBlockTree = false): void => {
+    if (Array.isArray(value)) { value.forEach((child, index) => visit(child, `${path}.${index}`, contextTitle, ownerEntityId, hint, canonicalBlockTree)); return; }
     if (!value || typeof value !== "object") return;
     const record = value as Record<string, unknown>;
     const id = typeof record.id === "string" ? record.id : path;
@@ -703,7 +719,9 @@ function extractSearchEntries(document: unknown, fallbackId: string, scopeType: 
     for (const [key, child] of Object.entries(record)) {
       if (typeof child !== "object" || child === null || key === "values") continue;
       if (key === "pages" && Array.isArray(child)) child.forEach((page, index) => visit(page, `${path}.${key}.${index}`, "", undefined, "page"));
-      else if (key === "blocks") visit(child, `${path}.${key}`, title, id, "block");
+      else if (key === "blocks") visit(child, `${path}.${key}`, title, id, "block", scopeType === "page" && value === document);
+      // Only the page root's real block tree grants ancestry; metadata may also contain a key named blocks.
+      else if (key === "children" && canonicalBlockTree && Array.isArray(child)) visit(child, `${path}.${key}`, title, ownerEntityId, "block", true);
       else if (key === "rows") visit(child, `${path}.${key}`, title, typeof record.pageId === "string" ? record.pageId : id, "row");
       else visit(child, `${path}.${key}`, title, ownerEntityId);
     }
@@ -727,13 +745,18 @@ export class AsyncSqliteWorkspaceStore<T extends { id: string; name: string; upd
 /** Files are immutable and addressed by content hash; metadata remains in the workspace database. */
 export class ContentAddressedAttachmentStore {
   private readonly stagingRoot: string;
-  private readonly rootIdentity: InodeIdentity;
-  private readonly stagingRootIdentity: InodeIdentity;
+  private readonly rootIdentity?: InodeIdentity;
+  private readonly stagingRootIdentity?: InodeIdentity;
   private readonly staged = new WeakMap<object, StagedRecord>();
+  private readonly windows?: WindowsAttachmentStore;
 
   constructor(private readonly root: string) {
-    ensurePrivateDirectory(root);
     this.stagingRoot = join(root, ".staging");
+    if (platform() === "win32") {
+      this.windows = new WindowsAttachmentStore(root);
+      return;
+    }
+    ensurePrivateDirectory(root);
     ensurePrivateDirectory(this.stagingRoot);
     this.rootIdentity = inodeIdentity(lstatSync(root));
     this.stagingRootIdentity = inodeIdentity(lstatSync(this.stagingRoot));
@@ -742,6 +765,7 @@ export class ContentAddressedAttachmentStore {
   pathFor(sha256: string): string { requireSha256(sha256); return join(this.root, sha256.slice(0, 2), sha256); }
 
   private assertStoreDirectories(): void {
+    if (!this.rootIdentity || !this.stagingRootIdentity) throw new Error("Attachment store directory identity is unavailable");
     assertDirectoryIdentity(this.root, this.rootIdentity);
     assertDirectoryIdentity(this.stagingRoot, this.stagingRootIdentity);
   }
@@ -754,6 +778,7 @@ export class ContentAddressedAttachmentStore {
   }
 
   async stage(bytes: Uint8Array): Promise<StagedAttachment> {
+    if (this.windows) return this.windows.stage(bytes);
     if (bytes.byteLength > MAX_ATTACHMENT_BYTES) throw new Error(ATTACHMENT_SIZE_LIMIT_ERROR);
     const sha256 = digest(bytes);
     const finalPath = this.pathFor(sha256);
@@ -779,12 +804,13 @@ export class ContentAddressedAttachmentStore {
   }
 
   async promote(staged: StagedAttachment): Promise<StoredAttachment> {
+    if (this.windows) return this.windows.promote(staged);
     return this.promoteRecord(this.consumeStaged(staged));
   }
 
   private async promoteRecord(staged: StagedRecord): Promise<StoredAttachment> {
     this.assertStoreDirectories();
-    const publicationKey = `${this.rootIdentity.dev}:${this.rootIdentity.ino}:${staged.sha256}`;
+    const publicationKey = `${this.rootIdentity!.dev}:${this.rootIdentity!.ino}:${staged.sha256}`;
     return serializeAttachmentPublication(publicationKey, () => this.publishRecord(staged));
   }
 
@@ -830,6 +856,7 @@ export class ContentAddressedAttachmentStore {
   }
 
   async discard(staged: StagedAttachment): Promise<void> {
+    if (this.windows) return this.windows.discard(staged);
     const record = this.consumeStaged(staged);
     this.assertStoreDirectories();
     let current: import("node:fs").Stats;
@@ -849,6 +876,7 @@ export class ContentAddressedAttachmentStore {
    * Final unreferenced blobs are reported, not deleted: retention/GC policy is separate.
    */
   async recover(referencedHashes: Iterable<string>): Promise<AttachmentRecoveryReport> {
+    if (this.windows) return this.windows.recover(referencedHashes);
     ensurePrivateDirectory(this.root);
     ensurePrivateDirectory(this.stagingRoot);
     this.assertStoreDirectories();
@@ -912,6 +940,7 @@ export class ContentAddressedAttachmentStore {
   }
 
   async get(sha256: string): Promise<Uint8Array> {
+    if (this.windows) return this.windows.get(sha256);
     requireSha256(sha256);
     ensurePrivateDirectory(this.root);
     const bucket = join(this.root, sha256.slice(0, 2));

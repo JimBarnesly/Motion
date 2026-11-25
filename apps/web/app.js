@@ -1,21 +1,24 @@
 import { createMotionUiAdapter, decodeBinary } from "./app-adapter.js";
-import { assertSafeCanonicalWorkspaceIds, escapeAttribute } from "./canonical-security.js";
+import { assertSafeCanonicalWorkspaceIds, escapeAttribute, isValidAttachmentByteLength } from "./canonical-security.js";
 import { renderBlockTypeSelect } from "./block-presentation.js";
+import { blockLocations, findBlockLocation, visibleBlockLocations, survivingCollapsedBlockIds, expandedForBlock, numberedSiblingPosition, canContainBlockChildren } from "./block-tree.js";
 import { applyLocalEdit, confirmBrowserEdit } from "./browser-edit-confirmation.js"; import { createNativeCommandController } from "./command-router.js";
 import { createEditRecoveryController } from "./edit-recovery.js";
 import { createOperationCoordinator } from "./operation-coordinator.js"; import { createAttachmentIngestion } from "./attachment-ingestion.js"; import { createAttachmentAccess } from "./attachment-access.js";
 import { buildBrowserSearchHits, normalizeSearchHits, resolveSearchTarget, searchStatus } from "./search-recovery.js"; import { buildInternalUrl } from "./internal-links.js";
 import { multilinePasteCommands } from "./markdown-paste.js";
 import { markdownShortcutCommand, mergeAdjacentBlockCommands, splitBlockCommands } from "./editor-structure.js";
-import { confirmEditorHistory } from "./editor-history.js";
+import { confirmEditorHistory, editorHistoryUnchanged } from "./editor-history.js";
 import { reconcileTextReferences } from "./reference-reconciliation.js";
 import { activeMentionQuery, applyMentionSelection, missingWikiPageTitle } from "./mention-entry.js";
 import { activeSlashQuery, applySlashCommand, slashCommandChoices, SLASH_BLOCK_COMMANDS } from "./slash-entry.js";
 import { normalizeWorkspaceV1 } from "./workspace-v1.js";
 import { persistBrowserMutation } from "./browser-mutation.js";
 import { applyBrowserPropertyPatch, editablePropertyTypes, PROPERTY_TYPE_LABELS, propertyControlHtml, propertyDisplayText, propertyValueForRecord, readPropertyControl, restorePropertyControl } from "./property-editors.js"; import { assertSafePropertyLifecycle, livePropertyDefinitions, reorderPropertyDefinitions, tombstonePropertyDefinition } from "./property-lifecycle.js";
-import { FILTER_OPERATOR_CHOICES, buildFilterCondition, createFilterValueControl, filterValueControlHtml } from "./filter-controls.js";
-import { matchesFilter } from "./filtering.js";
+import { createFilterEditor } from "./filter-editor.js";
+let filterEditor = null;
+import { selectDatabaseRecords } from "./record-selector.js";
+import { boardGroupingProperties, projectBoardView } from "./board-projection.js";
 import { applyBrowserRecordOrder, manualRecordOrderEnabled, moveRecordInManualOrder } from "./record-order.js";
 
 const adapter = createMotionUiAdapter();
@@ -25,15 +28,16 @@ const now = () => new Date().toISOString();
 const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, char => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[char]);
 const PROPERTY_TYPES = editablePropertyTypes();
 const PROPERTY_LABELS = PROPERTY_TYPE_LABELS;
-const BLOCK_TYPES = ["paragraph","heading-1","heading-2","heading-3","bulleted-list","numbered-list","task","quote","code","divider"];
-const BLOCK_LABELS = { paragraph:"Text", "heading-1":"Heading 1", "heading-2":"Heading 2", "heading-3":"Heading 3", "bulleted-list":"Bulleted list", "numbered-list":"Numbered list", task:"Task", quote:"Quote", code:"Code", divider:"Divider" };
-const EMPTY = { schemaVersion:2, workspace:null, revision:0, activePageId:null, expandedPageIds:[], activeViewIds:{} };
-let state = migrateLoaded(await adapter.load()); const nativeCommands=adapter.kind==="tauri"?createNativeCommandController({execute:(type,payload)=>adapter.execute(type,payload),currentRevision:()=>state.revision,confirm:(confirmed,revision)=>confirmNativeSnapshot(confirmed,revision)}):null;
-let history = [], future = [], navigation = [], saveQueue = Promise.resolve(), editing = null, editTimer = null, activeEditMeta = null, searchRequest = 0, currentSearchHits = new Map(), activeMention = null, activeSlash = null, rootCreationInFlight = false, browserCommitInFlight = false;
+const BLOCK_TYPES = ["paragraph","heading-1","heading-2","heading-3","bulleted-list","numbered-list","task","quote","toggle","callout","code","divider"];
+const BLOCK_LABELS = { paragraph:"Text", "heading-1":"Heading 1", "heading-2":"Heading 2", "heading-3":"Heading 3", "bulleted-list":"Bulleted list", "numbered-list":"Numbered list", task:"Task", quote:"Quote", toggle:"Toggle", callout:"Callout", code:"Code", divider:"Divider" };
+const EMPTY = { schemaVersion:2, workspace:null, revision:0, activePageId:null, expandedPageIds:[], activeViewIds:{}, collapsedBlockIds:[] };
+let state = await loadInitialState(); const nativeCommands=adapter.kind==="tauri"?createNativeCommandController({execute:(type,payload)=>adapter.execute(type,payload),currentRevision:()=>state.revision,confirm:(confirmed,revision)=>confirmNativeSnapshot(confirmed,revision)}):null;
+let history = [], future = [], navigation = [], saveQueue = Promise.resolve(), editing = null, editTimer = null, activeEditMeta = null, searchRequest = 0, currentSearchHits = new Map(), activeMention = null, activeSlash = null, rootCreationInFlight = false, browserCommitInFlight = false, pageLifecycleInFlight = false, blockViewInFlight = false, restoringEditorFocus = false, directCommitInFlight = 0;
+let composingInput = null, completedComposition = null;
 
 function canonicalWorkspace(value) { if (value !== null && value !== undefined) { assertSafeCanonicalWorkspaceIds(value); assertSafePropertyLifecycle(value); } return value; }
 function migrateLoaded(value) {
-  if (value?.schemaVersion === 2) return { ...EMPTY, ...value, workspace:canonicalWorkspace(value.workspace), expandedPageIds:value.expandedPageIds ?? [], activeViewIds:value.activeViewIds ?? {} };
+  if (value?.schemaVersion === 2) return withVisiblePageSelection({ ...EMPTY, ...value, workspace:canonicalWorkspace(value.workspace), expandedPageIds:value.expandedPageIds ?? [], activeViewIds:value.activeViewIds ?? {}, collapsedBlockIds:survivingCollapsedBlockIds(value.workspace,value.collapsedBlockIds ?? []) });
   const legacy = normalizeWorkspaceV1(value), stamp = now(), databases = [], pages = [];
   for (const source of legacy.pages) {
     const page = { id:source.id, parentId:source.parentId, title:source.title, blocks:(source.blocks ?? []).map(block => ({ id:block.id, type:({ heading1:"heading-1",heading2:"heading-2",heading3:"heading-3",bullet:"bulleted-list",number:"numbered-list" })[block.type] ?? block.type, text:block.text, children:[], checked:block.checked, references:(block.links ?? []).filter(link => link.pageId).map(link => ({ pageId:link.pageId })) })), createdAt:stamp, updatedAt:stamp, deletedAt:source.deleted ? stamp : undefined, favourite:false };
@@ -44,38 +48,40 @@ function migrateLoaded(value) {
       databases.push({ id:databaseId, pageId:source.id, name:source.title, properties, propertyOrder:properties.map(p=>p.id), titlePropertyId:properties[0]?.id, rows:[], recordPageIds, views:[{ id:uid(), collectionId:databaseId, name:"Table", type:"table", visiblePropertyIds:properties.map(p=>p.id), propertyOrder:properties.map(p=>p.id), columnWidths:{} }] });
     }
   }
-  return { schemaVersion:2, workspace:{ schemaVersion:2,id:uid(),name:"Motion Workspace",pages,databases,attachments:[],linkIndex:[],createdAt:stamp,updatedAt:stamp },revision:1,activePageId:legacy.activePageId,expandedPageIds:[] };
+  return { schemaVersion:2, workspace:{ schemaVersion:2,id:uid(),name:"Motion Workspace",pages,databases,attachments:[],linkIndex:[],createdAt:stamp,updatedAt:stamp },revision:1,activePageId:legacy.activePageId,expandedPageIds:[],activeViewIds:{},collapsedBlockIds:[] };
 }
 const workspace = () => state.workspace;
-function confirmNativeSnapshot(confirmed,revision){if(revision<=state.revision)return false;state.workspace=canonicalWorkspace(confirmed);state.revision=revision;return true;}
+function confirmNativeSnapshot(confirmed,revision){if(revision<=state.revision)return false;state.workspace=canonicalWorkspace(confirmed);state.revision=revision;state.collapsedBlockIds=survivingCollapsedBlockIds(confirmed,state.collapsedBlockIds);return true;}
 const pageById = id => workspace()?.pages.find(page => page.id === id);
-const activePage = () => pageById(state.activePageId);
+const activePage = () => { const page=pageById(state.activePageId);return page?.deletedAt?undefined:page; };
 const databaseForPage = page => workspace()?.databases.find(database => database.pageId === page?.id || database.id === page?.collectionId);
 const visiblePages = () => workspace()?.pages.filter(page => !page.deletedAt) ?? [];
 const childrenOf = parentId => visiblePages().filter(page => page.parentId === parentId && !page.collectionId);
 const snapshot = () => JSON.stringify(state);
 function checkpoint() { history.push(snapshot()); if (history.length > 80) history.shift(); future=[]; }
 async function saveLocal(document=structuredClone(state)) { if (adapter.kind !== "browser-development") return; const candidate=structuredClone(document);saveQueue=saveQueue.catch(()=>{}).then(()=>adapter.save(candidate));await saveQueue; }
-async function saveUi() { await adapter.saveUi({ workspaceId:workspace()?.id, activePageId:state.activePageId, expandedPageIds:state.expandedPageIds, activeViewIds:state.activeViewIds }); if (adapter.kind === "browser-development") await saveLocal(); }
+async function saveUi(document=state) { if (adapter.kind === "browser-development") return saveLocal(document); await adapter.saveUi({ workspaceId:document.workspace?.id, activePageId:document.activePageId, expandedPageIds:document.expandedPageIds, activeViewIds:document.activeViewIds, collapsedBlockIds:document.collapsedBlockIds }); }
 async function commit(type,payload,localMutation) {
-  $("#saveState").textContent="Saving…";
+  if(blockViewInFlight)throw new Error("Wait for the view change to finish");
+  directCommitInFlight++;$("#saveState").textContent="Saving…";
   try {
     if (adapter.kind === "tauri") await nativeCommands.execute(type,payload);
     else {
       if(browserCommitInFlight)throw new Error("Another browser mutation is still being saved");
       browserCommitInFlight=true;
-      try{await persistBrowserMutation({snapshot:()=>structuredClone(state),restore:document=>{state=document;},mutate:localMutation,touch:()=>{state.workspace.updatedAt=now();state.revision++;},save:saveLocal});}
+      try{await persistBrowserMutation({snapshot:()=>structuredClone(state),restore:document=>{state=document;},mutate:localMutation,touch:()=>{state.workspace.updatedAt=now();state.revision++;state.workspace.linkIndex=rebuildLinks(state.workspace);state.collapsedBlockIds=survivingCollapsedBlockIds(state.workspace,state.collapsedBlockIds);},save:saveLocal});}
       finally{browserCommitInFlight=false;}
     }
     $("#saveState").textContent=adapter.kind === "tauri" ? "Saved to Motion" : "Saved in browser (development mode)";
   } catch (error) { if(adapter.kind==="browser-development")render();$("#saveState").textContent="Save failed"; alert("Motion could not save this change."); throw error; }
+  finally{directCommitInFlight--;}
 }
 async function confirmCanonicalEdit({candidate}) {
   if(adapter.kind==="tauri"){
     await nativeCommands.execute(candidate.type,candidate.payload);
 
   }else{
-    const confirmed=await confirmBrowserEdit(state,candidate,document=>{saveQueue=saveQueue.catch(()=>{}).then(()=>adapter.save(document));return saveQueue;},now);state=migrateLoaded(confirmed);
+    const confirmed=await confirmBrowserEdit(state,candidate,document=>{document.workspace.linkIndex=rebuildLinks(document.workspace);saveQueue=saveQueue.catch(()=>{}).then(()=>adapter.save(document));return saveQueue;},now);confirmed.workspace.linkIndex=rebuildLinks(confirmed.workspace);state=migrateLoaded(confirmed);
   }
 }
 
@@ -86,6 +92,7 @@ function editTarget(target){
   if(target.kind==="block-type")return findByDataValue("[data-block-type]","blockType",target.blockId);
   if(target.kind==="task")return findByDataValue("[data-task]","task",target.blockId);
   if(target.kind==="record-property")return [...document.querySelectorAll("[data-property]")].find(element=>element.dataset.property===target.propertyId&&(element.dataset.record??state.activePageId)===target.pageId);
+  if(target.kind==="view-grouping")return state.activePageId===target.pageId?$("#boardGrouping"):null;
   if(target.kind==="view-width")return findByDataValue("[data-column-width]","columnWidth",target.propertyId);
   return null;
 }
@@ -94,10 +101,11 @@ function restoreRejectedEditTarget(target){
   const element=editTarget(target);if(!element)return;
   const page=pageById(target.pageId);
   if(target.kind==="page-title")element.value=page?.title??"";
-  else if(target.kind==="block-text")element.textContent=page?.blocks.find(block=>block.id===target.blockId)?.text??"";
-  else if(target.kind==="block-type")element.value=page?.blocks.find(block=>block.id===target.blockId)?.type??"paragraph";
-  else if(target.kind==="task")element.checked=Boolean(page?.blocks.find(block=>block.id===target.blockId)?.checked);
+  else if(target.kind==="block-text")element.textContent=findBlockLocation(page?.blocks,target.blockId)?.block.text??"";
+  else if(target.kind==="block-type")element.value=findBlockLocation(page?.blocks,target.blockId)?.block.type??"paragraph";
+  else if(target.kind==="task")element.checked=Boolean(findBlockLocation(page?.blocks,target.blockId)?.block.checked);
   else if(target.kind==="view-width"){const database=databaseForPage(page),property=database?.properties.find(item=>item.id===target.propertyId);element.value=database?.views[0].columnWidths?.[target.propertyId]??(property?.type==="title"?280:170);}
+  else if(target.kind==="view-grouping")element.value=databaseForPage(page)?.views.find(view=>view.id===target.viewId)?.groupByPropertyId??"";
   else if(target.kind==="record-property"){
     const property=databaseForPage(page)?.properties.find(item=>item.id===target.propertyId),value=property?propertyValueForRecord(property,page):undefined;
     if(property)restorePropertyControl(element,property,value,workspace().attachments);
@@ -117,14 +125,14 @@ function syncEditRecovery(snapshot){
   clearTimeout(editTimer);editTimer=null;markPendingEdit(snapshot);
   if(!snapshot.blocked){
     recovery.hidden=true;saveState.className="save-state";
-    if(snapshot.saved){saveState.textContent=adapter.kind==="tauri"?"Saved to Motion":"Saved in browser (development mode)";const meta=activeEditMeta;if(meta?.target?.kind==="page-title")refreshPageTitlePresentation(meta.target.pageId);if(meta?.rerender){render();requestAnimationFrame(()=>editTarget(meta.target)?.focus());}}
+    if(snapshot.saved){saveState.textContent=adapter.kind==="tauri"?"Saved to Motion":"Saved in browser (development mode)";const meta=activeEditMeta;if(meta?.target?.kind==="page-title")refreshPageTitlePresentation(meta.target.pageId);if(meta?.rerender){render();if(meta.target.boardViewId&&!editTarget(meta.target))saveState.textContent="Card moved and saved. It no longer matches this view.";requestAnimationFrame(()=>(editTarget(meta.target)??(meta.target.boardViewId?$("#boardView"):null))?.focus());}}
     return;
   }
   saveState.className=`save-state ${failed?"unsaved":"saving"}`;
   saveState.textContent=failed?"Unsaved change — action required":`${snapshot.label} has unsaved changes. Saving…`;
   recovery.hidden=!failed;
   if(failed){$("#editRecoveryMessage").textContent=`${snapshot.label} could not be saved.`;requestAnimationFrame(()=>editTarget(snapshot.target)?.focus());}
-  else if(snapshot.status==="editing")editTimer=setTimeout(()=>void editRecovery.commit(),180);
+  else if(snapshot.status==="editing"&&!composingInput)editTimer=setTimeout(()=>void editRecovery.commit(),180);
 }
 
 const operationCoordinator=createOperationCoordinator();
@@ -158,7 +166,7 @@ async function flushCanonicalEdit(action){
 }
 async function retryPendingEdit(){return editRecovery.retry();}
 function discardPendingEdit(){const discarded=editRecovery.discard();if(!discarded)return false;activeEditMeta=null;render();$("#saveState").textContent=`${discarded.label} unsaved changes discarded.`;requestAnimationFrame(()=>editTarget(discarded.target)?.focus());return true;}
-window.addEventListener("beforeunload",event=>{if(!editRecovery.snapshot().blocked)return;event.preventDefault();event.returnValue="";});
+window.addEventListener("beforeunload",event=>{if(!composingInput&&!editRecovery.snapshot().blocked&&!pageLifecycleInFlight&&!blockViewInFlight)return;event.preventDefault();event.returnValue="";});
 
 async function ensureWorkspace() {
   if (workspace()) return;
@@ -170,14 +178,14 @@ async function runCanonicalOperation(action,operation){const result=await operat
 async function exportWorkspace(){return runCanonicalOperation("exporting",async()=>{const date=new Date().toISOString().slice(0,10);if(adapter.kind==="tauri")downloadJson(await adapter.exportWorkspace(),`motion-canonical-export-${date}.json`);else downloadJson({exportVersion:"motion.workspace/2.0",exportedAt:now(),workspace:state.workspace},`motion-browser-development-${date}.json`);return true;});}
 async function sha256(bytes){const digest=await crypto.subtle.digest("SHA-256",bytes);return [...new Uint8Array(digest)].map(byte=>byte.toString(16).padStart(2,"0")).join("");}
 const attachmentIngestion=createAttachmentIngestion({activePage,authority:()=>({workspaceId:workspace()?.id,pageId:activePage()?.id,revision:state.revision}),runCanonical:runCanonicalOperation,ingest:payload=>adapter.ingestAttachmentBlock(payload),digest:sha256,confirm:result=>{confirmNativeSnapshot(result.workspace,result.revision);render();},status:message=>{$("#saveState").textContent=message;}});
-async function createVerifiedBackup(){return runCanonicalOperation("creating a backup",async()=>{const bundle=await adapter.createBackup(),verification=await adapter.verifyBackup(bundle);if(!verification.valid)throw new Error(verification.errors.join("; "));const saved=await adapter.saveBackup(bundle);if(saved?.cancelled)return false;$("#saveState").textContent="Verified backup saved safely.";return true;});}
+async function createVerifiedBackup(){return runCanonicalOperation("creating a backup",async()=>{const status=$("#saveState");let stage="create";status.dataset.backupState="pending";status.dataset.backupStage=stage;delete status.dataset.backupErrorCode;status.textContent="Preparing verified backup…";try{const bundle=await adapter.createBackup();status.dataset.backupStage=stage="verify";const verification=await adapter.verifyBackup(bundle);if(verification?.valid!==true||!Array.isArray(verification.errors)||verification.errors.length)throw Object.assign(new Error("Backup verification failed"),{code:"VALIDATION_FAILED"});status.dataset.backupStage=stage="save";const saved=await adapter.saveBackup(bundle);if(saved?.cancelled===true&&saved.saved===false){status.dataset.backupState="cancelled";status.textContent="Backup save cancelled.";return false;}if(saved?.saved!==true||saved.cancelled!==false||typeof saved.replaced!=="boolean"||!Number.isSafeInteger(saved.byteLength)||saved.byteLength<=0)throw Object.assign(new Error("Backup publication was not acknowledged"),{code:"INVALID_RESPONSE"});status.dataset.backupState="saved";status.textContent="Verified backup saved safely.";return true;}catch(error){status.dataset.backupState="failed";status.dataset.backupErrorCode=["INVALID_INPUT","NOT_FOUND","REVISION_CONFLICT","ALREADY_EXISTS","VALIDATION_FAILED","STORAGE_FAILURE","INTERNAL_ERROR","INVALID_RESPONSE"].includes(error?.code)?error.code:"BACKUP_FAILED";status.textContent=stage==="save"?"Backup save could not be confirmed. Check the selected destination, then try Verified backup again.":"Backup could not be prepared. Try Verified backup again.";return false;}});}
 async function restoreVerifiedBackup(file){return runCanonicalOperation("restoring",async()=>{const bundle=decodeBinary(JSON.parse(await file.text())),verification=await adapter.verifyBackup(bundle);if(!verification.valid)throw new Error(verification.errors.join("; "));const preview=await adapter.previewBackup(bundle);if(!confirm(`Restore ${preview.workspaceName??"workspace"} with ${preview.pages} pages as a new workspace?`))return false;await adapter.restoreBackup(bundle);state=migrateLoaded(await adapter.load());render();$("#saveState").textContent="Verified backup restored.";return true;});}
 async function restoreWorkspace(file){return runCanonicalOperation("restoring",async()=>{const parsed=JSON.parse(await file.text()),candidate=parsed?.workspace??parsed;if(!confirm("Replace the current workspace with the selected file?")){$("#saveState").textContent="Restore cancelled.";$("#restoreWorkspace")?.focus();return false;}if(candidate?.schemaVersion===2&&Array.isArray(candidate.pages)&&Array.isArray(candidate.databases)){if(adapter.kind==="tauri")throw new Error("Use a verified native backup to restore a canonical workspace.");const validated=structuredClone(canonicalWorkspace(candidate)),restored={...EMPTY,workspace:validated,revision:1,activePageId:validated.pages.find(page=>!page.deletedAt)?.id??null};await adapter.save(structuredClone(restored));state=restored;render();$("#saveState").textContent="Workspace restored.";return true;}const legacy=normalizeWorkspaceV1(candidate);if(adapter.kind==="tauri"){const imported=await adapter.importWebV1(legacy);state={...EMPTY,schemaVersion:2,workspace:canonicalWorkspace(imported.workspace),revision:imported.revision,activePageId:imported.activePageId};}else{const restored=migrateLoaded(legacy);await adapter.save(structuredClone(restored));state=restored;}render();$("#saveState").textContent="Workspace restored.";return true;});}
-function openPage(id,push=true) { if(id!==state.activePageId&&!requireResolvedEdit("leaving this page"))return false;if (push && state.activePageId && state.activePageId !== id) navigation.push(state.activePageId); state.activePageId=id; void saveUi(); render(); $("#sidebar").classList.remove("open"); return true;}
+function openPage(id,push=true) { if(pageLifecycleInFlight||blockViewInFlight)return false;if(id!==state.activePageId&&!requireResolvedEdit("leaving this page"))return false;const previous=state.activePageId,fromBoard=Boolean($("#boardView"));if (push && previous && previous !== id) navigation.push(previous); state.activePageId=id; void saveUi(); render(); $("#sidebar").classList.remove("open");if(fromBoard||$("#boardView"))requestAnimationFrame(()=>($("#boardView")?(findByDataValue("[data-board-open]","boardOpen",previous)??$("#boardView")):$("#pageTitle"))?.focus());return true;}
 function ancestors(page) { const path=[]; for(let current=page;current;current=pageById(current.parentId)) path.unshift(current); return path; }
 function descendants(id) { const result=[]; for(const child of visiblePages().filter(page=>page.parentId===id)){ result.push(child,...descendants(child.id)); } return result; }
 function delegatedIdAndDelta(value){const separator=value.lastIndexOf(":");return[value.slice(0,separator),Number(value.slice(separator+1))];}
-function rebuildLinks() { if (adapter.kind === "tauri") return; if (!workspace()) return; const links=[]; for(const page of workspace().pages) for(const block of page.blocks ?? []) { const targets=new Set((block.references ?? []).map(ref=>ref.pageId)); for(const match of block.text.matchAll(/\[\[([^\]]+)\]\]/g)){ const target=workspace().pages.find(candidate=>candidate.title.toLowerCase()===match[1].trim().toLowerCase()); if(target) targets.add(target.id); } for(const targetPageId of targets) links.push({sourcePageId:page.id,targetPageId,blockId:block.id}); } workspace().linkIndex=links; }
+function rebuildLinks(source=workspace()) { if (adapter.kind === "tauri") return source?.linkIndex??[]; if (!source) return []; const links=[]; for(const page of source.pages) for(const {block} of blockLocations(page.blocks)) { const targets=new Set((block.references ?? []).map(ref=>ref.pageId)); for(const match of block.text.matchAll(/\[\[([^\]]+)\]\]/g)){ const target=source.pages.find(candidate=>candidate.title.toLowerCase()===match[1].trim().toLowerCase()); if(target) targets.add(target.id); } for(const targetPageId of targets) links.push({sourcePageId:page.id,targetPageId,blockId:block.id}); } return links; }
 function referencesForText(text){return reconcileTextReferences({previousText:"",previousReferences:[],nextText:text,pages:workspace().pages});}
 function selectionTextParts(input){const selection=window.getSelection();if(!selection?.rangeCount)return{prefix:input.textContent??"",suffix:""};const range=selection.getRangeAt(0);if(!input.contains(range.startContainer)||!input.contains(range.endContainer))return{prefix:input.textContent??"",suffix:""};const prefixRange=range.cloneRange(),suffixRange=range.cloneRange();prefixRange.selectNodeContents(input);prefixRange.setEnd(range.startContainer,range.startOffset);suffixRange.selectNodeContents(input);suffixRange.setStart(range.endContainer,range.endOffset);return{prefix:prefixRange.toString(),suffix:suffixRange.toString()};}function selectionIsCollapsedIn(input){const selection=window.getSelection();return Boolean(selection?.rangeCount&&selection.isCollapsed&&input.contains(selection.anchorNode));}
 function caretOffset(input){return selectionTextParts(input).prefix.length;}
@@ -194,6 +202,85 @@ async function createMentionPage(title){const mention=activeMention,sourcePageId
   if(!target){$("#saveState").textContent="Linked page creation failed. No link was added.";requestAnimationFrame(()=>findByDataValue("[data-block]","block",blockId)?.focus());return false;}
   renderNavigation();const currentInput=findByDataValue("[data-block]","block",blockId);activeMention=currentInput&&state.activePageId===sourcePageId?{...mention,pageId:sourcePageId,blockId}:null;if(!selectMentionPage(target,activeMention)){$("#saveState").textContent=`Page “${title}” was created, but the link was not applied.`;requestAnimationFrame(()=>currentInput?.focus());return false;}const saved=await editRecovery.commit();if(saved)$("#saveState").textContent=`Page “${title}” created and linked.`;return saved;}
 function focusBlockAtOffset(blockId,offset){const input=findByDataValue("[data-block]","block",blockId);if(!input)return;input.focus();const selection=window.getSelection(),range=document.createRange();let remaining=offset,node=input;const walker=document.createTreeWalker(input,NodeFilter.SHOW_TEXT);while(walker.nextNode()){node=walker.currentNode;if(remaining<=node.textContent.length)break;remaining-=node.textContent.length;}range.setStart(node,node===input?0:Math.min(remaining,node.textContent.length));range.collapse(true);selection.removeAllRanges();selection.addRange(range);}
+const pendingViewControlStates=new Map();
+function setEditorViewReadonly(readonly){
+  if(readonly){for(const control of document.querySelectorAll("#content input,#content select,#content textarea")){if(control.id==="pageTitle")continue;if(!pendingViewControlStates.has(control))pendingViewControlStates.set(control,control.disabled);control.disabled=true;}}
+  else{for(const [control,disabled] of pendingViewControlStates)control.disabled=disabled;pendingViewControlStates.clear();}
+  for(const input of document.querySelectorAll("[data-block]"))input.contentEditable=String(!readonly);
+  const title=$("#pageTitle");if(title)title.readOnly=readonly;
+  $("#content").setAttribute("aria-busy",String(readonly));
+}
+function captureEditorFocus(){
+  const anchor=window.getSelection()?.anchorNode,element=anchor?.nodeType===Node.ELEMENT_NODE?anchor:anchor?.parentElement;
+  const input=document.activeElement?.closest?.("[data-block]")??element?.closest?.("[data-block]");
+  return input?{pageId:state.activePageId,blockId:input.dataset.block,offset:caretOffset(input)}:null;
+}
+function restoreVisibleEditorFocus(focus){
+  const page=activePage();if(!page||focus?.pageId&&focus.pageId!==page.id)return;
+  const visible=visibleBlockLocations(page.blocks,state.collapsedBlockIds),ids=new Set(visible.map(item=>item.block.id));
+  const location=findBlockLocation(page.blocks,focus?.blockId);
+  const block=[location?.block,...(location?.ancestors??[]).toReversed()].find(candidate=>candidate&&ids.has(candidate.id))??visible[0]?.block;
+  restoringEditorFocus=true;
+  try{if(block&&findByDataValue("[data-block]","block",block.id))focusBlockAtOffset(block.id,block.id===focus?.blockId?focus.offset??0:0);else if(block)findByDataValue("[data-block-id]","blockId",block.id)?.querySelector("button")?.focus();else $("#addBlock")?.focus();}
+  finally{restoringEditorFocus=false;}
+}
+async function persistBlockView(action,derive,onSuccess){
+  if(blockViewInFlight||pageLifecycleInFlight||directCommitInFlight)return false;
+  if(composingInput){$("#saveState").textContent="Finish composing text before changing the view.";composingInput.focus();return false;}
+  const focus=captureEditorFocus();blockViewInFlight=true;setEditorViewReadonly(true);
+  try{
+    if(!await flushCanonicalEdit(action))return false;
+    return await runCanonicalOperation(action,async()=>{
+      const candidate=structuredClone(state);derive(candidate);
+      $("#saveState").textContent="Saving view…";
+      await saveUi(candidate);state=candidate;render();setEditorViewReadonly(false);
+      $("#saveState").textContent="View saved.";
+      if(onSuccess)onSuccess(focus);else restoreVisibleEditorFocus(focus);
+      return true;
+    });
+  }catch{ setEditorViewReadonly(false);$("#saveState").textContent="View change could not be saved. Try again.";restoreVisibleEditorFocus(focus);return false; }
+  finally{blockViewInFlight=false;setEditorViewReadonly(false);}
+}
+async function toggleBlockFold(blockId){
+  if(findBlockLocation(activePage()?.blocks,blockId)?.block.type!=="toggle")return false;
+  return persistBlockView("changing toggle visibility",candidate=>{
+    const collapsed=new Set(candidate.collapsedBlockIds);
+    if(collapsed.has(blockId))collapsed.delete(blockId);
+    else{if(collapsed.size>=256)throw new Error("Too many collapsed blocks");collapsed.add(blockId);}
+    candidate.collapsedBlockIds=[...collapsed];
+  },focus=>{
+    const location=findBlockLocation(activePage()?.blocks,focus?.blockId);
+    if(location?.ancestors.some(block=>block.id===blockId))restoreVisibleEditorFocus(focus);
+    else findByDataValue("[data-toggle-block]","toggleBlock",blockId)?.focus();
+  });
+}
+async function expandBlockContainer(blockId){
+  if(!state.collapsedBlockIds.includes(blockId))return true;
+  return persistBlockView("opening a toggle for writing",candidate=>{candidate.collapsedBlockIds=candidate.collapsedBlockIds.filter(id=>id!==blockId);});
+}
+async function revealBlockTarget(pageId,blockId){
+  const target=pageById(pageId);if(!target||target.deletedAt||blockId&&!findBlockLocation(target.blocks,blockId))return false;
+  const previous=state.activePageId;
+  const opened=await persistBlockView("opening a search or link result",candidate=>{
+    if(candidate.activePageId!==pageId)candidate.expandedPageIds=[...new Set([...candidate.expandedPageIds,...ancestors(target).slice(0,-1).map(page=>page.id)])].slice(-256);
+    candidate.activePageId=pageId;
+    if(blockId)candidate.collapsedBlockIds=expandedForBlock(target.blocks,blockId,candidate.collapsedBlockIds);
+  },()=>{if(blockId)restoreVisibleEditorFocus({blockId,offset:0});});
+  if(opened){if(previous&&previous!==pageId)navigation.push(previous);renderBreadcrumbs(target);$("#sidebar").classList.remove("open");}
+  return opened;
+}
+async function applyEditorHistory(redo){
+  if(!requireResolvedEdit("undoing")||blockViewInFlight||pageLifecycleInFlight||directCommitInFlight)return false;
+  const stack=redo?future:history,other=redo?history:future;
+  while(stack.length&&editorHistoryUnchanged(state,JSON.parse(stack.at(-1))))stack.pop();
+  if(!stack.length)return false;
+  const target=JSON.parse(stack.at(-1)),focus=captureEditorFocus();blockViewInFlight=true;setEditorViewReadonly(true);
+  try{return await runCanonicalOperation(redo?"redoing":"undoing",async()=>{
+    const inverse=await confirmEditorHistory({current:state,target,execute:(type,payload)=>confirmCanonicalEdit({candidate:{type,payload}})});
+    other.push(inverse);stack.pop();render();setEditorViewReadonly(false);restoreVisibleEditorFocus(focus);$("#saveState").textContent=redo?"Change redone and saved.":"Change undone and saved.";return true;
+  });}catch{ setEditorViewReadonly(false);$("#saveState").textContent="Editor history could not be saved. Try again.";restoreVisibleEditorFocus(focus);return false; }
+  finally{blockViewInFlight=false;setEditorViewReadonly(false);}
+}
 function isFileBlock(block){return block.type==="file";}
 
 async function createPage(parentId=null,database=false,trigger=null) {
@@ -220,44 +307,121 @@ async function renamePage(page,title) { const old=page.title; await commit("page
 async function movePage(pageId,parentId) { const page=pageById(pageId); if(parentId===pageId||descendants(pageId).some(child=>child.id===parentId)) return alert("A page cannot be moved into itself or one of its children."); checkpoint(); await commit("page.move",{pageId,parentId},()=>{page.parentId=parentId;page.updatedAt=now();}); render(); }
 async function reorderPage(pageId,delta) { const page=pageById(pageId), siblings=childrenOf(page.parentId),at=siblings.findIndex(item=>item.id===pageId),to=at+delta;if(to<0||to>=siblings.length)return; const before=delta<0?siblings[to].id:(siblings[to+1]?.id??null); checkpoint(); await commit("page.reorder",{pageId,beforePageId:before},()=>{const all=workspace().pages,from=all.indexOf(page),target=before?all.indexOf(pageById(before)):all.length;all.splice(from,1);all.splice(target>from?target-1:target,0,page);});renderNavigation(); }
 async function setFavourite(page,value){await commit("page.set-favourite",{pageId:page.id,favourite:value},()=>{page.favourite=value;});renderNavigation();}
-async function trash(page){if(!requireResolvedEdit("moving content to Trash"))return false;checkpoint();await commit("page.trash",{pageId:page.id},()=>{const stamp=now();for(const target of [page,...descendants(page.id)])target.deletedAt=stamp;});if(state.activePageId===page.id)state.activePageId=visiblePages()[0]?.id??null;render();return true;}
-async function restore(page){checkpoint();await commit("page.restore",{pageId:page.id},()=>{const targets=new Set([page]);let changed=true;while(changed){changed=false;for(const candidate of workspace().pages)if(candidate.parentId&&[...targets].some(target=>target.id===candidate.parentId)&&!targets.has(candidate)){targets.add(candidate);changed=true;}}for(let parent=page.parentId?pageById(page.parentId):null;parent;parent=parent.parentId?pageById(parent.parentId):null)targets.add(parent);for(const target of targets)delete target.deletedAt;});openPage(page.id);}
+async function trash(page){if(!page||!requireResolvedEdit("moving content to Trash"))return false;return runPageLifecycle("moving content to Trash",async()=>{checkpoint();await commit("page.trash",{pageId:page.id},()=>{const stamp=now();for(const target of [page,...descendants(page.id)])target.deletedAt=stamp;state.activePageId=withVisiblePageSelection(state).activePageId;});state.activePageId=withVisiblePageSelection(state).activePageId;return finishPageLifecycle();});}
+async function restore(page){if(!page)return false;return runPageLifecycle("restoring a page",async()=>{const previous=state.activePageId;checkpoint();await commit("page.restore",{pageId:page.id},()=>{const targets=new Set([page]);let changed=true;while(changed){changed=false;for(const candidate of workspace().pages)if(candidate.parentId&&[...targets].some(target=>target.id===candidate.parentId)&&!targets.has(candidate)){targets.add(candidate);changed=true;}}for(let parent=page.parentId?pageById(page.parentId):null;parent;parent=parent.parentId?pageById(parent.parentId):null)targets.add(parent);for(const target of targets)delete target.deletedAt;state.activePageId=page.id;});state.activePageId=page.id;if(previous&&previous!==page.id)navigation.push(previous);const restored=await finishPageLifecycle();if(restored)$("#sidebar").classList.remove("open");return restored;});}
 
 function renderNavigation(){
-  const expanded=new Set(state.expandedPageIds), branch=(parentId,depth=0)=>childrenOf(parentId).map(page=>{const kids=childrenOf(page.id),open=expanded.has(page.id);return `<div class="tree-branch"><div class="tree-row ${page.id===state.activePageId?"active":""}" style="--depth:${depth}"><button class="disclosure" data-toggle="${escapeAttribute(page.id)}" aria-label="${open?"Collapse":"Expand"} ${escapeHtml(page.title)}">${kids.length?(open?"⌄":"›"):""}</button><button class="page-link" data-open-page="${escapeAttribute(page.id)}"><span>${databaseForPage(page)?.pageId===page.id?"▦":"□"}</span><span>${escapeHtml(page.title||"Untitled")}</span></button><button class="row-action" data-favourite="${escapeAttribute(page.id)}" aria-label="${page.favourite?"Remove from favourites":"Add to favourites"}">★</button><button class="row-action" data-page-menu="${escapeAttribute(page.id)}" aria-label="Page actions">•••</button></div>${open?`<div>${branch(page.id,depth+1)}</div>`:""}</div>`;}).join("");
+  const expanded=new Set(state.expandedPageIds), branch=(parentId,depth=0)=>childrenOf(parentId).map(page=>{const kids=childrenOf(page.id),open=expanded.has(page.id);return `<div class="tree-branch"><div class="tree-row ${page.id===state.activePageId?"active":""}" data-depth="${depth}"><button class="disclosure" data-toggle="${escapeAttribute(page.id)}" aria-label="${open?"Collapse":"Expand"} ${escapeHtml(page.title)}">${kids.length?(open?"⌄":"›"):""}</button><button class="page-link" data-open-page="${escapeAttribute(page.id)}"><span>${databaseForPage(page)?.pageId===page.id?"▦":"□"}</span><span>${escapeHtml(page.title||"Untitled")}</span></button><button class="row-action" data-favourite="${escapeAttribute(page.id)}" aria-label="${page.favourite?"Remove from favourites":"Add to favourites"}">★</button><button class="row-action" data-page-menu="${escapeAttribute(page.id)}" aria-label="Page actions">•••</button></div>${open?`<div>${branch(page.id,depth+1)}</div>`:""}</div>`;}).join("");
   $("#pageTree").innerHTML=childrenOf(null).length?branch(null):`<div class="empty-nav">No pages yet</div>`;
   const favourites=visiblePages().filter(page=>page.favourite&&!page.collectionId);$("#favouritesNav").hidden=!favourites.length;$("#favouritesList").innerHTML=favourites.map(page=>`<button class="favourite-link" data-open-page="${escapeAttribute(page.id)}">★ <span>${escapeHtml(page.title||"Untitled")}</span></button>`).join("");
   const trashed=workspace()?.pages.filter(page=>page.deletedAt)??[];$("#trashList").innerHTML=trashed.length?trashed.map(page=>`<div class="tree-row"><span class="page-link">${escapeHtml(page.title||"Untitled")}</span><button class="row-action always" data-restore-page="${escapeAttribute(page.id)}" aria-label="Restore ${escapeHtml(page.title||"Untitled")}">Restore</button></div>`).join(""):`<div class="empty-nav">Trash is empty</div>`;
-}
+  applyLayoutStyles($("#pageTree"));}
 function render(){
   activeMention=null;activeSlash=null;for(const id of ["mentionChooser","slashChooser"]){const chooser=$(`#${id}`);if(chooser)chooser.hidden=true;}
   renderNavigation();const page=activePage();if(!page){$("#breadcrumbs").textContent="Workspace";$("#content").innerHTML=`<div class="empty-state"><div class="empty-icon">◇</div><h1>Your workspace is ready</h1><p>Create a page or table. Everything stays on this device.</p><div class="empty-actions"><button class="primary" data-create="page">New page</button><button data-create="database">New table</button></div></div>`;renderContext(null);return;}
   renderBreadcrumbs(page);
-  const database=databaseForPage(page); if(database?.pageId===page.id){renderDatabase(page,database);tagRecordRows(database);}else renderDocument(page,database);renderContext(page);
+  const database=databaseForPage(page); if(database?.pageId===page.id){renderDatabase(page,database);tagRecordRows(database);}else renderDocument(page,database);applyLayoutStyles($("#content"));renderContext(page);setEditorViewReadonly(blockViewInFlight);
 }
 function renderBreadcrumbs(page){$("#breadcrumbs").innerHTML=`${navigation.length?`<button data-back aria-label="Go back">←</button>`:""}${ancestors(page).map(item=>`<button data-open-page="${escapeAttribute(item.id)}">${escapeHtml(item.title||"Untitled")}</button>`).join("<span>/</span>")}`;}
 function refreshPageTitlePresentation(pageId){const page=pageById(pageId);if(!page||page.id!==state.activePageId)return;renderNavigation();renderBreadcrumbs(page);}
-function pageHeader(page,label){return `<div class="page-kicker"><span>${escapeHtml(label)}</span><span><button class="quiet" data-favourite="${escapeAttribute(page.id)}">${page.favourite?"★ Favourited":"☆ Favourite"}</button><button class="danger-text" data-trash-page="${escapeAttribute(page.id)}">Trash</button></span></div><input id="pageTitle" class="page-title" value="${escapeHtml(page.title)}" aria-label="${label==="Table"?"Database title":"Page title"}" placeholder="Untitled" />`;}
+function pageHeader(page,label){return `<div class="page-kicker"><span>${escapeHtml(label)}</span><span><button class="quiet" data-favourite="${escapeAttribute(page.id)}">${page.favourite?"★ Favourited":"☆ Favourite"}</button><button class="danger-text" data-trash-page="${escapeAttribute(page.id)}">Trash</button></span></div><input id="pageTitle" class="page-title" value="${escapeHtml(page.title)}" aria-label="${["Table","List","Board"].includes(label)?"Database title":"Page title"}" placeholder="Untitled" />`;}
 function propertyInput(property,value,recordId){
   return propertyControlHtml(property,value,workspace().attachments,recordId);
 }
-function renderFileBlockContent(block){const attachment=workspace().attachments.find(item=>item.id===block.attachmentId);return attachment?`<div class="block-input file" role="group" aria-label="Attachment ${escapeHtml(attachment.fileName)}"><strong>📎 ${escapeHtml(attachment.fileName)}</strong><small>${escapeHtml(attachment.mediaType)} · ${attachment.byteLength} bytes</small><button data-download-attachment="${escapeAttribute(attachment.id)}">Download</button></div>`:`<div class="block-input file unavailable" role="alert">Attachment unavailable: metadata is missing or corrupt.</div>`;}
-function renderBlockContent(block,type){if(block.type==="divider")return `<hr>`;if(isFileBlock(block))return renderFileBlockContent(block);return `<div class="block-input ${type}" contenteditable="true" role="textbox" aria-multiline="true" aria-autocomplete="list" aria-expanded="false" data-block="${escapeAttribute(block.id)}" aria-controls="mentionChooser slashChooser" aria-haspopup="listbox" data-placeholder="Type '/' for commands or [[Page name]] to link or create">${escapeHtml(block.text)}</div>`;}
-function findBlockLocation(blocks,id,parent=null){for(let index=0;index<(blocks??[]).length;index++){const block=blocks[index];if(block.id===id)return{block,blocks,index,parent};const nested=findBlockLocation(block.children,id,block);if(nested)return nested;}return null;}
-function blockDepths(blocks,depth=0,result=new Map()){for(const block of blocks??[]){result.set(block.id,depth);blockDepths(block.children,depth+1,result);}return result;}
-function flattenBlocks(blocks,result=[]){for(const block of blocks??[]){result.push(block);flattenBlocks(block.children,result);}return result;}
-function renderBlocks(page){const depths=blockDepths(page.blocks);return flattenBlocks(page.blocks).map((block,index,blocks)=>{const type=BLOCK_TYPES.includes(block.type)?block.type:"unsupported",depth=depths.get(block.id)??0;return `<div class="block-row ${type}" data-block-id="${escapeAttribute(block.id)}" style="--indent:${depth}"><div class="block-tools"><button data-move-block="${escapeAttribute(block.id)}:-1" ${index?"":"disabled"}>↑</button><button data-move-block="${escapeAttribute(block.id)}:1" ${index<blocks.length-1?"":"disabled"}>↓</button></div>${isFileBlock(block)?`<span class="block-type-label">File</span>`:renderBlockTypeSelect({blockId:block.id,type:block.type,types:BLOCK_TYPES,labels:BLOCK_LABELS})}${block.type==="task"?`<input class="task-check" type="checkbox" data-task="${escapeAttribute(block.id)}" ${block.checked?"checked":""}>`:""}${renderBlockContent(block,type).replace("data-block=",'aria-keyshortcuts="Alt+BracketRight Alt+BracketLeft" data-block=')}<button class="delete-block" data-delete-block="${escapeAttribute(block.id)}" aria-label="Delete block">×</button></div>`;}).join("");}
+function renderFileBlockContent(block){const attachment=workspace().attachments.find(item=>item.id===block.attachmentId);return attachment&&isValidAttachmentByteLength(attachment.byteLength)?`<div class="block-input file" role="group" aria-label="Attachment ${escapeHtml(attachment.fileName)}"><strong>📎 ${escapeHtml(attachment.fileName)}</strong><small>${escapeHtml(attachment.mediaType)} · ${escapeHtml(attachment.byteLength)} bytes</small><button data-download-attachment="${escapeAttribute(attachment.id)}">Download</button></div>`:`<div class="block-input file unavailable" role="alert">Attachment unavailable: metadata is missing or corrupt.</div>`;}
+function renderBlockContent(block,type,number=null){
+  if(block.type==="divider")return `<hr>`;
+  if(isFileBlock(block))return renderFileBlockContent(block);
+  const numbering=Number.isSafeInteger(number)&&number>0?` data-list-number="${number}"`:"";
+  return `<div class="block-input ${type}" contenteditable="true" role="textbox" aria-multiline="true" aria-autocomplete="list" aria-expanded="false"${numbering} aria-keyshortcuts="Alt+BracketRight Alt+BracketLeft" data-block="${escapeAttribute(block.id)}" aria-controls="mentionChooser slashChooser" aria-haspopup="listbox" data-placeholder="Type '/' for commands or [[Page name]] to link or create">${escapeHtml(block.text)}</div>`;
+}
+function flattenBlocks(blocks){return visibleBlockLocations(blocks,state.collapsedBlockIds).map(location=>location.block);}
+function renderBlocks(page){
+  const locations=new Map([...blockLocations(page.blocks)].map(location=>[location.block.id,location]));
+  const collapsed=new Set(state.collapsedBlockIds);
+  const renderLevel=blocks=>blocks.map(block=>{
+    const location=locations.get(block.id),{index,depth}=location,type=BLOCK_TYPES.includes(block.type)?block.type:"unsupported",folded=block.type==="toggle"&&collapsed.has(block.id);
+    const disclosure=block.type==="toggle"?`<button class="block-disclosure" data-toggle-block="${escapeAttribute(block.id)}" aria-label="${folded?"Expand":"Collapse"} toggle" aria-expanded="${!folded}" aria-controls="block-children-${escapeAttribute(block.id)}">${folded?"›":"⌄"}</button>`:"";
+    const content=renderBlockContent(block,type,numberedSiblingPosition(location));
+    const row=`<div class="block-row ${type}" data-block-id="${escapeAttribute(block.id)}" data-indent="${depth}"><div class="block-tools"><button data-move-block="${escapeAttribute(block.id)}:-1" ${index?"":"disabled"}>↑</button><button data-move-block="${escapeAttribute(block.id)}:1" ${index<location.blocks.length-1?"":"disabled"}>↓</button></div>${isFileBlock(block)?`<span class="block-type-label">File</span>`:renderBlockTypeSelect({blockId:block.id,type:block.type,types:BLOCK_TYPES,labels:BLOCK_LABELS})}${disclosure}${block.type==="task"?`<input class="task-check" type="checkbox" data-task="${escapeAttribute(block.id)}" ${block.checked?"checked":""}>`:""}${content}<button class="delete-block" data-delete-block="${escapeAttribute(block.id)}" aria-label="Delete block">×</button></div>`;
+    return `${row}<div id="block-children-${escapeAttribute(block.id)}" class="block-children" ${folded?"hidden":""}>${folded?"":renderLevel(block.children)}</div>`;
+  }).join("");
+  return renderLevel(page.blocks);
+}
 function renderDocument(page,database){const properties=database?livePropertyDefinitions(database).filter(property=>property.type!=="title").map(property=>`<div class="record-property"><span>${escapeHtml(property.name)}</span>${propertyInput(property,propertyValueForRecord(property,page))}</div>`).join(""):"";$("#content").innerHTML=`<article class="page">${pageHeader(page,database?`Record in ${database.name}`:"Page")}${database?`<section class="record-properties">${properties||'<p class="muted">No properties yet.</p>'}</section><hr class="record-divider">`:""}<div class="blocks">${renderBlocks(page)}</div><button class="add-block" id="addBlock">+ Add block</button></article>`;}
-function compareValues(a,b){if(a==null&&b==null)return 0;if(a==null)return 1;if(b==null)return-1;return typeof a==="string"&&typeof b==="string"?a.localeCompare(b):a<b?-1:a>b?1:0;}
-function records(database,view){const titleId=livePropertyDefinitions(database).find(property=>property.type==="title")?.id;let records=(database.recordPageIds??[]).map(pageById).filter(page=>page&&!page.deletedAt);if(view.filters){const instant=new Date();records=records.filter(page=>matchesFilter(view.filters,page,instant,database.properties));}return records.map((page,index)=>({page,index})).sort((a,b)=>{for(const sort of view.sorts??[]){const result=compareValues(sort.propertyId===titleId?a.page.title:a.page.properties?.[sort.propertyId],sort.propertyId===titleId?b.page.title:b.page.properties?.[sort.propertyId]);if(result)return sort.direction==="desc"?-result:result;}return a.index-b.index;}).map(item=>item.page);}
-function setActiveView(databaseId,viewId){const entries=Object.entries(state.activeViewIds??{}).filter(([id])=>id!==databaseId);state.activeViewIds=Object.fromEntries([...entries.slice(-255),[databaseId,viewId]]);}
+function records(database,view){return selectDatabaseRecords(workspace(),database,view);}
+function setActiveView(databaseId,viewId,document=state){const entries=Object.entries(document.activeViewIds??{}).filter(([id])=>id!==databaseId);document.activeViewIds=Object.fromEntries([...entries.slice(-255),[databaseId,viewId]]);}
+async function selectDatabaseView(database,viewId){
+  if(!database.views.some(view=>view.id===viewId))return false;
+  const saved=await persistBlockView("selecting a database view",candidate=>setActiveView(database.id,viewId,candidate),()=>$("#activeView")?.focus());
+  if(!saved){const current=databaseForPage(activePage());if(current?.id===database.id){const control=$("#activeView");if(control){control.value=activeView(current).id;control.focus();}}}
+  return saved;
+}
+async function createDatabaseView(database,type){
+  if(!["table","list","board"].includes(type))return false;
+  const source=activeView(database),label={table:"Table",list:"List",board:"Board"}[type];
+  let name=label;for(let number=2;database.views.some(view=>view.name===name);number++)name=`${label} ${number}`;
+  const grouping=boardGroupingProperties(database),view={id:uid(),name,type,visiblePropertyIds:[...source.visiblePropertyIds],propertyOrder:[...(source.propertyOrder??source.visiblePropertyIds)],columnWidths:{...(source.columnWidths??{})},filters:structuredClone(source.filters),sorts:structuredClone(source.sorts??[])};
+  if(type==="board"&&grouping.length)view.groupByPropertyId=grouping.find(property=>property.id===source.groupByPropertyId)?.id??grouping[0].id;
+  const created=await runPageLifecycle("creating a database view",async()=>{
+    setEditorViewReadonly(true);
+    try{await commit("database.view-create",{databaseId:database.id,view},()=>database.views.push({...view,collectionId:database.id}));return true;}
+    finally{setEditorViewReadonly(false);}
+  });
+  if(!created)return false;
+  const current=databaseForPage(activePage());
+  if(!current||current.id!==database.id)return false;
+  if(!await selectDatabaseView(current,view.id)){render();$("#saveState").textContent="View created; its selection could not be saved. Select the view to try again.";$("#activeView")?.focus();return false;}
+  return true;
+}
 function activeView(database){const selected=database.views.find(view=>view.id===state.activeViewIds?.[database.id])??database.views[0];if(selected&&state.activeViewIds?.[database.id]!==selected.id)setActiveView(database.id,selected.id);return selected;}
-function viewToolbar(database,view){const definitions=livePropertyDefinitions(database);return `<div class="view-toolbar" role="toolbar" aria-label="Database views"><label>View<select id="activeView" aria-label="Active database view">${database.views.map(candidate=>`<option value="${escapeAttribute(candidate.id)}" ${candidate.id===view.id?"selected":""}>${escapeHtml(candidate.name)} · ${escapeHtml(candidate.type)}</option>`).join("")}</select></label><button id="addListView">+ List view</button><button id="duplicateView">Duplicate view</button><button id="deleteView" ${database.views.length<2?"disabled":""}>Delete view</button><button id="filterButton">Filter</button><button id="sortButton">Sort</button>${definitions.map((property,index)=>`<span class="property-definition" draggable="true" data-property-definition-drag="${escapeAttribute(property.id)}"><button data-property-menu="${escapeAttribute(property.id)}">${escapeHtml(property.name)}</button><button data-property-definition-move="${escapeAttribute(property.id)}:-1" aria-label="Move ${escapeHtml(property.name)} property earlier" ${index?"":"disabled"}>←</button><button data-property-definition-move="${escapeAttribute(property.id)}:1" aria-label="Move ${escapeHtml(property.name)} property later" ${index<definitions.length-1?"":"disabled"}>→</button></span>`).join("")}<button id="addProperty">+ Property</button></div><div id="viewControls" class="view-controls"></div>`;}
+function viewToolbar(database,view){const definitions=livePropertyDefinitions(database);return `<div class="view-toolbar" role="toolbar" aria-label="Database views"><label>View<select id="activeView" aria-label="Active database view">${database.views.map(candidate=>`<option value="${escapeAttribute(candidate.id)}" ${candidate.id===view.id?"selected":""}>${escapeHtml(candidate.name)} · ${escapeHtml(candidate.type)}</option>`).join("")}</select></label><button id="addTableView">+ Table view</button><button id="addListView">+ List view</button><button id="addBoardView">+ Board view</button><button id="duplicateView">Duplicate view</button><button id="deleteView" ${database.views.length<2?"disabled":""}>Delete view</button><button id="filterButton">Filter</button><button id="sortButton">Sort</button>${definitions.map((property,index)=>`<span class="property-definition" draggable="true" data-property-definition-drag="${escapeAttribute(property.id)}"><button data-property-menu="${escapeAttribute(property.id)}">${escapeHtml(property.name)}</button><button data-property-definition-move="${escapeAttribute(property.id)}:-1" aria-label="Move ${escapeHtml(property.name)} property earlier" ${index?"":"disabled"}>←</button><button data-property-definition-move="${escapeAttribute(property.id)}:1" aria-label="Move ${escapeHtml(property.name)} property later" ${index<definitions.length-1?"":"disabled"}>→</button></span>`).join("")}<button id="addProperty">+ Property</button></div><div id="viewControls" class="view-controls"></div>`;}
 function propertyDisplay(property,value){return propertyDisplayText(property,value,workspace().attachments);}
 function recordOrderControls(view,record,index,total){if(!manualRecordOrderEnabled(view))return"";return `<span class="record-order-controls"><button data-record-move="${escapeAttribute(record.id)}:-1" aria-label="Move ${escapeHtml(record.title||"Untitled")} record earlier" ${index?"":"disabled"}>↑</button><button data-record-move="${escapeAttribute(record.id)}:1" aria-label="Move ${escapeHtml(record.title||"Untitled")} record later" ${index<total-1?"":"disabled"}>↓</button></span>`;}
 function renderList(database,view,properties,items){return `<div class="database-list" role="list" aria-label="${escapeHtml(view.name)} list">${items.slice(0,500).map((record,index)=>`<article class="list-record" role="listitem" ${manualRecordOrderEnabled(view)?`draggable="true" data-record-drag="${escapeAttribute(record.id)}"`:""} data-record-id="${escapeAttribute(record.id)}">${recordOrderControls(view,record,index,items.length)}<button class="record-link" data-open-page="${escapeAttribute(record.id)}">${escapeHtml(record.title||"Untitled")}</button><dl>${properties.filter(property=>property.type!=="title").map(property=>`<div><dt>${escapeHtml(property.name)}</dt><dd>${escapeHtml(propertyDisplay(property,propertyValueForRecord(property,record)))}</dd></div>`).join("")}</dl><button data-trash-page="${escapeAttribute(record.id)}" aria-label="Trash record">×</button></article>`).join("")||'<div class="table-empty">No records match this view.</div>'}</div>`;}
-function renderDatabase(page,database){const view=activeView(database),live=livePropertyDefinitions(database),order=(view.propertyOrder??live.map(property=>property.id)).filter(id=>view.visiblePropertyIds.includes(id)),properties=order.map(id=>live.find(property=>property.id===id)).filter(Boolean),items=records(database,view);const headers=properties.map((property,index)=>`<th draggable="true" data-column-drag="${escapeAttribute(property.id)}" style="width:${escapeAttribute(view.columnWidths?.[property.id]??(property.type==="title"?280:170))}px"><div class="column-head"><button data-property-menu="${escapeAttribute(property.id)}">${escapeHtml(property.name)} <small>${PROPERTY_LABELS[property.type]}</small></button><span><button data-column-move="${escapeAttribute(property.id)}:-1" ${index?"":"disabled"}>←</button><button data-column-move="${escapeAttribute(property.id)}:1" ${index<properties.length-1?"":"disabled"}>→</button></span></div><input class="column-resize" type="range" min="90" max="480" value="${escapeAttribute(view.columnWidths?.[property.id]??(property.type==="title"?280:170))}" data-column-width="${escapeAttribute(property.id)}" aria-label="Width of ${escapeHtml(property.name)}"></th>`).join("");const rows=items.slice(0,500).map((record,index)=>`<tr ${manualRecordOrderEnabled(view)?`draggable="true" data-record-drag="${escapeAttribute(record.id)}"`:""}>${properties.map(property=>`<td>${property.type==="title"?`<button class="record-link" data-open-page="${escapeAttribute(record.id)}">${escapeHtml(record.title||"Untitled")}</button>`:propertyInput(property,propertyValueForRecord(property,record),record.id)}</td>`).join("")}<td class="row-tools">${recordOrderControls(view,record,index,items.length)}<button data-trash-page="${escapeAttribute(record.id)}" aria-label="Trash record">×</button></td></tr>`).join("");const body=view.type==="list"?renderList(database,view,properties,items):`<div class="table-wrap"><table><thead><tr>${headers}<th class="row-tools"></th></tr></thead><tbody>${rows}</tbody></table>${rows?"":'<div class="table-empty">No records match this view.</div>'}</div>`;$("#content").innerHTML=`<article class="page database-page">${pageHeader(page,view.type==="list"?"List":"Table")}${viewToolbar(database,view)}<div class="table-toolbar"><span>${items.length} of ${database.recordPageIds?.length??0} records${items.length>500?" · showing first 500":""}</span></div>${manualRecordOrderEnabled(view)?"":'<p class="muted" role="status">Clear filters and sorts to reorder records manually.</p>'}${body}<button class="add-row" id="addRecord">+ New record</button></article>`;}
-function renderContext(page){if(!page){$("#outgoingLinks").innerHTML=$("#backlinks").innerHTML='<p class="muted">Open a page to see connections.</p>';return;}rebuildLinks();const outgoing=workspace().linkIndex.filter(link=>link.sourcePageId===page.id).map(link=>pageById(link.targetPageId)).filter(Boolean),incoming=workspace().linkIndex.filter(link=>link.targetPageId===page.id).map(link=>pageById(link.sourcePageId)).filter(Boolean);const html=(items,empty)=>items.length?[...new Map(items.map(item=>[item.id,item])).values()].map(item=>`<button class="context-link" data-open-page="${escapeAttribute(item.id)}">↗ ${escapeHtml(item.title)}</button>`).join(""):`<p class="muted">${empty}</p>`;$("#outgoingLinks").innerHTML=html(outgoing,"No links from this page.");$("#backlinks").innerHTML=html(incoming,"No backlinks yet.");$("#attachments").innerHTML='<p class="muted">Attachments remain available through native backup/export.</p>';}
+function boardNode(tag,className,text){const element=document.createElement(tag);if(className)element.className=className;if(text!==undefined)element.textContent=text;return element;}
+function renderBoard(database,view,properties){
+  const root=boardNode("section","database-board");root.id="boardView";root.tabIndex=-1;root.setAttribute("aria-label",`${view.name} board`);
+  const definitions=boardGroupingProperties(database),settings=boardNode("div","board-settings"),label=boardNode("label","","Group by"),select=boardNode("select");
+  select.id="boardGrouping";select.setAttribute("aria-label","Board grouping");
+  const prompt=boardNode("option","","Choose a status or select property");prompt.value="";prompt.disabled=true;select.append(prompt);
+  for(const property of definitions){const option=boardNode("option","",property.name);option.value=property.id;select.append(option);}
+  if(view.groupByPropertyId!==undefined&&!definitions.some(property=>property.id===view.groupByPropertyId)){
+    const preserved=boardNode("option","","Saved grouping is unavailable here");preserved.value=view.groupByPropertyId;preserved.disabled=true;select.append(preserved);
+  }
+  select.value=view.groupByPropertyId??"";select.disabled=!definitions.length;label.append(select);settings.append(label);root.append(settings);
+  let projection;
+  try{projection=projectBoardView(workspace(),database,view);}
+  catch{root.dataset.boardState="unavailable";const message=boardNode("p","board-configuration","This board cannot be shown because a saved value does not match its grouping options. Open a table or list view to inspect the records.");message.setAttribute("role","status");root.append(message);return root;}
+  root.dataset.boardState=projection.state;
+  if(projection.state!=="ready"){
+    const messages={"grouping-required":definitions.length?"Choose a status or select property to group this board.":"Add a status or select property to group this board.","grouping-property-unavailable":"The saved grouping property is unavailable. Choose a status or select property to show this board.","grouping-property-type":"This saved grouping type is not supported by the board. Choose a status or select property, or open a table or list view.",subgroup:"This board has saved subgroups, which are not supported here yet. Its settings and records are preserved. Open a table or list view to work with the records."};
+    const message=boardNode("p","board-configuration",messages[projection.reason]);message.setAttribute("role","status");root.append(message,boardNode("p","muted",`${projection.records.length} records match this view.`));return root;
+  }
+  const property=definitions.find(item=>item.id===projection.propertyId),shown=new Set(projection.records.slice(0,500).map(record=>record.id)),lanes=boardNode("div","board-lanes");
+  for(const group of projection.groups){
+    const lane=boardNode("section","board-lane"),heading=boardNode("h2","board-lane-heading"),name=boardNode("span","",group.label),count=boardNode("span","board-lane-count",String(group.records.length)),cards=boardNode("div","board-cards");
+    lane.dataset.boardLane=group.value??"";lane.setAttribute("aria-label",group.value===null?"Unassigned records":`${group.label} records`);cards.setAttribute("role","list");
+    heading.append(name,count);lane.append(heading,cards);
+    const displayed=group.records.filter(record=>shown.has(record.id));
+    for(const record of displayed){
+      const card=boardNode("article","board-card"),open=boardNode("button","board-card-link",record.title||"Untitled"),details=boardNode("dl","board-card-properties");
+      card.setAttribute("role","listitem");card.dataset.recordId=record.id;open.type="button";open.dataset.openPage=record.id;open.dataset.boardOpen=record.id;
+      for(const field of properties.filter(field=>field.type!=="title"&&field.id!==property.id)){
+        const item=boardNode("div");item.append(boardNode("dt","",field.name),boardNode("dd","",propertyDisplay(field,propertyValueForRecord(field,record))));details.append(item);
+      }
+      const moveLabel=boardNode("label","board-card-move","Move to"),move=boardNode("select");
+      move.dataset.property=property.id;move.dataset.record=record.id;move.dataset.boardMove=view.id;move.setAttribute("aria-label",`Move ${record.title||"Untitled"} to ${property.name}`);
+      for(const destination of projection.groups){const option=boardNode("option","",destination.value===null?"Unassigned (no value)":destination.label);option.value=destination.value??"";option.disabled=destination.value===null&&Boolean(property.validation?.required);move.append(option);}
+      move.value=group.value??"";moveLabel.append(move);card.append(open);if(details.children.length)card.append(details);card.append(moveLabel);cards.append(card);
+    }
+    if(!displayed.length)cards.append(boardNode("p","board-empty",group.records.length?"More matching records are outside the first 500 shown.":"No records in this group."));
+    lanes.append(lane);
+  }
+  root.append(lanes);return root;
+}
+function renderDatabase(page,database){const view=activeView(database),live=livePropertyDefinitions(database),order=(view.propertyOrder??live.map(property=>property.id)).filter(id=>view.visiblePropertyIds.includes(id)),properties=order.map(id=>live.find(property=>property.id===id)).filter(Boolean),items=records(database,view);const headers=properties.map((property,index)=>`<th draggable="true" data-column-drag="${escapeAttribute(property.id)}" data-width="${escapeAttribute(view.columnWidths?.[property.id]??(property.type==="title"?280:170))}"><div class="column-head"><button data-property-menu="${escapeAttribute(property.id)}">${escapeHtml(property.name)} <small>${PROPERTY_LABELS[property.type]}</small></button><span><button data-column-move="${escapeAttribute(property.id)}:-1" ${index?"":"disabled"}>←</button><button data-column-move="${escapeAttribute(property.id)}:1" ${index<properties.length-1?"":"disabled"}>→</button></span></div><input class="column-resize" type="range" min="90" max="480" value="${escapeAttribute(view.columnWidths?.[property.id]??(property.type==="title"?280:170))}" data-column-width="${escapeAttribute(property.id)}" aria-label="Width of ${escapeHtml(property.name)}"></th>`).join("");const rows=items.slice(0,500).map((record,index)=>`<tr ${manualRecordOrderEnabled(view)?`draggable="true" data-record-drag="${escapeAttribute(record.id)}"`:""}>${properties.map(property=>`<td>${property.type==="title"?`<button class="record-link" data-open-page="${escapeAttribute(record.id)}">${escapeHtml(record.title||"Untitled")}</button>`:propertyInput(property,propertyValueForRecord(property,record),record.id)}</td>`).join("")}<td class="row-tools">${recordOrderControls(view,record,index,items.length)}<button data-trash-page="${escapeAttribute(record.id)}" aria-label="Trash record">×</button></td></tr>`).join("");const body=view.type==="board"?'<div id="boardMount"></div>':view.type==="list"?renderList(database,view,properties,items):`<div class="table-wrap"><table><thead><tr>${headers}<th class="row-tools"></th></tr></thead><tbody>${rows}</tbody></table>${rows?"":'<div class="table-empty">No records match this view.</div>'}</div>`;$("#content").innerHTML=`<article class="page database-page">${pageHeader(page,view.type==="board"?"Board":view.type==="list"?"List":"Table")}${viewToolbar(database,view)}<div class="table-toolbar"><span>${items.length} of ${database.recordPageIds?.length??0} records${items.length>500?" · showing first 500":""}</span></div>${view.type==="board"||manualRecordOrderEnabled(view)?"":'<p class="muted" role="status">Clear filters and sorts to reorder records manually.</p>'}${body}<button class="add-row" id="addRecord">+ New record</button></article>`;if(view.type==="board")$("#boardMount").replaceChildren(renderBoard(database,view,properties));}
+function renderContext(page){if(!page){$("#outgoingLinks").innerHTML=$("#backlinks").innerHTML='<p class="muted">Open a page to see connections.</p>';return;}const links=rebuildLinks(),outgoing=links.filter(link=>link.sourcePageId===page.id).map(link=>pageById(link.targetPageId)).filter(Boolean),incoming=links.filter(link=>link.targetPageId===page.id).map(link=>pageById(link.sourcePageId)).filter(Boolean);const html=(items,empty)=>items.length?[...new Map(items.map(item=>[item.id,item])).values()].map(item=>`<button class="context-link" data-open-page="${escapeAttribute(item.id)}">↗ ${escapeHtml(item.title)}</button>`).join(""):`<p class="muted">${empty}</p>`;$("#outgoingLinks").innerHTML=html(outgoing,"No links from this page.");$("#backlinks").innerHTML=html(incoming,"No backlinks yet.");$("#attachments").innerHTML='<p class="muted">Attachments remain available through native backup/export.</p>';}
 function renderAttachmentList(){const container=$("#attachments"),items=workspace()?.attachments??[];container.replaceChildren();if(!items.length){const empty=document.createElement("p");empty.className="muted";empty.textContent="No attachments in this workspace.";container.append(empty);return;}for(const attachment of items){const entry=document.createElement("div"),details=document.createElement("span"),name=document.createElement("strong"),integrity=document.createElement("small"),button=document.createElement("button");entry.className="attachment-entry";name.textContent=attachment.fileName;integrity.textContent=`${attachment.byteLength} bytes · SHA-256 ${attachment.sha256.slice(0,12)}…`;details.append(name,integrity);button.type="button";button.dataset.saveAttachment=attachment.id;button.textContent="Save a copy";button.setAttribute("aria-label",`Save a copy of ${attachment.fileName}`);entry.append(details,button);container.append(entry);}}
 async function updateRecord(record,property,value){const database=databaseForPage(record);await commit("database.record-update",{pageId:record.id,values:{[property.id]:value}},()=>{record.properties??={};if(value===undefined)delete record.properties[property.id];else record.properties[property.id]=value;});}
 function readProperty(target,property){return readPropertyControl(target,property,workspace().attachments);}
@@ -265,16 +429,34 @@ function readProperty(target,property){return readPropertyControl(target,propert
 
 function showPageMenu(page){const choices=visiblePages().filter(candidate=>candidate.id!==page.id&&!descendants(page.id).some(child=>child.id===candidate.id));const menu=`<div class="inline-panel"><strong>Page actions</strong><label>Move inside<select id="moveParent"><option value="">Workspace root</option>${choices.map(item=>`<option value="${escapeAttribute(item.id)}" ${page.parentId===item.id?"selected":""}>${escapeHtml(item.title)}</option>`).join("")}</select></label><button data-confirm-move="${escapeAttribute(page.id)}">Move page</button><button data-move-page="${escapeAttribute(page.id)}:-1" aria-label="Move ${escapeHtml(page.title)} up">↑ Up</button><button data-move-page="${escapeAttribute(page.id)}:1" aria-label="Move ${escapeHtml(page.title)} down">↓ Down</button><button data-add-child="${escapeAttribute(page.id)}">Add child page</button><button data-add-database="${escapeAttribute(page.id)}">Add table</button></div>`;$("#content").insertAdjacentHTML("afterbegin",menu);}
 function showPropertyMenu(database,property){const options=(property.options??[]).map(option=>option.name).join(", "),visible=activeView(database).visiblePropertyIds.includes(property.id);$("#viewControls").innerHTML=`<div class="inline-panel property-panel"><label>Name<input id="propertyName" value="${escapeHtml(property.name)}"></label>${property.type==="title"?"":`<label>Type<select id="propertyType">${PROPERTY_TYPES.map(type=>`<option value="${type}" ${type===property.type?"selected":""}>${PROPERTY_LABELS[type]}</option>`).join("")}</select></label>`}<label class="option-definition" ${["select","multi-select","status"].includes(property.type)?"":"hidden"}>Options (comma separated)<input id="propertyOptions" value="${escapeHtml(options)}"></label><label>Visible in table<input id="propertyVisible" type="checkbox" ${visible?"checked":""}></label><button data-save-property="${escapeAttribute(property.id)}">Save</button>${property.type==="title"?"":`<button class="danger-text" data-delete-property="${escapeAttribute(property.id)}">Delete property</button>`}</div>`;}
-function filterRow(database,condition,index){const property=livePropertyDefinitions(database).find(item=>item.id===condition?.propertyId)??livePropertyDefinitions(database)[0];return `<div class="filter-clause" data-filter-index="${index}"><select id="${index?"": "filterProperty"}" data-filter-property>${livePropertyDefinitions(database).map(item=>`<option value="${escapeAttribute(item.id)}" ${property?.id===item.id?"selected":""}>${escapeHtml(item.name)}</option>`).join("")}</select><select id="${index?"":"filterOperator"}" data-filter-operator>${FILTER_OPERATOR_CHOICES.map(({value,label})=>`<option value="${value}" ${condition?.operator===value?"selected":""}>${label}</option>`).join("")}</select>${filterValueControlHtml(property,condition)}<button data-remove-filter="${index}" aria-label="Remove filter">×</button></div>`;}
-function showFilter(database){const view=activeView(database),negated=view.filters?.kind==="not",root=negated?view.filters.child:view.filters,kind=root?.kind==="or"?"or":"and",conditions=root?.kind==="and"||root?.kind==="or"?root.children:root?.kind==="condition"?[root]:[];$("#viewControls").innerHTML=`<div class="inline-panel"><label>Match<select id="filterKind"><option value="and" ${kind==="and"?"selected":""}>all (AND)</option><option value="or" ${kind==="or"?"selected":""}>any (OR)</option></select></label><label>Negate group<input id="filterNot" type="checkbox" ${negated?"checked":""}></label><div id="filterClauses">${(conditions.length?conditions:[null]).map((condition,index)=>filterRow(database,condition,index)).join("")}</div><button id="addFilterClause">+ Condition</button><button id="applyFilter">Apply</button><button id="clearFilter">Clear</button></div>`;}
+function showFilter(database){filterEditor=createFilterEditor($("#viewControls"),livePropertyDefinitions(database),activeView(database).filters);filterEditor.focus();}
+async function applyFilterDraft(database,clear=false) {
+  const editor=filterEditor,panel=$("#viewControls").firstElementChild;
+  try {
+    const filters=clear?null:(editor.read()??null);
+    await updateView(database,{filters});
+    filterEditor=null;
+    $("#saveState").textContent=clear?"Filters cleared.":"Filters saved.";
+    $("#filterButton")?.focus();
+  } catch(error) {
+    // A failed browser commit restores and rerenders the confirmed workspace.
+    // Keep the attempted filter available for correction or retry.
+    if(panel && !$("#viewControls")?.querySelector(".filter-editor")) {
+      const current=databaseForPage(activePage());
+      if(current?.id===database.id){$("#viewControls").replaceChildren(panel);filterEditor=editor;}
+    }
+    filterEditor?.showError(error instanceof Error?error.message:"Filters could not be saved.");
+  }
+}
 function showSort(database){const view=activeView(database),sorts=view.sorts??[],firstPropertyId=livePropertyDefinitions(database)[0].id;$("#viewControls").innerHTML=`<div class="inline-panel"><strong>Sort clauses</strong><div id="sortClauses">${sorts.map((sort,index)=>sortRow(database,sort,index)).join("")||sortRow(database,{propertyId:firstPropertyId,direction:"asc"},0)}</div><button id="addSortClause">+ Clause</button><button id="applySort">Apply sorts</button><button id="clearSort">Clear</button></div>`;}
 function sortRow(database,sort,index){return `<div class="sort-clause" data-sort-index="${index}"><select data-sort-property>${livePropertyDefinitions(database).map(property=>`<option value="${escapeAttribute(property.id)}" ${property.id===sort.propertyId?"selected":""}>${escapeHtml(property.name)}</option>`).join("")}</select><select data-sort-direction><option value="asc" ${sort.direction==="asc"?"selected":""}>Ascending</option><option value="desc" ${sort.direction==="desc"?"selected":""}>Descending</option></select><button data-remove-sort="${index}">×</button></div>`;}
-async function updateView(database,patch){await commit("database.view-update",{databaseId:database.id,viewId:activeView(database).id,patch},()=>Object.assign(activeView(database),patch));render();}
+async function updateView(database,patch){await commit("database.view-update",{databaseId:database.id,viewId:activeView(database).id,patch},()=>{const view=activeView(database);Object.assign(view,patch);if(patch.filters===null)delete view.filters;});render();}
 function manualRecordIds(database){return (database.recordPageIds??[]).filter(pageId=>{const page=pageById(pageId);return page&&!page.deletedAt&&page.collectionId===database.id;});}
 async function commitRecordOrder(database,orderedRecordPageIds){await commit("database.record-reorder",{databaseId:database.id,orderedRecordPageIds},()=>applyBrowserRecordOrder(workspace(),database.id,orderedRecordPageIds));render();$("#saveState").textContent="Manual record order saved.";}
 async function commitPropertyDefinitionOrder(database,orderedPropertyIds,movedName){await commit("database.property-reorder",{databaseId:database.id,orderedPropertyIds},()=>reorderPropertyDefinitions(database,orderedPropertyIds));const position=orderedPropertyIds.indexOf(livePropertyDefinitions(database).find(property=>property.name===movedName)?.id)+1;render();$("#saveState").textContent=`Property ${movedName} moved to position ${position}.`;}
 
-document.addEventListener("click",async event=>{const button=event.target.closest("button");if(!button)return;try{
+document.addEventListener("click",async event=>{const button=event.target.closest("button");if(!button||pageLifecycleInFlight||blockViewInFlight)return;try{
+  if(button.dataset.toggleBlock)return toggleBlockFold(button.dataset.toggleBlock);
   if(button.dataset.slashType){selectSlashCommand(button.dataset.slashType);return;}
   if(button.dataset.mentionPage){const page=pageById(button.dataset.mentionPage);if(page)selectMentionPage(page);return;}
   if(button.dataset.createMentionPage){button.disabled=true;await createMentionPage(button.dataset.createMentionPage);return;}
@@ -285,7 +467,7 @@ document.addEventListener("click",async event=>{const button=event.target.closes
   if(button.id==="openSearch"){$("#searchDialog").showModal();$("#searchInput").value="";renderSearchStatus(searchStatus("","idle"));$("#searchInput").focus();return;}
   if(button.id==="openSidebar")return $("#sidebar").classList.add("open");if(button.id==="closeSidebar")return $("#sidebar").classList.remove("open");
   if(editRecovery.snapshot().blocked){if(button.dataset.openPage||button.hasAttribute("data-back"))return requireResolvedEdit("leaving this page");if(button.dataset.trashPage||button.dataset.deleteBlock||button.dataset.deleteProperty)return requireResolvedEdit("moving content to Trash");if(button.id==="exportWorkspace")return exportWorkspace();if(button.id==="createVerifiedBackup")return createVerifiedBackup();if(button.id==="restoreWorkspace"||button.id==="restoreVerifiedBackup")return requireResolvedEdit("restoring");return requireResolvedEdit("continuing");}
-  if(button.dataset.openPage){const blockId=button.dataset.focusBlock;setContextOpen(false,false);if(openPage(button.dataset.openPage)&&blockId)requestAnimationFrame(()=>findByDataValue("[data-block-id]","blockId",blockId)?.querySelector("[data-block]")?.focus());return;}
+  if(button.dataset.openPage){const blockId=button.dataset.focusBlock;if(blockId){if(await revealBlockTarget(button.dataset.openPage,blockId))setContextOpen(false,false);return;}setContextOpen(false,false);return openPage(button.dataset.openPage);}
   if(button.hasAttribute("data-back"))return openPage(navigation.pop(),false);
   if(button.dataset.create)return createPage(null,button.dataset.create==="database",button);
   if(button.id==="addRootPage")return createPage(null,false,button);
@@ -296,15 +478,15 @@ document.addEventListener("click",async event=>{const button=event.target.closes
   if(button.dataset.confirmMove)return movePage(button.dataset.confirmMove,$("#moveParent").value||null);
   if(button.dataset.addChild)return createPage(button.dataset.addChild);
   if(button.dataset.addDatabase)return createPage(button.dataset.addDatabase,true);
-  if(button.dataset.restorePage){const restored=await restore(pageById(button.dataset.restorePage));$("#saveState").textContent="Page restored";requestAnimationFrame(()=>$("#pageTitle")?.focus());return restored;}
+  if(button.dataset.restorePage){const restored=await restore(pageById(button.dataset.restorePage));if(!restored)return;$("#saveState").textContent="Page restored";requestAnimationFrame(()=>$("#pageTitle")?.focus());return restored;}
   if(button.dataset.trashPage&&confirm("Move this page to Trash?")){const pageId=button.dataset.trashPage,trashed=await trash(pageById(pageId));if(!trashed)return;$("#saveState").textContent="Page moved to Trash";requestAnimationFrame(()=>findByDataValue("[data-restore-page]","restorePage",pageId)?.focus());return;}
   if(button.dataset.movePage){const[id,delta]=delegatedIdAndDelta(button.dataset.movePage);return reorderPage(id,delta);}
   const page=activePage(),database=databaseForPage(page);
   if(button.dataset.recordMove&&database&&manualRecordOrderEnabled(activeView(database))){const[id,delta]=delegatedIdAndDelta(button.dataset.recordMove),displayed=records(database,activeView(database)),at=displayed.findIndex(record=>record.id===id),to=at+delta;if(at<0||to<0||to>=displayed.length)return;const beforeRecordPageId=delta<0?displayed[to].id:(displayed[to+1]?.id??null),orderedRecordPageIds=moveRecordInManualOrder(manualRecordIds(database),id,beforeRecordPageId);return commitRecordOrder(database,orderedRecordPageIds);}
   if(button.id==="addBlock"){checkpoint();const block={id:uid(),type:"paragraph",text:"",children:[]};await commit("block.create",{pageId:page.id,position:{parentBlockId:null,beforeBlockId:null},block},()=>page.blocks.push(block));return render();}
   if(button.dataset.deleteBlock){if(!confirm("Permanently delete this block? This cannot be undone.")){button.focus();return;}checkpoint();const blockId=button.dataset.deleteBlock,location=findBlockLocation(page.blocks,blockId);if(!location)return;await commit("block.delete",{pageId:page.id,blockId},()=>{location.blocks.splice(location.index,1);});render();$("#saveState").textContent="Block deleted";requestAnimationFrame(()=>($("[data-block]") ?? $("#addBlock"))?.focus());return;}
-  if(button.dataset.moveBlock){checkpoint();const[id,delta]=delegatedIdAndDelta(button.dataset.moveBlock),location=findBlockLocation(page.blocks,id);if(!location)return;const to=location.index+delta;if(to<0||to>=location.blocks.length)return;const beforeBlockId=delta<0?location.blocks[to].id:(location.blocks[to+1]?.id??null);await commit("block.move",{pageId:page.id,blockId:id,target:{pageId:page.id,parentBlockId:location.parent?.id??null,beforeBlockId}},()=>{[location.blocks[location.index],location.blocks[to]]=[location.blocks[to],location.blocks[location.index]];});return render();}
-  if(button.id==="addListView"){const source=activeView(database),view={id:uid(),name:"List",type:"list",visiblePropertyIds:[...source.visiblePropertyIds],propertyOrder:[...(source.propertyOrder??source.visiblePropertyIds)],columnWidths:{...(source.columnWidths??{})},filters:structuredClone(source.filters),sorts:structuredClone(source.sorts??[])};await commit("database.view-create",{databaseId:database.id,view},()=>database.views.push({...view,collectionId:database.id}));setActiveView(database.id,view.id);await saveUi();return render();}
+  if(button.dataset.moveBlock){checkpoint();const[id,delta]=delegatedIdAndDelta(button.dataset.moveBlock),location=findBlockLocation(page.blocks,id);if(!location)return;const to=location.index+delta;if(to<0||to>=location.blocks.length)return;const beforeBlockId=delta<0?location.blocks[to].id:(location.blocks[to+1]?.id??null);await commit("block.move",{pageId:page.id,blockId:id,target:{pageId:page.id,parentBlockId:location.parent?.id??null,beforeBlockId}},()=>{[location.blocks[location.index],location.blocks[to]]=[location.blocks[to],location.blocks[location.index]];});render();return restoreVisibleEditorFocus({blockId:id,offset:0});}
+  if(["addTableView","addListView","addBoardView"].includes(button.id))return createDatabaseView(database,{addTableView:"table",addListView:"list",addBoardView:"board"}[button.id]);
   if(button.id==="duplicateView"){const source=activeView(database),newViewId=uid(),name=`${source.name} copy`;await commit("database.view-duplicate",{databaseId:database.id,viewId:source.id,newViewId,name},()=>database.views.push({...structuredClone(source),id:newViewId,name}));setActiveView(database.id,newViewId);await saveUi();return render();}
   if(button.id==="deleteView"&&database.views.length>1){const view=activeView(database);if(!confirm(`Delete the ${view.name} view? Records will not be deleted.`))return;await commit("database.view-delete",{databaseId:database.id,viewId:view.id},()=>{database.views=database.views.filter(candidate=>candidate.id!==view.id);});setActiveView(database.id,database.views[0].id);await saveUi();return render();}
   if(button.id==="addRecord"){await commit("database.record-create",{databaseId:database.id,title:"Untitled",values:{}},()=>{const record={id:uid(),parentId:database.pageId,title:"Untitled",blocks:[],createdAt:now(),updatedAt:now(),collectionId:database.id,properties:{}};workspace().pages.push(record);database.recordPageIds.push(record.id);});return render();}
@@ -315,10 +497,9 @@ document.addEventListener("click",async event=>{const button=event.target.closes
   if(button.dataset.deleteProperty&&confirm("Delete this property? Historic values remain available in structured export and backup.")){await commit("database.property-delete",{databaseId:database.id,propertyId:button.dataset.deleteProperty},()=>tombstonePropertyDefinition(database,button.dataset.deleteProperty,now()));return render();}
   if(button.dataset.columnMove){const[id,delta]=delegatedIdAndDelta(button.dataset.columnMove),order=[...activeView(database).propertyOrder],at=order.indexOf(id),to=at+delta;if(to>=0&&to<order.length)[order[at],order[to]]=[order[to],order[at]];return updateView(database,{propertyOrder:order});}
   if(button.id==="filterButton")return showFilter(database);if(button.id==="sortButton")return showSort(database);
-  if(button.id==="addFilterClause"){$("#filterClauses").insertAdjacentHTML("beforeend",filterRow(database,null,$("#filterClauses").children.length));return;}
-  if(button.dataset.removeFilter!==undefined){button.closest(".filter-clause").remove();return;}
-  if(button.id==="applyFilter"){const conditions=[...document.querySelectorAll(".filter-clause")].map(row=>{const property=database.properties.find(item=>item.id===row.querySelector("[data-filter-property]").value),operator=row.querySelector("[data-filter-operator]").value,raw=row.querySelector("[data-filter-value]").value;return buildFilterCondition(property,operator,raw);}),group=conditions.length===1?conditions[0]:{kind:$("#filterKind").value,children:conditions},filters=$("#filterNot").checked?{kind:"not",child:group}:group;return updateView(database,{filters});}
-  if(button.id==="clearFilter")return updateView(database,{filters:undefined});
+  if(button.id==="applyFilter")return applyFilterDraft(database);
+  if(button.id==="cancelFilter"){$("#viewControls").replaceChildren();filterEditor=null;$("#saveState").textContent="Filter changes cancelled.";$("#filterButton")?.focus();return;}
+  if(button.id==="clearFilter")return applyFilterDraft(database,true);
   if(button.id==="addSortClause"){$("#sortClauses").insertAdjacentHTML("beforeend",sortRow(database,{propertyId:database.properties[0].id,direction:"asc"},$("#sortClauses").children.length));return;}
   if(button.dataset.removeSort!==undefined){button.closest(".sort-clause").remove();return;}
   if(button.id==="applySort"){const sorts=[...document.querySelectorAll(".sort-clause")].map(row=>({propertyId:row.querySelector("[data-sort-property]").value,direction:row.querySelector("[data-sort-direction]").value}));return updateView(database,{sorts});}
@@ -331,36 +512,60 @@ document.addEventListener("click",async event=>{const button=event.target.closes
 }catch(error){console.error(error);}});
 
 $("#restoreFile").addEventListener("change",async event=>{const[file]=event.target.files;event.target.value="";if(file)try{await restoreWorkspace(file);}catch(error){$("#saveState").textContent="Restore failed: selected file could not be restored";$("#restoreWorkspace")?.focus();alert(error.message);}});
-$("#attachmentFile").addEventListener("change",async event=>{const files=event.target.files;event.target.value="";try{await attachmentIngestion.fromSelection(files);}catch{ /* explicit status is rendered by the shared ingestion boundary */ }});
+$("#attachmentFile").addEventListener("change",async event=>{const files=Array.from(event.target.files ?? []);event.target.value="";try{await attachmentIngestion.fromSelection(files);}catch{ /* explicit status is rendered by the shared ingestion boundary */ }});
 $("#verifiedBackupFile").addEventListener("change",async event=>{const[file]=event.target.files;event.target.value="";if(file)try{await restoreVerifiedBackup(file);}catch(error){alert(error.message);}});$("#content").addEventListener("dragover",event=>{if(adapter.kind==="tauri"&&event.dataTransfer?.types?.includes("Files"))event.preventDefault();});$("#content").addEventListener("drop",async event=>{if(adapter.kind!=="tauri"||!event.dataTransfer?.types?.includes("Files"))return;try{await attachmentIngestion.fromDrop(event);}catch{ /* explicit status is rendered by the shared ingestion boundary */ }});
 
 $("#content").addEventListener("dragstart",event=>{const header=event.target.closest("[data-column-drag]");if(!header)return;event.dataTransfer.effectAllowed="move";event.dataTransfer.setData("text/x-motion-column",header.dataset.columnDrag);});
 $("#content").addEventListener("dragover",event=>{if(event.target.closest("[data-column-drag]")&&event.dataTransfer?.types.includes("text/x-motion-column"))event.preventDefault();});
-$("#content").addEventListener("drop",async event=>{const target=event.target.closest("[data-column-drag]"),sourceId=event.dataTransfer?.getData("text/x-motion-column");if(!target||!sourceId||target.dataset.columnDrag===sourceId)return;event.preventDefault();const page=activePage(),database=databaseForPage(page);if(!database)return;const order=[...activeView(database).propertyOrder],from=order.indexOf(sourceId),to=order.indexOf(target.dataset.columnDrag);if(from<0||to<0)return;order.splice(to,0,...order.splice(from,1));await updateView(database,{propertyOrder:order});});
+$("#content").addEventListener("drop",async event=>{if(blockViewInFlight||pageLifecycleInFlight){event.preventDefault();return;}const target=event.target.closest("[data-column-drag]"),sourceId=event.dataTransfer?.getData("text/x-motion-column");if(!target||!sourceId||target.dataset.columnDrag===sourceId)return;event.preventDefault();const page=activePage(),database=databaseForPage(page);if(!database)return;const order=[...activeView(database).propertyOrder],from=order.indexOf(sourceId),to=order.indexOf(target.dataset.columnDrag);if(from<0||to<0)return;order.splice(to,0,...order.splice(from,1));await updateView(database,{propertyOrder:order});});
 $("#content").addEventListener("dragstart",event=>{const definition=event.target.closest("[data-property-definition-drag]");if(!definition)return;event.dataTransfer.effectAllowed="move";event.dataTransfer.setData("text/x-motion-property-definition",definition.dataset.propertyDefinitionDrag);});
 $("#content").addEventListener("dragover",event=>{if(event.target.closest("[data-property-definition-drag]")&&event.dataTransfer?.types.includes("text/x-motion-property-definition"))event.preventDefault();});
-$("#content").addEventListener("drop",async event=>{const target=event.target.closest("[data-property-definition-drag]"),sourceId=event.dataTransfer?.getData("text/x-motion-property-definition");if(!target||!sourceId||target.dataset.propertyDefinitionDrag===sourceId)return;event.preventDefault();const database=databaseForPage(activePage());if(!database)return;const definitions=livePropertyDefinitions(database),order=definitions.map(property=>property.id),from=order.indexOf(sourceId),to=order.indexOf(target.dataset.propertyDefinitionDrag);if(from<0||to<0)return;const movedName=definitions[from].name;order.splice(to,0,...order.splice(from,1));await commitPropertyDefinitionOrder(database,order,movedName);});
+$("#content").addEventListener("drop",async event=>{if(blockViewInFlight||pageLifecycleInFlight){event.preventDefault();return;}const target=event.target.closest("[data-property-definition-drag]"),sourceId=event.dataTransfer?.getData("text/x-motion-property-definition");if(!target||!sourceId||target.dataset.propertyDefinitionDrag===sourceId)return;event.preventDefault();const database=databaseForPage(activePage());if(!database)return;const definitions=livePropertyDefinitions(database),order=definitions.map(property=>property.id),from=order.indexOf(sourceId),to=order.indexOf(target.dataset.propertyDefinitionDrag);if(from<0||to<0)return;const movedName=definitions[from].name;order.splice(to,0,...order.splice(from,1));await commitPropertyDefinitionOrder(database,order,movedName);});
 $("#content").addEventListener("dragstart",event=>{const record=event.target.closest("[data-record-drag]");if(!record)return;event.dataTransfer.effectAllowed="move";event.dataTransfer.setData("text/x-motion-record",record.dataset.recordDrag);});
 $("#content").addEventListener("dragover",event=>{if(event.target.closest("[data-record-drag]")&&event.dataTransfer?.types.includes("text/x-motion-record"))event.preventDefault();});
-$("#content").addEventListener("drop",async event=>{const target=event.target.closest("[data-record-drag]"),sourceId=event.dataTransfer?.getData("text/x-motion-record");if(!target||!sourceId||target.dataset.recordDrag===sourceId)return;event.preventDefault();const database=databaseForPage(activePage());if(!database||!manualRecordOrderEnabled(activeView(database)))return;const orderedRecordPageIds=moveRecordInManualOrder(manualRecordIds(database),sourceId,target.dataset.recordDrag);await commitRecordOrder(database,orderedRecordPageIds);});
+$("#content").addEventListener("drop",async event=>{if(blockViewInFlight||pageLifecycleInFlight){event.preventDefault();return;}const target=event.target.closest("[data-record-drag]"),sourceId=event.dataTransfer?.getData("text/x-motion-record");if(!target||!sourceId||target.dataset.recordDrag===sourceId)return;event.preventDefault();const database=databaseForPage(activePage());if(!database||!manualRecordOrderEnabled(activeView(database)))return;const orderedRecordPageIds=moveRecordInManualOrder(manualRecordIds(database),sourceId,target.dataset.recordDrag);await commitRecordOrder(database,orderedRecordPageIds);});
 
-document.addEventListener("input",event=>{const target=event.target,page=activePage();if(target.id==="searchInput"){void renderSearch(target.value);return;}if(!page)return;
+function queueTextInput(target,allowShortcuts=true){const page=activePage();if(!page)return;if(blockViewInFlight){restoreRejectedEditTarget(target.id==="pageTitle"?{kind:"page-title",pageId:page.id}:{kind:"block-text",pageId:page.id,blockId:target.dataset.block});return;}
   if(target.id==="pageTitle"){const descriptor={kind:"page-title",pageId:page.id};queueCanonicalEdit({key:`page:title:${page.id}`,label:"Page title",candidate:{type:"page.rename",payload:{pageId:page.id,title:target.value}},target:descriptor});return;}
-  if(target.dataset.block){const blockId=target.dataset.block,block=findBlockLocation(page.blocks,blockId)?.block;if(!block)return;const draft=structuredClone(block);draft.text=target.textContent;renderMentionChooser(target);renderSlashChooser(target);syncEditorChooserExpanded(target);draft.references=reconcileTextReferences({previousText:block.text,previousReferences:block.references,nextText:draft.text,pages:workspace().pages});const shortcut=markdownShortcutCommand({pageId:page.id,block:draft});if(shortcut){queueCanonicalEdit({key:`block:text:${page.id}:${blockId}`,label:"Markdown shortcut",candidate:{type:shortcut.type,payload:{commands:shortcut.commands}},target:{kind:"block-text",pageId:page.id,blockId},rerender:true});return;}queueCanonicalEdit({key:`block:text:${page.id}:${blockId}`,label:`${BLOCK_LABELS[block?.type]??"Block"} text`,candidate:{type:"block.update-content",payload:{pageId:page.id,blockId,content:{text:draft.text,references:draft.references??[]}}},target:{kind:"block-text",pageId:page.id,blockId}});return;}
+  if(target.dataset.block){const blockId=target.dataset.block,block=findBlockLocation(page.blocks,blockId)?.block;if(!block)return;const draft=structuredClone(block);draft.text=target.textContent;renderMentionChooser(target);renderSlashChooser(target);syncEditorChooserExpanded(target);draft.references=reconcileTextReferences({previousText:block.text,previousReferences:block.references,nextText:draft.text,pages:workspace().pages});const shortcut=allowShortcuts?markdownShortcutCommand({pageId:page.id,block:draft}):null;if(shortcut){queueCanonicalEdit({key:`block:text:${page.id}:${blockId}`,label:"Markdown shortcut",candidate:{type:shortcut.type,payload:{commands:shortcut.commands}},target:{kind:"block-text",pageId:page.id,blockId},rerender:true});return;}queueCanonicalEdit({key:`block:text:${page.id}:${blockId}`,label:`${BLOCK_LABELS[block?.type]??"Block"} text`,candidate:{type:"block.update-content",payload:{pageId:page.id,blockId,content:{text:draft.text,references:draft.references??[]}}},target:{kind:"block-text",pageId:page.id,blockId}});}
+}
+document.addEventListener("compositionstart",event=>{if(blockViewInFlight)return;const target=event.target;if(target.id!=="pageTitle"&&!target.dataset?.block)return;composingInput=target;completedComposition=null;clearTimeout(editTimer);editTimer=null;for(const id of ["mentionChooser","slashChooser"])$(`#${id}`).hidden=true;});
+document.addEventListener("compositionend",event=>{if(blockViewInFlight)return;const target=event.target;if(target.id!=="pageTitle"&&!target.dataset?.block)return;composingInput=null;completedComposition={target,text:target.value??target.textContent};queueTextInput(target,false);});
+document.addEventListener("input",event=>{const target=event.target,page=activePage();if(target.id==="searchInput"){void renderSearch(target.value);return;}if(!page)return;if(event.isComposing||composingInput===target)return;
+  if(completedComposition?.target===target){const previous=completedComposition.text;completedComposition=null;if(previous===(target.value??target.textContent))return;}
+  if(target.id==="pageTitle"||target.dataset.block){queueTextInput(target);return;}
   if(target.dataset.columnWidth){const database=databaseForPage(page),propertyId=target.dataset.columnWidth,widths={...activeView(database).columnWidths,[propertyId]:Number(target.value)};queueCanonicalEdit({key:`view:width:${activeView(database).id}:${propertyId}`,label:"Table column width",candidate:{type:"database.view-update",payload:{databaseId:database.id,viewId:activeView(database).id,patch:{columnWidths:widths}}},target:{kind:"view-width",pageId:page.id,propertyId}});}
 });
-document.addEventListener("change",async event=>{const target=event.target,page=activePage();if(!page)return;const database=databaseForPage(page);
-  if((target.dataset.filterOperator!==undefined||target.dataset.filterProperty!==undefined)&&database){const row=target.closest(".filter-clause"),property=database.properties.find(item=>item.id===row.querySelector("[data-filter-property]").value),operator=row.querySelector("[data-filter-operator]").value,current=row.querySelector("[data-filter-value]")?.value;row.querySelector("[data-filter-value]").replaceWith(createFilterValueControl(document,{operator,value:operator==="relative-date"?(current&&current.includes("-")?current:"today"):current}));return;}
-  if(target.id==="activeView"&&database){setActiveView(database.id,target.value);void saveUi();render();return;}
-  if(target.dataset.property){const record=target.dataset.record?pageById(target.dataset.record):page,property=database?.properties.find(item=>item.id===target.dataset.property),descriptor={kind:"record-property",pageId:record?.id,propertyId:property?.id};if(!record||!property)return;let value;try{value=readPropertyControl(target,property,workspace().attachments);}catch(error){restoreRejectedEditTarget(descriptor);$("#saveState").className="save-state unsaved";$("#saveState").textContent=error instanceof Error?error.message:"Property value is invalid.";target.setAttribute("aria-invalid","true");target.focus();return;}await queueDiscreteCanonicalEdit({key:`record:property:${record.id}:${property.id}`,label:`${property.name} property`,candidate:{type:"database.record-update",payload:{pageId:record.id,values:{[property.id]:value}}},target:descriptor,rerender:false});return;}
+document.addEventListener("change",async event=>{const target=event.target,page=activePage();if(!page||pageLifecycleInFlight||blockViewInFlight)return;const database=databaseForPage(page);
+  if(target.id==="activeView"&&database)return selectDatabaseView(database,target.value);
+  if(target.id==="boardGrouping"&&database){
+    const view=activeView(database),property=boardGroupingProperties(database).find(item=>item.id===target.value),descriptor={kind:"view-grouping",pageId:page.id,viewId:view.id};
+    if(view.type!=="board"||!property){restoreRejectedEditTarget(descriptor);return;}
+    return queueDiscreteCanonicalEdit({key:`view:grouping:${view.id}`,label:"Board grouping",candidate:{type:"database.view-update",payload:{databaseId:database.id,viewId:view.id,patch:{groupByPropertyId:property.id}}},target:descriptor,rerender:true});
+  }
+  if(target.dataset.property){const record=target.dataset.record?pageById(target.dataset.record):page,property=database?.properties.find(item=>item.id===target.dataset.property),descriptor={kind:"record-property",pageId:record?.id,propertyId:property?.id};if(!record||!property)return;let value;try{if(target.dataset.boardMove){const view=activeView(database);if(view.type!=="board"||view.id!==target.dataset.boardMove||view.groupByPropertyId!==property.id||view.subgroupByPropertyId!==undefined||!["status","select"].includes(property.type))throw new Error("The card cannot move in this board configuration.");value=target.value||null;if(value===null&&property.validation?.required)throw new Error(`${property.name} requires a value.`);if(value!==null&&!property.options?.some(option=>option.id===value))throw new Error("Choose an available board group.");descriptor.boardViewId=view.id;}else value=readPropertyControl(target,property,workspace().attachments);}catch(error){restoreRejectedEditTarget(descriptor);$("#saveState").className="save-state unsaved";$("#saveState").textContent=error instanceof Error?error.message:"Property value is invalid.";target.setAttribute("aria-invalid","true");target.focus();return;}await queueDiscreteCanonicalEdit({key:`record:property:${record.id}:${property.id}`,label:`${property.name} property`,candidate:{type:"database.record-update",payload:{pageId:record.id,values:{[property.id]:value}}},target:descriptor,rerender:Boolean(target.dataset.boardMove)});return;}
   if(target.dataset.blockType){const blockId=target.dataset.blockType,transform={type:target.value,...(target.value==="task"?{checked:false}:{})};queueCanonicalEdit({key:`block:type:${page.id}:${blockId}`,label:"Block type",candidate:{type:"block.transform",payload:{pageId:page.id,blockId,transform}},target:{kind:"block-type",pageId:page.id,blockId},rerender:true});return;}
   if(target.dataset.task){const blockId=target.dataset.task;queueCanonicalEdit({key:`block:task:${page.id}:${blockId}`,label:"Task state",candidate:{type:"block.transform",payload:{pageId:page.id,blockId,transform:{type:"task",checked:target.checked}}},target:{kind:"task",pageId:page.id,blockId}});}
 });
-document.addEventListener("paste",event=>{const input=event.target.closest?.("[data-block]");if(!input)return;const text=event.clipboardData?.getData("text/plain")??"";if(!/[\r\n]/.test(text))return;if(!requireResolvedEdit("pasting")){event.preventDefault();return;}const page=activePage(),blockId=input.dataset.block,{prefix,suffix}=selectionTextParts(input);event.preventDefault();let commands;try{commands=multilinePasteCommands({pageId:page.id,blocks:page.blocks,activeBlockId:blockId,text,prefix,suffix,createId:uid,resolveReferences:referencesForText});}catch(error){$("#saveState").textContent=error instanceof Error?error.message:"Multiline paste could not be applied.";return;}checkpoint();queueCanonicalEdit({key:`block:paste:${page.id}:${blockId}`,label:"Multiline paste",candidate:{type:"block.batch",payload:{commands}},target:{kind:"block-text",pageId:page.id,blockId},rerender:true});});
-document.addEventListener("focusin",event=>{const option=event.target.closest?.('#mentionChooser [role="option"],#slashChooser [role="option"]');if(option){for(const sibling of option.parentElement.querySelectorAll('[role="option"]'))sibling.setAttribute("aria-selected",String(sibling===option));return;}if(event.target.id==="pageTitle"||event.target.dataset?.block)checkpoint();});
-document.addEventListener("focusout",event=>{if(event.relatedTarget?.closest?.("#mentionChooser,#slashChooser"))return;if((event.target.id==="pageTitle"||event.target.dataset?.block)&&editRecovery.snapshot().status==="editing"){clearTimeout(editTimer);editTimer=null;void editRecovery.commit();}});
+document.addEventListener("beforeinput",event=>{if(blockViewInFlight&&event.target.closest?.("[data-block],#pageTitle"))event.preventDefault();});
+document.addEventListener("paste",async event=>{
+  const input=event.target.closest?.("[data-block]");if(!input)return;
+  const text=event.clipboardData?.getData("text/plain")??"";if(!/[\r\n]/.test(text))return;
+  event.preventDefault();if(blockViewInFlight||pageLifecycleInFlight||composingInput)return;
+  const pageId=state.activePageId,blockId=input.dataset.block,{prefix,suffix}=selectionTextParts(input);
+  if(!await flushCanonicalEdit("pasting"))return;
+  let page=activePage();if(page?.id!==pageId)return;
+  if(findBlockLocation(page.blocks,blockId)?.block.type==="toggle"&&!await expandBlockContainer(blockId))return;
+  page=activePage();let commands;
+  try{commands=multilinePasteCommands({pageId:page.id,blocks:page.blocks,activeBlockId:blockId,text,prefix,suffix,createId:uid,resolveReferences:referencesForText});}
+  catch(error){$("#saveState").textContent=error instanceof Error?error.message:"Multiline paste could not be applied.";return;}
+  checkpoint();queueCanonicalEdit({key:`block:paste:${page.id}:${blockId}`,label:"Multiline paste",candidate:{type:"block.batch",payload:{commands}},target:{kind:"block-text",pageId:page.id,blockId},rerender:true});
+  if(await flushCanonicalEdit("focusing pasted content")){const last=commands.filter(command=>command.type==="block.create"&&command.block.type!=="divider").at(-1)?.block;requestAnimationFrame(()=>restoreVisibleEditorFocus({blockId:last?.id??blockId,offset:last?.text.length??prefix.length}));}
+});
+document.addEventListener("focusin",event=>{const option=event.target.closest?.('#mentionChooser [role="option"],#slashChooser [role="option"]');if(option){for(const sibling of option.parentElement.querySelectorAll('[role="option"]'))sibling.setAttribute("aria-selected",String(sibling===option));return;}if(!restoringEditorFocus&&(event.target.id==="pageTitle"||event.target.dataset?.block))checkpoint();});
+document.addEventListener("focusout",event=>{if(composingInput===event.target||event.relatedTarget?.closest?.("#mentionChooser,#slashChooser"))return;if((event.target.id==="pageTitle"||event.target.dataset?.block)&&editRecovery.snapshot().status==="editing"){clearTimeout(editTimer);editTimer=null;void editRecovery.commit();}});
 document.addEventListener("pointerdown",event=>{if(event.target.closest?.("#mentionChooser,#slashChooser,[data-block]"))return;for(const id of ["mentionChooser","slashChooser"]){const chooser=$(`#${id}`);if(!chooser.hidden)closeEditorChooser(chooser,false);}});
-document.addEventListener("keydown",async event=>{const chooser=event.target.closest?.("#mentionChooser,#slashChooser");if(chooser){if(["ArrowDown","ArrowUp","Home","End"].includes(event.key)){event.preventDefault();focusEditorChooserOption(chooser,event.key);return;}if(event.key==="Escape"){event.preventDefault();closeEditorChooser(chooser);return;}}const mod=event.ctrlKey||event.metaKey;if(mod&&event.key.toLowerCase()==="k"){event.preventDefault();$("#openSearch").click();return;}if(mod&&event.key.toLowerCase()==="z"){event.preventDefault();if(!requireResolvedEdit("undoing"))return;const stack=event.shiftKey?future:history,other=event.shiftKey?history:future;if(stack.length){const target=JSON.parse(stack.at(-1));if(adapter.kind==="tauri"){try{const inverse=await confirmEditorHistory({current:state,target,execute:(type,payload)=>nativeCommands.execute(type,payload)});other.push(inverse);stack.pop();render();}catch(error){$("#saveState").textContent=error instanceof Error?error.message:"Editor history could not be applied.";}}else{other.push(snapshot());state=migrateLoaded(target);stack.pop();void saveLocal();render();}}return;}const input=event.target.closest?.("[data-block]");if(!input)return;if(event.key==="Escape"){const open=!$("#slashChooser").hidden?$("#slashChooser"):!$("#mentionChooser").hidden?$("#mentionChooser"):null;if(open){event.preventDefault();closeEditorChooser(open);return;}}if(event.key==="ArrowDown"&&activeSlash?.blockId===input.dataset.block&&!$("#slashChooser").hidden){event.preventDefault();focusEditorChooserOption($("#slashChooser"),"Home");return;}if(event.key==="ArrowDown"&&activeMention?.blockId===input.dataset.block&&!$("#mentionChooser").hidden){event.preventDefault();focusEditorChooserOption($("#mentionChooser"),"Home");return;}if(event.key==="Tab"&&!mod&&!event.altKey){event.preventDefault();if(!await flushCanonicalEdit("leaving the editor"))return;const destination=event.shiftKey?findByDataValue("[data-block-type]","blockType",input.dataset.block):findByDataValue("[data-delete-block]","deleteBlock",input.dataset.block);destination?.focus();return;}let page=activePage(),flat=flattenBlocks(page.blocks),at=flat.findIndex(block=>block.id===input.dataset.block),block=flat[at];const indentShortcut=event.altKey&&event.key==="]",outdentShortcut=event.altKey&&event.key==="[";const structural=(event.key==="Enter"&&!event.shiftKey)||(event.key==="Backspace"&&at>0&&selectionIsCollapsedIn(input)&&selectionTextParts(input).prefix.length===0)||(mod&&event.key.toLowerCase()==="d")||(event.altKey&&["ArrowUp","ArrowDown"].includes(event.key))||indentShortcut||outdentShortcut;if(structural){event.preventDefault();if(!await flushCanonicalEdit("continuing"))return;page=activePage();flat=flattenBlocks(page.blocks,[]);at=flat.findIndex(candidate=>candidate.id===input.dataset.block);block=flat[at];if(!block)return;}if(indentShortcut||outdentShortcut){checkpoint();await commit(indentShortcut?"block.indent":"block.outdent",{pageId:page.id,blockId:block.id},()=>applyLocalEdit(state,{type:indentShortcut?"block.indent":"block.outdent",payload:{pageId:page.id,blockId:block.id}},now()));render();findByDataValue("[data-block]","block",block.id)?.focus();return;}if(event.key==="Enter"&&!event.shiftKey){checkpoint();const offset=selectionTextParts(input).prefix.length,location=findBlockLocation(page.blocks,block.id),split=splitBlockCommands({pageId:page.id,block,offset,beforeBlockId:location?.blocks[location.index+1]?.id??null,createId:uid});queueCanonicalEdit({key:`block:split:${page.id}:${block.id}`,label:"Split block",candidate:{type:"block.batch",payload:{commands:split.commands}},target:{kind:"block-text",pageId:page.id,blockId:block.id},rerender:true});if(await flushCanonicalEdit("focusing the new block"))requestAnimationFrame(()=>findByDataValue("[data-block]","block",split.focusBlockId)?.focus());}if(event.key==="Backspace"&&selectionIsCollapsedIn(input)&&selectionTextParts(input).prefix.length===0){const location=findBlockLocation(page.blocks,block.id),previousBlock=location?.blocks[location.index-1];if(previousBlock){const merge=mergeAdjacentBlockCommands({pageId:page.id,previousBlock,currentBlock:block});if(merge){checkpoint();queueCanonicalEdit({key:`block:merge:${page.id}:${block.id}`,label:"Merge blocks",candidate:{type:"block.batch",payload:{commands:merge.commands}},target:{kind:"block-text",pageId:page.id,blockId:merge.focusBlockId},rerender:true});if(await flushCanonicalEdit("focusing the merged block"))requestAnimationFrame(()=>focusBlockAtOffset(merge.focusBlockId,merge.focusOffset));}}}if(mod&&event.key.toLowerCase()==="d"){checkpoint();const location=findBlockLocation(page.blocks,block.id),newBlockId=uid();await commit("block.duplicate",{pageId:page.id,blockId:block.id,newBlockId},()=>{const copy=structuredClone(block);copy.id=newBlockId;location.blocks.splice(location.index+1,0,copy);});render();}if(event.altKey&&["ArrowUp","ArrowDown"].includes(event.key))findByDataValue("[data-move-block]","moveBlock",`${block.id}:${event.key==="ArrowUp"?-1:1}`)?.click();});
+document.addEventListener("keydown",async event=>{if(pageLifecycleInFlight||blockViewInFlight){if((event.ctrlKey||event.metaKey)&&["z","y","d"].includes(event.key.toLowerCase()))event.preventDefault();return;}if(event.isComposing||event.keyCode===229||composingInput===event.target)return;const chooser=event.target.closest?.("#mentionChooser,#slashChooser");if(chooser){if(["ArrowDown","ArrowUp","Home","End"].includes(event.key)){event.preventDefault();focusEditorChooserOption(chooser,event.key);return;}if(event.key==="Escape"){event.preventDefault();closeEditorChooser(chooser);return;}}const mod=event.ctrlKey||event.metaKey;if(mod&&event.key.toLowerCase()==="k"){event.preventDefault();$("#openSearch").click();return;}if(mod&&event.key.toLowerCase()==="z"){event.preventDefault();await applyEditorHistory(event.shiftKey);return;}const input=event.target.closest?.("[data-block]");if(!input)return;const selection=window.getSelection();if(event.key==="Enter"&&!event.shiftKey&&selection?.rangeCount){const range=selection.getRangeAt(0);if(!input.contains(range.startContainer)||!input.contains(range.endContainer)){event.preventDefault();$("#saveState").textContent="Select text within one block before splitting it.";return;}}if(event.key==="Escape"){const open=!$("#slashChooser").hidden?$("#slashChooser"):!$("#mentionChooser").hidden?$("#mentionChooser"):null;if(open){event.preventDefault();closeEditorChooser(open);return;}}if(event.key==="ArrowDown"&&activeSlash?.blockId===input.dataset.block&&!$("#slashChooser").hidden){event.preventDefault();focusEditorChooserOption($("#slashChooser"),"Home");return;}if(event.key==="ArrowDown"&&activeMention?.blockId===input.dataset.block&&!$("#mentionChooser").hidden){event.preventDefault();focusEditorChooserOption($("#mentionChooser"),"Home");return;}if(event.key==="Tab"&&!mod&&!event.altKey){event.preventDefault();if(!await flushCanonicalEdit("leaving the editor"))return;const destination=event.shiftKey?findByDataValue("[data-block-type]","blockType",input.dataset.block):findByDataValue("[data-delete-block]","deleteBlock",input.dataset.block);destination?.focus();return;}let page=activePage(),flat=flattenBlocks(page.blocks),at=flat.findIndex(block=>block.id===input.dataset.block),block=flat[at];const indentShortcut=event.altKey&&event.key==="]",outdentShortcut=event.altKey&&event.key==="[";const enterSelection=event.key==="Enter"&&!event.shiftKey?selectionTextParts(input):null;const structural=(event.key==="Enter"&&!event.shiftKey)||(event.key==="Backspace"&&at>0&&selectionIsCollapsedIn(input)&&selectionTextParts(input).prefix.length===0)||(mod&&event.key.toLowerCase()==="d")||(event.altKey&&["ArrowUp","ArrowDown"].includes(event.key))||indentShortcut||outdentShortcut;if(structural){event.preventDefault();if(!await flushCanonicalEdit("continuing"))return;page=activePage();flat=flattenBlocks(page.blocks,[]);at=flat.findIndex(candidate=>candidate.id===input.dataset.block);block=flat[at];if(!block)return;}if(indentShortcut||outdentShortcut){const location=findBlockLocation(page.blocks,block.id),parent=location?.blocks[location.index-1];if(indentShortcut&&(!parent||!canContainBlockChildren(parent.type))||outdentShortcut&&!location?.parent){$("#saveState").textContent="This block cannot move to that level.";return;}if(indentShortcut&&parent.type==="toggle"&&!await expandBlockContainer(parent.id))return;checkpoint();try{await commit(indentShortcut?"block.indent":"block.outdent",{pageId:page.id,blockId:block.id},()=>applyLocalEdit(state,{type:indentShortcut?"block.indent":"block.outdent",payload:{pageId:page.id,blockId:block.id}},now()));render();}catch{/* commit retains the confirmed tree and reports the failed save */}restoreVisibleEditorFocus({blockId:block.id,offset:0});return;}if(event.key==="Enter"&&!event.shiftKey){if(block.type==="toggle"&&!await expandBlockContainer(block.id))return;const {prefix,suffix}=enterSelection,offset=Math.min(prefix.length,block.text.length),endOffset=Math.max(offset,block.text.length-suffix.length),location=findBlockLocation(page.blocks,block.id),split=splitBlockCommands({pageId:page.id,block,offset,endOffset,parentBlockId:location?.parent?.id??null,beforeBlockId:location?.blocks[location.index+1]?.id??null,createId:uid});if(!split){$("#saveState").textContent="This block cannot be split without changing unsupported content.";return;}checkpoint();queueCanonicalEdit({key:`block:split:${page.id}:${block.id}`,label:"Split block",candidate:{type:"block.batch",payload:{commands:split.commands}},target:{kind:"block-text",pageId:page.id,blockId:block.id},rerender:true});if(await flushCanonicalEdit("focusing the new block"))requestAnimationFrame(()=>focusBlockAtOffset(split.focusBlockId,split.focusOffset??0));}if(event.key==="Backspace"&&selectionIsCollapsedIn(input)&&selectionTextParts(input).prefix.length===0){const location=findBlockLocation(page.blocks,block.id),previousBlock=location?.blocks[location.index-1];if(previousBlock){const merge=mergeAdjacentBlockCommands({pageId:page.id,previousBlock,currentBlock:block});if(merge){checkpoint();queueCanonicalEdit({key:`block:merge:${page.id}:${block.id}`,label:"Merge blocks",candidate:{type:"block.batch",payload:{commands:merge.commands}},target:{kind:"block-text",pageId:page.id,blockId:merge.focusBlockId},rerender:true});if(await flushCanonicalEdit("focusing the merged block"))requestAnimationFrame(()=>focusBlockAtOffset(merge.focusBlockId,merge.focusOffset));}}}if(mod&&event.key.toLowerCase()==="d"){checkpoint();const payload={pageId:page.id,blockId:block.id,newBlockId:uid()};await commit("block.duplicate",payload,()=>applyLocalEdit(state,{type:"block.duplicate",payload},now()));render();restoreVisibleEditorFocus({blockId:payload.newBlockId,offset:0});}if(event.altKey&&["ArrowUp","ArrowDown"].includes(event.key))findByDataValue("[data-move-block]","moveBlock",`${block.id}:${event.key==="ArrowUp"?-1:1}`)?.click();});
 async function renderSearch(query){
   const term=String(query??"").trim(),request=++searchRequest;
   if(!term){currentSearchHits=new Map();renderSearchStatus(searchStatus(term,"idle"));return;}
@@ -375,15 +580,15 @@ async function renderSearch(query){
   }catch{if(request===searchRequest){currentSearchHits=new Map();renderSearchStatus(searchStatus(term,"error"));}}
 }
 function renderSearchStatus(status){const results=$("#searchResults"),message=document.createElement("div");message.className=`search-hint search-${status.kind}`;message.textContent=status.message;results.replaceChildren(message);if(status.kind==="error"){const retry=document.createElement("button");retry.type="button";retry.dataset.searchRetry="";retry.textContent="Retry search";results.append(retry);}}
-function activateSearchHit(hit){const target=resolveSearchTarget(hit,workspace());if(!target)return;const opened=openPage(target.pageId);if(!opened)return;$("#searchDialog").close();requestAnimationFrame(()=>{if(target.blockId){findByDataValue("[data-block-id]","blockId",target.blockId)?.querySelector("[data-block]")?.focus();return;}if(target.recordId===target.pageId){$("#pageTitle")?.focus();return;}const row=findByDataValue("[data-record-id]","recordId",target.recordId);row?.querySelector("input,select,button")?.focus();});}
+async function activateSearchHit(hit){const target=resolveSearchTarget(hit,workspace());if(!target)return;const opened=await revealBlockTarget(target.pageId,target.blockId);if(!opened)return;$("#searchDialog").close();requestAnimationFrame(()=>{if(target.blockId){restoreVisibleEditorFocus({blockId:target.blockId,offset:0});return;}if(target.recordId===target.pageId){$("#pageTitle")?.focus();return;}const row=findByDataValue("[data-record-id]","recordId",target.recordId);row?.querySelector("input,select,button")?.focus();});}
 
 import { buildLinkEntries, linkEntryLabel } from "./link-presentation.js";
 function findByDataValue(selector,key,value){return [...document.querySelectorAll(selector)].find(element=>element.dataset[key]===value);}
 function setContextOpen(open,returnFocus=true){const panel=$("#contextPanel"),toggle=$("#openContext");panel.classList.toggle("open",open);toggle.setAttribute("aria-expanded",String(open));if(open)requestAnimationFrame(()=>$("#contextPanelTitle").focus());else if(returnFocus)toggle.focus();}
-document.addEventListener("click",event=>{const button=event.target.closest("button");if(!button)return;if(button.id==="openContext"){setContextOpen(true);return;}if(button.id==="closeContext"){setContextOpen(false);return;}if(!button.dataset.revealTrashed)return;const restore=findByDataValue("[data-restore-page]","restorePage",button.dataset.revealTrashed);setContextOpen(false,false);$("#sidebar").classList.add("open");restore?.scrollIntoView({block:"nearest"});restore?.focus();});
+document.addEventListener("click",event=>{const button=event.target.closest("button");if(!button||blockViewInFlight)return;if(button.id==="openContext"){setContextOpen(true);return;}if(button.id==="closeContext"){setContextOpen(false);return;}if(!button.dataset.revealTrashed)return;const restore=findByDataValue("[data-restore-page]","restorePage",button.dataset.revealTrashed);setContextOpen(false,false);$("#sidebar").classList.add("open");restore?.scrollIntoView({block:"nearest"});restore?.focus();});
 document.addEventListener("keydown",event=>{if(event.key==="Escape"&&$("#contextPanel").classList.contains("open")){event.preventDefault();setContextOpen(false);}});
 function renderLinkLifecycle(container,entries,emptyText,includeBlockTarget=false){container.replaceChildren();if(!entries.length){const empty=document.createElement("p");empty.className="muted";empty.textContent=emptyText;container.append(empty);return;}for(const entry of entries){const item=document.createElement("div"),available=entry.status==="live",recoverable=entry.status==="trashed",control=document.createElement(available||recoverable?"button":"span");item.className="context-link-item";control.className=`context-link${available?"":recoverable?" recovery":" unavailable"}`;control.textContent=linkEntryLabel(entry);if(available){control.type="button";control.dataset.openPage=entry.pageId;if(includeBlockTarget)control.dataset.focusBlock=entry.blockId;}else if(recoverable){control.type="button";control.dataset.revealTrashed=entry.pageId;}else control.setAttribute("aria-disabled","true");item.append(control);if(entry.preview){const preview=document.createElement("p");preview.className="link-preview";preview.textContent=entry.preview.text;preview.setAttribute("aria-label",`Preview of ${entry.title}`);item.append(preview);}container.append(item);}}
-renderContext=function(page){if(!page){renderLinkLifecycle($("#outgoingLinks"),[],"Open a page to see connections.");renderLinkLifecycle($("#backlinks"),[],"Open a page to see connections.");renderAttachmentList();return;}rebuildLinks();const input={pages:workspace().pages,links:workspace().linkIndex,pageId:page.id};renderLinkLifecycle($("#outgoingLinks"),buildLinkEntries({...input,direction:"outgoing"}),"No links from this page.");renderLinkLifecycle($("#backlinks"),buildLinkEntries({...input,direction:"incoming"}),"No backlinks yet.",true);renderAttachmentList();};
+renderContext=function(page){if(!page){renderLinkLifecycle($("#outgoingLinks"),[],"Open a page to see connections.");renderLinkLifecycle($("#backlinks"),[],"Open a page to see connections.");renderAttachmentList();return;}const input={pages:workspace().pages,links:rebuildLinks(),pageId:page.id};renderLinkLifecycle($("#outgoingLinks"),buildLinkEntries({...input,direction:"outgoing"}),"No links from this page.");renderLinkLifecycle($("#backlinks"),buildLinkEntries({...input,direction:"incoming"}),"No backlinks yet.",true);renderAttachmentList();};
 function renderCopyableInternalUrls(page){const pageButton=$("#copyPageLink"),backlinks=$("#backlinks");if(!page){pageButton.hidden=true;delete pageButton.dataset.copyInternalUrl;return;}pageButton.hidden=false;pageButton.dataset.copyInternalUrl=buildInternalUrl({workspaceId:workspace().id,pageId:page.id});for(const button of backlinks.querySelectorAll("button[data-focus-block]")){const copy=document.createElement("button");copy.type="button";copy.className="quiet";copy.textContent="Copy block link";copy.dataset.copyInternalUrl=buildInternalUrl({workspaceId:workspace().id,pageId:button.dataset.openPage,blockId:button.dataset.focusBlock});copy.setAttribute("aria-label",`Copy internal block link from ${button.textContent}`);button.after(copy);}}
 const renderLinkContext=renderContext;renderContext=function(page){renderLinkContext(page);renderCopyableInternalUrls(page);};
 document.addEventListener("click",async event=>{const button=event.target.closest("button");if(!button?.dataset.copyInternalUrl)return;const url=button.dataset.copyInternalUrl;try{await navigator.clipboard.writeText(url);$("#saveState").textContent="Internal link copied";}catch{$("#saveState").textContent="Internal link could not be copied";}});
@@ -393,3 +598,94 @@ $("#saveState").textContent=adapter.kind==="tauri"?"Connected to Motion":"Browse
 for(const id of ["attachFile","createVerifiedBackup","restoreVerifiedBackup"]){const button=$(`#${id}`);button.disabled=adapter.kind!=="tauri";if(button.disabled)button.title="Available in the native Motion application";}
 function tagRecordRows(database){if(activeView(database).type!=="table")return;const items=records(database,activeView(database)).slice(0,500);[...$("#content").querySelectorAll("tbody tr")].forEach((row,index)=>{row.dataset.recordId=items[index].id;});}
 render();
+$("#content").setAttribute("aria-busy","false");
+
+async function loadInitialState() {
+  const content = $("#content"), status = $("#saveState");
+  for (;;) {
+    content.setAttribute("aria-busy", "true");
+    status.className = "save-state";
+    status.textContent = "Opening Motion…";
+    const panel = document.createElement("div"), title = document.createElement("h1"), message = document.createElement("p");
+    panel.className = "empty-state";
+    panel.dataset.startupState = "opening";
+    title.textContent = "Opening Motion…";
+    message.textContent = "Loading your local workspace.";
+    panel.append(title, message);
+    content.replaceChildren(panel);
+    try {
+      // Editor handlers and confirmed state are initialized only after a valid
+      // load. Retrying never substitutes an empty workspace or resets storage.
+      return migrateLoaded(await adapter.load());
+    } catch {
+      content.setAttribute("aria-busy", "false");
+      status.className = "save-state unsaved";
+      status.textContent = "Could not open Motion";
+      panel.dataset.startupState = "error";
+      title.textContent = "Motion could not open your workspace";
+      message.textContent = "Try again to load your local workspace.";
+      message.setAttribute("role", "alert");
+      const actions = document.createElement("div"), retry = document.createElement("button");
+      actions.className = "empty-actions";
+      retry.className = "primary";
+      retry.type = "button";
+      retry.textContent = "Retry opening Motion";
+      actions.append(retry);
+      panel.append(actions);
+      await new Promise(resolve => {
+        retry.addEventListener("click", resolve, { once: true });
+        retry.focus();
+      });
+    }
+  }
+}
+
+function applyLayoutStyles(root) {
+  // Assign validated numbers through CSSOM; rendered style attributes are
+  // blocked by the desktop's style-src policy.
+  for (const [selector, dataKey, cssProperty] of [
+    ["[data-depth]", "depth", "--depth"],
+    ["[data-indent]", "indent", "--indent"]
+  ]) {
+    for (const element of root.querySelectorAll(selector)) {
+      const value = Number(element.dataset[dataKey]);
+      if (Number.isSafeInteger(value) && value >= 0) element.style.setProperty(cssProperty, String(value));
+    }
+  }
+  for (const element of root.querySelectorAll("th[data-width]")) {
+    const value = Number(element.dataset.width);
+    if (Number.isFinite(value) && value > 0) element.style.width = `${value}px`;
+  }
+}
+
+function withVisiblePageSelection(document) {
+  const pages = document.workspace?.pages ?? [], selected = document.activePageId ?? null;
+  const activePageId = selected === null || pages.some(page => page.id === selected && !page.deletedAt)
+    ? selected : pages.find(page => !page.deletedAt)?.id ?? null;
+  return { ...document, activePageId };
+}
+
+async function runPageLifecycle(action, operation) {
+  if (pageLifecycleInFlight || browserCommitInFlight) return false;
+  return runCanonicalOperation(action, async () => {
+    pageLifecycleInFlight = true;
+    try { return await operation(); }
+    finally { pageLifecycleInFlight = false; }
+  });
+}
+
+async function finishPageLifecycle() {
+  // Browser mutations persist the canonical change and selection together.
+  // Native canonical content is already committed; its UI state is separate.
+  if (adapter.kind === "tauri") {
+    $("#saveState").textContent = "Saving page selection…";
+    try { await saveUi(); }
+    catch {
+      render();
+      $("#saveState").textContent = "Page change saved; page selection could not be saved.";
+      return false;
+    }
+  }
+  render();
+  return true;
+}

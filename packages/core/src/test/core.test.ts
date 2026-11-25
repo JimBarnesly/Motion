@@ -454,7 +454,7 @@ test("record commands reject computed property writes while projections derive p
   assert.doesNotThrow(() => assertWorkspaceValue(doc.data), "existing schema-v2 stored values remain loadable");
 
   const projected = doc.queryRecords(database.id, { kind: "condition", propertyId: "created", operator: "equals", value: record.createdAt })[0]!;
-  assert.deepEqual(projected.properties, { created: record.createdAt, updated: record.updatedAt, creator: "author", editor: "editor-id" });
+  assert.deepEqual(projected.properties, { name: record.title, created: record.createdAt, updated: record.updatedAt, creator: "author", editor: "editor-id" });
   const csv = exportDatabaseCsv(database, doc.data.pages);
   assert.match(csv, /2026-08-14T01:00:00.000Z/); assert.doesNotMatch(csv, /2020-01-01T00:00:00.000Z|caller/);
 

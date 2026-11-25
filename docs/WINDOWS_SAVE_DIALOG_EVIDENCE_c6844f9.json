@@ -1,0 +1,245 @@
+{
+  "schemaVersion": 1,
+  "repo": "JimBarnesly/Motion",
+  "head": "c6844f99579257f6d71136c25042a79896424b40",
+  "testedMerge": "e4e0249020e321a0981038c89f1d96517ccd176e",
+  "runId": 45656813638,
+  "jobId": 139355595423,
+  "evidenceArtifact": {
+    "id": 15043542809,
+    "bytes": 68096,
+    "sha256": "e71fcf78d6e517b3894bce72845fbd6b4dcd4b4ee98187f374dc3c8133753ff1",
+    "zip": "/tmp/motion-installer-c6844f9-evidence.zip",
+    "extracted": "/tmp/motion-installer-c6844f9-evidence",
+    "verifiedAgainstApiAndJobLog": true,
+    "memberCount": 15,
+    "sourceUrl": "https://github.com/JimBarnesly/Motion/actions/runs/45656813638/artifacts/15043542809"
+  },
+  "candidateArtifact": {
+    "id": 15042773426,
+    "bytes": 323880640,
+    "sha256": "8fb94debbb67132ac965f267604c997a34f538c42e39d0b8725248a705b09667",
+    "downloaded": false
+  },
+  "installer": {
+    "name": "Motion_0.1.0_x64-setup.exe",
+    "byteLength": 323731929,
+    "sha256": "e562c55c1bcbbbe6ff56917d0c37131b07d3c77d159fdd7e1ecaac43a0d49ea7"
+  },
+  "passed": {
+    "workflowContracts": 5,
+    "windowsPackageContracts": 15,
+    "nativeRust": 28,
+    "windowsFilesystemService": 24,
+    "startup": 3,
+    "installedNativeTests": 24,
+    "embeddedPayload": "passed",
+    "mappedShare": {
+      "schemaVersion": 1,
+      "commit": "e4e0249020e321a0981038c89f1d96517ccd176e",
+      "status": "passed",
+      "phase": "complete",
+      "cleanupPassed": true,
+      "localNativeControls": true,
+      "localServiceControl": true,
+      "driveType": "Network",
+      "mappedReadWriteControl": true,
+      "nativeMappedVolumeRejected": true,
+      "installedServiceRejected": true,
+      "physicalTreeUnchanged": true,
+      "securityDescriptorsUnchanged": true,
+      "refusals": {
+        "existingDirectory": "ENOENT",
+        "newDirectory": "ENOENT",
+        "attachments": "ENOENT",
+        "backupInspection": "ENOENT",
+        "backupCreation": "ENOENT"
+      },
+      "node": "v24.22.3",
+      "nativeHelperSha256": "a7526c952f46bb068a797cbf6eba3284b2b320725e0a4e0fc20dc2df40050b41",
+      "serviceBundleSha256": "b59d40b752a3ff428a02baa26aef08d378754cc34bd4eff5712a3f0236b0f05d",
+      "cleanupFailures": []
+    }
+  },
+  "containerWriting": {
+    "evidenceType": "Source-order inference from exact tested controller and the reached Save As stack, not a retained structured helper result",
+    "source": "scripts/windows-installed-ui.mjs:712 followed by attachment:713-714 then restoreVerifiedNotebook:715",
+    "completedBeforeFailure": true,
+    "inferredChecks": [
+      "actual slash-created toggle",
+      "selection Enter into real child",
+      "multiline paste at actual parent as one revision",
+      "nested task state",
+      "type-selector callout and child",
+      "original paragraph and canonical identities retained",
+      "fold/unfold stored as view state without canonical revision mutation",
+      "hidden child native search and reveal/focus with unchanged full canonical snapshot"
+    ],
+    "limitation": "The current controller writes containerWriting only in its final successful UI report. That final report was not produced. No full restore/restart/reinstall proof is claimed."
+  },
+  "firstFailure": {
+    "phase": "filename",
+    "error": {
+      "code": "DIALOG_AUTOMATION_FAILED",
+      "message": "The retained backup dialog is no longer the active authenticated dialog."
+    },
+    "keyboard": {
+      "method": "SendInput",
+      "selection": "Ctrl+A",
+      "encoding": "UTF-16",
+      "batches": 1,
+      "expectedEvents": 166,
+      "insertedEvents": 166,
+      "utf16CodeUnits": 81,
+      "modifiersClearBefore": true,
+      "foregroundBefore": {
+        "foregroundWindow": 66180,
+        "focusedWindow": 66294,
+        "processId": 2904,
+        "threadId": 3124
+      },
+      "foregroundAfter": {
+        "foregroundWindow": 66180,
+        "focusedWindow": 66294,
+        "processId": 2904,
+        "threadId": 3124
+      }
+    },
+    "filenameFocus": {
+      "observed": true,
+      "runtimeId": "42,66294",
+      "control": {
+        "name": "File name:",
+        "automationId": "1001",
+        "controlType": "ControlType.Edit",
+        "processId": 2904,
+        "nativeWindowHandle": 66294,
+        "enabled": true,
+        "offscreen": false,
+        "keyboardFocusable": true,
+        "hasKeyboardFocus": true
+      }
+    },
+    "sourceBoundary": "Assert-FilenameKeyboardFocus calls Assert-DialogIdentity at the first bounded readback check after Enter() returned. The combined dialog predicate failed before filename readback evidence and before Save invocation.",
+    "unresolved": "Current found and retained dialog snapshots were not recorded at rejection, so the exact predicate (presence, identity/title or enabled/offscreen state) is unproved.",
+    "applicationStatus": {
+      "text": "Preparing verified backup\u2026",
+      "state": "pending",
+      "stage": "save",
+      "code": null
+    },
+    "destinationAfterFailure": {
+      "exists": false
+    },
+    "cleanupPassed": true
+  },
+  "notReached": [
+    "filename exact readback and Save invocation",
+    "actual selected backup disk bytes",
+    "backup restore",
+    "second GUI exclusion and retry",
+    "normal close/restart retention",
+    "uninstall/data preservation/reinstall"
+  ],
+  "runtimeInventory": {
+    "before": "131.0.2903.86",
+    "after": "131.0.2903.86",
+    "activeEngineMeasured": false
+  },
+  "files": [
+    {
+      "name": "SHA256SUMS.txt",
+      "bytes": 94,
+      "sha256": "5ea5f06a5cd1275bf041c2fec4773b3417e32e2ba229462066529987d5354530"
+    },
+    {
+      "name": "installed-native-save-dialog.json",
+      "bytes": 25172,
+      "sha256": "7679052d101a0dea942b871e04c4e288e9c347eac12422e9f718d78c06bd2c85"
+    },
+    {
+      "name": "installed-native-tests.log",
+      "bytes": 2682,
+      "sha256": "5e0da080862345d5c63bf325834f08729c60642ac29c0ebfe8801ed2ad883387"
+    },
+    {
+      "name": "installed-startup-diagnostics.json",
+      "bytes": 2906,
+      "sha256": "bdff6e777d971a5d4c42d0f3061b36e3f4d317651b232fbf990d884837b8d940"
+    },
+    {
+      "name": "installed-ui-failure.png",
+      "bytes": 57755,
+      "sha256": "f448a9d19d16f805c1fccdf97e01109f44c63fab7d69a800edb8b3ef63a04ee7"
+    },
+    {
+      "name": "installed-ui-failure.txt",
+      "bytes": 497,
+      "sha256": "d67ece572dc12fb46d987da93f041f43770653a31eff0efdf469da32e853d8b6"
+    },
+    {
+      "name": "installer-payload-verification.json",
+      "bytes": 5071,
+      "sha256": "0f9b51dd83c8916ba29b5d59811590a4f6cfd69a10998e325ebdea55b604559a"
+    },
+    {
+      "name": "installer-payload-verification.json.extraction.txt",
+      "bytes": 629,
+      "sha256": "b8bc58e54e5edae3954674a76aecab4add35e417124d153cae3df519826db4a5"
+    },
+    {
+      "name": "installer-payload-verification.json.listing.txt",
+      "bytes": 2288,
+      "sha256": "1c41ac8b2ffa1dce727baab7ecee6a3c198494ed789139ea722a723cacc4b773"
+    },
+    {
+      "name": "installer-payload-verification.json.signtool.txt",
+      "bytes": 1912,
+      "sha256": "fe7429b9fe62bc0bc721d9ba64f34ccf68e395f67ae3f2ccda468f05439a765d"
+    },
+    {
+      "name": "mapped-share-acceptance.json",
+      "bytes": 858,
+      "sha256": "ad98d80ad174a509806f0e8110fce80de6c8e7094968424d21890c2b8d8e30cd"
+    },
+    {
+      "name": "mapped-share-prepare.log",
+      "bytes": 60,
+      "sha256": "708456506b04f61fca80a572f77d70f815d70c27c47d0efb48c6852a9ddd493a"
+    },
+    {
+      "name": "mapped-share-verify.log",
+      "bytes": 469,
+      "sha256": "cc3530457f3642cb580704f59a39a6fcbb8db44a064064593ef5d2ddce0f92fd"
+    },
+    {
+      "name": "webview-after-install.json",
+      "bytes": 2680,
+      "sha256": "446fd8bf2bb1b3f79f6e87beac4d7945de6fac7fa470502b93b94148cc783dca"
+    },
+    {
+      "name": "webview-before-install.json",
+      "bytes": 2681,
+      "sha256": "77a8a470f83108adabc8f965c60ca23be8db46917ebac51692c2fae388b1fada"
+    }
+  ],
+  "repoEditsDuringMonitoring": false,
+  "runUrl": "https://github.com/JimBarnesly/Motion/actions/runs/45656813638",
+  "rootIndependentArtifactVerification": "Archive and all15 member hashes match the preserved evidence inventory.",
+  "generalCi": {
+    "run": "https://github.com/JimBarnesly/Motion/actions/runs/45656813712",
+    "verify": {
+      "jobId": 139355761414,
+      "status": "passed",
+      "browserPassed": 107
+    },
+    "linuxX64": {
+      "jobId": 139355761104,
+      "status": "passed"
+    },
+    "linuxArm64": {
+      "jobId": 139355760362,
+      "status": "passed"
+    }
+  }
+}

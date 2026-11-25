@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { ContentAddressedAttachmentStore, SqliteWorkspaceStore } from "@motion/storage";
 import { assertWorkspaceValue, migrateWebWorkspaceV1 } from "@motion/core";
@@ -152,11 +153,10 @@ const integrityHash = async (database: string, attachmentRoot: string): Promise<
 const runRestartWorker = async (args: readonly string[]) => {
   const worker = new URL("./fixtures/restart-worker.js", import.meta.url);
   const networkGuard = new URL("../../../../scripts/deny-network.cjs", import.meta.url);
-  const child = spawn(process.execPath, [worker.pathname, ...args], {
+  const child = spawn(process.execPath, ["--require", fileURLToPath(networkGuard), fileURLToPath(worker), ...args], {
     env: {
       ...process.env,
-      MOTION_E2E_NETWORK_GUARD: "required",
-      NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${networkGuard.pathname}`].filter(Boolean).join(" ")
+      MOTION_E2E_NETWORK_GUARD: "required"
     },
     stdio: ["ignore", "pipe", "pipe"]
   });

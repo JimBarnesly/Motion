@@ -3,6 +3,7 @@ import { constants } from "node:fs";
 import { link, lstat, open, readFile, readdir, rename, rm, stat } from "./backup-filesystem.mjs";
 import { basename, dirname, join } from "node:path";
 import { canonicalJson, verifyBackup } from "@motion/backup";
+import { createWindowsBackupFile, inspectWindowsBackupDestination, readAndVerifyWindowsBackupFile } from "./windows-backup-file.mjs";
 
 const encode = value => value instanceof Uint8Array ? { $motionBytes: Array.from(value) }
   : Array.isArray(value) ? value.map(encode)
@@ -40,6 +41,7 @@ async function authenticateReplacement(destination) {
 }
 
 export async function inspectAtomicBackupDestination(destination) {
+  if (process.platform === "win32") return inspectWindowsBackupDestination(destination, verifySerializedBackup);
   const existing = await pathState(destination);
   if (!existing) return { exists: false, replacement: false };
   if (existing.isSymbolicLink()) throw new Error("Backup destination must not be a symbolic link");
@@ -183,6 +185,7 @@ export function verifySerializedBackup(bytes) {
 }
 
 export async function createAtomicBackupFile(destination, bundle, options = {}) {
+  if (process.platform === "win32") return createWindowsBackupFile(destination, serializeBackup(bundle), verifySerializedBackup, options);
   const directory = dirname(destination);
   const directoryState = await pathState(directory);
   if (!directoryState?.isDirectory() || directoryState.isSymbolicLink()) throw new Error("Backup destination directory is unavailable");
@@ -253,6 +256,7 @@ export async function createAtomicBackupFile(destination, bundle, options = {}) 
 }
 
 export async function readAndVerifyBackupFile(path) {
+  if (process.platform === "win32") return readAndVerifyWindowsBackupFile(path, verifySerializedBackup);
   let handle;
   try {
     const metadata = await lstat(path);

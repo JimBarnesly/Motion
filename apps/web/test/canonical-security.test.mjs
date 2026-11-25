@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { assertSafeCanonicalWorkspaceIds, escapeAttribute } from "../canonical-security.js";
 import { normalizeWorkspaceV1 } from "../workspace-v1.js";
+import { MAX_ATTACHMENT_BYTES } from "../attachment-policy.js";
 
 const fixture = JSON.parse(await readFile(new URL("./fixtures/canonical-schema-v2-hostile-ids.json", import.meta.url), "utf8"));
 
@@ -62,4 +63,26 @@ test("attribute escaping is a separate renderer boundary for canonical IDs", () 
   const escaped = escapeAttribute(hostile);
   assert.equal(escaped, "page&quot; data-trash-page=&quot;page:root&quot;&gt;&lt;button data-open-page=&quot;page:root");
   assert.doesNotMatch(escaped, /[<>"']/);
+});
+
+test("canonical attachment sizes reject hostile markup and invalid numeric metadata without echoing it", () => {
+  const hostile = '<button data-trash-page="page:root">Unexpected action</button>';
+  for (const value of [hostile, "12", null, undefined, true, [], {}, -1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER, MAX_ATTACHMENT_BYTES + 1]) {
+    const workspace = structuredClone(fixture.workspace);
+    workspace.attachments[0].byteLength = value;
+    assert.throws(() => assertSafeCanonicalWorkspaceIds(workspace), error => {
+      assert.match(error.message, /attachments\[0\]\.byteLength/);
+      assert.doesNotMatch(error.message, /Unexpected action|data-trash-page|<button/);
+      return true;
+    });
+  }
+});
+
+test("canonical attachment sizes accept empty files and the exact shared maximum without coercion", () => {
+  for (const byteLength of [0, 1, MAX_ATTACHMENT_BYTES]) {
+    const workspace = structuredClone(fixture.workspace);
+    workspace.attachments[0].byteLength = byteLength;
+    assert.doesNotThrow(() => assertSafeCanonicalWorkspaceIds(workspace));
+    assert.equal(workspace.attachments[0].byteLength, byteLength);
+  }
 });

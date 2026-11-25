@@ -1,0 +1,256 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-25T17:56:00Z",
+  "status": "development environment unavailable; narrow GitHub source recovery only",
+  "repository": "JimBarnesly/Motion",
+  "mainHeadBeforeRecovery": "e17b33cdf6bd23dee61f70b92d3761694a0747bb",
+  "pilotHead": "f7f3ea66840b383dd33da35683fac287b0a26373",
+  "environment": {
+    "root": "/workspace/scratch/26e5117382b4",
+    "observedError": "No usable execution environment is available",
+    "firstFailure": "exec-server transport disconnected; recovery timed out",
+    "scope": "Filesystem, local build/test/browser and process execution unavailable. GitHub connector remains available. Do not assume unpublished filesystem contents are either lost or recovered.",
+    "retry": "Wait for an available execution environment; inspect current remote heads and existing worktrees before writing. Do not reset or overwrite dirty worktrees."
+  },
+  "publishedBaseline": {
+    "lastCompleteInstalled": "820998286a9083c0edbe663e6981945e59ad0ec4",
+    "windowsRun": 45624078077,
+    "limitation": "That baseline did not drive the actual native Save As button. No1.0 acceptance is implied.",
+    "lastAllGreenCore": "c6844f99579257f6d71136c25042a79896424b40",
+    "coreRun": 45656813712
+  },
+  "exactPriorFailures": {
+    "main": {
+      "head": "e17b33cdf6bd23dee61f70b92d3761694a0747bb",
+      "testedMerge": "d30f8bf43ffa640b8db270a75848893d01794824",
+      "windowsRun": 45663035565,
+      "windowsJob": 139377675341,
+      "error": "page.evaluate: Execution context was destroyed, most likely because of a navigation",
+      "stage": "First rejection observer evaluation in launch(), before readiness and notebook actions",
+      "laterProbe": "http://tauri.localhost/, interactive, Opening Motion; actual native schema2 load resolved at revision0 with empty workspace",
+      "limitation": "The selected page's prior URL was not captured. Empty error arrays did not prove absence of early errors because listeners were attached after the failed evaluate.",
+      "passed": {
+        "rust": 28,
+        "filesystemService": 24,
+        "startup": 3,
+        "installedNative": 24,
+        "workflow": 5,
+        "package": 15,
+        "powerShellSaveContract": 23
+      },
+      "artifact": {
+        "id": 15046862071,
+        "bytes": 37713,
+        "sha256": "5f1345f6da37a386bea0d10b632c40a99b502702741d34fcec72687dbc54618a",
+        "members": 14,
+        "rootRehashed": true
+      },
+      "generalRun": 45663035557,
+      "generalJobs": [
+        139377675272,
+        139377674624,
+        139377675205
+      ],
+      "generalCause": "All3 failed the obsolete app-direct matchesFilter import assertion at relative-date.test.mjs:61. Current app imports selectDatabaseRecords, which imports matchesFilter. Functional date tests remain unchanged."
+    },
+    "pilot": {
+      "head": "f7f3ea66840b383dd33da35683fac287b0a26373",
+      "testedMerge": "7c74e32adc03ed7fcb158a115aa34aabb61bb376",
+      "windowsRun": 45658791703,
+      "windowsJob": 139362644276,
+      "error": "UI worker executable or session did not match.",
+      "stage": "Immediately after retained worker Spawn/Handle/GetIdentity, before stdin request or UI Automation",
+      "exactMismatch": "Unknown: compared actual path/session values were not recorded.",
+      "cleanupPassed": true,
+      "artifact": {
+        "id": 15045011803,
+        "bytes": 6903,
+        "sha256": "0e1f9c92a4b5bb89a484c646aa5caa5b9c2deb5a6b2bd89c54abf3dfed29e4f8",
+        "members": 7,
+        "rootRehashed": true
+      },
+      "generalRun": 45658791665,
+      "generalAllThreePassed": true,
+      "notReached": [
+        "licence page",
+        "global firewall window",
+        "offline prerequisite upgrade",
+        "active engine observation",
+        "installed GUI"
+      ]
+    }
+  },
+  "narrowRecovery": {
+    "files": [
+      "scripts/windows-installed-ui.mjs",
+      "apps/web/test/relative-date.test.mjs",
+      "docs/DELIVERY_STATE.json",
+      "docs/WORKSPACE_RECOVERY_2026-11-25.json",
+      "docs/INLINE_V3_IMPLEMENTATION_PLAN.md"
+    ],
+    "startup": "Move existing bounded observer after synchronous host event handlers. Add Object.hasOwn idempotence, page.addInitScript, exact http://tauri.localhost/ DOMContentLoaded wait (30000ms), then current-document evaluate. No reload/retry, app mutation, error suppression, dialog/SaveAs or later lifecycle change.",
+    "sourceAssertion": "Read record-selector.js and assert app→selectDatabaseRecords→matchesFilter import chain. Retain functional date cases, filter editor checks and asset assertions.",
+    "validation": "Source anchoring and V8 grammar parse of reconstructed modules passed. Earlier full local web suite244/244 and confinement19/19 passed for the equivalent planned correction before outage; reconstructed exact candidate still requires CI.",
+    "review": {
+      "reviewer": "windows_audit",
+      "verdict": "passed; no blocking narrow startup source defect",
+      "baselineBlob": "1b2379b16ed43d83566f710ef0318143fd689bca",
+      "candidateCharacters": 49234,
+      "inverseReproducesBaseline": true,
+      "hostListenerBodiesUnchanged": true,
+      "pureV8Checks": {
+        "passed": 4,
+        "failed": 0,
+        "cases": [
+          "idempotent listener/array",
+          "latest20orderedobservations",
+          "code100/message512bounds",
+          "null/undefined/primitive reasons without event suppression"
+        ]
+      },
+      "limits": "No Node, WebView2 or Windows execution after reconstruction; exact replacement source assertions verified by root against fetched app/selector imports."
+    },
+    "largerCandidate": "Not published. It contains separate Board/backup/inline changes and is not equivalent to this narrow recovery."
+  },
+  "unpublishedMain": {
+    "worktree": "/workspace/scratch/26e5117382b4/Motion",
+    "branch": "feat/windows-notebook-resume",
+    "parent": "e17b33cdf6bd23dee61f70b92d3761694a0747bb",
+    "stagedPayload": {
+      "path": "/tmp/motion-installed-board-startup-publish.json",
+      "bytes": 267591,
+      "tree": "ac5495116cf22626b644af11e4f7cd95b924e525",
+      "note": "Do not publish this stale parent/tree blindly after narrow recovery; recover exact files and reconcile current startup/doc changes."
+    },
+    "files": [
+      "apps/web/test/relative-date.test.mjs",
+      "docs/CI_RECORD_SELECTOR_EVIDENCE_e17b33c.json",
+      "docs/DELIVERY_STATE.json",
+      "docs/INLINE_RANGE_FOUNDATION_REVIEW_2026-11-25.json",
+      "docs/INSTALLED_BOARD_REVIEW_2026-11-25.json",
+      "docs/WINDOWS_1_0_DELIVERY.md",
+      "docs/WINDOWS_STARTUP_EVIDENCE_e17b33c.json",
+      "docs/WRITING_PARITY_NEXT.md",
+      "e2e/installed-board-writing.spec.ts",
+      "packages/backup/src/index.ts",
+      "packages/backup/src/test/preview-record-count.test.ts",
+      "packages/core/src/inline-ranges.ts",
+      "packages/core/src/test/inline-ranges.test.ts",
+      "scripts/windows-board-writing.mjs",
+      "scripts/windows-installed-ui.mjs"
+    ],
+    "hashes": {
+      "scripts/windows-installed-ui.mjs": "c570cd3052f047ca27b8338c1631ea1e31b79112ec4ebc0f33d0a4ea87674e08",
+      "scripts/windows-board-writing.mjs": "c645e2c4c11c8083b06cd27b80f0474a58c5ee25a83b04796fbf9a2fe835f65f",
+      "e2e/installed-board-writing.spec.ts": "7170f53ef1316badeca41357be8f7b6625e9084dc2cc63297abe53a1a4ad0184",
+      "packages/backup/src/index.ts": "0353c896395b5d7b69ba71d85ffd6d6ec1b8876618ee9947037b0278f537b542",
+      "packages/backup/src/test/preview-record-count.test.ts": "c445ccdac5c559bbf20208f78b2ffbd3cb3dcac9df96cd1b8c6f762f2c665b59",
+      "packages/core/src/inline-ranges.ts": "09baf73399f5b0396f6e951c2afe1bbf0c30af4c62f24617beaaea9602fa46fb",
+      "packages/core/src/test/inline-ranges.test.ts": "eb034d3fbda174beb56fe623805ae0c24465dea29907e08b112a8ad6aac400c1"
+    },
+    "observedLocalValidation": {
+      "installedBoardServiceBrowser": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "log": "/tmp/motion-installed-board-integrated.log"
+      },
+      "backup": {
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "log": "/tmp/motion-backup-preview-integrated.log"
+      },
+      "web": {
+        "passed": 244,
+        "failed": 0,
+        "skipped": 0,
+        "log": "/tmp/motion-board-web-suite-after.log"
+      },
+      "confinement": {
+        "passed": 19,
+        "failed": 0,
+        "skipped": 0
+      },
+      "inline": {
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "log": "/tmp/motion-inline-integrated-tests.log"
+      },
+      "desktopServiceBuild": "passed",
+      "lint": "passed176JS71JSON",
+      "staticAnalysis": "passed129files8unchangedrules",
+      "offlineAssets": "passed",
+      "secretScan": "FAILED one intentional credential-URL fixture in inline-ranges.test.ts line89"
+    },
+    "blockedPublicationCorrection": "Create the credential rejection test fixture through URL.username and URL.password with explicit fixture values, avoiding a credential-looking literal without weakening scanner policy. The attempted patch failed before reading the file, so it is NOT applied. Rerun focused tests/scan and update the fixture hash/review.",
+    "installedBoardContract": "Actual UI creates one database and two original record Pages, grouping option/null/Done, filter Apply/Clear, page rename/body preservation, view selection/reload, unchanged source notebook and order/opaque fields. Helper only reads native snapshots; test substitutes Rust transport while using actual Node/SQLite and typed adapter. Main controller integrates strict one-use property prompt and immediate32KiB phase/commit/instance evidence before attachment/backup.",
+    "backupContract": "After verified backup, schema2 record preview counts canonical recordPageIds including Trash consistently with the restored bundle; schema1 uses legacy rows. No double counting legacy rows, no format or validation relaxation.",
+    "inlineContract": "Unused/unexported helper only; no canonical schema/readers/UI/assets/export changes. See design plan; rich formatting is not implemented."
+  },
+  "unpublishedPilot": {
+    "worktree": "/workspace/scratch/26e5117382b4/Motion-offline-pilot",
+    "branch": "feat/windows-offline-pilot",
+    "parent": "f7f3ea66840b383dd33da35683fac287b0a26373",
+    "stagedPayload": {
+      "path": "/tmp/motion-worker-startup-diagnostics-publish.json",
+      "bytes": 98976,
+      "tree": "ac9527ed6aea188f7d586b795b09b7520950c780"
+    },
+    "files": [
+      "apps/desktop/test/windows/license-dialog.test.mjs",
+      "docs/WINDOWS_OFFLINE_CANDIDATE.json",
+      "docs/WINDOWS_OFFLINE_EVIDENCE_f7f3ea6.json",
+      "docs/WINDOWS_WORKER_STARTUP_REVIEW_2026-11-25.json",
+      "scripts/windows-installer-license-contract.test.ps1",
+      "scripts/windows-installer-license-dialog.ps1"
+    ],
+    "hashes": {
+      "scripts/windows-installer-license-dialog.ps1": "b8f4a5824574335b6752e194bcd8290c8dfb53f9424798db46237a7405e737da",
+      "scripts/windows-installer-license-contract.test.ps1": "393cd5a4ccb78b49870af61e7acebab1996b6196dbe615d0db28c3e6abd4b3b1",
+      "apps/desktop/test/windows/license-dialog.test.mjs": "9d198e8776f2e42e1b453084b40be85312cae125b78ce41e3bc7756f3c331082"
+    },
+    "contract": "Diagnostics only: expected/actual full executable path and session, retained process handle/PID/generation, launch timing/arguments/source hash, exact read steps/booleans/bounded exceptions. Original fatal identity comparison and worker body unchanged. No retry, UI request before authentication, or licence/readiness waiver.",
+    "observedValidation": {
+      "portableSourceBoundChecks": 45,
+      "actualWindowsNewCases": "pending",
+      "lint": "passed",
+      "staticAnalysis": "passed",
+      "secretScan": "passed471files",
+      "offlineAssets": "passed"
+    },
+    "integration": "PR3 mergeability was false on the last connector observation; inspect actual current refs and resolve from recovered exact sources. Regenerate PR2 five-controlled-file governance against its actual base on integration; do not copy the pilot two-file record."
+  },
+  "gallery": {
+    "worktree": "/workspace/scratch/26e5117382b4/Motion-gallery",
+    "branch": "feat/local-gallery-view",
+    "base": "e17b33cdf6bd23dee61f70b92d3761694a0747bb",
+    "status": "Written locally, unstaged/unpublished; exact hashes were not collected before outage",
+    "files": [
+      "apps/web/gallery-view.js",
+      "apps/web/app.js",
+      "apps/web/styles.css",
+      "apps/web/scripts/build-assets.mjs",
+      "e2e/gallery-view.spec.ts",
+      "apps/desktop/test/gallery-roundtrip.test.mjs"
+    ],
+    "tests": "6 focused pure/core-parity tests passed; eight browser cases and actual JSON/SQLite close/reopen test written but NOT executed. Module/app syntax passed before outage.",
+    "contract": "Use shared selectDatabaseRecords, original Pages, first500selectedprefix, existing durable create/select/recovery. layout absent/emptyplainobject or exact{cardSize:small|medium|large}, defaultmedium; cardPreview absent/emptyplainobject or exact{type:none|content}, defaultnone. Scalars/null/arrays/unknownkeys/grouping unsupported and preserved. Literal preorder Block.text preview capped240UTF16units/64visitedblocks/64depth, surrogate-safe ellipsis. No network/media/schema/reorder/drag/dependencies. Keyboard focus return and settings retry/discard.",
+    "caution": "Inspect actual files and run real browser/service cases before integration; do not recreate guessed source or overwrite newer app.js/styles changes."
+  },
+  "inlineDesign": {
+    "worktree": "/workspace/scratch/26e5117382b4/Motion-inline-design",
+    "base": "e17b33cdf6bd23dee61f70b92d3761694a0747bb",
+    "status": "Read-only design; no canonical3 schema implementation started",
+    "plan": "docs/INLINE_V3_IMPLEMENTATION_PLAN.md"
+  },
+  "automation": {
+    "id": "Automation_1b45f83f28188191b31f671c6229efd8",
+    "enabled": true,
+    "schedule": "hourly at minute45 Australia/Perth",
+    "lastObservedRun": "2026-11-25T17:45:00Z",
+    "lastRunResult": "Completed read-only while interactive lease was active; no duplicate changes.",
+    "caveat": "An enabled automation does not guarantee an available executable workspace or completion by the target date."
+  }
+}

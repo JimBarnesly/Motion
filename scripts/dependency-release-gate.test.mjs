@@ -21,7 +21,8 @@ async function candidate(mutate = async () => {}) {
   await writeFile(join(root, "package-lock.json"), JSON.stringify(packageLock()));
   await writeFile(join(root, "apps/desktop/src-tauri/Cargo.toml"), '[package]\nname = "candidate"\nversion = "1.0.0"\n');
   await writeFile(join(root, "apps/desktop/src-tauri/Cargo.lock"), 'version = 4\n\n[[package]]\nname = "candidate"\nversion = "1.0.0"\n');
-  await writeFile(join(root, "apps/desktop/scripts/prepare-node-runtime.mjs"), `const runtimes=[{url:"https://nodejs.org/dist/v1/node-x64.tar.xz",sha256:"${"a".repeat(64)}"},{url:"https://nodejs.org/dist/v1/node-arm64.tar.xz",sha256:"${"b".repeat(64)}"}]; fetch(runtimes[0].url,{redirect: "error"});\n`);
+  const archives = ["linux-x64.tar.xz", "linux-arm64.tar.xz", "win-x64.zip", "win-arm64.zip"];
+  await writeFile(join(root, "apps/desktop/scripts/prepare-node-runtime.mjs"), `const runtimes=[${archives.map((archive, index) => `{url:"https://nodejs.org/dist/v1/node-v1-${archive}",sha256:"${String.fromCharCode(97 + index).repeat(64)}"}`).join(",")}]; fetch(runtimes[0].url,{redirect: "error"});\n`);
   const workflow = "steps:\n  - run: npm ci --ignore-scripts\n  - run: cargo build --locked\n  - run: npm run tauri:build -- --locked --bundles deb,appimage\n";
   await writeFile(join(root, ".github/workflows/ci.yml"), workflow); await writeFile(join(root, ".github/workflows/release-provenance.yml"), workflow);
   await writeFile(join(root, "scripts/dependency-inventory.mjs"), "process.exit(0);\n"); await writeFile(join(root, "docs/dependency-inventory.json"), "{}\n");
@@ -48,6 +49,9 @@ const mutations = [
   ["network", async root => writeFile(join(root, "apps/desktop/scripts/prepare-node-runtime.mjs"), `fetch("https://${canary}.invalid/runtime")\n`)],
   ["package-only", async root => { await mkdir(join(root, "packages/extra")); await writeFile(join(root, "packages/extra/package.json"), JSON.stringify({ name: canary, version: "1.0.0" })); }],
   ["rust-unlocked", async root => writeFile(join(root, ".github/workflows/ci.yml"), "steps:\n  - run: npm ci --ignore-scripts\n  - run: cargo build\n")],
+  ["windows-workflow-unlocked", async root => writeFile(join(root, ".github/workflows/windows.yml"), "steps:\n  - run: cargo build\n")],
+  ["missing-windows-pin", async root => { const path = join(root, "apps/desktop/scripts/prepare-node-runtime.mjs"); await writeFile(path, (await readFile(path, "utf8")).replace('win-arm64.zip', 'win-ia32.zip')); }],
+  ["mixed-runtime-version", async root => { const path = join(root, "apps/desktop/scripts/prepare-node-runtime.mjs"); await writeFile(path, (await readFile(path, "utf8")).replace('v1/node-v1-win-x64.zip', 'v2/node-v2-win-x64.zip')); }],
   ["inventory-drift", async root => writeFile(join(root, "scripts/dependency-inventory.mjs"), "process.exit(1);\n")]
 ];
 for (const [name, mutate] of mutations) test(`${name} dependency tamper exits nonzero without disclosure`, async () => {

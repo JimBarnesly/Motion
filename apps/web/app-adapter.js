@@ -18,13 +18,34 @@ const nativeExecuteOperations = new Set(NATIVE_EXECUTE_OPERATIONS);
 const DB_NAME = "motion-web-development";
 const STORE_NAME = "workspace";
 const WORKSPACE_KEY = "default";
-const UI_STATE_FIELDS = new Set(["workspaceId", "activePageId", "expandedPageIds", "activeViewIds"]);
+const UI_STATE_FIELDS = new Set(["workspaceId", "activePageId", "expandedPageIds", "activeViewIds", "collapsedBlockIds"]);
 const UI_STATE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
+
+function validCollapsedBlockIds(value) {
+  return value === undefined || (Array.isArray(value) && value.length <= 256
+    && Array.from(value).every(id => typeof id === "string" && id.match(UI_STATE_ID)?.[0] === id) && new Set(value).size === value.length);
+}
+
+export function encodeBinary(value) {
+  if (value instanceof Uint8Array) return { $motionBytes: Array.from(value) };
+  if (Array.isArray(value)) return value.map(encodeBinary);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, encodeBinary(child)]));
+  }
+  return value;
+}
 
 export function decodeBinary(value) {
   if (Array.isArray(value)) return value.map(decodeBinary);
   if (value && typeof value === "object") {
-    if (Object.keys(value).length === 1 && Array.isArray(value.$motionBytes)) return Uint8Array.from(value.$motionBytes);
+    if (Object.keys(value).length === 1 && Object.hasOwn(value, "$motionBytes")) {
+      const bytes = value.$motionBytes;
+      if (!Array.isArray(bytes)) throw new TypeError("Invalid Motion byte envelope");
+      for (const byte of bytes) {
+        if (!Number.isInteger(byte) || byte < 0 || byte > 255) throw new TypeError("Invalid Motion byte envelope");
+      }
+      return Uint8Array.from(bytes);
+    }
     return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, decodeBinary(child)]));
   }
   return value;
@@ -35,6 +56,7 @@ function validUiState(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)
       || Object.keys(value).some(key => !UI_STATE_FIELDS.has(key))
       || !validId(value.workspaceId ?? null) || !validId(value.activePageId ?? null)
+      || !validCollapsedBlockIds(value.collapsedBlockIds)
       || (value.expandedPageIds !== undefined && (!Array.isArray(value.expandedPageIds)
         || value.expandedPageIds.length > 256 || value.expandedPageIds.some(id => typeof id !== "string" || !validId(id))
         || new Set(value.expandedPageIds).size !== value.expandedPageIds.length))
@@ -42,12 +64,14 @@ function validUiState(value) {
         || Object.keys(value.activeViewIds).length > 256 || Object.entries(value.activeViewIds).some(([databaseId, viewId]) => !validId(databaseId) || !validId(viewId))))) {
     throw new TypeError("Invalid UI state request");
   }
-  return { workspaceId: value.workspaceId ?? null, activePageId: value.activePageId ?? null, expandedPageIds: value.expandedPageIds ?? [], activeViewIds: value.activeViewIds ?? {} };
+  return { workspaceId: value.workspaceId ?? null, activePageId: value.activePageId ?? null, expandedPageIds: value.expandedPageIds ?? [], activeViewIds: value.activeViewIds ?? {},
+    ...(value.collapsedBlockIds === undefined ? {} : { collapsedBlockIds: [...value.collapsedBlockIds] }) };
 }
 
 function validWorkspace(value) {
   if (value === undefined) return structuredClone(EMPTY_WORKSPACE);
   if (value?.schemaVersion === 2 && (value.workspace === null || (value.workspace && Array.isArray(value.workspace.pages) && Array.isArray(value.workspace.databases)))) {
+    if (!validCollapsedBlockIds(value.collapsedBlockIds)) throw new TypeError("Invalid collapsed block preferences");
     if (value.workspace) assertSafePropertyLifecycle(value.workspace);
     return structuredClone(value);
   }
@@ -69,9 +93,13 @@ function browserDevelopmentAdapter() {
     try {
       return await new Promise((resolve, reject) => {
         const transaction = database.transaction(STORE_NAME, mode);
+        let result;
+        transaction.oncomplete = () => resolve(result);
+        transaction.onabort = () => reject(transaction.error ?? new DOMException("Workspace transaction aborted", "AbortError"));
         const request = action(transaction.objectStore(STORE_NAME));
+        transaction.onerror = () => reject(transaction.error ?? request.error ?? new Error("Workspace transaction failed"));
         request.onerror = () => reject(request.error);
-        request.onsuccess = () => resolve(request.result);
+        request.onsuccess = () => { result = request.result; };
       });
     } finally {
       database.close();
@@ -120,7 +148,7 @@ function tauriAdapter(invoke) {
     }
     workspaceSummary = { id: current.id, revision: result.revision };
   };
-  const dispatch = async (lane, payload) => decodeBinary(await invoke("app_dispatch", { request: { protocolVersion: 1, lane, payload } }));
+  const dispatch = async (lane, payload) => decodeBinary(await invoke("app_dispatch", { request: { protocolVersion: 1, lane, payload: encodeBinary(payload) } }));
   const validSummary = summary => typeof summary?.id === "string" && UI_STATE_ID.test(summary.id)
     && Number.isSafeInteger(summary.revision) && summary.revision >= 0;
   const transitionSummary = (result, allowEmpty) => {
@@ -168,6 +196,7 @@ function tauriAdapter(invoke) {
           const loaded = await invoke("motion_ui_load", { request: { schemaVersion: 2 } });
           if (recoveryEpoch !== workspaceEpoch || activeTransitionEpoch !== null) throw workspaceChanged();
           if (loaded?.schemaVersion !== 2) throw new Error("Native Motion returned an unsupported UI document");
+          if (!validCollapsedBlockIds(loaded.collapsedBlockIds)) throw new TypeError("Invalid collapsed block preferences");
           workspaceSummary = transitionSummary(loaded, true);
           selectionRecoveryRequired = false;
           selectionKnown = true;
@@ -204,6 +233,7 @@ function tauriAdapter(invoke) {
       return transitionWorkspace(async () => {
         const loaded = await invoke("motion_ui_load", { request: { schemaVersion: 2 } });
         if (loaded?.schemaVersion !== 2) throw new Error("Native Motion returned an unsupported UI document");
+        if (!validCollapsedBlockIds(loaded.collapsedBlockIds)) throw new TypeError("Invalid collapsed block preferences");
         return loaded;
       }, true);
     },
@@ -267,7 +297,7 @@ function tauriAdapter(invoke) {
     },
     async readAttachment(attachmentId) { return dispatchCurrentWorkspace("async-query", { type: "attachment.read", attachmentId }); },
     async createBackup() { return dispatchCurrentWorkspace("async-query", { type: "backup.create" }); },
-    async saveBackup(bundle) { return invoke("motion_backup_save", { request: { schemaVersion: 1, bundle } }); },
+    async saveBackup(bundle) { return invoke("motion_backup_save", { request: { schemaVersion: 1, bundle: encodeBinary(bundle) } }); },
     async verifyBackup(bundle) { return dispatch("async-query", { type: "backup.verify", bundle }); },
     async previewBackup(bundle) { return dispatch("async-query", { type: "backup.preview", bundle }); },
     async restoreBackup(bundle) {

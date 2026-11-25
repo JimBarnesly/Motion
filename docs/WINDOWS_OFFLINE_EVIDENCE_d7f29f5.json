@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "repository": "JimBarnesly/Motion",
+  "head": "d7f29f594f13883e25d093bc93234a7e133d8707",
+  "testedMerge": "6fb02229b356ffb4dfcd623b499d746019f652de",
+  "workflowRunId": 45651297612,
+  "windowsJobId": 139336197694,
+  "conclusion": "failure",
+  "evidenceArtifact": {
+    "id": 15041143438,
+    "bytes": 7531,
+    "sha256": "76e663a2c8602125e5809b1e7ff830845965bcdb34fda6f47a2e546f8506b64c",
+    "verifiedAgainstApiAndJobLog": true,
+    "rootIndependentRehash": "Root independently verified the ZIP byte length and SHA-256, and each of the seven extracted members, against this manifest; licence/payload JSON read directly."
+  },
+  "candidateArtifact": {
+    "id": 15041358196,
+    "bytes": 323823448,
+    "sha256": "e36b76ebb72b46b1bfd7b389f41cf87aa80c7d99e37794b330ec796cbcbe9655",
+    "downloaded": false,
+    "source": "GitHub artifact metadata and upload log"
+  },
+  "installer": {
+    "name": "Motion_0.1.0_x64-setup.exe",
+    "byteLength": 323735714,
+    "sha256": "c193a28409397e865b8e9e72aa8326c96e650f539462131fba942fc4ec6fd45d"
+  },
+  "passed": {
+    "steps1Through15": true,
+    "nativeRustTests": 28,
+    "windowsFilesystemServiceTests": 24,
+    "startupTests": 3,
+    "windowsPackageContracts": 26,
+    "workflowContracts": 5,
+    "priorExplicitNodeContract": "Passed on actual Windows in 3031.6167ms; the previous multi-ApplicationInfo failure did not recur.",
+    "embeddedPayloadVerification": {
+      "status": "passed",
+      "payload": {
+        "member": "$TEMP/MicrosoftEdgeWebView2RuntimeInstaller.exe",
+        "byteLength": 294099168,
+        "sha256": "47bc51387aff95c1275ce38cfbbb5fbab99b43b33214049877bbcdbcc7a970d5",
+        "wrapperVersion": "1.3.315.17",
+        "containedRuntimeVersion": "158.0.4370.33",
+        "runtimeVersionSource": "Reviewed content of the exact pinned wrapper",
+        "officialUrl": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/63f7af19-5d22-43ab-af18-239a7b23b84c/MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+      }
+    }
+  },
+  "firstFailure": {
+    "step": 16,
+    "name": "Install and test the actual packaged application",
+    "helper": "scripts/windows-installer-license-dialog.ps1",
+    "exitCode": 1,
+    "outerPhase": "inspect",
+    "workerPhase": "license",
+    "workerError": "Installer window identity changed.",
+    "agreeInvoked": false,
+    "cleanupPassed": true,
+    "cleanupFailures": [],
+    "workerSourceSha256": "790fcf4844c11ab016991f839e027b9b85bb4342e738de82a9f3b9ab5df411c4",
+    "observed": "The actual welcome page and unique Next> button were enumerated. The helper advanced its state to license immediately after invoking that button, then Dialog() rejected a combined PID/HWND/runtime/title/enabled/offscreen predicate before collecting a new page snapshot.",
+    "unresolved": "The retained evidence does not identify which predicate changed. Transient page readiness versus actual identity/title change cannot honestly be distinguished from this record."
+  },
+  "runtimeBefore": {
+    "machineRegistry32Version": "131.0.2903.86",
+    "fileVersion": "131.0.2903.86",
+    "nativeAbsenceProven": false
+  },
+  "notReached": [
+    "full licence text comparison and normal Cancel proof",
+    "after-first-rule fault execution",
+    "SYSTEM watchdog readiness under real firewall changes",
+    "all-program inbound/outbound fence",
+    "retained/new/loopback canary proof",
+    "offline runtime upgrade",
+    "inside-fence callback and active engine",
+    "ordinary installed GUI and Save As"
+  ],
+  "sourceReview": {
+    "file": "scripts/windows-installer-license-dialog.ps1",
+    "function": "worker Dialog()",
+    "lines": "123-128; called in license loop at220",
+    "recommendation": "Keep identity fail-closed; capture the exact failed predicate and current retained-window fields. Separate transient enabled/offscreen readiness from immutable identity only with bounded transition evidence. No correction made in this task."
+  },
+  "files": [
+    {
+      "path": "SHA256SUMS.txt",
+      "bytes": 94,
+      "sha256": "15f28552195e6278af10495868c2d813e813b1b501a5f439ed3b2538375d7090"
+    },
+    {
+      "path": "installer-license-dialog.json",
+      "bytes": 11995,
+      "sha256": "46571f68dc441066b61364b416b60ee0d7a4f21d5271237c34d6986c21e641da"
+    },
+    {
+      "path": "installer-payload-verification.json",
+      "bytes": 5071,
+      "sha256": "4f24796ed61621029e983f2405884d86187905fbed45b87dc2f360d4f50cf3ef"
+    },
+    {
+      "path": "installer-payload-verification.json.extraction.txt",
+      "bytes": 630,
+      "sha256": "04a0f4a72403489c89bbefffebc0de8c86c72553fba819a5cc916f2f2922271a"
+    },
+    {
+      "path": "installer-payload-verification.json.listing.txt",
+      "bytes": 3814,
+      "sha256": "41fa11313b641917c161a7e9ebda41edab587032985fda2b6a44de1f7ec6d82d"
+    },
+    {
+      "path": "installer-payload-verification.json.signtool.txt",
+      "bytes": 1912,
+      "sha256": "42758958daeed79975517a7492dfb2d3710b18c7e6c94b2bef2c0e0446c3c2cb"
+    },
+    {
+      "path": "webview-before-install.json",
+      "bytes": 2681,
+      "sha256": "b46a663008a12687da5210cb789b051a84fcb0f909d473dcc5a9647d3d07b3c9"
+    }
+  ],
+  "generalCi": {
+    "run": "https://github.com/JimBarnesly/Motion/actions/runs/45651297431",
+    "verifyJob": 139336197162,
+    "linuxX64Job": 139336197000,
+    "arm64Job": 139336197417,
+    "conclusion": "All three jobs passed; verified from actual GitHub workflow job results."
+  },
+  "correctionStatus": "Isolated source implementation in progress. Exact NSIS licence caption derivation supports a phase-specific trailing-space title prediction, but this failed run did not record which identity/readiness field differed."
+}

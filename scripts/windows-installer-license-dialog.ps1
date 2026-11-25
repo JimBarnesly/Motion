@@ -83,13 +83,48 @@ $worker = {
     $watch = [Diagnostics.Stopwatch]::StartNew(); $process = $null
     $result = [ordered]@{ schemaVersion = 1; ok = $false; phase = 'input'; controls = @(); agreeInvoked = $false }
     function Deadline { if ($watch.ElapsedMilliseconds -gt 55000) { throw 'Licence UI inspection deadline exceeded.' } }
+    function Identity-Differences($Expected, $Actual, [string[]] $Fields) {
+        foreach ($field in $Fields) {
+            $same = if ($field -ceq 'executablePath') {
+                [string]::Equals($Actual.$field, $Expected.$field, [StringComparison]::OrdinalIgnoreCase)
+            } else { $Actual.$field -ceq $Expected.$field }
+            if (-not $same) { [pscustomobject]@{ field = $field; expected = $Expected.$field; actual = $Actual.$field } }
+        }
+    }
+    function Dialog-Decision($Expected, $Actual, [long] $ElapsedMilliseconds, [string] $PreviousTitle = '') {
+        if ($ElapsedMilliseconds -lt 0 -or $Actual.enabled -isnot [bool] -or $Actual.offscreen -isnot [bool]) {
+            throw 'Invalid retained-dialog readiness observation.'
+        }
+        if ($PreviousTitle.Length -ne 0 -and ($PreviousTitle -cne 'Motion Setup' -or $Expected.name -cne 'Motion Setup ')) {
+            throw 'Unsupported installer title transition.'
+        }
+        $identityChanges = @(Identity-Differences $Expected $Actual @('processId', 'nativeWindowHandle', 'runtimeId'))
+        $pending = @(Identity-Differences $Expected $Actual @('enabled', 'offscreen'))
+        if ($Actual.name -cne $Expected.name) {
+            $titleChange = [pscustomobject]@{ field = 'name'; expected = $Expected.name; actual = $Actual.name }
+            if ($PreviousTitle.Length -ne 0 -and $Actual.name -ceq $PreviousTitle) { $pending += $titleChange }
+            else { $identityChanges += $titleChange }
+        }
+        $action = if ($identityChanges.Count -ne 0) { 'reject-identity' }
+            elseif ($ElapsedMilliseconds -ge 3000) { 'readiness-timeout' }
+            elseif ($pending.Count -ne 0) { 'wait' }
+            else { 'ready' }
+        return [ordered]@{ action = $action; rejectedFields = $identityChanges; pendingReadiness = $pending;
+            elapsedMilliseconds = $ElapsedMilliseconds; timeoutMilliseconds = 3000 }
+    }
     function Identity {
         Deadline; $process.Refresh()
-        if ($process.HasExited) { throw 'Installer exited before the expected UI action.' }
-        if ($process.Id -ne $request.identity.processId -or $process.SessionId -ne $request.identity.sessionId -or
-            $process.StartTime.ToUniversalTime().ToFileTimeUtc().ToString([Globalization.CultureInfo]::InvariantCulture) -cne $request.identity.startTimeFileTimeUtc -or
-            -not [string]::Equals($process.MainModule.FileName, $request.identity.executablePath, [StringComparison]::OrdinalIgnoreCase)) {
-            throw 'Installer process identity changed.'
+        if ($process.HasExited) {
+            $result['processObservation'] = [ordered]@{ rejectedFields = @([ordered]@{ field = 'hasExited'; expected = $false; actual = $true }) }
+            throw 'Installer exited before the expected UI action.'
+        }
+        $actual = [ordered]@{ processId = $process.Id; sessionId = $process.SessionId;
+            startTimeFileTimeUtc = $process.StartTime.ToUniversalTime().ToFileTimeUtc().ToString([Globalization.CultureInfo]::InvariantCulture);
+            executablePath = $process.MainModule.FileName }
+        $changes = @(Identity-Differences $request.identity $actual @('processId', 'sessionId', 'startTimeFileTimeUtc', 'executablePath'))
+        $result['processObservation'] = [ordered]@{ expected = $request.identity; actual = $actual; rejectedFields = $changes }
+        if ($changes.Count -ne 0) {
+            throw ('Installer process identity changed: ' + (($changes | ForEach-Object { $_.field }) -join ', ') + '.')
         }
     }
     function Windows {
@@ -120,11 +155,36 @@ $worker = {
             processId = $c.ProcessId; nativeWindowHandle = $c.NativeWindowHandle; enabled = $c.IsEnabled; offscreen = $c.IsOffscreen }
     }
     function Visible($Element) { return $Element.Current.ProcessId -eq $process.Id -and $Element.Current.IsEnabled -and -not $Element.Current.IsOffscreen }
-    function Dialog {
-        Identity
-        if ($dialog.Current.ProcessId -ne $process.Id -or $dialog.Current.NativeWindowHandle -ne $dialogHandle -or
-            ($dialog.GetRuntimeId() -join ',') -cne $dialogRuntime -or $dialog.Current.Name -cne 'Motion Setup' -or -not (Visible $dialog)) {
-            throw 'Installer window identity changed.'
+    function Dialog([string] $PreviousTitle = '') {
+        $readinessClock = [Diagnostics.Stopwatch]::StartNew(); $waited = $false
+        $expected = [ordered]@{ processId = $request.identity.processId; nativeWindowHandle = $dialogHandle;
+            runtimeId = $dialogRuntime; name = $dialogTitle; enabled = $true; offscreen = $false }
+        while ($true) {
+            Identity
+            $current = $dialog.Current
+            $actual = [ordered]@{ processId = $current.ProcessId; nativeWindowHandle = $current.NativeWindowHandle;
+                runtimeId = ($dialog.GetRuntimeId() -join ','); name = $current.Name; enabled = $current.IsEnabled; offscreen = $current.IsOffscreen }
+            Deadline
+            $decision = Dialog-Decision $expected $actual $readinessClock.ElapsedMilliseconds $PreviousTitle
+            $result['dialogObservation'] = [ordered]@{ phase = $result.phase; expected = $expected; actual = $actual; decision = $decision }
+            if ($decision.action -ceq 'reject-identity') {
+                throw ('Installer window identity changed: ' + (($decision.rejectedFields | ForEach-Object { $_.field }) -join ', ') + '.')
+            }
+            if ($decision.action -ceq 'readiness-timeout') { throw 'The retained installer window did not become ready within 3000ms.' }
+            if ($decision.action -ceq 'ready') {
+                if ($waited) {
+                    $result.lastReadinessWait['resolved'] = $true
+                    $result.lastReadinessWait['elapsedMilliseconds'] = $readinessClock.ElapsedMilliseconds
+                    $result.lastReadinessWait['readyState'] = $actual
+                }
+                return
+            }
+            if (-not $waited) {
+                $result['lastReadinessWait'] = [ordered]@{ phase = $result.phase; expected = $expected; firstPendingState = $actual;
+                    resolved = $false; elapsedMilliseconds = $readinessClock.ElapsedMilliseconds }
+                $waited = $true
+            }
+            Start-Sleep -Milliseconds 50
         }
     }
     function Button($Elements, [string] $Name, [string] $Id) {
@@ -204,6 +264,7 @@ public static class MotionLicenseReadOnly {
             if ($matches.Count -eq 1) { $dialog = $matches[0] } else { Start-Sleep -Milliseconds 100 }
         }
         $dialogHandle = $dialog.Current.NativeWindowHandle; $dialogRuntime = $dialog.GetRuntimeId() -join ','
+        $dialogTitle = 'Motion Setup'
         if ($dialogHandle -eq 0 -or $dialogRuntime.Length -eq 0) { throw 'Installer window has no native identity.' }
         $next = $null
         while ($null -eq $next) {
@@ -216,6 +277,12 @@ public static class MotionLicenseReadOnly {
         }
         Dialog; Invoke-Button $next 'Next >' '1'
         $result.phase = 'license'; $licenseControl = $null; $agree = $null; $cancel = $null
+        # NSIS3.11 MUI2 License.nsh:48 sets Caption " ". Ui.c:605-607
+        # appends that exact subcaption to the base title without trimming.
+        # Only this authorized page transition may wait for the old title;
+        # after it completes, the one trailing ASCII space is required.
+        $dialogTitle = 'Motion Setup '
+        Dialog -PreviousTitle 'Motion Setup'
         while ($null -eq $licenseControl -or $null -eq $agree -or $null -eq $cancel) {
             Dialog; $controls = @(Elements $dialog)
             $result.controls = @($controls | Select-Object -First 48 | ForEach-Object { Summary $_ })
@@ -250,7 +317,7 @@ public static class MotionLicenseReadOnly {
             displayedCharacters = $actual.Length; normalizedCharacters = $normalizedExpected.Length; normalizedSha256 = TextHash $normalizedExpected;
             control = Summary $licenseControl }
         $result['agreeButton'] = Summary $agree
-        $result['dialog'] = [ordered]@{ nativeWindowHandle = $dialogHandle; runtimeId = $dialogRuntime; processId = $process.Id; name = 'Motion Setup' }
+        $result['dialog'] = [ordered]@{ nativeWindowHandle = $dialogHandle; runtimeId = $dialogRuntime; processId = $process.Id; name = $dialogTitle }
         $result.phase = 'cancel'; Dialog; Invoke-Button $cancel 'Cancel' '2'; $confirmation = $false
         while (-not $process.HasExited) {
             Deadline
@@ -395,6 +462,7 @@ try {
         $inspection.phase -cne 'complete' -or $inspection.agreeInvoked -isnot [bool] -or $inspection.agreeInvoked -or
         $inspection.license.fullNormalizedTextMatched -isnot [bool] -or -not $inspection.license.fullNormalizedTextMatched -or
         $inspection.license.normalizedSha256 -cne $normalizedHash -or $inspection.dialog.processId -ne $identity.processId -or
+        $inspection.dialog.name -cne 'Motion Setup ' -or
         $inspection.agreeButton.enabled -isnot [bool] -or -not $inspection.agreeButton.enabled -or
         $inspection.agreeButton.offscreen -isnot [bool] -or $inspection.agreeButton.offscreen -or
         $inspection.agreeButton.name.Replace('&', '') -cne 'I Agree' -or $inspection.agreeButton.processId -ne $identity.processId -or

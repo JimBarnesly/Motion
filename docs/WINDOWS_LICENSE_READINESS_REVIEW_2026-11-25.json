@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "baseHead": "d7f29f594f13883e25d093bc93234a7e133d8707",
+  "files": [
+    {
+      "path": "scripts/windows-installer-license-dialog.ps1",
+      "sha256": "e12b0f55ba14e79449fd1d9d41586e877d433ba3ac1ee9f808475a44416c8f7d"
+    },
+    {
+      "path": "scripts/windows-installer-license-contract.test.ps1",
+      "sha256": "ffedfedea54f9173443b95e45516784b81263ddb8bc2497905569fe0ef81f758"
+    },
+    {
+      "path": "apps/desktop/test/windows/license-dialog.test.mjs",
+      "sha256": "24c306e78f92200f3b6070479eba39cf72eb4ff136fb4544997c6a50ad61a4a2"
+    }
+  ],
+  "scope": "Phase-specific source-bound NSIS licence title, strict retained-window identity and bounded readiness; installer actions and production packaging unchanged.",
+  "priorFailure": "docs/WINDOWS_OFFLINE_EVIDENCE_d7f29f5.json",
+  "sourceEvidence": {
+    "schemaVersion": 1,
+    "upstream": "https://github.com/nsis-dev/nsis",
+    "officialMirrorReference": "https://nsis.sourceforge.io/Development_Files",
+    "tag": "v311",
+    "tagObject": "c4f43c5a7fe2eb717f4e8fb2db7e0b1de4266ba1",
+    "commit": "7359413009afd4f0fff472d841fc2f2cc0e0a5f8",
+    "derivation": [
+      "License.nsh PageEx license sets Caption to exactly one ASCII space at line48.",
+      "Ui.c lines605-607 append this_page->caption to update_caption() and call my_SetWindowText.",
+      "util.h maps my_SetWindowText to SetWindowText; no trim.",
+      "Welcome.nsh custom page defines no Caption; actual d7 Welcome observation is exactly Motion Setup.",
+      "Expected Licence title is therefore exactly Motion Setup plus one trailing ASCII space. This source prediction is not an observed rejected-field value in d7, whose error combined several predicates."
+    ],
+    "files": [
+      {
+        "file": "License.nsh",
+        "sha256": "736d6b5724ed3cc37aab6eb8b436432bde7b797bbbd5743ffd487a0610a90de0"
+      },
+      {
+        "file": "Ui.c",
+        "sha256": "ef94db47f89cdbe4e4b0b509622b28dc44c5a33ab34202b64fc4c87663851ae0"
+      },
+      {
+        "file": "Welcome.nsh",
+        "sha256": "454200ceef358adaa9e3b0e86b20c23796319784212e0ed51df33402d4e2a0ca"
+      },
+      {
+        "file": "util.c",
+        "sha256": "c5f7827efd24a75f98117c4a9d28999a4b61a0373b7f57b10f8baf0bb3f2d729"
+      },
+      {
+        "file": "util.h",
+        "sha256": "706a25fd72aa9ee3dec61eee38e80d8eda72bfbb9707ebbed8a5f72b935153d8"
+      }
+    ]
+  },
+  "change": [
+    "Keep retained process generation, session, executable path and dialog PID/HWND/runtime identity checks.",
+    "Record expected/current snapshots and every rejected field.",
+    "Welcome title remains exactly Motion Setup. Licence title is exactly Motion Setup plus one ASCII space, derived from NSIS3.11 source.",
+    "Only the explicit Next transition can wait for the old exact title. It cannot pass as ready, and later calls reject it. No title trimming or broad allowlist.",
+    "Only authenticated enabled/offscreen readiness can wait, under a3second monotonic deadline plus the existing55second worker and70second parent deadlines.",
+    "Full expected licence text, read-only text inspection, no-agree, exact Cancel, absent destination and retained-child cleanup gates are unchanged.",
+    "The existing Windows test glob will run the new strict PowerShell5.1 pure contract wrapper; no workflow change."
+  ],
+  "validation": {
+    "pureContract": {
+      "schemaVersion": 1,
+      "status": "passed",
+      "sourceSha256": "e12b0f55ba14e79449fd1d9d41586e877d433ba3ac1ee9f808475a44416c8f7d",
+      "checks": [
+        "Exact Welcome identity is ready",
+        "Exact NSIS licence title includes one trailing ASCII space",
+        "Old title is wait-only during the explicit Next transition",
+        "Old title is rejected after the transition",
+        "No title trimming or broad matching: \" Motion Setup\"",
+        "No title trimming or broad matching: \"Motion Setup  \"",
+        "No title trimming or broad matching: \"motion setup \"",
+        "No title trimming or broad matching: \"Motion Setup: Other\"",
+        "No title trimming or broad matching: \"Motion Setup\\t\"",
+        "An arbitrary previous title is rejected",
+        "The caption exception cannot apply to Welcome",
+        "Changed processId rejects immediately even when readiness is pending",
+        "Changed nativeWindowHandle rejects immediately even when readiness is pending",
+        "Changed runtimeId rejects immediately even when readiness is pending",
+        "All rejected identity fields retain their expected and actual values",
+        "Only authenticated enabled readiness may wait",
+        "Only authenticated offscreen readiness may wait",
+        "Both transient readiness fields are retained before the deadline",
+        "Ready just before the deadline is accepted",
+        "A ready observation at the exact deadline cannot pass",
+        "Readiness after the deadline is rejected",
+        "The old transition title cannot wait beyond the deadline",
+        "Negative elapsed time is rejected",
+        "An unavailable or mistyped readiness observation cannot wait",
+        "Executable spelling preserves the existing Windows case-insensitive rule",
+        "Changed process processId remains an identity rejection",
+        "Changed process sessionId remains an identity rejection",
+        "Changed process startTimeFileTimeUtc remains an identity rejection",
+        "Changed process executablePath remains an identity rejection"
+      ],
+      "count": 29,
+      "nativeUiExecuted": false,
+      "installerStarted": false,
+      "powerShellMajor": 7,
+      "powerShellMinor": 5,
+      "powerShellEdition": "Core",
+      "limitation": "Pure source-bound decisions only. Actual retained-window transitions, displayed licence and cancellation remain installed Windows acceptance requirements."
+    },
+    "existingPackageTemplatePayloadTests": {
+      "passed": 15,
+      "failed": 0,
+      "skipped": 0
+    },
+    "workflowScriptContracts": {
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0
+    },
+    "parseAndCompile": {
+      "parsedScripts": 2,
+      "literalNativeDeclarationsCompiled": 1,
+      "csharpLanguageVersion": 5,
+      "executedNativeDeclarations": false
+    },
+    "nodeSyntax": "passed",
+    "gitDiffCheck": "passed"
+  },
+  "independentReview": {
+    "verdict": "No blocking source defect found in the frozen three-file correction.",
+    "reviewers": [
+      "Notion independent source review",
+      "Root independent source review and source/artifact rehash"
+    ],
+    "humanApprovalClaimed": false,
+    "rootChecks": [
+      "Compared the exact three-file change; immutable identity checks are preserved.",
+      "Independently rehashed all five NSIS 3.11 source files and read caption composition without trimming.",
+      "Read all 29 source-bound pure cases and Windows PowerShell 5.1 wrapper.",
+      "Full text comparison, no-agree, Cancel, unchanged runtime/destination and owned cleanup requirements remain intact."
+    ]
+  },
+  "limitations": [
+    "Actual Windows PowerShell5.1 execution of this new contract is pending.",
+    "No installer/UIA/window action executed locally.",
+    "Actual d7 evidence cannot prove that title rather than another combined predicate caused rejection; source proves the old fixed title rejects the legitimate licence caption.",
+    "No inference of passing licence, firewall, offline upgrade or active engine acceptance."
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "upstream": {
+    "repository": "https://github.com/tauri-apps/tauri",
+    "commit": "8909f221d1515955fc843808032bdc5d62209c96",
+    "cliVersion": "2.11.4",
+    "bundlerVersion": "2.9.4",
+    "templatePath": "crates/tauri-bundler/src/bundle/windows/nsis/installer.nsi",
+    "templateSha256": "20f4ecc730defb71f1342eaeaec4021df13be3d843abba0effe88ea5835fa079",
+    "licenceExpression": "Apache-2.0 OR MIT",
+    "licences": [
+      {
+        "file": "LICENSE_MIT",
+        "sha256": "9dd42ea92cff2ede5cd477cbfcce051b2d0115c0ac7f368ee88cb545055dff1d",
+        "sourceUrl": "https://raw.githubusercontent.com/tauri-apps/tauri/8909f221d1515955fc843808032bdc5d62209c96/LICENSE_MIT"
+      },
+      {
+        "file": "LICENSE_APACHE-2.0",
+        "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+        "sourceUrl": "https://raw.githubusercontent.com/tauri-apps/tauri/8909f221d1515955fc843808032bdc5d62209c96/LICENSE_APACHE-2.0"
+      }
+    ]
+  },
+  "modification": {
+    "purpose": "Require the pinned offline WebView2 prerequisite when the applicable registry version is missing, malformed or below the distribution floor, and verify the registration again before installing Motion.",
+    "distributionFloor": "158.0.4370.33",
+    "startMarker": "; BEGIN MOTION OFFLINE WEBVIEW2 PREREQUISITE",
+    "endMarker": "; END MOTION OFFLINE WEBVIEW2 PREREQUISITE",
+    "originalSection": "Section WebView2\n  ; Check if Webview2 is already installed and skip this section\n  ${If} ${RunningX64}\n    ReadRegStr $4 HKLM \"SOFTWARE\\WOW6432Node\\Microsoft\\EdgeUpdate\\Clients\\${WEBVIEW2APPGUID}\" \"pv\"\n  ${Else}\n    ReadRegStr $4 HKLM \"SOFTWARE\\Microsoft\\EdgeUpdate\\Clients\\${WEBVIEW2APPGUID}\" \"pv\"\n  ${EndIf}\n  ${If} $4 == \"\"\n    ReadRegStr $4 HKCU \"SOFTWARE\\Microsoft\\EdgeUpdate\\Clients\\${WEBVIEW2APPGUID}\" \"pv\"\n  ${EndIf}\n\n  ${If} $4 == \"\"\n    ; Webview2 installation\n    ;\n    ; Skip if updating\n    ${If} $UpdateMode <> 1\n      !if \"${INSTALLWEBVIEW2MODE}\" == \"downloadBootstrapper\"\n        Delete \"$TEMP\\MicrosoftEdgeWebview2Setup.exe\"\n        DetailPrint \"$(webview2Downloading)\"\n        NSISdl::download \"https://go.microsoft.com/fwlink/p/?LinkId=2124703\" \"$TEMP\\MicrosoftEdgeWebview2Setup.exe\"\n        Pop $0\n        ${If} $0 == \"success\"\n          DetailPrint \"$(webview2DownloadSuccess)\"\n        ${Else}\n          DetailPrint \"$(webview2DownloadError)\"\n          Abort \"$(webview2AbortError)\"\n        ${EndIf}\n        StrCpy $6 \"$TEMP\\MicrosoftEdgeWebview2Setup.exe\"\n        Goto install_webview2\n      !endif\n\n      !if \"${INSTALLWEBVIEW2MODE}\" == \"embedBootstrapper\"\n        Delete \"$TEMP\\MicrosoftEdgeWebview2Setup.exe\"\n        File \"/oname=$TEMP\\MicrosoftEdgeWebview2Setup.exe\" \"${WEBVIEW2BOOTSTRAPPERPATH}\"\n        DetailPrint \"$(installingWebview2)\"\n        StrCpy $6 \"$TEMP\\MicrosoftEdgeWebview2Setup.exe\"\n        Goto install_webview2\n      !endif\n\n      !if \"${INSTALLWEBVIEW2MODE}\" == \"offlineInstaller\"\n        Delete \"$TEMP\\MicrosoftEdgeWebView2RuntimeInstaller.exe\"\n        File \"/oname=$TEMP\\MicrosoftEdgeWebView2RuntimeInstaller.exe\" \"${WEBVIEW2INSTALLERPATH}\"\n        DetailPrint \"$(installingWebview2)\"\n        StrCpy $6 \"$TEMP\\MicrosoftEdgeWebView2RuntimeInstaller.exe\"\n        Goto install_webview2\n      !endif\n\n      Goto webview2_done\n\n      install_webview2:\n        DetailPrint \"$(installingWebview2)\"\n        ; $6 holds the path to the webview2 installer\n        ExecWait \"$6 ${WEBVIEW2INSTALLERARGS} /install\" $1\n        ${If} $1 = 0\n          DetailPrint \"$(webview2InstallSuccess)\"\n        ${Else}\n          DetailPrint \"$(webview2InstallError)\"\n          Abort \"$(webview2AbortError)\"\n        ${EndIf}\n      webview2_done:\n    ${EndIf}\n  ${Else}\n    !if \"${MINIMUMWEBVIEW2VERSION}\" != \"\"\n      ${VersionCompare} \"${MINIMUMWEBVIEW2VERSION}\" \"$4\" $R0\n      ${If} $R0 = 1\n        update_webview:\n          DetailPrint \"$(installingWebview2)\"\n          ${If} ${RunningX64}\n            ReadRegStr $R1 HKLM \"SOFTWARE\\WOW6432Node\\Microsoft\\EdgeUpdate\" \"path\"\n          ${Else}\n            ReadRegStr $R1 HKLM \"SOFTWARE\\Microsoft\\EdgeUpdate\" \"path\"\n          ${EndIf}\n          ${If} $R1 == \"\"\n            ReadRegStr $R1 HKCU \"SOFTWARE\\Microsoft\\EdgeUpdate\" \"path\"\n          ${EndIf}\n          ${If} $R1 != \"\"\n            ; Chromium updater docs: https://source.chromium.org/chromium/chromium/src/+/main:docs/updater/user_manual.md\n            ; Modified from \"HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Microsoft EdgeWebView\\ModifyPath\"\n            ExecWait `\"$R1\" /install appguid=${WEBVIEW2APPGUID}&needsadmin=true` $1\n            ${If} $1 = 0\n              DetailPrint \"$(webview2InstallSuccess)\"\n            ${Else}\n              MessageBox MB_ICONEXCLAMATION|MB_ABORTRETRYIGNORE \"$(webview2InstallError)\" IDIGNORE ignore IDRETRY update_webview\n              Quit\n              ignore:\n            ${EndIf}\n          ${EndIf}\n      ${EndIf}\n    !endif\n  ${EndIf}\nSectionEnd",
+    "scope": "The marked WebView2 section is the only change to upstream template bytes. All other installation and uninstallation logic is preserved. Registry version verification is not an active-engine measurement."
+  }
+}

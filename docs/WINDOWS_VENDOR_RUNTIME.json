@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "observedAtUtc": "2026-11-25T13:57:35.083145+00:00",
+  "kind": "Vendor redistributable inventory and source evidence",
+  "scope": "Unchanged Microsoft WebView2 prerequisite, separate from Motion MIT and the npm/Cargo package inventory",
+  "sourceHead": "503ae3d776d92e8db66dd4403101554ef54cd0f5",
+  "classification": {
+    "role": "separately licensed, unchanged Microsoft vendor redistributable prerequisite",
+    "component": "Microsoft Edge WebView2 Evergreen Standalone Installer, x64 runtime payload",
+    "wrapperVersion": "1.3.315.17",
+    "runtimePayloadVersion": "158.0.4370.33",
+    "bytes": 294099168,
+    "sha256": "47bc51387aff95c1275ce38cfbbb5fbab99b43b33214049877bbcdbcc7a970d5",
+    "officialSource": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/63f7af19-5d22-43ab-af18-239a7b23b84c/MicrosoftEdgeWebView2RuntimeInstallerX64.exe",
+    "licenceScope": "Microsoft Evergreen runtime terms plus included component notices/agreements; not MIT and not the SDK licence"
+  },
+  "officialTerms": {
+    "url": "https://developer.microsoft.com/microsoft-edge/api/eula/webview2?locale=en-us",
+    "httpStatus": 200,
+    "refetchedMatchingBytes": true,
+    "apiResponse": {
+      "bytes": 24565,
+      "sha256": "821657eb0994850b0ea86b53242c52a22016e45859fee74bcd456dd77c0ba18e"
+    },
+    "evergreenHtml": {
+      "bytes": 21639,
+      "sha256": "ce6fa83e57c338256e5cabe9e1eea83076c271b0fdb253408213eeb08859d7b6"
+    },
+    "plainTextRendering": {
+      "bytes": 16744,
+      "sha256": "b1c9168f3d6ad6ac244b28f4dbca48407aee068fe6bba5c5a8b2b770eef6f26b"
+    },
+    "completeNonWhitespaceTextPreserved": true,
+    "allHtmlLinkTargetsAreVisibleText": true
+  },
+  "sdkLicence": {
+    "url": "https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.3650.58/License",
+    "sdkVersion": "1.0.3650.58",
+    "bindingVersion": "webview2-com-sys 0.38.2",
+    "officialPage": {
+      "bytes": 13613,
+      "sha256": "9721a12a8fd175341d7f0100c881728249fa77bae878d8f931a2a19625fde0a5"
+    },
+    "decodedPreformattedLicence": {
+      "bytes": 1487,
+      "sha256": "0af8f1b807512aae39c2ac1aa4d0cae65cabecb6fd554b8439a5162a0d6eca55"
+    },
+    "runtimeLicence": false
+  },
+  "includedOfflineResources": [
+    {
+      "relativePath": "apps/desktop/licenses/windows/INSTALLER-LICENSE.txt",
+      "bytes": 18749,
+      "sha256": "5a72889869ed79fbe47d3bf722ac4e035a113ccce99c420ce221881315f6f3da"
+    },
+    {
+      "relativePath": "apps/desktop/licenses/windows/MicrosoftEdgeUpdate-NOTICE.TXT",
+      "bytes": 4172,
+      "sha256": "91d3fc490565ded7621ff5198960e501b6db857d5dd45af2fe7c3ecd141145f5"
+    },
+    {
+      "relativePath": "apps/desktop/licenses/windows/NOTICE-LOCATIONS.txt",
+      "bytes": 1716,
+      "sha256": "c3fbe0d55b2ebe9214907b0498057a844079edd20c9b886c96e1c67cc4417851"
+    },
+    {
+      "relativePath": "apps/desktop/licenses/windows/WebView2-Evergreen-Terms.html",
+      "bytes": 21639,
+      "sha256": "ce6fa83e57c338256e5cabe9e1eea83076c271b0fdb253408213eeb08859d7b6"
+    },
+    {
+      "relativePath": "apps/desktop/licenses/windows/WebView2-SDK-LICENSE.txt",
+      "bytes": 1487,
+      "sha256": "0af8f1b807512aae39c2ac1aa4d0cae65cabecb6fd554b8439a5162a0d6eca55"
+    },
+    {
+      "relativePath": "apps/desktop/licenses/windows/component-notices/Mu-LICENSE.txt",
+      "bytes": 35147,
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+    },
+    {
+      "relativePath": "apps/desktop/licenses/windows/component-notices/Sigma-LICENSE.txt",
+      "bytes": 66,
+      "sha256": "44071e0fcffb9a9a32e8fa7010bb18dbc41afd0b176f81bf700b15b638a88a51"
+    },
+    {
+      "relativePath": "apps/desktop/licenses/windows/component-notices/Widevine-LICENSE.txt",
+      "bytes": 473,
+      "sha256": "20de375707692099b3132084695377ce5fec0aec05813dedcce094b8eda44386"
+    }
+  ],
+  "vendorPayloadNotices": [
+    {
+      "role": "embedded_wrapper",
+      "bytes": 294099168,
+      "sha256": "47bc51387aff95c1275ce38cfbbb5fbab99b43b33214049877bbcdbcc7a970d5"
+    },
+    {
+      "role": "nested_installer",
+      "bytes": 286474064,
+      "sha256": "dc14ea63014de44430298e0883b75addc97a6297c13f1e4e95ce579fa7723309"
+    },
+    {
+      "role": "updater_notice",
+      "bytes": 4172,
+      "sha256": "91d3fc490565ded7621ff5198960e501b6db857d5dd45af2fe7c3ecd141145f5"
+    },
+    {
+      "role": "runtime_mu_licence",
+      "bytes": 35147,
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+    },
+    {
+      "role": "runtime_sigma_licence",
+      "bytes": 66,
+      "sha256": "44071e0fcffb9a9a32e8fa7010bb18dbc41afd0b176f81bf700b15b638a88a51"
+    },
+    {
+      "role": "runtime_widevine_licence",
+      "bytes": 473,
+      "sha256": "20de375707692099b3132084695377ce5fec0aec05813dedcce094b8eda44386"
+    },
+    {
+      "role": "credits_launcher",
+      "bytes": 270,
+      "sha256": "3e867e263b64592b2dad5c334b6aa46d0bb46a20aa0db01c5ff08c707c3e148d"
+    }
+  ],
+  "runtimeCredits": {
+    "method": "Static bounded data-pack inspection; no PE or embedded HTML/JS execution",
+    "archiveBytes": 1018641756,
+    "archiveSha256": "b674a37461019722d8c5b7aad6f65e761918b82b2be66cd2f0c889f4daf0ff01",
+    "resourcesPak": {
+      "bytes": 37349008,
+      "sha256": "58021307e81c77d99168c40d6ed5c29635113c00d5655ff8490e24d33e2d7ed3"
+    },
+    "resourceId": 51861,
+    "html": {
+      "bytes": 23874602,
+      "sha256": "8356201e99c52a6fd8ed970ae801b3f677bcf833c800eff47839f447c8b5e131"
+    },
+    "productEntries": 637,
+    "gplHeadingMarkers": 13,
+    "lgplHeadingMarkers": 29,
+    "limit": "Structurally validated Microsoft data-pack variant; component names and licence headings indexed, not a full licence audit or evidence of actual installed/active components. Parsed text hashes in the index use HTML decoding and normalized line endings."
+  },
+  "packaging": {
+    "licenseFile": "../licenses/windows/INSTALLER-LICENSE.txt",
+    "resources": {
+      "../licenses/windows/": "licenses/windows/"
+    },
+    "interactivePage": "Existing upstream MUI licence page precedes installation; actual inspection pending Windows",
+    "silentAndPassive": "No licence-page display or external-user acceptance is inferred from unattended CI"
+  },
+  "policy": "No npm/Cargo allowlist, browser-security, or other policy change. Existing Code Owner review applies.",
+  "limits": [
+    "External-user or distributor acceptance",
+    "All redistribution conditions satisfied",
+    "Complete component licence audit or source-offer fulfilment",
+    "Installed runtime version",
+    "Actual runtime network or SmartScreen state",
+    "Interactive licence-page execution or installed resource paths"
+  ]
+}

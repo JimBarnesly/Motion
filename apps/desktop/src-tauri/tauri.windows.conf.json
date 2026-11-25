@@ -1,13 +1,32 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "bundle": {
-    "targets": ["nsis"],
-    "icon": ["icons/icon.ico"],
-    "resources": { "../dist/node-runtime.exe": "node-runtime.exe" },
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "../dist/node-runtime.exe": "node-runtime.exe",
+      "../licenses/windows/": "licenses/windows/"
+    },
     "windows": {
       "allowDowngrades": false,
-      "webviewInstallMode": { "type": "offlineInstaller", "silent": true },
-      "nsis": { "installMode": "currentUser", "languages": ["English"], "displayLanguageSelector": false }
-    }
+      "webviewInstallMode": {
+        "type": "offlineInstaller",
+        "silent": true
+      },
+      "minimumWebview2Version": "158.0.4370.33",
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "English"
+        ],
+        "displayLanguageSelector": false,
+        "template": "windows/installer.nsi"
+      }
+    },
+    "licenseFile": "../licenses/windows/INSTALLER-LICENSE.txt"
   }
 }

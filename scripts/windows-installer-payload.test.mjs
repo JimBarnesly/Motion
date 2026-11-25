@@ -145,12 +145,12 @@ function assertPayloadGateContract(coordinator, workflow) {
   // This is a source-order contract, not a fabricated PowerShell execution. It
   // binds the verifier's real exit status to the only installer upload gate.
   const source = coordinator.replaceAll("\r\n", "\n");
-  const verification = [...source.matchAll(/^node \(Join-Path \$PSScriptRoot 'windows-verify-installer-payload\.mjs'\) --installer \$installer\.FullName --output \$payloadEvidence\nif \(\$LASTEXITCODE -ne 0\) \{ throw '[^'\n]+' \}/gm)];
+  const verification = [...source.matchAll(/^& \$controllerNode \(Join-Path \$PSScriptRoot 'windows-verify-installer-payload\.mjs'\) --installer \$installer\.FullName --output \$payloadEvidence\nif \(\$LASTEXITCODE -ne 0\) \{ throw '[^'\n]+' \}/gm)];
   assert.equal(verification.length, 1, "verification must immediately throw on every nonzero exit");
   const proof = source.indexOf("if ($payloadProof.schemaVersion -ne 1 -or $payloadProof.status -cne 'passed' -or\n    $payloadProof.commit -cne $env:GITHUB_SHA -or $payloadProof.installer.sha256 -cne $installerHash) {\n    throw ");
   const outputs = [...source.matchAll(/^Add-Content -LiteralPath \$env:GITHUB_OUTPUT -Value 'installer_payload_verified=true' -Encoding utf8$/gm)];
   assert.equal(outputs.length, 1, "only one verified publication flag may be written");
-  const firstLaunch = source.search(/^\s*(?:\$\w+\s*=\s*)?Start-Process\b/m);
+  const firstLaunch = source.search(/^\s*(?:\$\w+\s*=\s*)?(?:Start-Process\b|Invoke-WindowsAcceptanceTool\b|\[Diagnostics\.Process\]::Start\b)/m);
   assert.ok(verification[0].index < proof && proof < outputs[0].index && outputs[0].index < firstLaunch,
     "verification, current candidate identity, publication flag, and execution must remain ordered");
 
@@ -172,9 +172,12 @@ test("installer execution and candidate publication remain behind the final-payl
   ]);
   assertPayloadGateContract(coordinator, workflow);
   for (const unsafeCoordinator of [
+    coordinator.replace("& $controllerNode (Join-Path $PSScriptRoot 'windows-verify-installer-payload.mjs')", "node (Join-Path $PSScriptRoot 'windows-verify-installer-payload.mjs')"),
     coordinator.replace("if ($LASTEXITCODE -ne 0) { throw 'The embedded", "if ($LASTEXITCODE -eq 0) { throw 'The embedded"),
     coordinator.replace("if ($LASTEXITCODE -ne 0) { throw 'The embedded", "if ($LASTEXITCODE -ne 0) { Write-Warning 'The embedded"),
     "Start-Process -FilePath $installer.FullName\n" + coordinator,
+    "Invoke-WindowsAcceptanceTool 'windows-installer-license-dialog.ps1' @() 100\n" + coordinator,
+    "$process = [Diagnostics.Process]::Start($start)\n" + coordinator,
     "Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value 'installer_payload_verified=true' -Encoding utf8\n" + coordinator,
     coordinator.replace("$payloadProof.installer.sha256 -cne $installerHash", "$false"),
   ]) assert.throws(() => assertPayloadGateContract(unsafeCoordinator, workflow));

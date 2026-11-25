@@ -1,0 +1,6 @@
+# Preserve reviewed upstream and vendor bytes across Windows checkouts.
+apps/desktop/src-tauri/windows/** -text
+apps/desktop/licenses/windows/** -text
+
+# Preserve the exact reviewed build-only source used by the offline audit.
+apps/desktop/test/windows-prerequisite-template.test.mjs -text

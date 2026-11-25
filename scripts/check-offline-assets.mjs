@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { extname, join, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -12,6 +13,15 @@ const pinnedBuildToolUrls = new Set([
   "https://nodejs.org/dist/v24.22.3/node-v24.22.3-linux-arm64.tar.xz",
   "https://nodejs.org/dist/v24.22.3/node-v24.22.3-win-x64.zip",
   "https://nodejs.org/dist/v24.22.3/node-v24.22.3-win-arm64.zip"
+]);
+
+// These exact reviewed bytes are vendor legal text, historical build provenance,
+// and a build-only assertion source. Their URLs are citations, not runtime loads.
+// Path and content must both match; changed or relocated copies are never exempt.
+const pinnedOfflineEvidence = new Map([
+  ["desktop/licenses/windows/WebView2-Evergreen-Terms.html", "ce6fa83e57c338256e5cabe9e1eea83076c271b0fdb253408213eeb08859d7b6"],
+  ["desktop/src-tauri/windows/nsis-template-provenance.json", "4dbfcec169662cd72dc0ad990a08d51a3edad5183020f39457c2d397c252b14b"],
+  ["desktop/test/windows-prerequisite-template.test.mjs", "d52d8ea14103e30faa1be31dc36ec005a909b185a118edeee41bc44bfd7ba04f"]
 ]);
 
 export function allowed(reference, sourcePath) {
@@ -37,7 +47,15 @@ export async function inspectOfflineAssets(appsRoot = root) {
       if (entry.isDirectory() && sourcePath === "desktop/src-tauri/gen/schemas") continue;
       if (entry.isDirectory()) await scan(path);
       else if (textExtensions.has(extname(entry.name))) {
-        const source = await readFile(path, "utf8");
+        const bytes = await readFile(path);
+        const evidenceSha256 = pinnedOfflineEvidence.get(sourcePath);
+        if (evidenceSha256) {
+          if (createHash("sha256").update(bytes).digest("hex") !== evidenceSha256) {
+            failures.push(`${sourcePath}: reviewed offline evidence bytes changed`);
+          }
+          continue;
+        }
+        const source = bytes.toString("utf8");
         for (const match of source.matchAll(networkReference)) {
           if (!allowed(match[0], sourcePath)) failures.push(`${sourcePath}: ${match[0]}`);
         }

@@ -136,7 +136,7 @@ implied. Practical local feature work continues under `DELIVERY_STATE.json`;
 version and release status remain in development.
 
 
-### Latest acceptance increment: `f9cba2a`
+### Native Save As control correction: `f9cba2a`
 
 Complete general CI, all 89 browser tests and both Linux platform jobs passed.
 Windows native, prerequisite trust, mapped-SMB and installed storage checks also
@@ -161,3 +161,23 @@ coordinator/confinement cases. Windows diagnostics now record the failure stage,
 bounded error code and selected destination before cleanup. These changes do not
 establish the cause of the original native rejection; that remains the next
 actual Windows run's task.
+
+### Latest acceptance increment: `b295a52`
+
+Complete core CI, all 94 browser cases and both Linux packaged/native/offline
+jobs passed. Windows again passed all 28 Rust, 23 native/service, three startup
+and 23 installed native cases, plus prerequisite trust and mapped-SMB checks.
+
+Actual Save As succeeded. The application then reported `VALIDATION_FAILED`
+during the service's destination-inspection lane, with a visible retry status
+and no unhandled rejection. No file existed at the expected selected path; an
+independent installed-helper inspection accepted that same expected path as
+absent. The dialog's edit-control readback does not establish the path returned
+to Rust. See `WINDOWS_SAVE_DIALOG_EVIDENCE_b295a52.json` for the exact run and
+independently downloaded diagnostic ZIP.
+
+The follow-up preserves the original refusal and all filesystem checks. Only
+when both CI acceptance gates are explicitly set, it records fixed native error
+codes/types and path fingerprints after an inspection failure. Raw paths, error
+messages and notebook content are excluded. The next Windows run must establish
+the discrepancy before a production fix or successful native-save claim.

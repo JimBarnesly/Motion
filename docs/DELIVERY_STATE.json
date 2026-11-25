@@ -5,7 +5,7 @@
   "branch": "feat/windows-notebook-resume",
   "pullRequest": 2,
   "releaseStatus": "in-development",
-  "priority": "Repair the real backup save failure after successful native Save As; complete separate offline runtime upgrade candidate",
+  "priority": "Resolve real native backup destination-inspection refusal, then execute the isolated offline runtime installer candidate",
   "lastVerifiedCommit": "820998286a9083c0edbe663e6981945e59ad0ec4",
   "activeLease": {
     "owner": "interactive-windows-installer-2026-11-25",
@@ -36,10 +36,11 @@
     "Reproduced and corrected the real attachment FileList clearing defect, strict-CSP layout defect and browser page lifecycle durability race",
     "8209982 passed complete installed Windows baseline: exact Microsoft prerequisite trust, installation, 23 installed native cases, actual attachment/backup/confirmed restore, same-GUI ownership Retry, restart/search and uninstall/reinstall preservation under outbound firewall blocking",
     "8209982 passed complete core CI including all 86 browser cases and both Linux x64 and ARM64 native/package/offline jobs",
-    "503ae3d passed complete core CI with 89 browser cases plus both Linux packaged/native/offline jobs, covering reviewed nested writing and native nested-search repair"
+    "503ae3d passed complete core CI with 89 browser cases plus both Linux packaged/native/offline jobs, covering reviewed nested writing and native nested-search repair",
+    "b295a52 passed all 94 browser cases and complete core/Linux x64/ARM64 CI; real installed Windows now reports the backup validation failure visibly with no unhandled rejection"
   ],
   "next": [
-    "Repair and re-execute the actual Verified backup action after native Save As succeeds, then verify and restore exact disk bytes",
+    "Trace the actual native Save As destination and underlying helper refusal with bounded failure-only diagnostics, fix the established cause, and re-run native disk-byte/restore acceptance",
     "Execute the reviewed nested duplicate/paste and native nested-search repair through full CI and installed baseline",
     "Resolve offline prerequisite handling: current inventory observes existing WebView2 131.0.2903.86, unchanged after setup; do not assume the minimum-version option upgrades offline",
     "Complete exact-payload runtime terms/notices mapping and determine whether an actual policy decision is necessary",
@@ -47,13 +48,13 @@
     "Obtain genuine initially-absent-WebView and Windows 11 first-install evidence"
   ],
   "openBlockers": [
-    "f9cba2a passed the authenticated native Save As controls, full-path readback, Save invocation and dialog close, then the application action rejected with pageerror Object and never showed successful save status. Native saved-file verification and later installed flow remain pending. The complete installed baseline at 8209982 remains valid.",
+    "b295a52 passes actual native Save As, then the service destination-inspection lane returns VALIDATION_FAILED. The expected destination remains absent and a separate installed-helper inspection of that expected path succeeds. This does not prove which path the dialog returned to Rust. Full native save/restore acceptance remains pending; the complete baseline at 8209982 remains valid.",
     "Initially absent WebView2 and fully offline first installation are unproven. Existing registry/file version131.0.2903.86 is not running-engine identity evidence. The locked older-runtime upgrade path requires review before modification.",
     "Glib renewal and exact five-file governance record pass the actual PR-base machine gate. Existing Code Owner review is outstanding; no submitted PR reviews observed, and live branch-protection settings are unverified.",
     "Evergreen classification/downstream terms are unfinished evidence work, not an observed npm/Cargo licence-gate failure or a separate existing binary-signoff form. Resolve applicable exact-payload terms/notices before deciding if policy changes are needed.",
     "Practical local feature parity remains unfinished; writing/search fixes are candidates, while toggle/callout UI, inline marks, additional database views and interchange remain delivery work."
   ],
-  "notes": "General CI at f9cba2a passed all 89 browser cases and both Linux jobs. Windows native, payload, installed storage and mapped-SMB checks passed. The actual Save As driver now passes; the production action fails afterward with an unhandled object and unchanged attachment status. Exact diagnostic ZIP and proofs are retained in WINDOWS_SAVE_DIALOG_EVIDENCE_f9cba2a.json. The candidate makes backup failures visible and retryable, validates the complete native acknowledgement, and records the stage, bounded error code and destination observation for the next Windows run. The original native rejection remains unresolved. Offline runtime, notices, active-engine and network-window work remains isolated. Release status is in development.",
+  "notes": "At b295a52, general CI passed 94 browser cases and both Linux jobs. Windows passed 28 Rust tests, 23 native/service tests, three startup tests, 23 installed native tests, mapped SMB and prerequisite trust. Actual Save As passed, then service destination inspection refused with VALIDATION_FAILED; the application displayed a safe retry status with no unhandled rejection. The expected file was absent and its independent helper inspection succeeded. Exact failure evidence is retained in WINDOWS_SAVE_DIALOG_EVIDENCE_b295a52.json. The next candidate adds strictly gated failure-only fingerprints and fixed native error codes to distinguish the actual selected path from a helper rejection. It preserves storage decisions and logs no raw path, message or notebook content. Offline runtime/notice/engine/firewall work remains isolated. Release status is in development.",
   "candidateVerification": {
     "portableWorkspaceTests": {
       "passed": 426,
@@ -106,9 +107,9 @@
       "testedMergeCommit": "f1f0e6b180fa50269c955bc64203819b4699c74e",
       "mappedShare": "PASSED: reachable local and mapped controls, five native refusals, service refusal, unchanged physical/security snapshots, exact cleanup"
     },
-    "linuxX64Packaged": "Passed139253955306 at 503ae3d",
-    "completeCoreCi": "Passed verify139253956645 at 503ae3d, run45628198236, including all 89 browser cases and existing offline/security/benchmark gates",
-    "arm64IsolatedValidation": "Passed139253955717 at 503ae3d",
+    "linuxX64Packaged": "Passed job 139296378561 at b295a52",
+    "completeCoreCi": "Passed verify job 139296379087 at b295a52, run 45640186343, with all 94 browser cases and unchanged offline/security/benchmark gates",
+    "arm64IsolatedValidation": "Passed job 139296379092 at b295a52",
     "startupRecoveryBrowserTests": {
       "passed": 75,
       "failed": 0,
@@ -132,7 +133,7 @@
       },
       "windowsRegressionCompile": "Full actual Windows Tauri debug/release builds and native regression execution passed at a64ceb0"
     },
-    "latestCoreCi": "All three jobs passed at f9cba2a, run 45631846366, including 89 browser cases.",
+    "latestCoreCi": "All three jobs passed at b295a52, run 45640186343, including 94 browser cases.",
     "backupCodecCandidate": {
       "actualServiceRoundtrip": "passed locally and in complete core CI at a64ceb0, with real workspace and binary attachment, file publication, corruption rejection and new-identity restore",
       "webAdapterTests": 54,
@@ -202,19 +203,22 @@
       "ci": "Complete general CI and both Linux jobs passed at 503ae3d"
     },
     "nativeSaveDialogAttempt": {
-      "headCommit": "f9cba2aa904fc493d9468aa39604f5b97bd08cf3",
-      "testedMergeCommit": "2f884b8a231d591c9bf9f49aae8debf1787a2310",
-      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45631846475",
-      "job": 139266846025,
+      "headCommit": "b295a52468a00aa8d985e905711ee5dc72e8fb99",
+      "testedMergeCommit": "ffbb49f71f8fadbdff732184b9fc9d7cac824187",
+      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45640186203",
+      "job": 139296377630,
       "installedNativePassed": 23,
       "nativeIdentityNegativeControl": "passed",
       "actualDialogOpened": "passed",
       "controlSelection": "passed",
       "exactDestinationReadBack": "passed",
       "saveInvokedAndDialogClosed": "passed",
-      "applicationSaveCompletion": "failed: unchanged attachment status and unhandled pageerror Object",
+      "applicationSaveCompletion": "failed visibly: service destination-inspection refusal VALIDATION_FAILED",
       "savedFileValidation": "not reached",
-      "correction": "Candidate adds truthful failure/cancellation status, retry, strict publication acknowledgement and bounded stage/code/destination diagnostics. The original native rejection still requires actual Windows evidence."
+      "correction": "Candidate adds dual-gated failure diagnostics containing only fixed codes/types and path fingerprints; original refusal and filesystem checks are unchanged.",
+      "selectedExpectedFileExists": false,
+      "independentExpectedPathInspection": "passed: exists false",
+      "unhandledRejections": 0
     },
     "backupRecoveryCandidate": {
       "newBrowserCasesPassed": 5,
@@ -223,8 +227,14 @@
       "coordinatorAndConfinementTestsPassed": 22,
       "review": "Independent editor, Notion and root source reviews passed; all 16 existing app HTML-sink fingerprints are unchanged.",
       "coverage": "Real production service, destination inspection, damaged-bundle rejection, missing or malformed publication acknowledgement, cancellation, exact attachment bytes and successful retry without notebook changes. Rust dialog transport is substituted only in these browser cases.",
-      "actualWindows": "Pending; do not infer that handling the failure fixes its native cause."
+      "actualWindows": "At b295a52, actual save refusal is visible with backup stage save and code VALIDATION_FAILED; unhandledRejections is empty. A successful native retry/save remains unproven."
+    },
+    "backupInspectionDiagnosticsCandidate": {
+      "privacyAndGateSubprocessTestsPassed": 2,
+      "scope": "Failure-only stderr instrumentation requires both GITHUB_ACTIONS=true and MOTION_ACCEPTANCE_TRACE_BACKUP=1. Records closed error-code/type allowlists, path shape/length and SHA-256 fingerprints; no raw path, error message or notebook content.",
+      "actualWindows": "Pending; no inference about the original native failure cause.",
+      "review": "Independent source review passed, including complete native STORAGE_FAILURE enumeration; two subprocess privacy/gating cases passed and desktop bundle rebuilt."
     }
   },
-  "lastObservedCommit": "f9cba2aa904fc493d9468aa39604f5b97bd08cf3"
+  "lastObservedCommit": "b295a52468a00aa8d985e905711ee5dc72e8fb99"
 }

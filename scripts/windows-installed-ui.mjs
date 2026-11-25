@@ -5,7 +5,7 @@ import { once } from "node:events";
 import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { isAbsolute, join } from "node:path";
+import { isAbsolute, join, win32 } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { chromium, expect } from "@playwright/test";
@@ -128,6 +128,7 @@ async function launch({ startup = "ready", role = "owner" } = {}) {
   const launchStartedAt = Date.now();
   const child = spawn(executable, [], { windowsHide: false, stdio: ["ignore", "pipe", "pipe"], env: {
     ...process.env,
+    MOTION_ACCEPTANCE_TRACE_BACKUP: "1",
     WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port} --remote-debugging-address=127.0.0.1`,
     WEBVIEW2_USER_DATA_FOLDER: webviewProfile
   } });
@@ -390,6 +391,10 @@ async function saveNativeBackupThroughDialog(current) {
   const neighbourBytes = Buffer.from("Unrelated native save fixture remains unchanged.");
   const proof = { schemaVersion: 1, commit: process.env.GITHUB_SHA, phase, instance: current.label, status: "failed",
     scope: "Actual fresh-file native Save As; native cancellation and overwrite confirmations remain untested.", drivers: [] };
+  const normalizedDestination = win32.normalize(destination).toLowerCase();
+  proof.expectedDestination = { shape: "drive", length: destination.length,
+    normalizedPathSha256: createHash("sha256").update(normalizedDestination).digest("hex"),
+    normalizedParentSha256: createHash("sha256").update(win32.dirname(normalizedDestination)).digest("hex") };
   let savedBytes, operationFailure;
   async function runDriver(request, onReady) {
     const driver = startNativeDialogDriver(request);

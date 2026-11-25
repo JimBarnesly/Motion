@@ -8,6 +8,7 @@ import { createAtomicBackupFile, inspectAtomicBackupDestination } from "./backup
 import { isValidUiState } from "./ui-state-validation.mjs";
 import { acquireNativeServiceLock } from "./native-service-lock.mjs";
 import { createWindowsUiStateStore } from "./windows-ui-state.mjs";
+import { recordBackupInspectionFailure } from "./backup-diagnostics.mjs";
 
 const [dataRoot] = process.argv.slice(2);
 if (!dataRoot) throw new Error("Usage: service-runner <data-root>");
@@ -59,7 +60,10 @@ async function dispatch(rawRequest) {
     case "native-backup-inspect": {
       if (typeof request.payload?.destination !== "string" || Object.keys(request.payload).some(key => key !== "destination")) throw new MotionAppError("INVALID_INPUT", "Invalid native backup inspection request");
       try { result = await inspectAtomicBackupDestination(request.payload.destination); }
-      catch { throw new MotionAppError("VALIDATION_FAILED", "Selected target is not a valid private Motion backup"); }
+      catch (error) {
+        recordBackupInspectionFailure(error, request.payload.destination);
+        throw new MotionAppError("VALIDATION_FAILED", "Selected target is not a valid private Motion backup");
+      }
       break;
     }
     case "native-backup-save": {

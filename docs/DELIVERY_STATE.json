@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "targetDate": "2026-12-03",
+  "timezone": "Australia/Perth",
+  "branch": "feat/windows-notebook-resume",
+  "pullRequest": 2,
+  "releaseStatus": "in-development",
+  "priority": "Windows native boundary and offline installer",
+  "lastVerifiedCommit": "fed424dd9681e047ad74f0396f501928e70ccf8b",
+  "activeLease": {
+    "owner": "interactive-windows-installer-2026-11-25",
+    "startedAt": "2026-11-25T09:35:00Z",
+    "expiresAt": "2026-11-25T11:35:00Z",
+    "scope": "Windows native port, packaging and CI integration"
+  },
+  "continuationAutomation": "Automation_1b45f83f28188191b31f671c6229efd8",
+  "completed": [
+    "Recovered existing advanced branch",
+    "Editor reliability and nested filters",
+    "Attachment metadata import hardening",
+    "Local baseline tests and Linux x64 packaged CI"
+  ],
+  "next": [
+    "Windows native handles/ACLs/root guard",
+    "Windows attachment and backup transactions",
+    "Pinned Windows runtime and per-user offline NSIS installer",
+    "Windows build and installed acceptance",
+    "Practical local feature parity"
+  ],
+  "openBlockers": [
+    "No Windows installer acceptance yet",
+    "Inherited expired RustSec exception RUSTSEC-2024-0429",
+    "ARM64 isolated image package-inventory check failed"
+  ],
+  "notes": "Do not mark 1.0 until evidence gates in WINDOWS_1_0_DELIVERY.md pass. Existing agent assignments are scoped to separate files; no concurrent remote writer."
+}

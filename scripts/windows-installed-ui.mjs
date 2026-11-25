@@ -430,7 +430,11 @@ async function saveNativeBackupThroughDialog(current) {
     assert.equal(selected.ok, true, selected.error?.message);
     assert.equal(selected.dialog?.title, "Save verified Motion backup");
     assert.equal(selected.dialog?.processId, current.child.pid);
-    assert.equal(selected.filename?.defaultMatched, true);
+    assert.equal(selected.filename?.observedControlMatched, true);
+    assert.equal(selected.filename?.control?.name, "File name:");
+    assert.equal(selected.filename?.control?.automationId, "1001");
+    assert.equal(selected.filename?.control?.controlType, "ControlType.Edit");
+    assert.equal(selected.filename?.control?.processId, current.child.pid);
     assert.equal(selected.filename?.exactDestinationReadBack, true);
     assert.equal(selected.filename?.valuePattern, true);
     assert.equal(selected.invokePattern, true);

@@ -1001,3 +1001,39 @@ it observed existing machine WebView2 131.0.2903.86 unchanged and set
 first-time installation offline. General verification and both Linux jobs also
 passed at the same head; all 86 browser regressions passed under the unchanged
 network-denial fixture. No outer-installer signing or 1.0 acceptance is inferred.
+
+
+## Observed Save As control correction after `503ae3d`
+
+Windows run45628198328/job139253956163 passed compilation, all native/storage
+checks, prerequisite trust, installation and mapped-SMB acceptance. The new
+native Save As test actually authenticated Motion, rejected the stale creation
+identity before any UI action and opened the exact titled dialog. It then timed
+out in control selection. The independently downloaded 15-file diagnostic ZIP
+and complete bounded control evidence are retained in
+`WINDOWS_SAVE_DIALOG_EVIDENCE_503ae3d.json`. This is a failed run; later backup
+restore and GUI restart/reinstall were not reached.
+
+Windows actually exposed one visible/enabled filename Edit named `File name:`
+with AutomationId `1001`. The previous selector also required an unobserved
+assumed default Value. Its record did not capture ValuePattern or InvokePattern
+availability, so neither an extension-display cause nor a specific unsupported
+pattern is asserted. The corrected selector uses that exact observed label/ID,
+Edit type, matching process, visibility/enabled state and writable ValuePattern,
+inside the same retained authenticated dialog. Uniqueness, process creation/path/
+session, HWND/runtime ID, fresh destination, exact written-path readback, Save
+InvokePattern, native file authentication and exact byte checks remain mandatory.
+
+Diagnostics now record candidate pattern availability, readonly state and a
+bounded original value before mutation, plus the original control/value before
+SetValue. Lists are capped at four candidates and values at 256 characters.
+Unsupported or ambiguous controls still fail; no keyboard/coordinate fallback
+or arbitrary dialog is accepted. Independent editor review found no remaining
+source blocker. Node syntax and scoped whitespace checks pass; actual corrected
+Windows execution is pending. General verification at 503ae3d is green with all 89
+browser cases, and both Linux platform jobs passed.
+
+| Corrected acceptance source | SHA-256 |
+| --- | --- |
+| `scripts/windows-native-save-dialog.ps1` | `4840cfbc767da7e74080362451ab15226841286d7e70f95082b031893aace90d` |
+| `scripts/windows-installed-ui.mjs` | `47b95d14f3f6991dbff966f8eab9ce5372cdee42596336b138cbf5db24f325b9` |

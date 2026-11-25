@@ -9,7 +9,8 @@ $failureCode = 'INVALID_INPUT'
 $targetProcess = $null
 $exitCode = 1
 $dialogTitle = 'Save verified Motion backup'
-$defaultFilename = 'motion-verified-backup.json'
+$filenameControlName = 'File name:'
+$filenameControlId = '1001'
 $clock = [Diagnostics.Stopwatch]::StartNew()
 
 function Write-Protocol($Value) {
@@ -130,6 +131,7 @@ function Get-ControlSummary($Element) {
         name = $name.Substring(0, [Math]::Min(120, $name.Length))
         automationId = $automationId.Substring(0, [Math]::Min(120, $automationId.Length))
         controlType = $current.ControlType.ProgrammaticName
+        processId = $current.ProcessId
         enabled = $current.IsEnabled
         offscreen = $current.IsOffscreen
     }
@@ -215,24 +217,43 @@ try {
             Assert-DialogIdentity
             $filenameMatches = [Collections.Generic.List[object]]::new()
             $saveMatches = [Collections.Generic.List[object]]::new()
+            $filenamePatterns = [Collections.Generic.List[object]]::new()
+            $savePatterns = [Collections.Generic.List[object]]::new()
             $summaries = [Collections.Generic.List[object]]::new()
             foreach ($element in @(Get-DialogElements $dialog)) {
                 $current = $element.Current
                 if ($summaries.Count -lt 48) { $summaries.Add((Get-ControlSummary $element)) }
                 if ($current.ProcessId -ne $identity.processId -or -not $current.IsEnabled -or $current.IsOffscreen) { continue }
                 $pattern = $null
+                # These are the filename Edit's exact observed label and ID in
+                # the retained Windows 503ae3d dialog evidence, not a guessed ID
+                # or an assumption about how Explorer displays an extension.
                 if ($current.ControlType -eq [System.Windows.Automation.ControlType]::Edit -and
-                    $element.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$pattern) -and
-                    -not $pattern.Current.IsReadOnly -and $pattern.Current.Value -ceq $defaultFilename) {
-                    $filenameMatches.Add([pscustomobject]@{ element = $element; pattern = $pattern })
+                    $current.Name -ceq $filenameControlName -and $current.AutomationId -ceq $filenameControlId) {
+                    $available = $element.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$pattern)
+                    $detail = [ordered]@{ valuePatternAvailable = $available; control = Get-ControlSummary $element }
+                    if ($available) {
+                        $detail['isReadOnly'] = $pattern.Current.IsReadOnly
+                        $value = [string]$pattern.Current.Value
+                        $detail['originalValue'] = $value.Substring(0, [Math]::Min(256, $value.Length))
+                        if (-not $pattern.Current.IsReadOnly) {
+                            $filenameMatches.Add([pscustomobject]@{ element = $element; pattern = $pattern })
+                        }
+                    }
+                    if ($filenamePatterns.Count -lt 4) { $filenamePatterns.Add($detail) }
                 }
                 $pattern = $null
-                if ($current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $current.Name -ceq 'Save' -and
-                    $element.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$pattern)) {
-                    $saveMatches.Add([pscustomobject]@{ element = $element; pattern = $pattern })
+                if ($current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $current.Name -ceq 'Save') {
+                    $available = $element.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$pattern)
+                    if ($savePatterns.Count -lt 4) {
+                        $savePatterns.Add([ordered]@{ invokePatternAvailable = $available; control = Get-ControlSummary $element })
+                    }
+                    if ($available) { $saveMatches.Add([pscustomobject]@{ element = $element; pattern = $pattern }) }
                 }
             }
             $proof['controls'] = $summaries.ToArray()
+            $proof['matchingControls'] = [ordered]@{ filename = $filenameMatches.Count; save = $saveMatches.Count }
+            $proof['candidatePatterns'] = [ordered]@{ filename = $filenamePatterns.ToArray(); save = $savePatterns.ToArray() }
             if ($filenameMatches.Count -gt 1 -or $saveMatches.Count -gt 1) { throw 'Backup dialog controls are ambiguous.' }
             if ($filenameMatches.Count -eq 1 -and $saveMatches.Count -eq 1) {
                 $filename = $filenameMatches[0]
@@ -242,13 +263,18 @@ try {
         Assert-DialogIdentity
         if (Test-Path -LiteralPath $request.destination) { throw 'The fresh backup destination appeared before selection.' }
         $proof.phase = 'filename'
+        $originalValue = [string]$filename.pattern.Current.Value
+        if ($originalValue.Length -gt 32768) { throw 'The observed filename value exceeded its bound.' }
+        $proof['filenameBeforeWrite'] = [ordered]@{ originalValue = $originalValue.Substring(0, [Math]::Min(256, $originalValue.Length));
+            control = Get-ControlSummary $filename.element }
         $filename.pattern.SetValue($request.destination)
         Assert-DialogIdentity
         if ($filename.pattern.Current.Value -cne $request.destination -or $filename.pattern.Current.IsReadOnly -or
             -not $filename.element.Current.IsEnabled -or $filename.element.Current.ProcessId -ne $identity.processId) {
             throw 'The selected filename did not exactly retain the requested destination.'
         }
-        $proof['filename'] = [ordered]@{ defaultMatched = $true; exactDestinationReadBack = $true;
+        $proof['filename'] = [ordered]@{ observedControlMatched = $true;
+            originalValue = $originalValue.Substring(0, [Math]::Min(256, $originalValue.Length)); exactDestinationReadBack = $true;
             valuePattern = $true; control = Get-ControlSummary $filename.element }
         Write-Protocol ([ordered]@{ schemaVersion = 1; operation = 'save'; event = 'filename'; exactDestinationReadBack = $true })
         $proof.phase = 'save'

@@ -134,3 +134,15 @@ and downstream terms remain evidence work, distinct from npm/Cargo checks and
 payload signature verification. No separate pre-existing binary-approval form is
 implied. Practical local feature work continues under `DELIVERY_STATE.json`;
 version and release status remain in development.
+
+
+### Latest acceptance increment: `503ae3d`
+
+Complete general CI, all 89 browser tests and both Linux platform jobs passed.
+Windows native, prerequisite trust and installed storage checks also passed.
+The new native Save As test opened the real authenticated dialog and rejected a
+stale process identity, then failed while selecting its controls. The recorded
+filename Edit label and ID now drive a reviewed selector with bounded pattern
+and original-value diagnostics. Corrected Windows execution is pending; the
+last complete installed/restart/reinstall baseline remains `8209982`.
+See `WINDOWS_SAVE_DIALOG_EVIDENCE_503ae3d.json` for the failed-run evidence.

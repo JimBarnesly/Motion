@@ -5,12 +5,12 @@
   "branch": "feat/windows-notebook-resume",
   "pullRequest": 2,
   "releaseStatus": "in-development",
-  "priority": "Execute native Save As and reviewed nested writing/search candidate; resolve offline prerequisite handling",
+  "priority": "Execute the evidence-bound native Save As selector correction; prepare offline prerequisite upgrade separately",
   "lastVerifiedCommit": "820998286a9083c0edbe663e6981945e59ad0ec4",
   "activeLease": {
     "owner": "interactive-windows-installer-2026-11-25",
-    "startedAt": "2026-11-25T13:50:50Z",
-    "expiresAt": "2026-11-25T15:50:50Z",
+    "startedAt": "2026-11-25T14:12:52Z",
+    "expiresAt": "2026-11-25T16:12:52Z",
     "scope": "Windows installed attachment/backup/lifecycle acceptance and continuation"
   },
   "continuationAutomation": "Automation_1b45f83f28188191b31f671c6229efd8",
@@ -35,7 +35,8 @@
     "Actual installed Windows page/title and body editing passed at a64ceb0; all prior native and mapped-SMB checks remained green",
     "Reproduced and corrected the real attachment FileList clearing defect, strict-CSP layout defect and browser page lifecycle durability race",
     "8209982 passed complete installed Windows baseline: exact Microsoft prerequisite trust, installation, 23 installed native cases, actual attachment/backup/confirmed restore, same-GUI ownership Retry, restart/search and uninstall/reinstall preservation under outbound firewall blocking",
-    "8209982 passed complete core CI including all 86 browser cases and both Linux x64 and ARM64 native/package/offline jobs"
+    "8209982 passed complete core CI including all 86 browser cases and both Linux x64 and ARM64 native/package/offline jobs",
+    "503ae3d passed complete core CI with 89 browser cases plus both Linux packaged/native/offline jobs, covering reviewed nested writing and native nested-search repair"
   ],
   "next": [
     "Execute the real Verified backup button and native Save As candidate, then verify/restore its exact disk bytes",
@@ -46,13 +47,13 @@
     "Obtain genuine initially-absent-WebView and Windows 11 first-install evidence"
   ],
   "openBlockers": [
-    "Native Save As source is independently reviewed but execution is pending;8209982 covers installed adapter backup plus real UI confirmed restore. Native cancellation/overwrite dialog acceptance remains separate.",
+    "503ae3d native Save As opened the correct authenticated dialog and passed the stale-identity negative control, then failed to select eligible controls by the deadline. The recorded filename label/ID now drives a reviewed bounded selector; actual corrected Windows execution remains pending. Previous complete installed baseline 8209982 remains valid.",
     "Initially absent WebView2 and fully offline first installation are unproven. Existing registry/file version131.0.2903.86 is not running-engine identity evidence. The locked older-runtime upgrade path requires review before modification.",
     "Glib renewal and exact five-file governance record pass the actual PR-base machine gate. Existing Code Owner review is outstanding; no submitted PR reviews observed, and live branch-protection settings are unverified.",
     "Evergreen classification/downstream terms are unfinished evidence work, not an observed npm/Cargo licence-gate failure or a separate existing binary-signoff form. Resolve applicable exact-payload terms/notices before deciding if policy changes are needed.",
     "Practical local feature parity remains unfinished; writing/search fixes are candidates, while toggle/callout UI, inline marks, additional database views and interchange remain delivery work."
   ],
-  "notes": "First complete installed Windows baseline passes at 8209982, PR merge f1f0e6b180fa50269c955bc64203819b4699c74e. Downloaded installer and all 25 entries were independently hashed; see WINDOWS_INSTALLED_EVIDENCE_8209982.json. Exact primary Microsoft verification and payload Windows trust probe pass. All core/Linux jobs pass. The next candidate adds actual native Save As, seven-file nested-writing foundation and four-file native nested-search/derived repair. Their local reviews/tests pass, but8209982 installed evidence does not cover these later changes. Release remains in development; no 1.0 or full parity claim.",
+  "notes": "Last full installed baseline remains 8209982. Latest 503ae3d passed all general/Linux jobs including 89 browser cases and all Windows native/payload checks, then new actual Save As acceptance failed in control selection. Exact small diagnostic ZIP and control evidence retained in WINDOWS_SAVE_DIALOG_EVIDENCE_503ae3d.json. Root corrected the selector using the observed filename Edit label/ID and added bounded pre-mutation pattern diagnostics; independent review passed. No unsupported UI fallback, file-check relaxation or guessed extension cause. Separate isolated work prepares offline runtime upgrade, terms/notices and active engine evidence. Release remains in development.",
   "candidateVerification": {
     "portableWorkspaceTests": {
       "passed": 426,
@@ -105,9 +106,9 @@
       "testedMergeCommit": "f1f0e6b180fa50269c955bc64203819b4699c74e",
       "mappedShare": "PASSED: reachable local and mapped controls, five native refusals, service refusal, unchanged physical/security snapshots, exact cleanup"
     },
-    "linuxX64Packaged": "Passed job139239559103 at 8209982, run45624078178",
-    "completeCoreCi": "Passed complete verify139239558671 at 8209982, run45624078178, including86 browser cases and offline/security/benchmark gates",
-    "arm64IsolatedValidation": "Passed job139239559131 at 8209982, run45624078178",
+    "linuxX64Packaged": "Passed139253955306 at 503ae3d",
+    "completeCoreCi": "Passed verify139253956645 at 503ae3d, run45628198236, including all 89 browser cases and existing offline/security/benchmark gates",
+    "arm64IsolatedValidation": "Passed139253955717 at 503ae3d",
     "startupRecoveryBrowserTests": {
       "passed": 75,
       "failed": 0,
@@ -131,12 +132,12 @@
       },
       "windowsRegressionCompile": "Full actual Windows Tauri debug/release builds and native regression execution passed at a64ceb0"
     },
-    "latestCoreCi": "All three jobs passed at 8209982, run45624078178",
+    "latestCoreCi": "All three jobs passed at 503ae3d, run45628198236",
     "backupCodecCandidate": {
       "actualServiceRoundtrip": "passed locally and in complete core CI at a64ceb0, with real workspace and binary attachment, file publication, corruption rejection and new-identity restore",
       "webAdapterTests": 54,
       "installedAcceptance": "PASSED at 8209982 with encoded native backup and real UI restore",
-      "nativeSaveDialog": "Source-reviewed actual native Save As candidate awaiting Windows execution"
+      "nativeSaveDialog": "503ae3d reached the actual authenticated dialog and passed stale-identity rejection; control selection failed. Observed-selector correction is source-reviewed and pending Windows."
     },
     "installerPayloadGateCandidate": {
       "localContractTests": 8,
@@ -187,7 +188,7 @@
       "existingKeyboardAccessibilityPassed": 12,
       "nativeParityAndConfinementPassed": 33,
       "review": "editor foundation review and root integration review passed",
-      "ci": "pending candidate",
+      "ci": "Complete general CI and both Linux jobs passed at 503ae3d",
       "windowsWriting": "not exercised by baseline"
     },
     "nestedSearchCandidate": {
@@ -198,8 +199,19 @@
       "derivedRepairMigration": 6,
       "canonicalJsonSchemaRevisionTimestampPreserved": true,
       "review": "independent editor and root review passed",
-      "ci": "pending candidate"
+      "ci": "Complete general CI and both Linux jobs passed at 503ae3d"
+    },
+    "nativeSaveDialogAttempt": {
+      "headCommit": "503ae3d776d92e8db66dd4403101554ef54cd0f5",
+      "testedMergeCommit": "aa8961179bfced88b9b19c63b3819104beed65b5",
+      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45628198328",
+      "job": 139253956163,
+      "installedNativePassed": 23,
+      "nativeIdentityNegativeControl": "passed",
+      "actualDialogOpened": "passed",
+      "controlSelection": "failed; unsupported/mismatch detail unobserved in old diagnostic",
+      "correction": "source-reviewed, Windows pending"
     }
   },
-  "lastObservedCommit": "820998286a9083c0edbe663e6981945e59ad0ec4"
+  "lastObservedCommit": "503ae3d776d92e8db66dd4403101554ef54cd0f5"
 }

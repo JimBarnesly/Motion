@@ -51,15 +51,39 @@ export function mergeAdjacentBlockCommands({ pageId, previousBlock, currentBlock
   };
 }
 
-export function splitBlockCommands({ pageId, block, offset, beforeBlockId = null, createId }) {
+export function splitBlockCommands({ pageId, block, offset, endOffset = offset, parentBlockId = null, beforeBlockId = null, createId }) {
+  const splittable = new Set(["paragraph", "heading-1", "heading-2", "heading-3", "bulleted-list", "numbered-list", "task", "quote", "code"]);
+  if (!splittable.has(block?.type) || block.unknownData !== undefined) return null;
   const text = String(block.text ?? "");
+  if (!Number.isInteger(offset) || !Number.isInteger(endOffset) || offset < 0 || endOffset < offset || endOffset > text.length) {
+    throw new RangeError("Block selection range is invalid");
+  }
+  const beforeReferences = [], afterReferences = [];
+  const mentions = [...text.matchAll(/\[\[([^\]]+)\]\]/g)];
+  (block.references ?? []).forEach((reference, index) => {
+    const explicit = reference.start !== undefined && reference.end !== undefined;
+    const start = reference.start ?? mentions[index]?.index;
+    const end = reference.end ?? (start === undefined ? undefined : start + mentions[index][0].length);
+    if (start !== undefined && end !== undefined && end <= offset) {
+      beforeReferences.push(explicit ? structuredClone(reference) : { pageId: reference.pageId });
+    } else if (start !== undefined && end !== undefined && start >= endOffset) {
+      afterReferences.push(explicit
+        ? { ...structuredClone(reference), start: start - endOffset, end: end - endOffset }
+        : { pageId: reference.pageId });
+    }
+  });
   if (block.type === "code") {
     return {
       commands: [{
         type: "block.update-content",
         pageId,
         blockId: block.id,
-        content: { text: `${text.slice(0, offset)}\n${text.slice(offset)}`, references: [] }
+        content: {
+          text: `${text.slice(0, offset)}\n${text.slice(endOffset)}`,
+          references: [...beforeReferences, ...afterReferences.map(reference => reference.start === undefined
+            ? reference
+            : { ...reference, start: reference.start + offset + 1, end: reference.end + offset + 1 })]
+        }
       }],
       focusBlockId: block.id,
       focusOffset: offset + 1
@@ -75,27 +99,13 @@ export function splitBlockCommands({ pageId, block, offset, beforeBlockId = null
     };
   }
   const nextBlockId = createId();
-  const beforeReferences = [], afterReferences = [];
-  const mentions = [...text.matchAll(/\[\[([^\]]+)\]\]/g)];
-  (block.references ?? []).forEach((reference, index) => {
-    const explicit = reference.start !== undefined && reference.end !== undefined;
-    const start = reference.start ?? mentions[index]?.index;
-    const end = reference.end ?? (start === undefined ? undefined : start + mentions[index][0].length);
-    if (start !== undefined && end !== undefined && end <= offset) {
-      beforeReferences.push(explicit ? structuredClone(reference) : { pageId: reference.pageId });
-    } else if (start !== undefined && end !== undefined && start >= offset) {
-      afterReferences.push(explicit
-        ? { ...structuredClone(reference), start: start - offset, end: end - offset }
-        : { pageId: reference.pageId });
-    }
-  });
-  const nextType = block.type === "divider" || (["heading-1", "heading-2", "heading-3"].includes(block.type) && offset === text.length)
+  const nextType = ["heading-1", "heading-2", "heading-3"].includes(block.type) && endOffset === text.length
     ? "paragraph"
     : block.type;
   const nextBlock = {
     id: nextBlockId,
     type: nextType,
-    text: text.slice(offset),
+    text: text.slice(endOffset),
     ...(nextType === "task" ? { checked: false } : {}),
     ...(nextType === "code" && block.language ? { language: block.language } : {}),
     children: []
@@ -112,7 +122,7 @@ export function splitBlockCommands({ pageId, block, offset, beforeBlockId = null
       {
         type: "block.create",
         pageId,
-        position: { parentBlockId: null, beforeBlockId },
+        position: { parentBlockId, beforeBlockId },
         block: nextBlock
       }
     ],

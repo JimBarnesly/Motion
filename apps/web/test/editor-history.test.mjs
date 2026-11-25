@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { confirmEditorHistory, editorHistoryCommand } from "../editor-history.js";
+import { confirmEditorHistory, editorHistoryCommand, editorHistoryUnchanged } from "../editor-history.js";
 
 const documentWith = (blocks, activePageId = "page-1") => ({
   schemaVersion: 2,
@@ -73,4 +73,26 @@ test("failed editor history does not return an inverse snapshot", async () => {
   await assert.rejects(confirmEditorHistory({ current, target: prior, execute: async () => {
     throw new Error("save failed");
   } }), /save failed/);
+});
+
+test("focus-only history checkpoints do not consume undo even after a native revision changes", () => {
+  const current = documentWith([{ id: "parent", type: "paragraph", text: "Parent", children: [
+    { id: "child", type: "paragraph", text: "Nested text", children: [] }
+  ] }]);
+  const checkpoint = structuredClone(current);
+  current.revision += 1;
+  current.workspace.updatedAt = "new timestamp";
+  current.workspace.pages[0].updatedAt = "new timestamp";
+  current.workspace.linkIndex = [];
+
+  assert.equal(editorHistoryUnchanged(current, checkpoint), true);
+  const changedText = structuredClone(checkpoint);
+  changedText.workspace.pages[0].blocks[0].children[0].text = "Earlier nested text";
+  assert.equal(editorHistoryUnchanged(current, changedText), false);
+  const changedTitle = structuredClone(checkpoint);
+  changedTitle.workspace.pages[0].title = "Earlier title";
+  assert.equal(editorHistoryUnchanged(current, changedTitle), false);
+  const changedPayload = structuredClone(checkpoint);
+  changedPayload.workspace.pages[0].blocks[0].children[0].unknownData = { extension: true };
+  assert.equal(editorHistoryUnchanged(current, changedPayload), false);
 });

@@ -6,6 +6,17 @@ Acceptance authorities: Quality & Release and Operations & Security
 Defined: 2026-08-11
 Scope narrowed by Jake: 2026-08-11
 
+## Resumption direction — 2026-11-25
+
+Jake has now requested continued development toward his own Notion-style
+workspace, explicitly preserving existing work, with a local Windows notebook
+as the immediate platform target. Windows is therefore active development
+scope. The Linux-only exclusions below describe the earlier release contract;
+they do not prohibit the newly requested Windows work or the broader product
+direction. No existing quality or data-integrity acceptance requirement is
+relaxed by that change. See [the resumption record](DEVELOPMENT_RESUMPTION.md)
+and [Windows guide](WINDOWS.md) for the current implementation and evidence.
+
 ## Release outcome
 
 Motion V1.0 is a dependable, offline, single-user Linux knowledge workspace. A

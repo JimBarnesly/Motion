@@ -14,6 +14,7 @@ export const WEB_ASSETS = Object.freeze([
   "editor-history.js",
   "editor-structure.js",
   "filter-controls.js",
+  "filter-editor.js",
   "filtering.js",
   "id-security.js",
   "internal-links.js",

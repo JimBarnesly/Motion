@@ -5,7 +5,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "npm run build --workspace @motion/core",
     "dev": "node scripts/serve.mjs",
+    "prebuild": "npm run build --workspace @motion/core",
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --strict --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext test/app-adapter-types.ts",
     "test": "node --check app.js && npm run typecheck && node --test test/*.test.mjs"

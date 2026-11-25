@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, stat, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -19,6 +19,19 @@ test("offline preparation rejects a corrupt preseed before extraction", async ()
     const entry = OFFICIAL_ARCHIVES.x64;
     await mkdir(join(root, "cache"));
     await writeFile(join(root, "cache", entry.file), "not the official archive");
-    await assert.rejects(prepareNodeRuntime({ architecture: "x64", cacheRoot: join(root, "cache"), output: join(root, "node"), offline: true }), /checksum mismatch/);
+    await assert.rejects(prepareNodeRuntime({ platform: "linux", architecture: "x64", cacheRoot: join(root, "cache"), output: join(root, "node"), offline: true }), /checksum mismatch/);
   } finally { await rm(root, { recursive: true }); }
+});
+
+test("unsupported platforms fail before creating a cache or preparing a Linux runtime", async () => {
+  const root = await mkdtemp(join(tmpdir(), "motion-node-platform-"));
+  try {
+    for (const platform of ["win32", "darwin"]) {
+      const cacheRoot = join(root, platform, "cache");
+      const output = join(root, platform, "node-runtime");
+      await assert.rejects(prepareNodeRuntime({ platform, architecture: "x64", cacheRoot, output }), /supports Linux only/);
+      await assert.rejects(stat(cacheRoot), { code: "ENOENT" });
+      await assert.rejects(stat(output), { code: "ENOENT" });
+    }
+  } finally { await rm(root, { recursive: true, force: true }); }
 });

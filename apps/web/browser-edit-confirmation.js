@@ -1,5 +1,21 @@
 const LEAF_BLOCK_TYPES = new Set(["divider", "image", "file", "bookmark", "child-page", "page-mention", "date-mention", "simple-table", "collection-view"]);
 
+function locateBlock(blocks, id, parent = null) {
+  for (let index = 0; index < blocks.length; index += 1) {
+    const block = blocks[index];
+    if (block.id === id) return { block, blocks, index, parent };
+    const nested = locateBlock(block.children ?? [], id, block);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+function requiredBlock(page, id) {
+  const location = locateBlock(page.blocks, id);
+  if (!location) throw new Error("Block was not found");
+  return location;
+}
+
 export function applyLocalEdit(document, candidate, timestamp) {
   const page = id => document.workspace.pages.find(item => item.id === id);
   if (candidate.type === "page.rename") {
@@ -14,28 +30,19 @@ export function applyLocalEdit(document, candidate, timestamp) {
     target.updatedAt = timestamp;
   } else if (candidate.type === "block.update-content") {
     const target = page(candidate.payload.pageId);
-    const block = target.blocks.find(item => item.id === candidate.payload.blockId);
+    const { block } = requiredBlock(target, candidate.payload.blockId);
     block.text = candidate.payload.content.text;
     if (candidate.payload.content.references !== undefined) block.references = structuredClone(candidate.payload.content.references);
     target.updatedAt = timestamp;
   } else if (candidate.type === "block.transform") {
     const target = page(candidate.payload.pageId);
-    const block = target.blocks.find(item => item.id === candidate.payload.blockId);
+    const { block } = requiredBlock(target, candidate.payload.blockId);
     for (const key of ["checked", "language", "attachmentId", "headingLevel", "pageId", "viewId", "date", "url"]) delete block[key];
     Object.assign(block, structuredClone(candidate.payload.transform));
     target.updatedAt = timestamp;
   } else if (candidate.type === "block.indent" || candidate.type === "block.outdent") {
     const target = page(candidate.payload.pageId);
-    const locate = (blocks, parent = null) => {
-      for (let index = 0; index < blocks.length; index += 1) {
-        if (blocks[index].id === candidate.payload.blockId) return { blocks, index, parent };
-        const nested = locate(blocks[index].children ?? [], blocks[index]);
-        if (nested) return nested;
-      }
-      return null;
-    };
-    const location = locate(target.blocks);
-    if (!location) throw new Error("Block was not found");
+    const location = requiredBlock(target, candidate.payload.blockId);
     if (candidate.type === "block.indent") {
       if (location.index === 0) throw new Error("Block has no previous sibling to indent under");
       const parent = location.blocks[location.index - 1];
@@ -45,13 +52,7 @@ export function applyLocalEdit(document, candidate, timestamp) {
     } else {
       if (!location.parent) throw new Error("Top-level block cannot be outdented");
       const moving = location.blocks.splice(location.index, 1)[0];
-      const findParent = blocks => {
-        const index = blocks.findIndex(block => block.id === location.parent.id);
-        if (index >= 0) return { blocks, index };
-        for (const block of blocks) { const nested = findParent(block.children ?? []); if (nested) return nested; }
-        return null;
-      };
-      const destination = findParent(target.blocks);
+      const destination = requiredBlock(target, location.parent.id);
       destination.blocks.splice(destination.index + 1, 0, moving);
     }
     target.updatedAt = timestamp;
@@ -59,20 +60,24 @@ export function applyLocalEdit(document, candidate, timestamp) {
     for (const command of candidate.payload.commands) {
       const target = page(command.pageId);
       if (command.type === "block.delete") {
-        target.blocks = target.blocks.filter(block => block.id !== command.blockId);
+        const location = requiredBlock(target, command.blockId);
+        location.blocks.splice(location.index, 1);
       } else if (command.type === "block.update-content") {
-        const block = target.blocks.find(item => item.id === command.blockId);
+        const { block } = requiredBlock(target, command.blockId);
         block.text = command.content.text;
         if (command.content.references !== undefined) block.references = structuredClone(command.content.references);
         else delete block.references;
       } else if (command.type === "block.transform") {
-        const block = target.blocks.find(item => item.id === command.blockId);
+        const { block } = requiredBlock(target, command.blockId);
         for (const key of ["checked", "language", "attachmentId", "headingLevel", "pageId", "viewId", "date", "url"]) delete block[key];
         Object.assign(block, structuredClone(command.transform));
       } else if (command.type === "block.create") {
-        const index = command.position.beforeBlockId === null ? target.blocks.length : target.blocks.findIndex(block => block.id === command.position.beforeBlockId);
+        const parent = command.position.parentBlockId === null ? null : requiredBlock(target, command.position.parentBlockId).block;
+        if (parent && LEAF_BLOCK_TYPES.has(parent.type)) throw new Error(`Block type ${parent.type} cannot contain children`);
+        const siblings = parent ? (parent.children ??= []) : target.blocks;
+        const index = command.position.beforeBlockId === null ? siblings.length : siblings.findIndex(block => block.id === command.position.beforeBlockId);
         if (index < 0) throw new Error("Paste insertion target was not found");
-        target.blocks.splice(index, 0, structuredClone(command.block));
+        siblings.splice(index, 0, structuredClone(command.block));
       } else {
         throw new Error("Unsupported local block batch command");
       }

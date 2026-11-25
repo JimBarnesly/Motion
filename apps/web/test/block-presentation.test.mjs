@@ -68,3 +68,44 @@ test("block type control stays out of the reading column until its row is active
   assert.match(revealRule, /opacity:\s*1/);
   assert.match(focusRule, /outline:\s*2px solid var\(--accent\)/);
 });
+
+test("canonical renderer classes retain heading, list, and unsupported-block presentation", async () => {
+  const [source, styles] = await Promise.all([
+    readFile(new URL("../app.js", import.meta.url), "utf8"),
+    readFile(new URL("../styles.css", import.meta.url), "utf8")
+  ]);
+  const supportedTypes = JSON.parse(source.match(/const BLOCK_TYPES = (\[[^\]]+\]);/)?.[1] ?? "[]");
+  const rule = selector => [...styles.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter(([, selectors]) => selectors.split(",").map(value => value.trim()).includes(selector))
+    .map(([, , declarations]) => declarations).join(";");
+
+  // The renderer uses canonical type names directly; the stylesheet must match
+  // those names rather than the legacy aliases accepted during migration.
+  assert.match(source, /class="block-input \$\{type\}"/);
+  assert.match(source, /BLOCK_TYPES\.includes\(block\.type\)\?block\.type:"unsupported"/);
+  for (const [type, size] of [["heading-1", 28], ["heading-2", 23], ["heading-3", 19]]) {
+    assert.ok(supportedTypes.includes(type));
+    assert.match(rule(`.block-input.${type}`), new RegExp(`font-size:\\s*${size}px`));
+    assert.match(rule(`.block-input.${type}`), /font-weight:\s*[67]\d\d/);
+  }
+  assert.ok(supportedTypes.includes("bulleted-list"));
+  assert.ok(supportedTypes.includes("numbered-list"));
+  assert.match(rule(".block-input.bulleted-list::before"), /content:\s*"• "/);
+  assert.match(rule(".block-input.numbered-list::before"), /content:\s*counter\(motion-list-number\)\s*"\. "/);
+  // File blocks currently share the unsupported row class, but render supported
+  // file content. Warn only when the content renderer itself is unsupported.
+  assert.match(rule(".block-row.unsupported:has(> .block-input.unsupported)"), /border:\s*1px dashed/);
+  assert.match(rule(".block-row.unsupported:has(> .block-input.unsupported)::before"), /Preserved unsupported block/);
+  assert.equal(rule(".block-row.unsupported"), "");
+});
+
+test("flat numbered runs increment and restart without empty placeholders hiding list markers", async () => {
+  const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
+
+  assert.match(styles, /\.blocks\s*\{[^}]*counter-reset:\s*motion-list-number/);
+  assert.match(styles, /\.block-row\.numbered-list\s*\{[^}]*counter-increment:\s*motion-list-number/);
+  assert.match(styles, /\.block-row:not\(\.numbered-list\)\s*\{[^}]*counter-reset:\s*motion-list-number/);
+  assert.doesNotMatch(styles, /\.block-input\.numbered-list::before\s*\{[^}]*content:\s*"1\. "/);
+  assert.doesNotMatch(styles, /\.block-input:empty::before\s*\{/);
+  assert.match(styles, /\.block-input:not\(\.bulleted-list\):not\(\.numbered-list\):empty::before\s*\{[^}]*content:attr\(data-placeholder\)/);
+});

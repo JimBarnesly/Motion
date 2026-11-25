@@ -18,6 +18,8 @@ const REPOSITORY_ROOT = resolve(DESKTOP_ROOT, "..", "..");
 export const sha256 = async path => createHash("sha256").update(await readFile(path)).digest("hex");
 
 export async function prepareNodeRuntime(options = {}) {
+  const platform = options.platform ?? process.platform;
+  if (platform !== "linux") throw new Error(`Native Motion runtime preparation currently supports Linux only (received ${platform}). Use the browser development workflow in docs/WINDOWS.md; Windows desktop packaging is not yet supported.`);
   const architecture = options.architecture ?? process.arch;
   const selected = OFFICIAL_ARCHIVES[architecture];
   if (!selected) throw new Error(`Unsupported Node runtime architecture: ${architecture}`);

@@ -4,6 +4,11 @@ Status: implementation control document
 
 As-of candidate: `feat/notion-editor-chrome` at `1b49f3e` plus this document
 
+Resumption review: 2026-11-25, based on recovered `d413253` and
+`feat/windows-notebook-resume`. Updated rows below are candidates; historical
+"Complete" labels do not establish installed Windows or current release
+acceptance. See [the resumption record](DEVELOPMENT_RESUMPTION.md).
+
 Research basis: [Notion product review](./NOTION_PRODUCT_REVIEW.md)
 
 ## Status vocabulary
@@ -48,7 +53,7 @@ A permissive type union or migration field is not a shipped feature.
 | Stable internal page links | Complete | Page-ID links survive rename and move | shipped |
 | Backlinks and outgoing links | Complete | Lifecycle-aware link context and deep block targets | shipped |
 | Create missing page from `[[…]]` | Complete | Exact-title de-duplication, canonical root page, stable-ID reference | shipped |
-| Page icon | Absent | No model or UI | Slice PAGE-1 |
+| Page icon | Model only | `Page.icon` exists; authoring and native mutation UI remain absent | Slice PAGE-1 |
 | Page cover | Absent | No model or UI | Slice PAGE-1 |
 | Font / small text / full width controls | Absent | Reading width is currently global | Slice PAGE-1 |
 | Page templates | Absent | `templateOriginId` is not an authoring/apply workflow | Slice TEMPLATE-1 |
@@ -110,7 +115,7 @@ A permissive type union or migration field is not a shipped feature.
 | Property create/rename/reorder/delete | Complete | Tombstoned definitions preserve historic values | shipped |
 | Relation | Model only | Core relation config and value validation exist; no creation/editor/filter UI | Slice DB-3 |
 | Rollup | Absent | No canonical rollup property/aggregator | Slice DB-3 |
-| Formula | Absent | No canonical formula AST/evaluator in current exact tree | Slice DB-4 |
+| Formula | Partial component | `packages/formula` has parser, AST, evaluator and dependency tests; formula properties are not integrated into collections | Slice DB-4 |
 | Unique ID | Absent | Stable page ID is internal, not a configurable property | Slice DB-4 |
 | Person | Later | Requires user/identity model | V2 collaboration |
 | Button property | Absent | Requires safe action model | Slice AUTOMATION-1 |
@@ -124,10 +129,10 @@ A permissive type union or migration field is not a shipped feature.
 | Table view | Complete | Editing, widths, column order, visible properties | shipped |
 | List view | Complete | Saved view sharing same record identities | shipped |
 | Saved view create/duplicate/delete/select | Complete | Stable saved-view IDs and canonical persistence | shipped |
-| Nested AND/OR/NOT filters | Partial | Model supports nesting; UI builds one group of conditions | Slice DB-1 |
+| Nested AND/OR/NOT filters | Candidate | Recursive draft UI retains nested trees, saves through view-update, and preserves drafts on failed Apply/Clear; browser regression coverage | Slice DB-1 |
 | Multi-sort | Complete | Ordered stable clauses | shipped |
-| Relative-date filters | Model only | Operator accepted; runtime evaluation incomplete | Slice DB-1 |
-| Manual record ordering | Absent | Unsorted order follows canonical record ID list without reorder UI | Slice DB-1 |
+| Relative-date filters | Candidate | Core/browser evaluation, bounded preset controls, parity tests and saved-view persistence exist | Slice DB-1 |
+| Manual record ordering | Candidate | Canonical record-reorder command, pointer/keyboard UI, membership checks and restart/export tests exist | Slice DB-1 |
 | Group/subgroup configuration | Model only | View fields exist; no complete UI/runtime | Slice BOARD-1 |
 | Board view | Candidate elsewhere | Implemented in isolated `/root/motion-m4-board`, not reviewed/integrated | Slice BOARD-1 |
 | Calendar view | Absent | Type accepted but no renderer/interaction | Slice CALENDAR-1 |

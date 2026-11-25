@@ -17,6 +17,11 @@ function nonEditorState(document) {
   return copy;
 }
 
+export function editorHistoryUnchanged(current, target) {
+  return JSON.stringify(nonEditorState(current)) === JSON.stringify(nonEditorState(target))
+    && JSON.stringify(activePage(current)?.blocks ?? []) === JSON.stringify(activePage(target)?.blocks ?? []);
+}
+
 export function editorHistoryCommand(current, target) {
   if (!current?.activePageId || current.activePageId !== target?.activePageId) {
     throw new Error("Editor history requires the same active page");

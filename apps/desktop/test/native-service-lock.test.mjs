@@ -6,10 +6,11 @@ import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-const workerPath = new URL("./fixtures/native-service-lock-worker.mjs", import.meta.url).pathname;
-const crashWorkerPath = new URL("./fixtures/native-service-lock-crash-worker.mjs", import.meta.url).pathname;
+const workerPath = fileURLToPath(new URL("./fixtures/native-service-lock-worker.mjs", import.meta.url));
+const crashWorkerPath = fileURLToPath(new URL("./fixtures/native-service-lock-crash-worker.mjs", import.meta.url));
 const lockName = ".motion-service.owner-v1";
 const busy = { type: "rejected", code: "MOTION_DATA_ROOT_BUSY", message: "Motion data is already open in another desktop process" };
 

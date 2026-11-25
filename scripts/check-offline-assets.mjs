@@ -1,7 +1,8 @@
 import { readFile, readdir } from "node:fs/promises";
-import { extname, join, relative } from "node:path";
+import { extname, join, relative, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = new URL("../apps/", import.meta.url);
+const root = fileURLToPath(new URL("../apps/", import.meta.url));
 const textExtensions = new Set([".html", ".css", ".js", ".mjs", ".ts", ".tsx", ".json"]);
 const networkReference = /(?:https?:\/\/|(?<!:)\/\/)[^\s'"`)]+/gi;
 // The Tauri JSON schema is editor/build metadata, not a fetched runtime asset.
@@ -30,7 +31,7 @@ async function scan(directory) {
     if (entry.isDirectory()) await scan(path);
     else if (textExtensions.has(extname(entry.name))) {
       const source = await readFile(path, "utf8");
-      const sourcePath = relative(root.pathname, path);
+      const sourcePath = relative(root, path).split(sep).join("/");
       for (const match of source.matchAll(networkReference)) {
         if (!allowed(match[0], sourcePath)) failures.push(`${sourcePath}: ${match[0]}`);
       }
@@ -38,7 +39,7 @@ async function scan(directory) {
   }
 }
 
-await scan(root.pathname);
+await scan(root);
 if (failures.length) {
   console.error("Unexpected network-dependent application references:\n" + failures.join("\n"));
   process.exit(1);

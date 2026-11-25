@@ -1,6 +1,9 @@
 import { CANONICAL_MAX_ID_LENGTH, stableIdPattern } from "./id-security.js";
+import { MAX_ATTACHMENT_BYTES } from "./attachment-policy.js";
 
 const CANONICAL_ID = stableIdPattern(CANONICAL_MAX_ID_LENGTH);
+
+export const isValidAttachmentByteLength = value => Number.isSafeInteger(value) && value >= 0 && value <= MAX_ATTACHMENT_BYTES;
 
 const fail = path => { throw new Error(`Invalid Motion workspace: ${path} contains an unsafe canonical ID`); };
 const id = (value, path) => {
@@ -59,6 +62,9 @@ export function assertSafeCanonicalWorkspaceIds(workspace) {
   array(workspace.attachments, "attachments").forEach((attachment, index) => {
     object(attachment, `attachments[${index}]`);
     id(attachment.id, `attachments[${index}].id`);
+    if (!isValidAttachmentByteLength(attachment.byteLength)) {
+      throw new Error(`Invalid Motion workspace: attachments[${index}].byteLength must be a non-negative safe integer within the attachment size limit`);
+    }
   });
 
   const properties = new Map();

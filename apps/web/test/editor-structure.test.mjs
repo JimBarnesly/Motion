@@ -133,18 +133,103 @@ test("Enter at the end of a heading continues in a paragraph", () => {
   });
 });
 
-test("Enter preserves an unknown heading-prefixed block type", () => {
-  const { commands } = splitBlockCommands({
+test("Enter leaves an unknown block and its opaque payload unchanged", () => {
+  const block = {
+    id: "future-1", type: "heading-plugin", text: "Plugin heading", children: [],
+    unknownData: { plugin: "stable" }
+  };
+  const original = structuredClone(block);
+  const result = splitBlockCommands({
     pageId: "page-1",
-    block: {
-      id: "future-1", type: "heading-plugin", text: "Plugin heading", children: [],
-      unknownData: { plugin: "stable" }
-    },
+    block,
     offset: 14,
-    createId: () => "future-2"
+    createId: () => { throw new Error("unsupported content must not be split"); }
   });
 
-  assert.equal(commands[1].block.type, "heading-plugin");
+  assert.equal(result, null);
+  assert.deepEqual(block, original);
+});
+
+test("Enter preserves the parent and sibling insertion point of a nested block", () => {
+  for (const beforeBlockId of ["nested-sibling", null]) {
+    const { commands } = splitBlockCommands({
+      pageId: "page-1", parentBlockId: "parent-block", beforeBlockId,
+      block: { id: "nested-block", type: "paragraph", text: "BeforeAfter", children: [] },
+      offset: 6, createId: () => "nested-continuation"
+    });
+
+    assert.deepEqual(commands[1].position, { parentBlockId: "parent-block", beforeBlockId });
+    assert.equal(commands[0].content.text, "Before");
+    assert.equal(commands[1].block.text, "After");
+  }
+});
+
+test("Enter replaces a selected text range and relocates only intact stable mentions", () => {
+  const text = "[[Alpha]] remove [[Gone]] then [[Beta]]";
+  const endOffset = text.indexOf(" then");
+  const block = {
+    id: "block-1", type: "paragraph", text, children: [],
+    references: [
+      { pageId: "page-alpha", start: 0, end: 9 },
+      { pageId: "page-gone", start: 17, end: 25 },
+      { pageId: "page-beta", start: text.indexOf("[[Beta]]"), end: text.length }
+    ]
+  };
+  const original = structuredClone(block);
+  const { commands } = splitBlockCommands({
+    pageId: "page-1", block, offset: 9, endOffset, createId: () => "new-block"
+  });
+
+  assert.equal(commands[0].content.text, "[[Alpha]]");
+  assert.equal(commands[1].block.text, " then [[Beta]]");
+  assert.deepEqual(commands[0].content.references, [{ pageId: "page-alpha", start: 0, end: 9 }]);
+  assert.deepEqual(commands[1].block.references, [{ pageId: "page-beta", start: 6, end: 14 }]);
+  assert.deepEqual(block, original);
+});
+
+test("Enter replaces a selection in code and positions the caret after its newline", () => {
+  const { commands, focusBlockId, focusOffset } = splitBlockCommands({
+    pageId: "page-1",
+    block: { id: "code-1", type: "code", text: "beforeSELECTafter", language: "js", children: [] },
+    offset: 6, endOffset: 12,
+    createId: () => { throw new Error("code Enter must keep its block"); }
+  });
+
+  assert.equal(commands.length, 1);
+  assert.equal(commands[0].content.text, "before\nafter");
+  assert.equal(focusBlockId, "code-1");
+  assert.equal(focusOffset, 7);
+});
+
+test("Enter preserves and shifts intact code references around a replaced selection", () => {
+  const { commands } = splitBlockCommands({
+    pageId: "page-1",
+    block: { id: "code-1", type: "code", text: "[[A]]xx[[B]]", children: [], references: [
+      { pageId: "a", start: 0, end: 5 }, { pageId: "b", start: 7, end: 12 }
+    ] },
+    offset: 5, endOffset: 7, createId: () => "unused"
+  });
+
+  assert.equal(commands[0].content.text, "[[A]]\n[[B]]");
+  assert.deepEqual(commands[0].content.references, [
+    { pageId: "a", start: 0, end: 5 }, { pageId: "b", start: 6, end: 11 }
+  ]);
+});
+
+test("Enter rejects invalid text ranges without mutating the source block", () => {
+  const block = { id: "block-1", type: "paragraph", text: "Text", children: [] };
+  for (const [offset, endOffset] of [[-1, 0], [0, 5], [3, 2], [0.5, 1], [NaN, 0]]) {
+    assert.throws(() => splitBlockCommands({
+      pageId: "page-1", block, offset, endOffset, createId: () => "new"
+    }), /selection range/i);
+  }
+  assert.equal(block.text, "Text");
+});
+
+test("Enter does not split a known block carrying an opaque extension payload", () => {
+  const block = { id: "block-1", type: "paragraph", text: "Keep intact", children: [], unknownData: { extension: [1, 2] } };
+  assert.equal(splitBlockCommands({ pageId: "page-1", block, offset: 4, createId: () => "new" }), null);
+  assert.deepEqual(block.unknownData, { extension: [1, 2] });
 });
 
 test("Enter inserts a canonical newline inside a code block", () => {

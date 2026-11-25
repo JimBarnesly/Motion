@@ -74,6 +74,33 @@ Windows native support. Windows execution of these commands remains a validation
 step; verification performed on a Linux development host must be reported as
 Linux evidence.
 
+## Offline prerequisite continuation
+
+The candidate keeps the same verified Microsoft Evergreen Standalone Installer.
+A narrowly modified, provenance-bound NSIS template checks the complete registered
+runtime version before copying Motion. An absent, malformed or older registration
+runs that one embedded payload with fixed silent-install arguments. Setup failure
+or an insufficient version afterward stops installation. The required floor is
+`158.0.4370.33`; the default registered-updater route is not used.
+
+The custom template reconstructs the locked upstream byte for byte outside its
+marked prerequisite section. Its licences and provenance are retained beside it.
+The ordinary interactive installer includes a licence page, and eight reviewed
+vendor terms/notice resources are packaged in `licenses\windows` beside Motion.
+See `WINDOWS_VENDOR_RUNTIME.json` for exact source and byte measurements.
+
+The next Windows acceptance candidate inspects that actual licence page and
+cancels before setup. It then stages all inputs, arms an independent cleanup
+watchdog, and attempts installation inside a short whole-runner firewall window.
+The GUI probe identifies the actual running WebView process and its executable
+version while that window is still active. Regular installed acceptance repeats
+the engine observation across competing instances, restart and reinstall.
+
+These changes are implementation candidates pending actual Windows execution.
+They do not establish a genuinely absent-runtime first installation, external-user
+agreement, or Windows 11 hardware acceptance. No user runtime-removal procedure
+or synthetic registry absence is part of the test.
+
 ## Native implementation and validation
 
 | Boundary | Candidate implementation | Required observed evidence |
@@ -82,7 +109,7 @@ Linux evidence.
 | Single writer | Native root guardian and process-lifetime handles; SQLite database and sidecars retained through the service lifetime | Competing writers, blocked-runner guardian death, crash release, root replacement rejection |
 | Attachments | Existing content-addressed service delegates Windows filesystem operations to the same installed Motion executable | Verified stage/publish/read, deduplication, hard-link rejection and interrupted promotion recovery |
 | Backups | Bounded native helper authenticates identity and content before confirmed replacement, flushes and reads back temporary data | No-replace collisions, cancellation, held-handle replacement, private ACL and restore tests |
-| Runtime | Official Node `24.18.0` ZIP archives pinned independently for x64/ARM64; exact executable and licence extracted only after SHA-256 verification | Runtime preparation and installed executable/version checks; ARM64 installer is not yet qualified |
+| Runtime | Official Node `24.22.3` ZIP archives pinned independently for x64/ARM64; exact executable and licence extracted only after SHA-256 verification | Runtime preparation and installed executable/version checks; ARM64 installer is not yet qualified |
 | Installer | Windows Tauri override selects per-user NSIS, a Motion icon, local runtime resources and offline WebView2 installation | Build, install, resource verification, normal launch/close, uninstall with data preserved and reinstall |
 | Offline behavior | No hosted services; CI blocks installed app, Node and WebView2 outbound traffic before launch | Installed page/attachment/search/restart and reinstall flows; CDP reports only requests observed after connection |
 

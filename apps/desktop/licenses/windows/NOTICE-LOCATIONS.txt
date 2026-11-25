@@ -1,0 +1,18 @@
+Motion Windows third-party notice locations
+
+INSTALLER-LICENSE.txt contains Motion's MIT License and a complete plain-text rendering of the Microsoft Edge WebView2 Runtime terms. Only whitespace and document headings outside those terms were added.
+
+WebView2-Evergreen-Terms.html preserves the exact official Evergreen terms HTML retrieved on 25 November 2026. The terms govern the Microsoft runtime distribution; they are different from the SDK loader licence and the Rust bindings' licences.
+
+WebView2-SDK-LICENSE.txt reproduces Microsoft's SDK 1.0.3650.58 licence. The SDK loader used by the locked webview2-com-sys 0.38.2 crate is statically linked into Motion on Windows.
+
+MicrosoftEdgeUpdate-NOTICE.TXT is an unchanged copy of the updater notice in the bundled official Microsoft installer.
+
+The component-notices copies preserve these directly inspected files from Microsoft's runtime package, without changes:
+  Mu-LICENSE.txt: Trust Protection Lists/Mu/LICENSE
+  Sigma-LICENSE.txt: Trust Protection Lists/Sigma/LICENSE
+  Widevine-LICENSE.txt: WidevineCdm/LICENSE
+
+These reference copies do not replace Microsoft's original notices. The unchanged Microsoft installer retains the runtime's complete notices and Credits resources. These files are not an assertion that every component in that package is installed, active, or separately used by Motion. Microsoft's open-source availability notice and contact details are included in its terms and updater notice.
+
+The Node.js runtime's complete accompanying notices are in node-runtime-LICENSE beside Motion. Other application dependencies remain covered by Motion's dependency inventory and their own licences; this folder is not a complete application SBOM.

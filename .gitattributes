@@ -1,0 +1,3 @@
+# Preserve reviewed upstream and vendor bytes across Windows checkouts.
+apps/desktop/src-tauri/windows/** -text
+apps/desktop/licenses/windows/** -text

@@ -37,12 +37,33 @@ jobs:
           workspaces: apps/desktop/src-tauri -> target
       - run: npm ci --ignore-scripts
       - run: npm run test:workflow-script-contracts
+      - name: Parse Windows helpers and compile their native API declarations
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1) { throw 'Windows PowerShell 5.1 is required.' }
+          foreach ($file in Get-ChildItem scripts/windows-*.ps1) {
+            $tokens = $null; $parseErrors = $null
+            $tree = [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$tokens, [ref]$parseErrors)
+            if ($parseErrors.Count -ne 0) { throw "PowerShell syntax failed in $($file.Name): $($parseErrors.Message -join '; ')" }
+            if ($file.Name -notin @('windows-installer-license-dialog.ps1', 'windows-installer-offline-window.ps1')) { continue }
+            $commands = $tree.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Add-Type' }, $true)
+            foreach ($command in $commands) {
+              for ($index = 0; $index -lt $command.CommandElements.Count; $index++) {
+                $element = $command.CommandElements[$index]
+                if ($element -isnot [System.Management.Automation.Language.CommandParameterAst] -or $element.ParameterName -ne 'TypeDefinition') { continue }
+                $definition = $command.CommandElements[$index + 1]
+                if ($definition -isnot [System.Management.Automation.Language.StringConstantExpressionAst] -or $definition.Value.Length -gt 131072) { throw 'Expected a bounded literal native declaration.' }
+                Add-Type -TypeDefinition $definition.Value -ErrorAction Stop
+              }
+            }
+          }
       - name: Build existing application and web assets
         run: npm run build
       - name: Prepare checksum-verified Windows runtime
         run: npm run runtime:prepare --workspace @motion/desktop
       - name: Verify Windows package contract
-        run: node --test apps/desktop/test/runtime-prepare.test.mjs apps/desktop/test/windows-package.test.mjs scripts/windows-installer-payload.test.mjs
+        run: node --test apps/desktop/test/runtime-prepare.test.mjs apps/desktop/test/windows-package.test.mjs apps/desktop/test/windows-prerequisite-template.test.mjs scripts/windows-installer-payload.test.mjs scripts/windows-active-webview.test.mjs
       - name: Compile native Windows application
         run: cargo build --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
       - name: Test native Windows Rust boundary
@@ -61,6 +82,17 @@ jobs:
         id: installed_acceptance
         shell: pwsh
         run: ./scripts/windows-installed-acceptance.ps1
+      - name: Confirm exact offline fixture cleanup
+        if: ${{ always() && steps.installed_acceptance.outputs.offline_fixture_manifest != '' }}
+        timeout-minutes: 2
+        shell: pwsh
+        env:
+          MOTION_OFFLINE_FIXTURE_MANIFEST: ${{ steps.installed_acceptance.outputs.offline_fixture_manifest }}
+        run: |
+          $powershellRoot = Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell/v1.0'
+          $env:PSModulePath = Join-Path $powershellRoot 'Modules'
+          & (Join-Path $powershellRoot 'powershell.exe') -NoLogo -NoProfile -NonInteractive -File ./scripts/windows-installer-offline-watchdog.ps1 -ManifestPath $env:MOTION_OFFLINE_FIXTURE_MANIFEST -CleanupOnly
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Upload verified-payload Windows candidate and acceptance evidence
         if: ${{ always() && steps.installed_acceptance.outputs.installer_payload_verified == 'true' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

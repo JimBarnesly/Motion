@@ -1,0 +1,259 @@
+{
+  "schemaVersion": 1,
+  "baseCommit": "9444028353a2568b2f0bb062cdc0e03be2500c2d",
+  "branch": "feat/windows-offline-pilot",
+  "status": "Windows execution pending",
+  "scope": "Separately tested bundled offline WebView prerequisite candidate; continuation native backup diagnosis proceeds independently.",
+  "runtimeFloor": "158.0.4370.33",
+  "implementation": [
+    "Only the provenance-bound upstream WebView NSIS section changes; the sole existing pinned Microsoft payload is used for missing, malformed or older registered versions, with strict completion and version recheck before Motion files are copied.",
+    "Eight exact vendor notice resources and an interactive licence page are included; page inspection cancels before setup and verifies unchanged runtime inventory.",
+    "Independent SYSTEM watchdog and callback-only kill-on-close Job contain the bounded offline fixture; no shared updater service is guessed or terminated.",
+    "A real after-first-rule fault requires cleanup and unchanged runtime/install state before the positive window can run.",
+    "Positive installation and actual running-engine observation must occur under effective global inbound/outbound blocking, with retained/new public-network negative controls and a loopback positive control.",
+    "Each later installed/reinstalled engine must match an exact pre-launch fully enforced outbound program rule."
+  ],
+  "localValidation": {
+    "packageTemplatePayloadActiveEngineWorkflowContractTestsPassed": 26,
+    "portableHelperSemanticChecksPassed": 24,
+    "powerShellParser": "7.5.4, ten scripts parsed with no script execution",
+    "embeddedNativeDeclarations": "Licence and offline helper compiled as C#5; no Windows APIs executed locally",
+    "nativeTemplate": "Locked Tauri renderer and changed NSIS section compiled with a small inert embedded fixture; complete actual-payload Windows build remains pending",
+    "independentSourceReviews": "Editor, Windows and Notion agents reviewed separate components; root integrated and reviewed. No human approval is claimed.",
+    "lint": "170 JavaScript and60 JSON files passed",
+    "sourceSecurity": "125 first-party files passed all8 unchanged rules",
+    "secretScan": "464 tracked/non-ignored files passed",
+    "whitespace": "First-party diff check passed. Byte-pinned upstream vendor notices retain original CRLF and trailing spacing."
+  },
+  "reviewedHelperEvidence": {
+    "files": [
+      {
+        "path": "scripts/windows-installer-offline-window.ps1",
+        "bytes": 37057,
+        "lines": 538,
+        "sha256": "d33445f8cf1da96023f00e5960c7373facc85b49e2e5b368869a83388651bcd1"
+      },
+      {
+        "path": "scripts/windows-installer-offline-watchdog.ps1",
+        "bytes": 19575,
+        "lines": 283,
+        "sha256": "5f6be4c56a1fb5ba0061e1972d89f2787f910daf07550e2d628a7737327fb4ba"
+      },
+      {
+        "path": "scripts/windows-installer-offline-contract.test.ps1",
+        "bytes": 13444,
+        "lines": 178,
+        "sha256": "0297e4a06fc6169c79f8a112e20ccfa227717ac374775a769731ac49066d1135"
+      },
+      {
+        "path": "apps/desktop/test/windows/offline-window.test.mjs",
+        "bytes": 1836,
+        "lines": 29,
+        "sha256": "7c74accb2a6d4f3db21ef2c159a0d46b869ef847d8536ce930ad03359657cfdc"
+      }
+    ],
+    "verification": {
+      "officialPowerShellParser": "7.5.4-1.deb / SHA256 17036f67f65d81ed2b23d0d247edc2b2ac58abeb721f08927aed8a3dffe41d42",
+      "embeddedCSharp": "Compiled with C# language version 5",
+      "portableSemanticChecksPassed": 24,
+      "windowsManifestAndJobChecks": "Not executed locally; Windows-only test requires passed statuses",
+      "firewallAndTaskExecution": "Not executed locally",
+      "afterFirstRuleFaultMode": "Implemented, not executed locally",
+      "hostNetworkingChanged": false,
+      "portableSemanticCommand": "pwsh -NoLogo -NoProfile -NonInteractive -File scripts/windows-installer-offline-contract.test.ps1 -Portable",
+      "portableSemanticExitCode": 0,
+      "nodeSyntax": "node --check apps/desktop/test/windows/offline-window.test.mjs: exit 0",
+      "whitespaceCheck": "git diff --check: exit 0",
+      "postReviewChange": "Constructor failure cleanup nests try/finally so Process.Dispose runs even when Job.Dispose throws; 24 portable semantic checks rerun successfully after this change."
+    },
+    "interface": {
+      "window": "-InstallerPath -InstallRoot -PayloadEvidencePath -OutputPath -PostInstallExecutable -PostInstallArguments [exact sibling windows-installed-ui.mjs]",
+      "cleanup": "windows-installer-offline-watchdog.ps1 -ManifestPath <exact emitted manifest> -CleanupOnly",
+      "githubOutput": "offline_fixture_manifest",
+      "budgetsSeconds": {
+        "installer": 180,
+        "callback": 60,
+        "mainSafetyDeadline": 235,
+        "independentWatchdog": 240,
+        "taskExecutionLimit": 300
+      }
+    }
+  },
+  "sourceFiles": [
+    {
+      "path": ".github/workflows/windows.yml",
+      "bytes": 6077,
+      "sha256": "b380f76d14e2754cb7841e6f9a10eb1476d7b4a8fb8209f416ab0b5fb77f43a0"
+    },
+    {
+      "path": "apps/desktop/src-tauri/tauri.windows.conf.json",
+      "bytes": 751,
+      "sha256": "9d03f3f3cb5e6c58ccab649ab550682f8a61d28b36f961b4e6029578634cbe01"
+    },
+    {
+      "path": "apps/desktop/test/windows-package.test.mjs",
+      "bytes": 4286,
+      "sha256": "6a238278d8a2132b65770968327932bc7bb8fcd38eb0493d11a9aca09718ca92"
+    },
+    {
+      "path": "docs/WINDOWS.md",
+      "bytes": 9870,
+      "sha256": "13ba069675998510c4a859e5314c0cba1b293a384ae07548a4cb0aba9a938e19"
+    },
+    {
+      "path": "docs/WINDOWS_WEBVIEW_DISTRIBUTION_REVIEW.md",
+      "bytes": 22443,
+      "sha256": "a77b8c3608c49909c721466c7b6cf14def61b3083b8af474038d55d2e2256ad7"
+    },
+    {
+      "path": "scripts/windows-installed-acceptance.ps1",
+      "bytes": 19702,
+      "sha256": "9fc3f3b945f993eaab00392dc24baa87201a642e1ff18534dc3fa1b6bebb7d9e"
+    },
+    {
+      "path": "scripts/windows-installed-ui.mjs",
+      "bytes": 51038,
+      "sha256": "39e37f933d73fb98edca4a2f4adbfc05ffa2eb3f12c550124913e6741ce56be3"
+    },
+    {
+      "path": "scripts/windows-installer-payload.test.mjs",
+      "bytes": 12945,
+      "sha256": "8717bf0884662aa16784d7c38e0c1f485101e20f080f7b41f6a759aebfc8e024"
+    },
+    {
+      "path": "scripts/windows-native-save-dialog.ps1",
+      "bytes": 17833,
+      "sha256": "4840cfbc767da7e74080362451ab15226841286d7e70f95082b031893aace90d"
+    },
+    {
+      "path": ".gitattributes",
+      "bytes": 151,
+      "sha256": "f3aa7b7b77c68cda3d68af924286c187bd3609822c30b8b741e959f601fb1ee4"
+    },
+    {
+      "path": "apps/desktop/licenses/windows/INSTALLER-LICENSE.txt",
+      "bytes": 18749,
+      "sha256": "5a72889869ed79fbe47d3bf722ac4e035a113ccce99c420ce221881315f6f3da"
+    },
+    {
+      "path": "apps/desktop/licenses/windows/MicrosoftEdgeUpdate-NOTICE.TXT",
+      "bytes": 4172,
+      "sha256": "91d3fc490565ded7621ff5198960e501b6db857d5dd45af2fe7c3ecd141145f5"
+    },
+    {
+      "path": "apps/desktop/licenses/windows/NOTICE-LOCATIONS.txt",
+      "bytes": 1716,
+      "sha256": "c3fbe0d55b2ebe9214907b0498057a844079edd20c9b886c96e1c67cc4417851"
+    },
+    {
+      "path": "apps/desktop/licenses/windows/WebView2-Evergreen-Terms.html",
+      "bytes": 21639,
+      "sha256": "ce6fa83e57c338256e5cabe9e1eea83076c271b0fdb253408213eeb08859d7b6"
+    },
+    {
+      "path": "apps/desktop/licenses/windows/WebView2-SDK-LICENSE.txt",
+      "bytes": 1487,
+      "sha256": "0af8f1b807512aae39c2ac1aa4d0cae65cabecb6fd554b8439a5162a0d6eca55"
+    },
+    {
+      "path": "apps/desktop/licenses/windows/component-notices/Mu-LICENSE.txt",
+      "bytes": 35147,
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+    },
+    {
+      "path": "apps/desktop/licenses/windows/component-notices/Sigma-LICENSE.txt",
+      "bytes": 66,
+      "sha256": "44071e0fcffb9a9a32e8fa7010bb18dbc41afd0b176f81bf700b15b638a88a51"
+    },
+    {
+      "path": "apps/desktop/licenses/windows/component-notices/Widevine-LICENSE.txt",
+      "bytes": 473,
+      "sha256": "20de375707692099b3132084695377ce5fec0aec05813dedcce094b8eda44386"
+    },
+    {
+      "path": "apps/desktop/src-tauri/windows/LICENSE_APACHE-2.0",
+      "bytes": 10174,
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+    },
+    {
+      "path": "apps/desktop/src-tauri/windows/LICENSE_MIT",
+      "bytes": 1090,
+      "sha256": "9dd42ea92cff2ede5cd477cbfcce051b2d0115c0ac7f368ee88cb545055dff1d"
+    },
+    {
+      "path": "apps/desktop/src-tauri/windows/installer.nsi",
+      "bytes": 33682,
+      "sha256": "e438474a0e0b2984379b0dad790bba171602364facc6374a25501b65a8244a7d"
+    },
+    {
+      "path": "apps/desktop/src-tauri/windows/nsis-template-provenance.json",
+      "bytes": 5447,
+      "sha256": "4dbfcec169662cd72dc0ad990a08d51a3edad5183020f39457c2d397c252b14b"
+    },
+    {
+      "path": "apps/desktop/test/windows-prerequisite-template.test.mjs",
+      "bytes": 7500,
+      "sha256": "d52d8ea14103e30faa1be31dc36ec005a909b185a118edeee41bc44bfd7ba04f"
+    },
+    {
+      "path": "apps/desktop/test/windows/offline-window.test.mjs",
+      "bytes": 1836,
+      "sha256": "7c74accb2a6d4f3db21ef2c159a0d46b869ef847d8536ce930ad03359657cfdc"
+    },
+    {
+      "path": "docs/WINDOWS_VENDOR_RUNTIME.json",
+      "bytes": 6700,
+      "sha256": "82e065d3c41badc9f761d45d4f60c9730de2e06eb45ad59b633adb5448f71b87"
+    },
+    {
+      "path": "scripts/windows-active-webview-probe.ps1",
+      "bytes": 16776,
+      "sha256": "d13b2ec3e0b5b9423144c0597058d999f913cc05c008868cb6391247ef1319b9"
+    },
+    {
+      "path": "scripts/windows-active-webview.mjs",
+      "bytes": 13358,
+      "sha256": "5d5b4f2902a4a03f100dd040e5b27a8dbd6a8c17c3433a552b2d3e60fba58e5b"
+    },
+    {
+      "path": "scripts/windows-active-webview.test.mjs",
+      "bytes": 8355,
+      "sha256": "59926b66d08d54a244e99fdd122d36450c9dc83edad240c9c4814f782bec81d9"
+    },
+    {
+      "path": "scripts/windows-installer-license-dialog.ps1",
+      "bytes": 33457,
+      "sha256": "cd0f72fb58848f098dc91e4d0ec417001aa61ba04ad1b98ad58c9f9b7a5d5021"
+    },
+    {
+      "path": "scripts/windows-installer-offline-contract.test.ps1",
+      "bytes": 13444,
+      "sha256": "0297e4a06fc6169c79f8a112e20ccfa227717ac374775a769731ac49066d1135"
+    },
+    {
+      "path": "scripts/windows-installer-offline-watchdog.ps1",
+      "bytes": 19575,
+      "sha256": "5f6be4c56a1fb5ba0061e1972d89f2787f910daf07550e2d628a7737327fb4ba"
+    },
+    {
+      "path": "scripts/windows-installer-offline-window.ps1",
+      "bytes": 37057,
+      "sha256": "d33445f8cf1da96023f00e5960c7373facc85b49e2e5b368869a83388651bcd1"
+    }
+  ],
+  "governance": {
+    "scope": "Only .github/workflows/windows.yml changes relative to this pilot base; dependency-policy-change.json contains exact generated old/new control hashes.",
+    "humanReview": "Existing CODEOWNERS review remains outstanding. approverRole is the required role, not a granted approval.",
+    "integration": "Regenerate the comparison record against the actual continuation PR base when integrating this isolated pilot."
+  },
+  "remainingEvidence": [
+    "Actual Windows PowerShell5.1 parsing and native C# compilation",
+    "Actual manifest and callback Job descendant/owner-death regressions",
+    "Interactive licence-page text/cancellation and exact installed vendor resource bytes",
+    "Independent SYSTEM watchdog, real first-rule fault cleanup and runner connectivity recovery",
+    "Genuine older-runtime upgrade under full effective network denial and actual selected running engine",
+    "Complete installed notebook/backup/ownership/restart/uninstall/reinstall flow on the resulting runtime",
+    "Genuinely absent-runtime first installation and Windows11 hardware acceptance"
+  ],
+  "release": "Development candidate; no version1.0 or full parity claim."
+}

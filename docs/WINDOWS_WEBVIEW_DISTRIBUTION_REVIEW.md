@@ -1,5 +1,35 @@
 # Windows WebView2 distribution review
 
+## Current continuation: exact Evergreen distribution
+
+The implemented follow-up classifies the unchanged Microsoft payload as a
+separately licensed vendor redistributable. Motion's MIT licence, the Rust
+bindings' licences, Microsoft's SDK loader licence, and the Evergreen runtime
+terms retain their separate scopes. `WINDOWS_VENDOR_RUNTIME.json` binds the exact
+payload, official terms, direct notices and included offline resources.
+
+Eight notice resources preserve the inspected vendor bytes, including the full
+runtime terms and SDK licence. The interactive licence page precedes installation;
+actual UI inspection and installed-resource verification are pending Windows CI.
+Silent/passive installation does not demonstrate external-user agreement.
+
+The current npm/Cargo inventory does not classify the embedded Microsoft runtime.
+This vendor record adds the missing inventory scope without broadening a package
+allowlist or changing controlled policies. Existing Code Owner review still
+applies. Included component notices and Credits are preserved in Microsoft's
+unmodified distribution; a text occurrence of a licence name alone is not a
+complete component licence assignment or proof of installation/use. No claim is
+made that packaging evidence establishes every distribution condition.
+
+A custom template now replaces only the locked upstream WebView prerequisite
+section, using the bundled standalone installer for missing or outdated runtime
+registrations. It requires strict successful completion and a fresh suitable
+version before copying Motion. See `WINDOWS.md` for the bounded offline-upgrade
+and running-engine acceptance candidate. Initially absent runtime installation
+remains an explicit unverified case.
+
+## Historical investigation at `0d1dd27`
+
 **Reviewed:** 25 November 2026. **Candidate:** `0d1dd27475525597c9d7fb6f02c75d0fbf01780d`.
 
 This is a bounded engineering review, not dependency-policy approval. Keep the

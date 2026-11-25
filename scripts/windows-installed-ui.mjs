@@ -10,6 +10,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { chromium, expect } from "@playwright/test";
 import { invokeWindowsNativeHelper } from "@motion/storage";
+import { probeActiveWebView } from "./windows-active-webview.mjs";
 
 assert.equal(process.platform, "win32", "Installed UI acceptance requires Windows");
 assert.equal(process.env.GITHUB_ACTIONS, "true", "Use a disposable CI profile for installed UI acceptance");
@@ -18,7 +19,23 @@ assert.ok(executable && isAbsolute(executable) && executable.endsWith(".exe"));
 const output = process.env.MOTION_ACCEPTANCE_OUTPUT;
 assert.ok(output && isAbsolute(output));
 const phase = process.env.MOTION_ACCEPTANCE_PHASE ?? "installed";
-assert.ok(["installed", "reinstalled"].includes(phase), "Known installed acceptance phase");
+assert.ok(["installed", "reinstalled", "offline-prerequisite"].includes(phase), "Known installed acceptance phase");
+const blockedRuntimePaths = phase === "offline-prerequisite" ? null
+  : JSON.parse(process.env.MOTION_ACCEPTANCE_BLOCKED_WEBVIEW_PATHS ?? "null");
+if (blockedRuntimePaths !== null) {
+  assert.ok(Array.isArray(blockedRuntimePaths) && blockedRuntimePaths.length > 0 && blockedRuntimePaths.length <= 64,
+    "The coordinator must supply its bounded pre-launch WebView firewall program list");
+  for (const path of blockedRuntimePaths) {
+    assert.ok(typeof path === "string" && win32.isAbsolute(path)
+      && win32.normalize(path).toLowerCase() === path.toLowerCase()
+      && win32.basename(path).toLowerCase() === "msedgewebview2.exe", "A blocked runtime path is malformed");
+  }
+} else {
+  assert.equal(phase, "offline-prerequisite", "Installed launches require explicit runtime firewall bindings");
+}
+const prerequisitePin = JSON.parse(await readFile(new URL("./windows-installer-payload-pin.json", import.meta.url), "utf8"));
+const minimumWebViewVersion = prerequisitePin.payload.containedRuntimeVersion;
+assert.match(minimumWebViewVersion, /^\d+\.\d+\.\d+\.\d+$/);
 await mkdir(output, { recursive: true });
 const notebookTitle = "Windows acceptance notebook";
 const notebookText = "Local notebook persists after the installed application closes.";
@@ -29,6 +46,7 @@ const forbiddenRequests = [], pageErrors = [], unexpectedDialogs = [];
 const localOrigins = new Set(["http://tauri.localhost", "https://tauri.localhost", "http://ipc.localhost", "https://ipc.localhost"]);
 const activeInstances = new Set();
 const activeNativeDrivers = new Set();
+const runtimeObservations = [];
 let instanceSequence = 0;
 let running;
 
@@ -56,7 +74,8 @@ async function captureFailureDiagnostics(current = running) {
     process: { exitCode: current.child.exitCode, signalCode: current.child.signalCode, stderr: current.stderr, stdout: current.stdout },
     console: current.console, browserLog: current.browserLog,
     failedRequests: current.failedRequests, failedResponses: current.failedResponses,
-    pageErrors, forbiddenRequests, dialogs: current.dialogs, unexpectedDialogs
+    pageErrors, forbiddenRequests, dialogs: current.dialogs, unexpectedDialogs,
+    activeWebView: current.activeWebView ?? null
   };
   const page = current.page;
   if (page && !page.isClosed()) {
@@ -220,6 +239,7 @@ async function launch({ startup = "ready", role = "owner" } = {}) {
     await expectReady(current);
   }
   assert.equal(await page.evaluate(() => typeof window.__TAURI__?.core?.invoke), "function");
+  await observeActiveRuntime(current, phase === "installed" && instanceSequence === 1);
   return current;
 }
 
@@ -381,6 +401,82 @@ function startNativeDialogDriver(request) {
   return driver;
 }
 
+async function authenticateMotionProcess(current) {
+  assert.equal(current.child.exitCode, null);
+  assert.equal(current.child.signalCode, null);
+  const driver = startNativeDialogDriver({ schemaVersion: 1, operation: "identify",
+    processId: current.child.pid, executablePath: executable });
+  let identified;
+  try { identified = await driver.finish(); }
+  finally { await driver.stop(); }
+  assert.equal(identified.ok, true, identified.error?.message);
+  const identity = identified.identity;
+  assert.equal(identity.processId, current.child.pid);
+  assert.equal(identity.executablePath.toLowerCase(), executable.toLowerCase());
+  assert.ok(Number.isSafeInteger(identity.sessionId) && identity.sessionId >= 0);
+  assert.match(identity.startTimeFileTimeUtc, /^\d{15,20}$/);
+  const startedAt = Number((BigInt(identity.startTimeFileTimeUtc) - 116444736000000000n) / 10000n);
+  assert.ok(startedAt >= current.launchStartedAt - 1000 && startedAt <= current.launchReturnedAt + 1000,
+    "The authenticated process creation belongs to this controller's actual spawn");
+  assert.equal(current.child.exitCode, null);
+  return { identity, driver: driver.evidence() };
+}
+
+async function observeActiveRuntime(current, negativeControls) {
+  const observation = { instance: current.label, status: "failed", debugPort: current.port, negativeControls: [] };
+  runtimeObservations.push(observation);
+  current.activeWebView = observation;
+  try {
+    const identified = await authenticateMotionProcess(current);
+    observation.motionAuthentication = identified;
+    const session = await current.browser.newBrowserCDPSession();
+    let product;
+    try { ({ product } = await session.send("Browser.getVersion")); }
+    finally { await session.detach(); }
+    const request = { motionIdentity: identified.identity, debugPort: current.port,
+      minimumVersion: minimumWebViewVersion, cdpProduct: product };
+    observation.native = await probeActiveWebView(request);
+    if (blockedRuntimePaths !== null) {
+      const path = observation.native.executable.path;
+      assert.ok(blockedRuntimePaths.some(blocked => blocked.toLowerCase() === path.toLowerCase()),
+        "The observed WebView executable must have been blocked before this launch");
+      observation.outboundFirewall = { preLaunchProgramMatched: true, path };
+    }
+    if (negativeControls) {
+      const reject = async (name, changedRequest, code, verify) => {
+        let caught;
+        try { await probeActiveWebView(changedRequest); }
+        catch (error) { caught = error; }
+        observation.negativeControls.push({ name, code: caught?.code ?? null, evidence: caught?.evidence ?? null });
+        assert.equal(caught?.code, code, `Real active-engine negative control: ${name}`);
+        assert.equal(caught.evidence?.ok, false);
+        if (verify) verify(caught.evidence);
+      };
+      await reject("stale Motion generation", { ...request, motionIdentity: { ...identified.identity,
+        startTimeFileTimeUtc: String(BigInt(identified.identity.startTimeFileTimeUtc) + 1n) } }, "PROCESS_IDENTITY_MISMATCH",
+      proof => { assert.equal(proof.phase, "motion"); assert.equal(proof.listener, null); });
+      // Keep this controller's distinct port bound: no unused-port race and no
+      // ability to mistake another Motion instance's live endpoint for this one.
+      const otherListener = createServer();
+      try {
+        otherListener.listen(0, "127.0.0.1");
+        await once(otherListener, "listening");
+        await reject("different live listener owner", { ...request, debugPort: otherListener.address().port }, "RUNTIME_IDENTITY_MISMATCH",
+          proof => assert.equal(proof.listener.owningProcessId, process.pid));
+      } finally {
+        await new Promise((resolve, rejectClose) => otherListener.close(error => error ? rejectClose(error) : resolve()));
+      }
+      await reject("minimum above the actual runtime", { ...request, minimumVersion: "65535.65535.65535.65535" }, "RUNTIME_TOO_OLD",
+        proof => assert.equal(proof.executable.fileVersion, observation.native.executable.fileVersion));
+    }
+    assert.equal(current.child.exitCode, null);
+    observation.status = "passed";
+  } catch (error) {
+    observation.failure = { code: error.code ?? null, message: String(error.message).slice(0, 2000), evidence: error.evidence ?? null };
+    throw error;
+  }
+}
+
 async function saveNativeBackupThroughDialog(current) {
   assert.equal(process.env.MOTION_NATIVE_HELPER, executable, "Fixture setup and read-back use the installed native helper");
   assert.ok(process.env.RUNNER_TEMP && isAbsolute(process.env.RUNNER_TEMP));
@@ -411,19 +507,9 @@ async function saveNativeBackupThroughDialog(current) {
     assert.match(privateRoot.identity, /^[a-f0-9]{64}$/);
     await writeFile(neighbour, neighbourBytes, { flag: "wx" });
     await assert.rejects(lstat(destination), { code: "ENOENT" });
-    assert.equal(current.child.exitCode, null);
-    assert.equal(current.child.signalCode, null);
-    const identified = await runDriver({ schemaVersion: 1, operation: "identify", processId: current.child.pid, executablePath: executable });
-    assert.equal(identified.ok, true, identified.error?.message);
+    const identified = await authenticateMotionProcess(current);
+    proof.drivers.push(identified.driver);
     const identity = identified.identity;
-    assert.equal(identity.processId, current.child.pid);
-    assert.equal(identity.executablePath.toLowerCase(), executable.toLowerCase());
-    assert.ok(Number.isSafeInteger(identity.sessionId) && identity.sessionId >= 0);
-    assert.match(identity.startTimeFileTimeUtc, /^\d{15,20}$/);
-    const startedAt = Number((BigInt(identity.startTimeFileTimeUtc) - 116444736000000000n) / 10000n);
-    assert.ok(startedAt >= current.launchStartedAt - 1000 && startedAt <= current.launchReturnedAt + 1000,
-      "The authenticated process creation belongs to this controller's actual spawn");
-    assert.equal(current.child.exitCode, null);
     proof.processIdentity = identity;
     const request = { schemaVersion: 1, operation: "save", processId: current.child.pid, executablePath: executable,
       expectedIdentity: identity, destination };
@@ -663,8 +749,7 @@ async function cleanupInstances() {
   return failures;
 }
 
-let acceptanceFailure, result;
-try {
+async function exerciseNotebookPhase() {
   let current = await launch();
   let baseline, backupEvidence;
   if (phase === "installed") {
@@ -709,12 +794,32 @@ try {
   assert.deepEqual(forbiddenRequests, [], "No external HTTP or WebSocket request was observed after connecting the test controller");
   assert.deepEqual(pageErrors, [], "Installed UI has no unhandled page errors");
   assert.deepEqual(unexpectedDialogs, [], "Only the explicitly checked restore confirmation may appear");
-  result = { schemaVersion: 1, commit: process.env.GITHUB_SHA, phase, verdict: "PASS",
+  return { schemaVersion: 1, commit: process.env.GITHUB_SHA, phase, verdict: "PASS",
     checks: ["native adapter", ...(phase === "installed" ? ["empty profile", "page editing", "attachment ingest", "real Verified backup button and native Save As", "verified saved-backup bytes and preview", "UI confirmation and restore into new workspace"] : ["selected restored notebook after uninstall/reinstall"]),
       "unchanged original workspace and revision", "exact restored attachment bytes", "second installed GUI exclusion", "same GUI retry after owner closes",
       "normal window close", "selected restored notebook after restart", "native search", "no external renderer requests observed after CDP connection"],
     backup: backupEvidence, singleWriter: exclusion.evidence,
     networkBoundary: "Windows firewall blocks application, local service and WebView2 outbound traffic before launch" };
+}
+
+let acceptanceFailure, result;
+try {
+  if (phase === "offline-prerequisite") {
+    const current = await launch({ role: "offline-prerequisite" });
+    const initial = await nativeSnapshot(current.page);
+    assert.equal(initial.selected.workspace, null);
+    assert.deepEqual(initial.workspaces, [], "The prerequisite probe leaves notebook creation to installed acceptance");
+    await closeNormally(current);
+    assert.deepEqual(forbiddenRequests, []);
+    assert.deepEqual(pageErrors, []);
+    assert.deepEqual(unexpectedDialogs, []);
+    result = { schemaVersion: 1, commit: process.env.GITHUB_SHA, phase, verdict: "PASS",
+      checks: ["native adapter", "empty profile", "authenticated active WebView2", "normal window close"],
+      networkBoundary: "This phase is invoked only inside the independently verified installer firewall window; see installer-offline-window.json" };
+  } else {
+    result = await exerciseNotebookPhase();
+  }
+  result.activeWebView = runtimeObservations;
 } catch (error) {
   acceptanceFailure = error;
   for (const current of [...activeInstances]) {
@@ -723,6 +828,10 @@ try {
   }
   await writeFile(join(output, `${phase}-ui-failure.txt`), `${error.stack ?? error}\n`);
 } finally {
+  try {
+    await writeFile(join(output, `${phase}-active-webview.json`), `${JSON.stringify({ schemaVersion: 1,
+      commit: process.env.GITHUB_SHA, phase, minimumVersion: minimumWebViewVersion, observations: runtimeObservations }, null, 2)}\n`);
+  } catch (error) { acceptanceFailure ??= error; }
   const cleanupFailures = await cleanupInstances();
   if (cleanupFailures.length) {
     await writeFile(join(output, `${phase}-ui-cleanup-failures.json`), `${JSON.stringify(cleanupFailures, null, 2)}\n`);

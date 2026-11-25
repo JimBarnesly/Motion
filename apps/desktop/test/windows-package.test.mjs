@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
@@ -32,4 +33,33 @@ test("Windows icon is a real multi-size ICO derivative", async () => {
     const size = bytes.readUInt32LE(entry + 8), offset = bytes.readUInt32LE(entry + 12);
     assert.ok(offset >= 6 + count * 16 && size > 0 && offset + size <= bytes.length);
   }
+});
+
+test("Windows distribution keeps the reviewed vendor notices exact and available offline", async () => {
+  const windows = await load("tauri.windows.conf.json");
+  assert.equal(windows.bundle.licenseFile, "../licenses/windows/INSTALLER-LICENSE.txt");
+  assert.equal(windows.bundle.resources["../licenses/windows/"], "licenses/windows/");
+  const root = new URL("../../../", import.meta.url);
+  const record = JSON.parse(await readFile(new URL("docs/WINDOWS_VENDOR_RUNTIME.json", root), "utf8"));
+  const pin = JSON.parse(await readFile(new URL("scripts/windows-installer-payload-pin.json", root), "utf8"));
+  assert.equal(record.classification.sha256, pin.payload.sha256);
+  assert.equal(record.classification.runtimePayloadVersion, pin.payload.containedRuntimeVersion);
+  assert.equal(record.includedOfflineResources.length, 8);
+  for (const resource of record.includedOfflineResources) {
+    assert.match(resource.relativePath, /^apps\/desktop\/licenses\/windows\/[A-Za-z0-9./_-]+$/);
+    assert.ok(!resource.relativePath.includes(".."));
+    const bytes = await readFile(new URL(resource.relativePath, root));
+    assert.equal(bytes.length, resource.bytes);
+    assert.equal(createHash("sha256").update(bytes).digest("hex"), resource.sha256, resource.relativePath);
+  }
+  const terms = await readFile(new URL("apps/desktop/licenses/windows/INSTALLER-LICENSE.txt", root), "utf8");
+  const motionLicence = await readFile(new URL("LICENSE", root), "utf8");
+  assert.ok(terms.replaceAll("\r\n", "\n").includes(motionLicence.replaceAll("\r\n", "\n").trim()),
+    "The original Motion licence remains complete across platform checkout line endings");
+  const template = await readFile(new URL("apps/desktop/src-tauri/windows/installer.nsi", root), "utf8");
+  const licencePage = template.indexOf('!insertmacro MUI_PAGE_LICENSE "${LICENSE}"');
+  assert.ok(licencePage > 0 && licencePage < template.indexOf("Section WebView2"));
+  const attributes = await readFile(new URL(".gitattributes", root), "utf8");
+  assert.match(attributes, /^apps\/desktop\/licenses\/windows\/\*\* -text$/m);
+  assert.match(attributes, /^apps\/desktop\/src-tauri\/windows\/\*\* -text$/m);
 });

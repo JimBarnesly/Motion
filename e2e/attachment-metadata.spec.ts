@@ -49,7 +49,7 @@ test("a hostile attachment size cannot inject actions or replace the current not
   await expect(page.locator("#saveState")).toContainText("Restore failed");
   await expect(page.getByRole("textbox", { name: "Page title" })).toHaveValue("Keep this notebook");
   expect(await storedWorkspace(page)).toEqual(before);
-  expect(messages.some(message => /attachments\[0\]\.byteLength/.test(message))).toBe(true);
+  expect(messages.some(message => message.includes("attachments[0].byteLength"))).toBe(true);
   expect(messages.join(" ")).not.toContain("Unexpected action");
   await expect(page.locator("#injected-action")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Unexpected action", exact: true })).toHaveCount(0);

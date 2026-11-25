@@ -5,7 +5,7 @@
   "branch": "feat/windows-notebook-resume",
   "pullRequest": 2,
   "releaseStatus": "in-development",
-  "priority": "Windows CI and actual installed acceptance",
+  "priority": "Resolve Windows backup replacement sharing failure, then run installed acceptance",
   "lastVerifiedCommit": "fed424dd9681e047ad74f0396f501928e70ccf8b",
   "activeLease": {
     "owner": "interactive-windows-installer-2026-11-25",
@@ -23,15 +23,17 @@
     "Added pinned local runtime, per-user offline NSIS packaging and installed acceptance workflow"
   ],
   "next": [
-    "Publish this candidate and inspect Windows installer CI, fixing actual compile/runtime failures",
-    "Complete deterministic in-place reparse and mapped-volume/ACL regression evidence",
+    "Publish focused Windows CI follow-up and inspect its native replacement regression before claiming the installer works",
+    "Execute deterministic in-place junction and inherited-ACL preservation regressions on actual Windows",
     "Prove installed restart, backup/restore and uninstall/reinstall data preservation",
     "Exercise offline installation with WebView2 initially absent on a clean Windows image",
     "Continue practical local writing, database views and portability parity after Windows installer acceptance"
   ],
   "openBlockers": [
-    "Actual Windows build and installed acceptance not yet observed",
-    "Inherited ARM64 package-inventory rejection remains unresolved; next CI captures bounded diagnostics",
+    "Windows candidate 0f91da4 compiles and passes 18 native tests, but existing backup replacement returns EBUSY and UI-state replacement fails; installer acceptance has not run",
+    "Two Windows ACL assertions failed because PowerShell 5.1 inherited a PowerShell 7 module path; scoped fixture fix awaits Windows execution",
+    "Cross-platform browser network fixture rejected a regex .test token in attachment-metadata.spec.ts; equivalent includes assertion passes all 19 local confinement tests",
+    "Inherited ARM64 inventory drift was traced to five official Debian security package updates; reviewed digest update awaits actual isolated build",
     "The glib exception renewal and governed changes remain draft CODEOWNERS review items",
     "Windows mapped-volume, in-place reparse and inherited-ACL preservation attack fixtures require execution evidence"
   ],
@@ -47,8 +49,23 @@
     "build": "passed",
     "dependencyInventory": "436 production packages, passed",
     "sourceSecurity": "119 first-party files, 8 unchanged rules, passed with 19 individually reviewed Windows FFI scopes",
-    "windowsNativeCompile": "actual modules and tests compile for x86_64-pc-windows-msvc in a compile-only harness",
-    "fullWindowsTauriBuild": "pending actual Windows CI; Linux cross-check blocked by unavailable llvm-rc",
-    "windowsExecution": "pending"
+    "windowsNativeCompile": "Passed full native Windows Tauri application compilation on windows-2022, commit 0f91da4",
+    "fullWindowsTauriBuild": "Native debug executable compiled; NSIS release packaging not reached because Windows service tests failed",
+    "windowsExecution": {
+      "commit": "0f91da4b3439b2b4a51bf43b7d4dd15ef5ab882b",
+      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45594915480",
+      "rust": {
+        "passed": 18,
+        "failed": 0,
+        "ignored": 0
+      },
+      "javascript": {
+        "passed": 17,
+        "failed": 4,
+        "skipped": 0
+      },
+      "installedAcceptance": "not reached"
+    },
+    "linuxX64Packaged": "Passed native compile, Clippy, packages, offline restart and packaged M2 acceptance at 0f91da4, run 45594915283"
   }
 }

@@ -30,9 +30,9 @@ running with the user's full authority. See [SECURITY.md](SECURITY.md).
 
 | ID | Finding | Initial impact | State |
 | --- | --- | --- | --- |
-| WN-01 | Reapplying an inheritable DACL to an existing root can alter unreviewed descendants. | Unintended permission changes before a foreign child is rejected. | Corrected in source: existing private ACLs are preserved; the repair API was removed. Windows regression remains pending. |
+| WN-01 | Reapplying an inheritable DACL to an existing root can alter unreviewed descendants. | Unintended permission changes before a foreign child is rejected. | Corrected in source: existing private ACLs are preserved; the repair API was removed. Child preservation and inheritance positive-control regressions are written; Windows execution remains pending. |
 | WN-02 | A drive-letter prefix does not establish that storage is local. | A mapped network drive could pass the advertised local-only path boundary. | Corrected in source: the opened volume must produce a local volume-GUID path, which anchors subsequent access. Windows mapped-drive fixture remains pending. |
-| WN-03 | Denying directory deletion does not prevent an empty directory becoming a reparse point in place. | Path-based create/link can follow a newly installed junction after the directory check. | Corrected in source: component traversal/create and publication use directory/file handles. In-place reparse runtime regression remains pending. |
+| WN-03 | Denying directory deletion does not prevent an empty directory becoming a reparse point in place. | Path-based create/link can follow a newly installed junction after the directory check. | Corrected in source: component traversal/create and publication use directory/file handles. After-pin junction create/link regressions are written; Windows execution remains pending. |
 | WN-04 | Guardian-only ownership can be released before the runner observes guardian death. | A blocked runner can still be active while a successor acquires its released writer lease. | Corrected in source: authenticated runner-lifetime duplicate handles retain authority. Blocked-runner regression is written; Windows execution remains pending. |
 
 ### WN-01 — inherited ACL propagation
@@ -281,7 +281,7 @@ unsafe code, a different call signature, or a changed implementation.
 | `filesystem.rs:179` | `relative_open` | One validated component, bounded UTF-16 length, live parent/security descriptor, synchronous mode plus SYNCHRONIZE, checked status/handle, immediate File ownership and shape check. |
 | `filesystem.rs:307` | `PinnedFile::remove` | DELETE-capable exact file handle; fixed SDK disposition struct; consumes the wrapper and closes that handle after marking deletion. |
 | `filesystem.rs:418` | `publish_no_replace` | Generated FILE_LINK_INFORMATION layout; usize-aligned allocation covers header and name; no-replace flag and live source/destination handles; native status checked. |
-| `filesystem.rs:449` | `replace_private_file` | Generated FILE_RENAME_INFORMATION layout; checked byte length/alignment; retained same-volume source/target; no fallible post-rename work in the primitive. |
+| `filesystem.rs:450` | `replace_private_file` | Generated FILE_RENAME_INFORMATION layout; checked byte length/alignment; retained same-volume source/target and identical parent identity; null-root bare-leaf same-directory rename; no fallible post-rename work in the primitive. |
 | `security.rs:43` | `LocalAllocation::drop` | One non-cloned owner frees the documented LocalAlloc-compatible result exactly once. |
 | `security.rs:51` | `sid_text` | SID is validated; converted string allocation remains owned; bounded scan and UTF-16 decode precede release. |
 | `security.rs:68` | `current_user_sid` | Current-process pseudo-handle is borrowed only for a synchronous token query, never closed as owned. |
@@ -298,12 +298,12 @@ unsafe code, a different call signature, or a changed implementation.
 Reviewed SHA-256 snapshots:
 
 ```text
-b52a92c7533ffa2bf57e5f953e21918834c6a8115d81380158c6bb7d8cb85660  apps/desktop/src-tauri/src/windows_platform/filesystem.rs
+752f41f1be66aa55ea8e39991f193a92d968dbae9b4a2e6595b36446258c6fc6  apps/desktop/src-tauri/src/windows_platform/filesystem.rs
 7c82a8712b8dcd9972ecb3ade2b73581bd65033c7d2d0815732d6ccdaa7cba78  apps/desktop/src-tauri/src/windows_platform/security.rs
 1466e055d8a910a9deb57c4274ab17197039aa4ae9ffe9307b32bf2bada22322  apps/desktop/src-tauri/src/windows_platform/process.rs
 a9a1b1968216158b9d1f9200e9511fb54b6fe0c9a6c59b98d5d0b893dabdbc4e  apps/desktop/src-tauri/src/windows_platform/root_guard.rs
 bb08920017bcb4619c5bd2c1b91a92194afa8cc0b034f758991b274eb9d4c7b2  apps/desktop/src-tauri/src/windows_platform/mod.rs
-1b436d7de033208caeccc68255016e443218f3921575684fa6b1a011a59097b5  apps/desktop/src-tauri/src/lib.rs
+0b014778d42898e8ad38ddfbfd3e91cbccb69e9ad2e536667b5fea9f720c3dec  apps/desktop/src-tauri/src/lib.rs
 0fce34529a6e6642a2cbaa7abb3bf32c2a1b5acc418a72f7ef9e8726ce4cd47f  apps/desktop/src-tauri/src/main.rs
 ad0c777bb2dd37d76647a06d578984f2d5d8d622bb544833308480f8857f8c52  apps/desktop/windows-service-lock.mjs
 255ea34c4e9bdd4a4412ec61c6e6b97c8cbdd22ea84c72e43b7b6de7c964f77c  apps/desktop/service-runner.mjs
@@ -314,7 +314,7 @@ dead86ef764480f11afc9248b89ddc0cb176a29faa0afb332f9dfae1f1c78118  apps/desktop/s
 98f8487e4b828e07692b8e3fd16094cf5f65d5133a2fddb3e1989648acbc816c  packages/storage/src/windows-native-helper.ts
 782cc56aebc22a835a5d1b978704910f0912db0d0b664089039c248ae8f2e174  packages/storage/src/windows-attachments.ts
 858a04571aef058ea3fe9136722dd2526fa114ec60c220186fa71585cbdcba95  scripts/windows-installed-acceptance.ps1
-8c69c2da4072702059aa1443ecc69bedafcf315eb6c545db1cbc9c3f2d0c7767  scripts/windows-installed-ui.mjs
+1aa7215bbeafd41fca11545a25e2c1a93ee005c22a49b5995df65483f81c1533  scripts/windows-installed-ui.mjs
 21dafe879d39246b959ac93772fe1db52bf784a078de714426393bd2f9682019  .github/workflows/windows.yml
 ```
 
@@ -374,3 +374,71 @@ failure artifact; a diagnostic file is never treated as a passing validation.
 The expected package inventory remains pinned and no observed mismatch is
 accepted without review. The six focused diagnostic/input tests pass locally;
 actual ARM64 Docker evidence remains pending the next CI run.
+
+## Follow-up diagnostic checkpoint after `0f91da4`
+
+The reviewer independently checked the narrow launcher change that passes
+`pinned_root.path()` to Node on Windows. This maintains the authenticated local
+volume-GUID namespace from the first native root pin through service startup.
+The Unix argument is unchanged. Making that accessor `pub(crate)` exposes no
+new native operation and adds no unsafe call.
+
+The first Windows candidate exposed an `EBUSY` replacement failure. The next
+diagnostic change requires identical authenticated source/target parent IDs and
+uses a null `RootDirectory` with a bare leaf. Microsoft documents this as the
+[same-directory rename form](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_rename_information).
+Both file guards and parent pins remain retained; no path fallback or release
+of the target guard was added. The bounded independent source review found no
+additional authorization or unsafe-contract defect in this change. A new
+positive replacement test deliberately requires the real operation to succeed
+and the old held reader to retain its bytes; a negative test requires rejection
+across different parents. This is a diagnostic candidate, not evidence that the
+observed Windows failure has been fixed.
+
+The only moved production unsafe scope is `filesystem.rs:450`, occurrence 0,
+with scanner fingerprint
+`sha256:b1f910df8d9f0d13472bbea085970b9257ca4f69f9d076c362c774326a146a29`.
+The other 18 reviewed production scopes retain their locations and call bodies.
+The file digests above bind this diagnostic source checkpoint, including both
+appended test-module declarations.
+
+### Deterministic Windows attack regressions
+
+The four tests in `windows_platform/tests` are compiled only through the
+appended `cfg(test)` module. They do not change production filesystem functions.
+
+| Test | Required observable behavior |
+| --- | --- |
+| After-pin junction creation | Installing the actual mount-point buffer must succeed while the pin remains open; volume/file ID stays the same, reparse metadata appears, and an ordinary path read reaches the controlled outside sentinel. Relative creation may fail or remain in the original directory, but cannot create anything in the redirected target. |
+| After-pin junction publication | The same verified mutation precedes native hard-link publication. No outside link may appear; any inside link must authenticate to the original staging handle and retain the exact attachment bytes. |
+| Rejected child preservation | Root reopening and child rejection leave the original owner, exact DACL bytes, descriptor control flags and contents unchanged. The unprotected child deliberately grants Builtin Users read access and must be rejected. |
+| ACL propagation positive control | A separate disposable fixture applies the removed inheritable-parent behavior and must observe an actual child DACL change while owner and bytes remain intact. This proves the preservation fixture can detect propagation. |
+
+The SDK-only attack helpers use checked, aligned reparse buffers, retained
+attribute handles and owned security-descriptor allocations. Their unsafe calls
+are test-only fixture code; they are not included in the 19 production review
+exceptions. An independent desktop/backup-agent review found no concrete fixture
+defect and confirmed that setup denial cannot count as successful protection.
+All junction targets remain inside the disposable test tree; the junction guard
+clears through its original handle before directory cleanup.
+
+The common-boundary reviewer compiled these actual modules and tests with
+`cargo check --locked --offline --target x86_64-pc-windows-msvc --tests` in a
+temporary harness. Compilation passed. It does not execute `FSCTL_SET_REPARSE_POINT`,
+ACL propagation, replacement, or any other Windows behavior. Those test results
+remain pending the next real Windows run. The test-directory README documents
+the real SMB/share/logon-session prerequisites for mapped-drive coverage; a
+missing share, local `SUBST` alias, or UNC syntax rejection is not counted as
+that regression.
+
+### PowerShell acceptance environment
+
+The reviewer also checked the Windows acceptance changes that launch the
+absolute OS Windows PowerShell 5.1 executable and replace inherited
+`PSModulePath` aliases with its matching OS module directory in the child
+environment. This addresses the observed module-autoload failure inherited
+through Node from PowerShell 7, a scenario documented in
+[about_PSModulePath](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_psmodulepath).
+ACL ownership assertions are unchanged. The UI-close command still interpolates
+only a validated positive integer PID. This changes test-process environment
+construction, not application permissions or the native storage boundary.

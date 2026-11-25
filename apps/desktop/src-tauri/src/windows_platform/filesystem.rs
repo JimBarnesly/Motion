@@ -201,7 +201,7 @@ pub(crate) struct PinnedDirectory {
 }
 
 impl PinnedDirectory {
-    pub(super) fn path(&self) -> &Path { &self.path }
+    pub(crate) fn path(&self) -> &Path { &self.path }
     pub(super) fn identity(&self) -> FileIdentity { self.identity }
     pub(super) fn duplicate_into(&self, parent: &mut ParentPins) -> io::Result<()> {
         for file in &self._ancestors { parent.duplicate(file)?; }
@@ -432,6 +432,7 @@ pub(super) fn replace_private_file(source: &PinnedFile, target: &PinnedFile) -> 
     if source.identity()?.links != 1 || target.identity()?.links != 1
         || source.original.same_file(&target.original)
         || source.original.volume_serial != target.original.volume_serial
+        || !source._parent.identity.same_file(&target._parent.identity)
     {
         return Err(denied());
     }
@@ -443,13 +444,13 @@ pub(super) fn replace_private_file(source: &PinnedFile, target: &PinnedFile) -> 
     let mut storage = vec![0usize; total.div_ceil(size_of::<usize>())];
     let mut status_block = IO_STATUS_BLOCK::default();
     // SAFETY: usize storage aligns FILE_RENAME_INFORMATION; the allocation includes the
-    // complete UTF-16 trailing array. Source and target handles/parents remain
-    // pinned. Unsupported POSIX rename/sharing semantics fail closed; there is
+    // complete UTF-16 trailing array. NULL root anchors the single target name to
+    // the source's verified same parent. All handles stay pinned; there is
     // deliberately no path-based fallback after releasing the target handle.
     unsafe {
         let information = storage.as_mut_ptr().cast::<FILE_RENAME_INFORMATION>();
         (*information).Anonymous = FILE_RENAME_INFORMATION_0 { Flags: FILE_RENAME_FLAG_REPLACE_IF_EXISTS | FILE_RENAME_FLAG_POSIX_SEMANTICS };
-        (*information).RootDirectory = target._parent.file.as_raw_handle();
+        (*information).RootDirectory = null_mut();
         (*information).FileNameLength = byte_length as u32;
         std::ptr::copy_nonoverlapping(name.as_ptr(), std::ptr::addr_of_mut!((*information).FileName).cast(), name.len());
         let status = NtSetInformationFile(source.file.as_raw_handle(), &mut status_block, information.cast(), total as u32, FileRenameInformationEx);
@@ -554,3 +555,11 @@ mod tests {
         std::fs::remove_dir_all(path).unwrap();
     }
 }
+
+#[cfg(test)]
+#[path = "tests/mod.rs"]
+mod filesystem_regressions;
+
+#[cfg(test)]
+#[path = "tests/replacement.rs"]
+mod replacement_tests;

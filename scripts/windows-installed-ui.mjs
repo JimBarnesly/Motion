@@ -76,9 +76,13 @@ async function closeNormally() {
   const current = running;
   if (!current) return;
   const exit = once(current.child, "exit");
-  const powershell = join(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  const powershellRoot = join(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0");
+  const powershell = join(powershellRoot, "powershell.exe");
+  const environment = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.toUpperCase() !== "PSMODULEPATH"));
   assert.ok(Number.isSafeInteger(current.child.pid) && current.child.pid > 0);
-  execFileSync(powershell, ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${current.child.pid}).CloseMainWindow()`], { windowsHide: true, timeout: 15_000 });
+  execFileSync(powershell, ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${current.child.pid}).CloseMainWindow()`], {
+    windowsHide: true, timeout: 15_000, env: { ...environment, PSModulePath: join(powershellRoot, "Modules") }
+  });
   const ended = await Promise.race([exit.then(() => true), delay(15_000).then(() => false)]);
   assert.ok(ended, "The installed window closes normally and releases its service");
   await current.browser.close();

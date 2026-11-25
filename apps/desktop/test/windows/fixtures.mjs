@@ -74,13 +74,18 @@ export async function waitForProcessExit(pid) {
 }
 
 export function assertPrivateAcl(path) {
+  const powershellRoot = join(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0");
+  // A pwsh 7 CI step exports its own module path. Windows PowerShell 5.1 must
+  // load the matching OS modules, not attempt to import the incompatible v7 DLLs.
+  const environment = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.toUpperCase() !== "PSMODULEPATH"));
   const script = "$ErrorActionPreference='Stop'; $acl=Get-Acl -LiteralPath $env:MOTION_TEST_ACL_PATH; "
     + "$owner=$acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value; "
     + "$current=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; "
     + "$rules=@($acl.Access | ForEach-Object { @{sid=$_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value; type=$_.AccessControlType.ToString(); inherited=$_.IsInherited} }); "
     + "@{owner=$owner; current=$current; protected=$acl.AreAccessRulesProtected; rules=$rules} | ConvertTo-Json -Depth 5 -Compress";
-  const result = spawnSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
-    encoding: "utf8", windowsHide: true, env: { ...process.env, MOTION_TEST_ACL_PATH: path }, timeout: 15_000
+  const result = spawnSync(join(powershellRoot, "powershell.exe"), ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
+    encoding: "utf8", windowsHide: true,
+    env: { ...environment, PSModulePath: join(powershellRoot, "Modules"), MOTION_TEST_ACL_PATH: path }, timeout: 15_000
   });
   assert.equal(result.status, 0, result.stderr);
   const acl = JSON.parse(result.stdout);

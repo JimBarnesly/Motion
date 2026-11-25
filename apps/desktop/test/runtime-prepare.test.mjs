@@ -39,7 +39,11 @@ test("unsupported platforms fail before creating a cache or preparing a Linux ru
 test("Windows runtime selection has independent official pins, PE naming and exact ZIP members", () => {
   for (const architecture of ["x64", "arm64"]) {
     const spec = runtimeSpecification("win32", architecture);
-    assert.equal(spec.url, `https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-win-${architecture}.zip`);
+    const source = new URL(spec.url);
+    assert.equal(source.protocol, "https:");
+    assert.equal(source.hostname, "nodejs.org");
+    assert.equal(source.pathname, `/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-win-${architecture}.zip`);
+    assert.equal(source.port + source.username + source.password + source.search + source.hash, "");
     assert.match(WINDOWS_ARCHIVES[architecture].sha256, /^[0-9a-f]{64}$/);
     assert.notEqual(spec.sha256, OFFICIAL_ARCHIVES[architecture].sha256);
     assert.equal(spec.member, `node-v${NODE_VERSION}-win-${architecture}/node.exe`);

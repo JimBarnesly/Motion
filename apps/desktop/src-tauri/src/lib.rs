@@ -364,8 +364,12 @@ fn start_service(node: &Path, runner: &Path, data_root: &Path) -> Result<Service
     let job = windows_platform::ServiceJob::new()
         .map_err(|_| reject("INTERNAL_ERROR", "Motion cannot create its local service job"))?;
     let mut command = Command::new(node);
-    command.arg(runner)
-        .arg(data_root)
+    command.arg(runner);
+    #[cfg(windows)]
+    command.arg(pinned_root.path());
+    #[cfg(not(windows))]
+    command.arg(data_root);
+    command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit());

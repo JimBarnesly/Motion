@@ -188,3 +188,19 @@ A permissive type union or migration field is not a shipped feature.
 10. **Completeness pass:** page presentation, remaining blocks, import/export and accessibility/performance qualification.
 
 No slice is complete until its canonical model, typed application/native commands, browser fallback, persistence, backup/export behavior, accessibility contract, tests, exact-SHA CI and packaged behavior agree.
+
+
+### Historical board recovery check — 25 November 2026
+
+A repository-only follow-up searched all 235 reachable commits, retained remote
+PR refs, all-state PR inventory, issue pointers and local unreachable objects.
+The isolated `/root/motion-m4-board` claim first appears in commit
+`5b077dc8d7c107fe59fa4107da47f7fca9d5cf75`; the earlier product review in
+`27707d6115306a979648875210a758a57c2944d6` describes an unfinished worktree.
+Neither records an implementation commit, task artifact or archive. Exact
+board/kanban source history contains only view-type allowlist/model additions;
+no renderer or board acceptance test was recovered. The only retained PR is
+this continuation's PR #2. Board implementation must therefore extend the
+recovered model and database code unless the old worktree or an exact external
+commit/archive becomes available. No claim is made about code that may have
+remained uncommitted in that earlier environment.

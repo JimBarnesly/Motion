@@ -20,6 +20,7 @@ export function validatePin(pin) {
   requireValue(payload?.member === "$TEMP/MicrosoftEdgeWebView2RuntimeInstaller.exe"
     && Number.isSafeInteger(payload.byteLength) && payload.byteLength > 0 && payload.byteLength < MAX_INSTALLER_BYTES
     && DIGEST.test(payload.sha256) && DIGEST.test(payload.signerCertificateSha256)
+    && payload.signatureIndex === 0
     && /^\d+\.\d+\.\d+\.\d+$/.test(payload.wrapperVersion)
     && /^\d+\.\d+\.\d+\.\d+$/.test(payload.containedRuntimeVersion)
     && payload.wrapperArchitecture === "x86" && payload.containedRuntimeArchitecture === "x64"
@@ -276,10 +277,19 @@ export async function verifyInstallerPayload({ installer, output }) {
     report.windowsTrust = { signtool: { path: signtool, ...sdkMeasurement, signature: sdkSignature } };
 
     report.phase = "windows-authenticode";
-    const verified = await runTool(signtool, ["verify", "/pa", "/all", "/tw", "/v", payloadPath], { cwd: toolsDirectory, env: environment });
+    // The exact pinned upstream wrapper carries a trusted Microsoft primary
+    // signature and an untrusted EdgeBuild nested signature. Authenticate the
+    // reviewed Microsoft signature explicitly; never tolerate a failed verify,
+    // trust EdgeBuild, or select whichever signature happens to pass.
+    const verificationArguments = ["verify", "/pa", "/ds", String(pin.payload.signatureIndex), "/tw", "/v"];
+    const verified = await runTool(signtool, [...verificationArguments, payloadPath], { cwd: toolsDirectory, env: environment });
     await writeFile(`${output}.signtool.txt`, `${verified.stdout}\n${verified.stderr}`, { flag: "wx" });
     report.windowsTrust.signtool.exitCode = verified.exitCode;
-    report.windowsTrust.signtool.arguments = ["verify", "/pa", "/all", "/tw", "/v"];
+    report.windowsTrust.signtool.arguments = verificationArguments;
+    report.windowsTrust.signatureSelection = { index: pin.payload.signatureIndex,
+      publisher: "Exact pinned Microsoft primary certificate",
+      secondarySignatures: "Observed metadata only; not trusted or used to authorize execution",
+      inventoryEvidence: "docs/WINDOWS_EVERGREEN_SIGNATURES_28a4180.json" };
     report.windowsTrust.payloadSignature = validateAuthenticode(await probe(payloadPath), pin.payload);
     requirePinnedMeasurement(await measureFile(payloadPath, pin.payload.byteLength), pin.payload, "Verified Evergreen payload");
     requirePinnedMeasurement(await measureFile(installer, MAX_INSTALLER_BYTES), outer, "Outer installer after inspection");

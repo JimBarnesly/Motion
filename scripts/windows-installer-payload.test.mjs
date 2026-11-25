@@ -18,6 +18,7 @@ test("reviewed payload and official extraction-tool pins preserve the measured i
   assert.equal(validatePin(pin), pin);
   assert.equal(pin.payload.sha256, "47bc51387aff95c1275ce38cfbbb5fbab99b43b33214049877bbcdbcc7a970d5");
   assert.equal(pin.payload.byteLength, 294099168);
+  assert.equal(pin.payload.signatureIndex, 0);
   assert.equal(pin.payload.signerCertificateSha256, "e0113ed8f5aebc48d48e53f699129d14ddedcfcae489aba7db411ed0838a14c0");
   assert.equal(pin.extractor.runnerImage, "win22/20261116.370");
   assert.equal(pin.extractor.officialAsset.sha256, "9b697f65ecc2d9b0152f5ee96d72dde522a7827690349d9307935dacf40f42ec");
@@ -26,6 +27,9 @@ test("reviewed payload and official extraction-tool pins preserve the measured i
     value => { value.extractor.files.push({ ...value.extractor.files[0], name: "Codecs/extra.dll" }); },
     value => { value.allowedWindowsSdks[0] = "../../unreviewed"; },
     value => { value.payload.signerCertificateSha256 = "a".repeat(40); },
+    value => { value.payload.signatureIndex = 1; },
+    value => { value.payload.signatureIndex = -1; },
+    value => { delete value.payload.signatureIndex; },
   ]) {
     const invalid = structuredClone(pin); change(invalid);
     assert.throws(() => validatePin(invalid));
@@ -100,12 +104,14 @@ test("byte pins reject same-size corruption and truncation, using real files", a
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test("verification-tool warnings, excessive output and deadlines fail instead of producing success", { timeout: 10_000 }, async () => {
+test("verification-tool errors, warnings, excessive output and deadlines fail instead of producing success", { timeout: 10_000 }, async () => {
   const success = await runVerificationTool(process.execPath, ["-e", "process.stdout.write('controlled verifier fixture')"]);
   assert.equal(success.exitCode, 0);
   assert.equal(success.stdout, "controlled verifier fixture");
-  await assert.rejects(runVerificationTool(process.execPath, ["-e", "process.stderr.write('controlled warning');process.exitCode=2"]),
-    error => error.toolExit === 2 && error.stderr === "controlled warning");
+  for (const code of [1, 2]) {
+    await assert.rejects(runVerificationTool(process.execPath, ["-e", `process.stderr.write('controlled verifier failure');process.exitCode=${code}`]),
+      error => error.toolExit === code && error.stderr === "controlled verifier failure");
+  }
   await assert.rejects(runVerificationTool(process.execPath, ["-e", "process.stdout.write('x'.repeat(262145))"]), /output limit/);
   await assert.rejects(runVerificationTool(process.execPath, ["-e", "setInterval(()=>{},10000)"], { timeout: 150 }), /timed out/);
 });

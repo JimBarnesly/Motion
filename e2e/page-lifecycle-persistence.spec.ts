@@ -181,23 +181,41 @@ for (const outcome of ["abort", "complete"] as const) {
 
 test("browser adapter rejects a read transaction aborted after its get request succeeds", async ({ page }) => {
   const before = await seed(page);
-  const result = await page.evaluate(async () => {
-    const { createMotionUiAdapter } = await import("/app-adapter.js");
+  const pageErrors: string[] = [];
+  page.on("pageerror", error => pageErrors.push(error.message));
+  await page.addInitScript(() => {
+    const runtime = window as any;
     const original = IDBObjectStore.prototype.get;
-    let requestSucceeded = false;
+    runtime.__lifecycleReadSucceeded = false;
+    runtime.__lifecycleReadAborted = false;
     IDBObjectStore.prototype.get = function (key) {
       const request = original.call(this, key);
-      request.addEventListener("success", () => {
-        requestSucceeded = true;
-        request.transaction!.abort();
-      });
+      if (this.name === "workspace" && this.transaction.db.name === "motion-web-development" && key === "default") {
+        // Only the application's next real load is intercepted. Retry and the
+        // independent durable read use the original IndexedDB method.
+        IDBObjectStore.prototype.get = original;
+        request.addEventListener("success", () => {
+          runtime.__lifecycleReadSucceeded = true;
+          request.transaction!.addEventListener("abort", () => { runtime.__lifecycleReadAborted = true; });
+          request.transaction!.abort();
+        });
+      }
       return request;
     };
-    try {
-      try { await createMotionUiAdapter({}).load(); return { outcome: "resolved", requestSucceeded }; }
-      catch (error) { return { outcome: "rejected", requestSucceeded, name: (error as Error).name }; }
-    } finally { IDBObjectStore.prototype.get = original; }
   });
-  expect(result).toEqual({ outcome: "rejected", requestSucceeded: true, name: "AbortError" });
+  await page.reload({ waitUntil: "commit" });
+  await expect(page.locator('[data-startup-state="error"]')).toBeVisible();
+  await expect(page.locator("#saveState")).toHaveText("Could not open Motion");
+  expect(await page.evaluate(() => ({
+    requestSucceeded: (window as any).__lifecycleReadSucceeded,
+    transactionAborted: (window as any).__lifecycleReadAborted
+  }))).toEqual({ requestSucceeded: true, transactionAborted: true });
+  await expect(page.getByRole("textbox", { name: "Page title", exact: true })).toHaveCount(0);
   expect(await readStored(page)).toEqual(before);
+  await page.getByRole("button", { name: "Retry opening Motion" }).click();
+  await expect(page.locator("#saveState")).toHaveText("Browser development mode");
+  await expect(page.getByRole("textbox", { name: "Page title", exact: true })).toHaveValue("Restorable page");
+  await expect(page.locator('[data-block="primary-block"]')).toHaveText("Canonical content remains intact");
+  expect(await readStored(page)).toEqual(before);
+  expect(pageErrors).toEqual([]);
 });

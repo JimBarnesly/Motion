@@ -862,3 +862,65 @@ byte-identical official Node comparison are retained in the installed-evidence
 JSON. The locked MSVC WebView binding links its loader statically. This is a
 bounded static finding, not recursive resolution against a Windows 11 system or
 proof of fresh-machine launch; no packaging change is inferred from it.
+
+
+## Exact Microsoft signature selection after `28a4180`
+
+[Windows run45619140961](https://github.com/JimBarnesly/Motion/actions/runs/45619140961)
+passed full native compilation, 28 Rust tests, 23 native/service tests, startup
+checks and NSIS creation. The new prerequisite gate then stopped before any
+installer execution. Extraction-tool pins, the complete 11-member NSIS inventory,
+exact 294,099,168-byte wrapper SHA-256, and SDK SignTool authentication passed.
+`verify /pa /all /tw /v` returned exit1: index0 was the timestamped Microsoft
+primary signature, while index1 was an untimestamped self-issued EdgeBuild
+signature. The installer upload was correctly withheld; only four diagnostic
+files were retained. The downloaded diagnostic ZIP's exact hash and unmodified
+failed trust output are in `WINDOWS_PREREQUISITE_EVIDENCE_28a4180.json`. This is
+not an installed acceptance result, and the payload PowerShell probe was not
+reached.
+
+Independent static analysis of the same exact wrapper found one WIN_CERTIFICATE
+entry containing Microsoft's PKCS7 signature and one nested EdgeBuild signature
+in the primary SignerInfo's unauthenticated attribute
+`1.3.6.1.4.1.311.2.4.1`. Both cover identical signed content and PE image digest.
+The independent reviewer verified the signature math and extracted the actual
+signer certificates; the root separately measured the complete PE, certificate
+table, exact DER boundaries/padding and nested signature bytes. The complete
+bounded inventory is `WINDOWS_EVERGREEN_SIGNATURES_28a4180.json`. EdgeBuild is
+explicitly not trusted. The distinction between the aligned certificate payload
+and exact DER corrects a label in an older temporary report; the complete-file
+and Microsoft signer-certificate pins are unchanged.
+
+The corrected policy authenticates the exact reviewed **Microsoft primary
+publisher signature**, rather than requiring every nested signature to chain to
+a trusted root. Microsoft documents `/ds Index` as deliberate signature
+selection, separately from `/all`, and its own sample selects primary index0
+with WSS_VERIFY_SPECIFIC before inspecting secondaries:
+
+- https://learn.microsoft.com/en-us/windows/win32/seccrypto/signtool
+- https://learn.microsoft.com/en-us/windows/win32/api/wintrust/ns-wintrust-wintrust_signature_settings
+- https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/Security/CodeSigning/cpp/codesigning.cpp
+
+The verifier therefore requires numeric index0 and a fresh
+`verify /pa /ds 0 /tw /v` execution with **exit0 only**. It records the actual
+argument array. There is no fallback to a different signer, acceptance of a
+failed `/all`, certificate import, trust-store change, signing, signature removal
+or payload rewrite. Exact full-file size/hash before and after, pinned Microsoft
+certificate DER hash, embedded Windows `Valid` status, Microsoft publisher,
+timestamp certificate and wrapper version all remain mandatory. The full-file
+hash also binds the certificate table that the Authenticode image digest excludes.
+
+The independent editor reviewer inspected the final three-file delta and found
+no blocking defect. All eight verifier regressions pass, including missing,
+negative and secondary-index rejection, actual process exit1 and exit2 rejection,
+byte tampering, wrong certificate, absent timestamp, catalog evidence, and
+install/upload ordering. Actual selected-primary SignTool success together with
+the existing payload probe still requires the next Windows run. This correction
+changes the signature-selection contract; it does not reclassify the failed
+all-signatures run as success or approve redistribution.
+
+| Corrected source | SHA-256 |
+| --- | --- |
+| `scripts/windows-verify-installer-payload.mjs` | `4d34d814877cb19091171e7e816bcc1036f9443704d296110c905cbcaae1a0ca` |
+| `scripts/windows-installer-payload-pin.json` | `60f7f9715f60e003357a59f2ed1df39c7c671d8c298942f9b2fedf170eb11433` |
+| `scripts/windows-installer-payload.test.mjs` | `d0b367e98446b04d4b5038b4db6910c0124f51ec7ae352e426dd089a52384e53` |

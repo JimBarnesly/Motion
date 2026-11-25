@@ -88,6 +88,19 @@ there is no network listener.
 
 ## Current release evidence — 25 November 2026
 
+The newest built candidate, `28a4180`, stopped **before installation** in
+[Windows run45619140961](https://github.com/JimBarnesly/Motion/actions/runs/45619140961):
+all native tests passed, but the new all-signatures prerequisite check rejected
+an extra self-signed EdgeBuild signature inside the exact official Microsoft
+wrapper. The reviewed correction deliberately selects Microsoft's pinned primary
+signature, preserving strict zero-exit Windows trust and all byte/certificate
+checks. Its next native result is pending. Both Linux jobs passed; general
+verification needs the confinement-compatible lifecycle-test correction, which
+passes its local gate and eight focused browser cases. The failed prerequisite
+run is retained separately and is not counted as installed GUI evidence.
+
+The most recent actual installed-application evidence remains:
+
 Candidate `a64ceb03a9fb773285ca8633e5c84981d396c5db` built and installed its
 current-user NSIS package in [Windows run45612288185](https://github.com/JimBarnesly/Motion/actions/runs/45612288185).
 All **28 Rust**, **23 Windows native/service**, **three startup-gate**, and

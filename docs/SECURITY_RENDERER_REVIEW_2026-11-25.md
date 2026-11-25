@@ -330,3 +330,20 @@ mobile correction. All-workspace typecheck, lint and the unchanged secret scan
 also passed. Source analysis passed for 122 first-party files under all eight
 unchanged rules, with only the reviewed existing database-layout fingerprint
 rebound. Actual installed Windows execution remains the next acceptance step.
+
+
+### Browser confinement contract correction after `28a4180`
+
+General CI run45619140898 passed compilation, typechecks, workspace tests and
+preceding security checks, then correctly rejected the new lifecycle test's
+dynamic import under the existing suite-wide confinement contract. The
+production application and confinement rule are unchanged. The regression now
+intercepts the next real IndexedDB read during normal application startup,
+observes request success followed by transaction abort, requires the honest
+startup failure, and exercises Retry to reopen the exact unchanged workspace.
+It no longer imports an adapter or creates a browser outside the shared fixture.
+All **19 unchanged confinement tests** and **eight lifecycle browser cases** pass
+locally after this test-only correction. The earlier 86-case application run
+remains valid local evidence; complete CI for the corrected test is still needed.
+
+Corrected regression SHA-256: `f06d2b6397377fe1545b2a109f2666cbf9bdd14789d9e4252345372f386a4ebc`.

@@ -5,12 +5,12 @@
   "branch": "feat/windows-notebook-resume",
   "pullRequest": 2,
   "releaseStatus": "in-development",
-  "priority": "Finish installed Windows attachments, backup/restore, concurrent-GUI exclusion, restart and uninstall/reinstall acceptance",
+  "priority": "Pass exact Microsoft prerequisite signature verification, then installed attachment/backup/restart/reinstall acceptance",
   "lastVerifiedCommit": "fed424dd9681e047ad74f0396f501928e70ccf8b",
   "activeLease": {
     "owner": "interactive-windows-installer-2026-11-25",
-    "startedAt": "2026-11-25T12:59:04Z",
-    "expiresAt": "2026-11-25T14:59:04Z",
+    "startedAt": "2026-11-25T13:24:40Z",
+    "expiresAt": "2026-11-25T15:24:40Z",
     "scope": "Windows installed attachment/backup/lifecycle acceptance and continuation"
   },
   "continuationAutomation": "Automation_1b45f83f28188191b31f671c6229efd8",
@@ -44,13 +44,15 @@
     "Continue the concrete writing slice in WRITING_PARITY_NEXT.md after Windows baseline acceptance"
   ],
   "openBlockers": [
+    "Latest Windows28a4180 built NSIS but correctly withheld execution/upload: SignTool /all rejected the pinned official wrapper's additional EdgeBuild self-signed signature. Reviewed correction selects exact Microsoft primary0 with strict exit0 and unchanged complete-file/certificate/Windows trust requirements; actual Windows selected-primary and payload probe are pending.",
+    "Latest core28a4180 verify rejected a new test dynamic import under the unchanged browser confinement rule. The test now exercises actual startup read-abort and Retry; unchanged confinement19/19 and lifecycle8/8 pass locally. Complete corrected CI is pending.",
     "The a64ceb0 installed GUI saved a page/title and body, then attachment input supplied an empty live FileList after clearing it. The next candidate captures File objects before clearing; its focused real file-input regression passes. Later installed acceptance remains unproven.",
     "Actual-service backup byte transport and roundtrip pass, and complete core CI at a64ceb0 passes. Installed restore and native Save As dialog coverage remain separate outstanding evidence.",
     "Initially absent WebView2 and fully offline installation still require a clean Windows image; the hosted runner already has WebView2. Before/after inventory explicitly does not claim genuine absence.",
     "The glib exception renewal and governed changes remain draft CODEOWNERS review items.",
     "Current Evergreen third-party notices require explicit binary-policy classification before release. The next fail-closed payload/signature gate does not confer distribution approval. No exception or human approval is inferred."
   ],
-  "notes": "a64ceb0 is a built and installed development candidate, not 1.0. Actual installed startup and page/title/body save pass; the attachment input defect is reproduced and corrected without weakening feature assertions. Read WINDOWS_INSTALLED_EVIDENCE_a64ceb0.json for exact run, tested merge SHA, independently verified artifact and mapped-SMB evidence. The next candidate keeps production Windows path/GUID authority, native backup protocol, schema, IPC capabilities and CSP unchanged. Browser lifecycle changes await committed IndexedDB transactions and persist canonical mutation plus selection together; native selection-save failure is distinguished from canonical success. New payload verification runs before installer execution, gates candidate upload, and uses exact reviewed bytes plus actual Windows trust. Runtime inventory is read-only and does not prove clean-image absence. Normal window close terminates the local service; restart acceptance proves durable recovery, not graceful SQLite-close execution. Active lease prevents overlapping scheduled writes.",
+  "notes": "The latest Windows28a4180 attempt failed prerequisite verification before install, so a64ceb0 remains the most recent actually installed GUI evidence. Read WINDOWS_PREREQUISITE_EVIDENCE_28a4180.json and WINDOWS_EVERGREEN_SIGNATURES_28a4180.json for exact failed-run/secondary-signature evidence. The next verifier explicitly authenticates primary Microsoft index0, without accepting any nonzero exit, trusting EdgeBuild or changing payload/primary certificate pins. Two Linux jobs passed at28a4180; the general verify job requires the corrected confinement-compatible lifecycle test. All prior installed attachment/restore/restart/reinstall obligations remain open. Native Save As acceptance and nested-editor foundations are separate work in progress, not evidence for this candidate. No1.0 or human approval is inferred; the active lease prevents overlapping writes.",
   "candidateVerification": {
     "portableWorkspaceTests": {
       "passed": 426,
@@ -103,9 +105,9 @@
       "testedMergeCommit": "124e65bd8b8283847fa3683b2cf9423286e6b968",
       "mappedShare": "PASSED: reachable local and mapped controls, five native refusals, service refusal, unchanged physical/security snapshots, exact cleanup"
     },
-    "linuxX64Packaged": "Passed entire Linux x64 job139198630057 at a64ceb0, run45612288566",
+    "linuxX64Packaged": "Passed entire Linux x64 job139222344505 at28a4180, run45619140898",
     "completeCoreCi": "Passed complete verify job139198629866 at a64ceb0, run45612288566, including browser/offline/security/benchmark gates",
-    "arm64IsolatedValidation": "Passed entire ARM64 job139198629231 at a64ceb0, run45612288566",
+    "arm64IsolatedValidation": "Passed entire ARM64 job139222344354 at28a4180, run45619140898",
     "startupRecoveryBrowserTests": {
       "passed": 75,
       "failed": 0,
@@ -129,7 +131,7 @@
       },
       "windowsRegressionCompile": "Full actual Windows Tauri debug/release builds and native regression execution passed at a64ceb0"
     },
-    "latestCoreCi": "Passed complete verify job139198629866 at a64ceb0, run45612288566, including browser/offline/security/benchmark gates",
+    "latestCoreCi": "28a4180 verify139222344125 failed confinement contract on dynamic import in new lifecycle regression; production tests/typechecks and preceding security gates passed. Corrected real startup regression and unchanged confinement gate pass locally.",
     "backupCodecCandidate": {
       "actualServiceRoundtrip": "passed locally and in complete core CI at a64ceb0, with real workspace and binary attachment, file publication, corruption rejection and new-identity restore",
       "webAdapterTests": 54,
@@ -138,7 +140,7 @@
     },
     "installerPayloadGateCandidate": {
       "localContractTests": 8,
-      "windowsExecution": "pending next candidate",
+      "windowsExecution": "28a4180 verified complete bytes/tools but /all failed on EdgeBuild; exact-primary correction requires next Windows run",
       "inventory": "read-only before/after; genuineAbsenceProven remains false",
       "upload": "NSIS candidate upload requires payload verification success; diagnostic evidence is retained separately"
     },
@@ -158,8 +160,28 @@
       "lint": "passed: 162 JavaScript files and 51 JSON files",
       "secretScan": "passed: 425 tracked/non-ignored files with unchanged scanner policy",
       "nativeSelectionSaveFailure": "source reviewed; no new injected native failure fixture",
-      "windowsExecution": "pending next native run"
+      "windowsExecution": "pending next native run",
+      "confinementCorrection": {
+        "unchangedGatePassed": 19,
+        "lifecycleCasesPassed": 8,
+        "sourceReview": "passed independently",
+        "completeCi": "pending"
+      }
+    },
+    "windowsPrerequisiteAttempt": {
+      "headCommit": "28a41800a80ae23125768e820e1f9b8ddabadd26",
+      "testedMergeCommit": "2d18bdba66da9ea26ec4f92d767c92fca411e93c",
+      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45619140961",
+      "job": 139222344506,
+      "rust": 28,
+      "nativeService": 23,
+      "installerBuilt": true,
+      "installerExecuted": false,
+      "installerUploaded": false,
+      "status": "failed: all-signatures trust requirement rejected additional untrusted EdgeBuild signature",
+      "completePayloadBytesAndSdkTrust": "passed",
+      "correctedPrimarySignatureAndPayloadProbe": "pending next Windows candidate"
     }
   },
-  "lastObservedCommit": "a64ceb03a9fb773285ca8633e5c84981d396c5db"
+  "lastObservedCommit": "28a41800a80ae23125768e820e1f9b8ddabadd26"
 }

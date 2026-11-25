@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "headCommit": "28a41800a80ae23125768e820e1f9b8ddabadd26",
+  "testedMergeCommit": "2d18bdba66da9ea26ec4f92d767c92fca411e93c",
+  "run": "https://github.com/JimBarnesly/Motion/actions/runs/45619140961",
+  "job": 139222344506,
+  "artifact": "https://github.com/JimBarnesly/Motion/actions/runs/45619140961/artifacts/15024616987",
+  "artifactZip": {
+    "byteLength": 4365,
+    "sha256": "07f1bb4adae030f70f4793746cac775df4649f38e07eefb3e8871d72d55b5f1e",
+    "independentlyDownloadedAndHashed": true
+  },
+  "report": {
+    "schemaVersion": 1,
+    "commit": "2d18bdba66da9ea26ec4f92d767c92fca411e93c",
+    "pinSha256": "5817c012c4efe1bd8c0dbcee87f31d7391edc386aaf471c2021921e480ab91f8",
+    "status": "failed",
+    "phase": "windows-authenticode",
+    "scope": "Final NSIS embedded Evergreen payload provenance and Windows signature verification. No application networking, packaging mode, licence classification, outer Motion signing, installed-engine pin or initially-absent-runtime acceptance is implied.",
+    "cleanup": {
+      "passed": true
+    },
+    "extractor": {
+      "version": "26.06",
+      "officialAsset": {
+        "url": "https://github.com/ip7z/7zip/releases/download/26.06/7z2606-x64.exe",
+        "byteLength": 1659704,
+        "sha256": "9b697f65ecc2d9b0152f5ee96d72dde522a7827690349d9307935dacf40f42ec"
+      },
+      "verifiedFiles": [
+        {
+          "name": "7z.exe",
+          "byteLength": 574464,
+          "sha256": "dc0493429fe28136fcb177a0e77c9875cbb3b0bff5f2f8eeba4df302e98cef76"
+        },
+        {
+          "name": "7z.dll",
+          "byteLength": 1897984,
+          "sha256": "500db9eb17f3c21b729ba41dd02ecfe1823da05028c7e4ba129084cc74cc364e"
+        }
+      ],
+      "optionalPluginDirectories": "absent",
+      "workingDirectory": "owned tool directory",
+      "pathSearch": "System32 only"
+    },
+    "installer": {
+      "name": "Motion_0.1.0_x64-setup.exe",
+      "byteLength": 323717758,
+      "sha256": "2ff5a02a163d3727db603cf55e86a06d3d0295c6c8c3999313f479b3387f33d6"
+    },
+    "inventory": {
+      "memberCount": 11,
+      "expectedPayloadCount": 1
+    },
+    "payload": {
+      "member": "$TEMP/MicrosoftEdgeWebView2RuntimeInstaller.exe",
+      "byteLength": 294099168,
+      "sha256": "47bc51387aff95c1275ce38cfbbb5fbab99b43b33214049877bbcdbcc7a970d5",
+      "wrapperVersion": "1.3.315.17",
+      "containedRuntimeVersion": "158.0.4370.33",
+      "runtimeVersionSource": "Reviewed content of the exact pinned wrapper",
+      "officialUrl": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/63f7af19-5d22-43ab-af18-239a7b23b84c/MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+    },
+    "windowsTrust": {
+      "signtool": {
+        "path": "C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.26100.0\\x64\\signtool.exe",
+        "byteLength": 543184,
+        "sha256": "0d0189af3356554a462c2a60d0d59f6006b68d743f5c0cc93c530b083706f075",
+        "signature": {
+          "schemaVersion": 1,
+          "status": "Valid",
+          "signatureType": "Authenticode",
+          "signer": {
+            "subject": "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+            "issuer": "CN=Microsoft Windows Code Signing PCA 2024, O=Microsoft Corporation, C=US",
+            "derSha256": "f2540c63525e9566ffbbe630b860674a115ce2ce14dd8399ed53c376c920912f",
+            "notBeforeUtc": "2026-03-05T19:58:24.0000000Z",
+            "notAfterUtc": "2027-03-03T19:58:24.0000000Z"
+          },
+          "timestampSigner": {
+            "subject": "CN=Microsoft Time-Stamp Service, OU=nShield TSS ESN:521A-05E0-D947, OU=Microsoft Ireland Operations Limited, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+            "issuer": "CN=Microsoft Time-Stamp PCA 2010, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+            "derSha256": "d0f250603e5db7c99d12cd44ade6984e21e8073f2c2b90dc1ebf17b693e45a5b",
+            "notBeforeUtc": "2025-08-14T18:48:23.0000000Z",
+            "notAfterUtc": "2026-11-13T18:48:23.0000000Z"
+          },
+          "fileVersion": "10.0.26100.9457",
+          "originalFilename": "SIGNTOOL.EXE"
+        }
+      }
+    },
+    "failure": {
+      "message": "Verification tool failed with exit 1",
+      "toolExit": 1
+    }
+  },
+  "failedToolOutput": "\n\nVerifying: D:\\a\\_temp\\motion-installer-verification-2afom5\\payload\\MicrosoftEdgeWebView2RuntimeInstaller.exe\n\n\nSignature Index: 0 (Primary Signature)\nHash of file (sha256): 6568048D78DB25DCA37BDF2705EF3ED589190E92AD3CA955AB8D2F6CDC74F32C\n\nSigning Certificate Chain:\n    Issued to: Microsoft Root Certificate Authority 2011\n\n    Issued by: Microsoft Root Certificate Authority 2011\n\n    Expires:   Sat Mar 22 22:13:04 2036\n\n    SHA1 hash: 8F43288AD272F3103B6FB1428485EA3014C0BCFE\n\n\n        Issued to: Microsoft Code Signing PCA 2024\n\n        Issued by: Microsoft Root Certificate Authority 2011\n\n        Expires:   Sat Mar 22 22:13:04 2036\n\n        SHA1 hash: 5039C8DC9ACE1CE039587E43486DE073FA459222\n\n\n            Issued to: Microsoft Corporation\n\n            Issued by: Microsoft Code Signing PCA 2024\n\n            Expires:   Wed Jul 28 20:30:30 2027\n\n            SHA1 hash: 1C74821BF8D0EC04326C05EAED18ADB3841B44F9\n\n\nThe signature is timestamped: Thu Nov 19 06:23:45 2026\n\nTimestamp Verified by:\n    Issued to: Microsoft Root Certificate Authority 2010\n\n    Issued by: Microsoft Root Certificate Authority 2010\n\n    Expires:   Sat Jun 23 22:04:01 2035\n\n    SHA1 hash: 3B1EFD3A66EA28B16697394703A72CA340A05BD5\n\n\n        Issued to: Microsoft Time-Stamp PCA 2010\n\n        Issued by: Microsoft Root Certificate Authority 2010\n\n        Expires:   Mon Sep 30 18:32:25 2030\n\n        SHA1 hash: 36056A5662DCADECF82CC14C8B80EC5E0BCC59A6\n\n\n            Issued to: Microsoft Time-Stamp Service\n\n            Issued by: Microsoft Time-Stamp PCA 2010\n\n            Expires:   Mon May 17 19:40:06 2027\n\n            SHA1 hash: 75ADB9859334BBA802B539ABF4F0052785B34852\n\n\n\nSignature Index: 1\nHash of file (sha256): 6568048D78DB25DCA37BDF2705EF3ED589190E92AD3CA955AB8D2F6CDC74F32C\n\nSigning Certificate Chain:\n    Issued to: EdgeBuild\n\n    Issued by: EdgeBuild\n\n    Expires:   Sat Dec 31 23:59:02 2039\n\n    SHA1 hash: C9E46F4957F5753E87D629F159647686B1588661\n\n\nFile is not timestamped.\n\n\nNumber of signatures successfully Verified: 1\n\nNumber of warnings: 0\n\nNumber of errors: 1\n\n\nSignTool Error: A certificate chain processed, but terminated in a root\n\tcertificate which is not trusted by the trust provider.\n",
+  "limits": [
+    "Installer built but was not executed or uploaded because final prerequisite verification failed",
+    "Before/after runtime inventory, installed-native tests and graphical acceptance were not reached in this run",
+    "The reported outer installer hash is CI measurement; no installer artifact was available for independent download in this run",
+    "SignTool all-signatures result is a failure; selected-primary invocation and payload OS probe are pending next candidate"
+  ]
+}

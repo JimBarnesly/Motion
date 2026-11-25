@@ -86,8 +86,8 @@ A permissive type union or migration field is not a shipped feature.
 | File block | Complete | Native canonical attachment identity and restart-safe access | shipped |
 | Contextual block gutter | Candidate | Type control is a 28 px six-dot target outside reading flow, shown on hover/focus | Slice UI-1 |
 | Slash command menu | Candidate | Filtered accessible listbox; selected transform and query removal use one `block.batch` | Slice EDIT-1 |
-| Toggle block | Model only | Core type exists; no production authoring/rendering behavior | Slice BLOCK-1 |
-| Callout block | Model only | Core type exists; no product UI | Slice BLOCK-1 |
+| Toggle block | Candidate | Existing canonical type now has slash/type authoring, child Enter/paste, persisted view-only folds, awaited search/backlink reveal and recoverable history. Integrated 107-case browser suite passes; exact-candidate CI and installed Windows writing remain pending. | Slice BLOCK-1 |
+| Callout block | Candidate | Existing canonical type now has authoring, nested writing and neutral presentation; canonical service restart/export/backup tests pass. Exact-candidate CI and installed Windows writing remain pending. | Slice BLOCK-1 |
 | Image block | Model only | Attachment payload exists; no image authoring/rendering workflow | Slice BLOCK-2 |
 | Bookmark block | Model only | URL payload validation exists; no preview UI | Slice BLOCK-2 |
 | Child-page block | Model only | Core payload exists; sidebar child pages are separate | Slice BLOCK-2 |

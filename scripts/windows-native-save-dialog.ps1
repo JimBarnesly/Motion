@@ -79,7 +79,8 @@ function Get-TargetWindows {
         [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, [int]$identity.processId),
         [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Window))
     # Search only top-level windows; all further traversal is inside the exact
-    # process/title match. No desktop-wide keys, coordinates, or descendant scan.
+    # process/title match. No unscoped keyboard/coordinate fallback or desktop
+    # descendant scan; input requires observed authenticated foreground/focus.
     $windows = [System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, $condition)
     if ($windows.Count -gt 32) { throw 'The selected process exposed too many windows.' }
     foreach ($window in $windows) { $window }
@@ -157,11 +158,169 @@ function Get-ControlSummary($Element) {
         automationId = $automationId.Substring(0, [Math]::Min(120, $automationId.Length))
         controlType = $current.ControlType.ProgrammaticName
         processId = $current.ProcessId
+        nativeWindowHandle = $current.NativeWindowHandle
         enabled = $current.IsEnabled
         offscreen = $current.IsOffscreen
         keyboardFocusable = $current.IsKeyboardFocusable
         hasKeyboardFocus = $current.HasKeyboardFocus
     }
+}
+
+function Initialize-DialogKeyboard {
+    # winuser.h layouts are matched to the locked windows-sys 0.61.2 SDK
+    # bindings. Input requires native foreground/focus checks before and after
+    # the batch; a failed check stops the fixture without retargeting or retrying.
+    Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+
+[assembly: DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+public static class MotionDialogKeyboard {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct KeyboardInput { public ushort virtualKey, scan; public uint flags, time; public UIntPtr extra; }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MouseInput { public int x, y; public uint data, flags, time; public UIntPtr extra; }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct HardwareInput { public uint message; public ushort low, high; }
+    [StructLayout(LayoutKind.Explicit)]
+    public struct InputUnion {
+        [FieldOffset(0)] public MouseInput mouse;
+        [FieldOffset(0)] public KeyboardInput keyboard;
+        [FieldOffset(0)] public HardwareInput hardware;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Input { public uint type; public InputUnion data; }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct Rect { public int left, top, right, bottom; }
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GuiThreadInfo {
+        public uint size, flags;
+        public IntPtr active, focus, capture, menuOwner, moveSize, caret;
+        public Rect caretRect;
+    }
+    public sealed class Target {
+        public long foregroundWindow, focusedWindow;
+        public uint processId, threadId;
+    }
+    public sealed class Receipt {
+        public int expectedEvents, insertedEvents, utf16CodeUnits;
+        public Target before, after;
+    }
+
+    [DllImport("user32.dll", ExactSpelling = true)]
+    private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll", ExactSpelling = true, SetLastError = true)]
+    private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+    [DllImport("user32.dll", ExactSpelling = true, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetGUIThreadInfo(uint threadId, ref GuiThreadInfo info);
+    [DllImport("user32.dll", ExactSpelling = true)]
+    private static extern short GetAsyncKeyState(int key);
+    [DllImport("user32.dll", ExactSpelling = true, SetLastError = true)]
+    private static extern uint SendInput(uint count, [In] Input[] inputs, int size);
+
+    public static void AssertLayouts() {
+        if (IntPtr.Size != 8 || Marshal.SizeOf(typeof(Input)) != 40 ||
+            Marshal.OffsetOf(typeof(Input), "data").ToInt32() != 8 ||
+            Marshal.SizeOf(typeof(KeyboardInput)) != 24 || Marshal.SizeOf(typeof(MouseInput)) != 32 ||
+            Marshal.SizeOf(typeof(HardwareInput)) != 8 || Marshal.SizeOf(typeof(GuiThreadInfo)) != 72)
+            throw new InvalidOperationException("The native keyboard ABI does not match x64 winuser.h.");
+    }
+
+    private static Input Key(ushort key, ushort scan, uint flags) {
+        Input result = new Input();
+        result.type = 1; // INPUT_KEYBOARD
+        result.data.keyboard.virtualKey = key;
+        result.data.keyboard.scan = scan;
+        result.data.keyboard.flags = flags;
+        return result;
+    }
+
+    public static Input[] BuildInputs(string text) {
+        if (String.IsNullOrEmpty(text) || text.Length > 8192)
+            throw new ArgumentException("The keyboard destination exceeded its fixture bound.");
+        Input[] inputs = new Input[checked(4 + text.Length * 2)];
+        inputs[0] = Key(0x11, 0, 0); // VK_CONTROL down
+        inputs[1] = Key(0x41, 0, 0); // VK_A down
+        inputs[2] = Key(0x41, 0, 2); // KEYEVENTF_KEYUP
+        inputs[3] = Key(0x11, 0, 2);
+        for (int index = 0; index < text.Length; index++) {
+            if (Char.IsControl(text[index])) throw new ArgumentException("Control characters cannot be typed into the filename.");
+            // Preserve UTF-16 code units, including surrogate pairs. Unicode
+            // packets generate the dialog's real keyboard/WM_CHAR path.
+            inputs[4 + index * 2] = Key(0, text[index], 4); // KEYEVENTF_UNICODE
+            inputs[5 + index * 2] = Key(0, text[index], 6);
+        }
+        return inputs;
+    }
+
+    public static Input[] PendingKeyUps(Input[] inputs, uint inserted) {
+        if (inputs == null || inserted > inputs.Length) throw new ArgumentException("Invalid keyboard insertion count.");
+        if (inserted == inputs.Length) return new Input[0];
+        if (inserted == 1 || inserted == 3) return new Input[] { Key(0x11, 0, 2) };
+        if (inserted == 2) return new Input[] { Key(0x41, 0, 2), Key(0x11, 0, 2) };
+        if (inserted > 4 && inserted % 2 == 1) return new Input[] { inputs[inserted] };
+        return new Input[0];
+    }
+
+    public static Target AssertTarget(IntPtr dialog, IntPtr filename, uint expectedProcessId) {
+        if (dialog == IntPtr.Zero || filename == IntPtr.Zero || expectedProcessId == 0 || GetForegroundWindow() != dialog)
+            throw new InvalidOperationException("The retained dialog does not own the foreground.");
+        uint dialogProcess, filenameProcess;
+        uint thread = GetWindowThreadProcessId(dialog, out dialogProcess);
+        uint filenameThread = GetWindowThreadProcessId(filename, out filenameProcess);
+        if (thread == 0 || filenameThread != thread || dialogProcess != expectedProcessId || filenameProcess != expectedProcessId)
+            throw new InvalidOperationException("The foreground dialog or filename handle changed its process/thread identity.");
+        GuiThreadInfo info = new GuiThreadInfo();
+        info.size = (uint)Marshal.SizeOf(typeof(GuiThreadInfo));
+        if (!GetGUIThreadInfo(thread, ref info)) throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not authenticate native keyboard focus.");
+        if (info.active != dialog || info.focus != filename || GetForegroundWindow() != dialog)
+            throw new InvalidOperationException("The retained filename no longer owns native keyboard focus.");
+        return new Target { foregroundWindow = dialog.ToInt64(), focusedWindow = filename.ToInt64(), processId = expectedProcessId, threadId = thread };
+    }
+
+    public static Receipt Enter(IntPtr dialog, IntPtr filename, uint processId, string text) {
+        AssertLayouts();
+        Input[] inputs = BuildInputs(text);
+        // Do not release pre-existing user modifiers or alter their state.
+        foreach (int key in new int[] { 0x10, 0x11, 0x12, 0x5b, 0x5c, 0x41 }) {
+            if (GetAsyncKeyState(key) < 0) throw new InvalidOperationException("A pre-existing keyboard key is pressed.");
+        }
+        Target before = AssertTarget(dialog, filename, processId);
+        uint inserted = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(Input)));
+        int nativeError = Marshal.GetLastWin32Error();
+        if (inserted != inputs.Length) {
+            // Never retry text or Save. Release only a key left down by the
+            // accepted prefix, and only while the same target is authenticated.
+            Input[] releases = PendingKeyUps(inputs, inserted);
+            if (releases.Length != 0) {
+                AssertTarget(dialog, filename, processId);
+                if (SendInput((uint)releases.Length, releases, Marshal.SizeOf(typeof(Input))) != releases.Length)
+                    throw new InvalidOperationException("Partial keyboard insertion could not release its owned keys.");
+            }
+            throw new Win32Exception(nativeError, "The keyboard batch was incomplete (" + inserted + "/" + inputs.Length + ").");
+        }
+        Target after = AssertTarget(dialog, filename, processId);
+        return new Receipt { expectedEvents = inputs.Length, insertedEvents = (int)inserted, utf16CodeUnits = text.Length, before = before, after = after };
+    }
+}
+'@
+    [MotionDialogKeyboard]::AssertLayouts()
+}
+
+function Assert-FilenameKeyboardFocus {
+    Assert-DialogIdentity
+    $focused = [System.Windows.Automation.AutomationElement]::FocusedElement
+    if ((Get-RuntimeKey $filename.element) -cne $proof.filenameFocus.runtimeId -or
+        $filename.element.Current.NativeWindowHandle -ne $filenameHandle -or
+        -not $filename.element.Current.HasKeyboardFocus -or -not $filename.element.Current.IsEnabled -or
+        $filename.element.Current.IsOffscreen -or $null -eq $focused -or
+        $focused.Current.ProcessId -ne $identity.processId -or
+        (Get-RuntimeKey $focused) -cne $proof.filenameFocus.runtimeId) {
+        throw 'The retained filename lost its authenticated UI Automation focus.'
+    }
+    return [MotionDialogKeyboard]::AssertTarget([IntPtr]$dialogHandle, [IntPtr]$filenameHandle, [uint32]$identity.processId)
 }
 
 try {
@@ -221,6 +380,7 @@ try {
         $failureCode = 'DIALOG_AUTOMATION_FAILED'
         Add-Type -AssemblyName UIAutomationClient
         Add-Type -AssemblyName UIAutomationTypes
+        Initialize-DialogKeyboard
         $baselineWindows = @(Get-TargetWindows | ForEach-Object { Get-RuntimeKey $_ })
         if ($null -ne (Get-SaveDialog)) { throw 'A backup dialog was already open before the tested click.' }
         Write-Protocol ([ordered]@{ schemaVersion = 1; operation = 'save'; event = 'ready'; identity = $identity })
@@ -294,20 +454,28 @@ try {
         if ($originalValue.Length -gt 32768) { throw 'The observed filename value exceeded its bound.' }
         $proof['filenameBeforeWrite'] = [ordered]@{ originalValue = $originalValue.Substring(0, [Math]::Min(256, $originalValue.Length));
             control = Get-ControlSummary $filename.element }
-        # The 9444028 fixture read back its new edit text, but GetResult still
-        # returned the original default filename. Follow the documented UIA
-        # focus-before-SetValue sequence, then move focus explicitly to Save.
-        # The actual destination's saved bytes remain the acceptance authority.
+        # Both SetValue trials changed the displayed edit value while GetResult
+        # returned the default filename. Send real keyboard notifications to the
+        # authenticated foreground edit; ValuePattern is read-only evidence.
         $proof['filenameFocus'] = Set-DialogControlFocus $filename.element
-        $filename.pattern.SetValue($request.destination)
-        Assert-DialogIdentity
-        if ($filename.pattern.Current.Value -cne $request.destination -or $filename.pattern.Current.IsReadOnly -or
-            -not $filename.element.Current.IsEnabled -or $filename.element.Current.ProcessId -ne $identity.processId) {
-            throw 'The selected filename did not exactly retain the requested destination.'
+        $filenameHandle = $filename.element.Current.NativeWindowHandle
+        if ($filenameHandle -eq 0) { throw 'The observed filename edit has no native keyboard target.' }
+        [void](Assert-FilenameKeyboardFocus)
+        $keyboard = [MotionDialogKeyboard]::Enter([IntPtr]$dialogHandle, [IntPtr]$filenameHandle, [uint32]$identity.processId, $request.destination)
+        $proof['keyboard'] = [ordered]@{ method = 'SendInput'; selection = 'Ctrl+A'; encoding = 'UTF-16'; batches = 1;
+            expectedEvents = $keyboard.expectedEvents; insertedEvents = $keyboard.insertedEvents; utf16CodeUnits = $keyboard.utf16CodeUnits;
+            modifiersClearBefore = $true; foregroundBefore = $keyboard.before; foregroundAfter = $keyboard.after }
+        $inputDeadline = $clock.ElapsedMilliseconds + 5000
+        while ($true) {
+            [void](Assert-FilenameKeyboardFocus)
+            if ($filename.pattern.Current.IsReadOnly) { throw 'The filename edit became read-only.' }
+            if ($filename.pattern.Current.Value -ceq $request.destination) { break }
+            if ($clock.ElapsedMilliseconds -ge $inputDeadline) { throw 'The typed filename did not exactly retain the requested destination.' }
+            Start-Sleep -Milliseconds 50
         }
         $proof['filename'] = [ordered]@{ observedControlMatched = $true;
             originalValue = $originalValue.Substring(0, [Math]::Min(256, $originalValue.Length)); exactDestinationReadBack = $true;
-            valuePattern = $true; control = Get-ControlSummary $filename.element }
+            valuePatternReadBack = $true; keyboardInput = $true; control = Get-ControlSummary $filename.element }
         Write-Protocol ([ordered]@{ schemaVersion = 1; operation = 'save'; event = 'filename'; exactDestinationReadBack = $true })
         $proof.phase = 'save'
         $proof['saveFocus'] = Set-DialogControlFocus $saveButton.element

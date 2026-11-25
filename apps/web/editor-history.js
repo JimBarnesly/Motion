@@ -5,6 +5,7 @@ function activePage(document) {
 function nonEditorState(document) {
   const copy = structuredClone(document);
   delete copy.revision;
+  delete copy.collapsedBlockIds;
   if (copy.workspace) {
     delete copy.workspace.updatedAt;
     delete copy.workspace.linkIndex;

@@ -212,3 +212,27 @@ candidates until that actual Windows run supplies evidence. Before integrating
 it here, regenerate the governed comparison record for this continuation PR's
 actual merge base; its pilot record is intentionally based on 9444028. Existing
 human Code Owner review and release acceptance remain outstanding.
+
+### Native keyboard and container-writing candidate
+
+The focus-only Save As correction at `4dfed50` passed general CI but still
+returned the original default destination on Windows. The native helper correctly
+refused that unintended parent. The next candidate enters the filename through
+one authenticated keyboard batch, checks the exact readback and invokes Save once.
+Ten source-bound portable checks passed; actual saved bytes and the complete
+installed lifecycle remain required. See `WINDOWS_SAVE_KEYBOARD_CANDIDATE.json`.
+
+Toggle and callout writing now retain nested IDs, preserve full child trees,
+persist folding as UI state and reveal hidden search results. The integrated
+build passed 236 focused Node tests and all 107 browser cases. A source-reviewed
+installed-writing helper passed against the real local service and is now part
+of Windows acceptance before attachments and backup. Separate CSS polish was
+checked at desktop and narrow widths. Actual Windows and Rust execution for this
+increment remain pending. See `CONTAINER_WRITING_REVIEW_2026-11-25.json`.
+
+Offline pilot `d7f29f5` passed all general CI jobs and advanced through Windows
+service tests, installer build and embedded-payload verification. Its first
+failure is licence-page inspection after Welcome Next: one diagnostic combines
+immutable identity and transient readiness, so the exact cause is not established.
+The probe did not agree to the licence, and cleanup passed. The offline firewall
+window, runtime upgrade and active-engine proof were not reached.

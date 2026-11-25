@@ -18,8 +18,13 @@ const nativeExecuteOperations = new Set(NATIVE_EXECUTE_OPERATIONS);
 const DB_NAME = "motion-web-development";
 const STORE_NAME = "workspace";
 const WORKSPACE_KEY = "default";
-const UI_STATE_FIELDS = new Set(["workspaceId", "activePageId", "expandedPageIds", "activeViewIds"]);
+const UI_STATE_FIELDS = new Set(["workspaceId", "activePageId", "expandedPageIds", "activeViewIds", "collapsedBlockIds"]);
 const UI_STATE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
+
+function validCollapsedBlockIds(value) {
+  return value === undefined || (Array.isArray(value) && value.length <= 256
+    && Array.from(value).every(id => typeof id === "string" && id.match(UI_STATE_ID)?.[0] === id) && new Set(value).size === value.length);
+}
 
 export function encodeBinary(value) {
   if (value instanceof Uint8Array) return { $motionBytes: Array.from(value) };
@@ -51,6 +56,7 @@ function validUiState(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)
       || Object.keys(value).some(key => !UI_STATE_FIELDS.has(key))
       || !validId(value.workspaceId ?? null) || !validId(value.activePageId ?? null)
+      || !validCollapsedBlockIds(value.collapsedBlockIds)
       || (value.expandedPageIds !== undefined && (!Array.isArray(value.expandedPageIds)
         || value.expandedPageIds.length > 256 || value.expandedPageIds.some(id => typeof id !== "string" || !validId(id))
         || new Set(value.expandedPageIds).size !== value.expandedPageIds.length))
@@ -58,12 +64,14 @@ function validUiState(value) {
         || Object.keys(value.activeViewIds).length > 256 || Object.entries(value.activeViewIds).some(([databaseId, viewId]) => !validId(databaseId) || !validId(viewId))))) {
     throw new TypeError("Invalid UI state request");
   }
-  return { workspaceId: value.workspaceId ?? null, activePageId: value.activePageId ?? null, expandedPageIds: value.expandedPageIds ?? [], activeViewIds: value.activeViewIds ?? {} };
+  return { workspaceId: value.workspaceId ?? null, activePageId: value.activePageId ?? null, expandedPageIds: value.expandedPageIds ?? [], activeViewIds: value.activeViewIds ?? {},
+    ...(value.collapsedBlockIds === undefined ? {} : { collapsedBlockIds: [...value.collapsedBlockIds] }) };
 }
 
 function validWorkspace(value) {
   if (value === undefined) return structuredClone(EMPTY_WORKSPACE);
   if (value?.schemaVersion === 2 && (value.workspace === null || (value.workspace && Array.isArray(value.workspace.pages) && Array.isArray(value.workspace.databases)))) {
+    if (!validCollapsedBlockIds(value.collapsedBlockIds)) throw new TypeError("Invalid collapsed block preferences");
     if (value.workspace) assertSafePropertyLifecycle(value.workspace);
     return structuredClone(value);
   }
@@ -188,6 +196,7 @@ function tauriAdapter(invoke) {
           const loaded = await invoke("motion_ui_load", { request: { schemaVersion: 2 } });
           if (recoveryEpoch !== workspaceEpoch || activeTransitionEpoch !== null) throw workspaceChanged();
           if (loaded?.schemaVersion !== 2) throw new Error("Native Motion returned an unsupported UI document");
+          if (!validCollapsedBlockIds(loaded.collapsedBlockIds)) throw new TypeError("Invalid collapsed block preferences");
           workspaceSummary = transitionSummary(loaded, true);
           selectionRecoveryRequired = false;
           selectionKnown = true;
@@ -224,6 +233,7 @@ function tauriAdapter(invoke) {
       return transitionWorkspace(async () => {
         const loaded = await invoke("motion_ui_load", { request: { schemaVersion: 2 } });
         if (loaded?.schemaVersion !== 2) throw new Error("Native Motion returned an unsupported UI document");
+        if (!validCollapsedBlockIds(loaded.collapsedBlockIds)) throw new TypeError("Invalid collapsed block preferences");
         return loaded;
       }, true);
     },

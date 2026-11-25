@@ -5,8 +5,8 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:8f2c76d2a19e11f8c53a998b39e0090379077ead034ed5c7ce395759506788eb",
-      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
+      "fingerprint": "sha256:cbb6c50ee9c10c1ec665a9874cbab7f3ea84a9bff705bc9e079b3a03f9fab826",
+      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix; docs/CONTAINER_WRITING_REVIEW_2026-11-25.json exact-source independent AI review and coordinate mapping; e2e/container-writing.spec.ts hostile filename and held-transition regressions",
       "owner": "Operations & Security Director",
       "rationale": "Page-tree templates attribute-escape every persisted page ID and HTML-escape every persisted title; remaining interpolations are internal booleans/numeric depth.",
       "expires": "2027-02-23"
@@ -14,8 +14,8 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:adf6c91138bf01f66c29adb598d0b4a77533c93fd7aae0e0ea0a901d3890597e",
-      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
+      "fingerprint": "sha256:409f118f211bbcd8e8f3057e5b6bce437b31cfcb98c8a2d20d2fe7c4f6bf5bba",
+      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix; docs/CONTAINER_WRITING_REVIEW_2026-11-25.json exact-source independent AI review and coordinate mapping; e2e/container-writing.spec.ts hostile filename and held-transition regressions",
       "owner": "Operations & Security Director",
       "rationale": "Favourite navigation attribute-escapes persisted page IDs and HTML-escapes persisted titles before template composition.",
       "expires": "2027-02-23"
@@ -23,8 +23,8 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:b1fece949553f5b946287b7ca034b2ca56bdf57c21f985c4d9756cc1f996b95b",
-      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
+      "fingerprint": "sha256:ec1d336a6ef2e9ac54bf7d85208233a4afb07a46a7dd06e5e99606856fe3e35e",
+      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix; docs/CONTAINER_WRITING_REVIEW_2026-11-25.json exact-source independent AI review and coordinate mapping; e2e/container-writing.spec.ts hostile filename and held-transition regressions",
       "owner": "Operations & Security Director",
       "rationale": "Trash navigation attribute-escapes persisted page IDs and HTML-escapes persisted titles in text and aria-label contexts.",
       "expires": "2027-02-23"
@@ -32,8 +32,8 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:fa521fbc092566e8365c7866d806a526d98ff8852e7241859666a0854ea1ecf4",
-      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
+      "fingerprint": "sha256:10b4c7cf08b0f2081555d0dfa78d976eb031f4467eadbaf0e6ab7551868d9ad3",
+      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix; docs/CONTAINER_WRITING_REVIEW_2026-11-25.json exact-source independent AI review and coordinate mapping; e2e/container-writing.spec.ts hostile filename and held-transition regressions",
       "owner": "Operations & Security Director",
       "rationale": "The empty-workspace renderer contains fixed application markup only and has no persisted dynamic values.",
       "expires": "2027-02-23"
@@ -41,8 +41,8 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:33dd0db2996900e036e1a0833f773810a09333c1d9fd775ff0f6723c323bab4b",
-      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
+      "fingerprint": "sha256:3a5c0582696186d7ee1d7859df8006c20910312ee429123be89dd4bacc10c211",
+      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix; docs/CONTAINER_WRITING_REVIEW_2026-11-25.json exact-source independent AI review and coordinate mapping; e2e/container-writing.spec.ts hostile filename and held-transition regressions",
       "owner": "Operations & Security Director",
       "rationale": "Breadcrumb controls attribute-escape each persisted page ID and HTML-escape each persisted page title.",
       "expires": "2027-02-23"
@@ -50,8 +50,8 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:864d748371541c42fe878abfa7c2fec40d0b21ef056f7432df192600483597b2",
-      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/property-editors.test.mjs hostile property text/attribute escaping and read-only metadata tests; apps/web/test/property-lifecycle.test.mjs tombstone visibility regression; apps/web/test/canonical-security.test.mjs canonical ID matrix; apps/web/test/canonical-security.test.mjs numeric attachment boundary tests; e2e/attachment-metadata.spec.ts hostile import and literal metadata browser regressions",
+      "fingerprint": "sha256:b1007465211f68c4f97c55f1c49478537d899e1584875affc2dcdf4f409dd991",
+      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/property-editors.test.mjs hostile property text/attribute escaping and read-only metadata tests; apps/web/test/property-lifecycle.test.mjs tombstone visibility regression; apps/web/test/canonical-security.test.mjs canonical ID matrix; apps/web/test/canonical-security.test.mjs numeric attachment boundary tests; e2e/attachment-metadata.spec.ts hostile import and literal metadata browser regressions; docs/CONTAINER_WRITING_REVIEW_2026-11-25.json exact-source independent AI review and coordinate mapping; e2e/container-writing.spec.ts hostile filename and held-transition regressions",
       "owner": "Operations & Security Director",
       "rationale": "Document composition filters tombstoned definitions and delegates live values to escaping property controls. File block metadata uses escaped text/attributes plus an independent safe-integer byte-length guard aligned with the canonical core; browser validation rejects invalid sizes before persistence. Other block controls use reviewed escaping and fixed type choices.",
       "expires": "2027-02-23"
@@ -59,8 +59,8 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:5ce05a7c3d6d1e006c894cd355c06e420d7fe44914bb90d8a9c6f4c3d4587a63",
-      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/record-order.test.mjs canonical exact-order, hidden-slot, keyboard/pointer, and labelled-control tests; apps/web/test/property-editors.test.mjs escaping/projection tests; apps/web/test/canonical-security.test.mjs hostile canonical ID matrix; e2e/desktop-csp-layout.spec.ts exact desktop-policy computed layout, persistence and blocked-inline-style positive control",
+      "fingerprint": "sha256:670bcde5d188f609e22eb9ee2736ba120849896fac30f26bd4d5a9906e339ec5",
+      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/record-order.test.mjs canonical exact-order, hidden-slot, keyboard/pointer, and labelled-control tests; apps/web/test/property-editors.test.mjs escaping/projection tests; apps/web/test/canonical-security.test.mjs hostile canonical ID matrix; e2e/desktop-csp-layout.spec.ts exact desktop-policy computed layout, persistence and blocked-inline-style positive control; docs/CONTAINER_WRITING_REVIEW_2026-11-25.json exact-source independent AI review and coordinate mapping; e2e/container-writing.spec.ts hostile filename and held-transition regressions",
       "owner": "Operations & Security Director",
       "rationale": "Database table/list, record-order controls, and property-definition order composition attribute-escape every persisted ID and HTML-escape record titles and property names; property text and controls use reviewed escaping helpers, view types are closed enums, and system metadata renders without mutation authority. Column widths pass finite-positive-number validation before rendering. Widths now enter escaped data attributes and are applied only as validated positive finite numbers through a fixed CSSOM width property; no inline-style policy grant is introduced.",
       "expires": "2027-02-23"
@@ -68,8 +68,8 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:305a8c5eeeaba7e982527f06b1e952fd5fd9f08431b8076531e549ec555de952",
-      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
+      "fingerprint": "sha256:cee07d50a9d9c6efee9eadc7a575420bc95636f90044c36aaad34a228d1d5b41",
+      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix; docs/CONTAINER_WRITING_REVIEW_2026-11-25.json exact-source independent AI review and coordinate mapping; e2e/container-writing.spec.ts hostile filename and held-transition regressions",
       "owner": "Operations & Security Director",
       "rationale": "The legacy no-page context branch assigns fixed application markup only.",
       "expires": "2027-02-23"
@@ -77,8 +77,8 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:cbae9a4a105a347a6231513197dc54b41e1113cebd09703464680069cab54fa5",
-      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
+      "fingerprint": "sha256:f2afdf5627009af12a43c397d57c6a4dbbf6afd5055349ff741921b8ad794cce",
+      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix; docs/CONTAINER_WRITING_REVIEW_2026-11-25.json exact-source independent AI review and coordinate mapping; e2e/container-writing.spec.ts hostile filename and held-transition regressions",
       "owner": "Operations & Security Director",
       "rationale": "The legacy no-page context branch assigns fixed application markup only; this second chained sink has no dynamic values.",
       "expires": "2027-02-23"
@@ -86,8 +86,8 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:ae00c73721f3ac8db7e991877efba800c7cce9b1e7ce9920e5d29d2ebb0bc6bf",
-      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
+      "fingerprint": "sha256:3c0139a2b32ffff7b7530ac398bf1a6529b1378191178b930c4738313716dce9",
+      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix; docs/CONTAINER_WRITING_REVIEW_2026-11-25.json exact-source independent AI review and coordinate mapping; e2e/container-writing.spec.ts hostile filename and held-transition regressions",
       "owner": "Operations & Security Director",
       "rationale": "Legacy outgoing-link composition attribute-escapes persisted page IDs and HTML-escapes titles before assignment.",
       "expires": "2027-02-23"
@@ -95,8 +95,8 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:a3403dd622bce7ec53ca9b0437f27f99adc5fb7042f1a5657c6ef4f4df6b28a5",
-      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
+      "fingerprint": "sha256:2d508d56fc663596987be845da72c1a6e964cfe0f706c2050736bffa7624dea2",
+      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix; docs/CONTAINER_WRITING_REVIEW_2026-11-25.json exact-source independent AI review and coordinate mapping; e2e/container-writing.spec.ts hostile filename and held-transition regressions",
       "owner": "Operations & Security Director",
       "rationale": "Legacy backlink composition attribute-escapes persisted page IDs and HTML-escapes titles before assignment.",
       "expires": "2027-02-23"
@@ -104,8 +104,8 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:05e8c574af12a4a0fd8c27b3d560c7ddf9c1b749aea915b7802004b736f836d7",
-      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
+      "fingerprint": "sha256:99f2fe382812ff39afd089b48a71c2afbdddf8a90dd7c16caa690fdb388bd812",
+      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix; docs/CONTAINER_WRITING_REVIEW_2026-11-25.json exact-source independent AI review and coordinate mapping; e2e/container-writing.spec.ts hostile filename and held-transition regressions",
       "owner": "Operations & Security Director",
       "rationale": "Legacy attachment context fallback assigns fixed application markup only.",
       "expires": "2027-02-23"
@@ -113,8 +113,8 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:a492e8bf28e1d27611b445d14d78e030d49fe377e45c2e2f61f26e2b26756b90",
-      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
+      "fingerprint": "sha256:02d9f38a4082e0efe2d0fd45a060500507b6cd7a5914e2d505500e98f1a17885",
+      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix; docs/CONTAINER_WRITING_REVIEW_2026-11-25.json exact-source independent AI review and coordinate mapping; e2e/container-writing.spec.ts hostile filename and held-transition regressions",
       "owner": "Operations & Security Director",
       "rationale": "Page-menu insertion attribute-escapes every persisted page ID and HTML-escapes every persisted page title/aria label.",
       "expires": "2027-02-23"
@@ -122,8 +122,8 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:678f5947bf695c592a8982252aff435af4000c08be84360e9fdd076c8c2d26b0",
-      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
+      "fingerprint": "sha256:d372188db20236ff93cb9e2d8a069d4ba5a437365ab90ac61431de25713baa12",
+      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix; docs/CONTAINER_WRITING_REVIEW_2026-11-25.json exact-source independent AI review and coordinate mapping; e2e/container-writing.spec.ts hostile filename and held-transition regressions",
       "owner": "Operations & Security Director",
       "rationale": "Property-menu composition attribute-escapes persisted property IDs, HTML-escapes names/options, and uses fixed property-type choices.",
       "expires": "2027-02-23"
@@ -131,8 +131,8 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:fee70285d8ad38e4a1bd961227c79dfae6320c2e7af5ec71202765df3c21b3c9",
-      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
+      "fingerprint": "sha256:2172650cb4c4311aa448b6165ae1f0b551b6bbef19ccbec598ac95d8f93e3a42",
+      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix; docs/CONTAINER_WRITING_REVIEW_2026-11-25.json exact-source independent AI review and coordinate mapping; e2e/container-writing.spec.ts hostile filename and held-transition regressions",
       "owner": "Operations & Security Director",
       "rationale": "Sort controls compose sortRow output, which attribute-escapes property IDs while directions and indexes are fixed/internal.",
       "expires": "2027-02-23"
@@ -140,8 +140,8 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:e4b6256759641fe8153c0bb05ecdc379ac1dd998fe857a1f2b38b67573f2207c",
-      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix",
+      "fingerprint": "sha256:7845bfe13c36b4288c1d0dc00942ce3d0cb517607bff3a128044b5dadacb3a4e",
+      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/canonical-security.test.mjs hostile canonical schema-v2 ID matrix and attribute-boundary tests; packages/core/src/test/core.test.ts canonical ID validation matrix; docs/CONTAINER_WRITING_REVIEW_2026-11-25.json exact-source independent AI review and coordinate mapping; e2e/container-writing.spec.ts hostile filename and held-transition regressions",
       "owner": "Operations & Security Director",
       "rationale": "Dynamically added sort rows use sortRow's reviewed attribute escaping for persisted property IDs and fixed direction choices.",
       "expires": "2027-02-23"

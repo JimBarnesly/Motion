@@ -5,7 +5,7 @@ import { createInterface } from "node:readline";
 import { MotionAppService, MotionAppError } from "@motion/app-service";
 import { SqliteWorkspaceStore, ContentAddressedAttachmentStore, hardenPrivateFile } from "@motion/storage";
 import { createAtomicBackupFile, inspectAtomicBackupDestination } from "./backup-file.mjs";
-import { isValidUiState } from "./ui-state-validation.mjs";
+import { isValidUiState, survivingCollapsedBlockIds } from "./ui-state-validation.mjs";
 import { acquireNativeServiceLock } from "./native-service-lock.mjs";
 import { createWindowsUiStateStore } from "./windows-ui-state.mjs";
 import { recordBackupInspectionFailure } from "./backup-diagnostics.mjs";
@@ -46,7 +46,7 @@ const uiStatePath = join(mutableRoot, "ui-state.json");
 const windowsUiState = process.platform === "win32" ? createWindowsUiStateStore(uiStatePath) : undefined;
 const readUiState = () => { if (windowsUiState) return windowsUiState.read(); try { hardenPrivateFile(uiStatePath); return JSON.parse(readFileSync(uiStatePath, "utf8")); } catch (error) { if (error?.code === "ENOENT") return {}; throw error; } };
 const writeUiState = state => {
-  const document = { schemaVersion: 1, workspaceId: state.workspaceId, activePageId: state.activePageId ?? null, expandedPageIds: Array.isArray(state.expandedPageIds) ? state.expandedPageIds : [], activeViewIds: state.activeViewIds ?? {} };
+  const document = { schemaVersion: 1, workspaceId: state.workspaceId, activePageId: state.activePageId ?? null, expandedPageIds: Array.isArray(state.expandedPageIds) ? state.expandedPageIds : [], activeViewIds: state.activeViewIds ?? {}, collapsedBlockIds: state.collapsedBlockIds ?? [] };
   if (windowsUiState) { windowsUiState.write(document); return; }
   const temporary = `${uiStatePath}.${randomUUID()}.tmp`;
   writeFileSync(temporary, JSON.stringify(document), { flag: "wx", mode: 0o600 });
@@ -112,7 +112,7 @@ async function dispatch(rawRequest) {
         const uiState = readUiState();
         const selected = summaries.find(summary => summary.id === uiState.workspaceId) ?? summaries[0];
         const loaded = service.query({ type: "workspace.get", workspaceId: selected.id });
-        result = { schemaVersion: 2, ...loaded, activePageId: loaded.workspace.pages.some(page => page.id === uiState.activePageId && !page.deletedAt) ? uiState.activePageId : loaded.workspace.pages.find(page => !page.deletedAt)?.id ?? null, expandedPageIds: Array.isArray(uiState.expandedPageIds) ? uiState.expandedPageIds : [], activeViewIds: uiState.activeViewIds ?? {} };
+        result = { schemaVersion: 2, ...loaded, activePageId: uiState.activePageId === null ? null : loaded.workspace.pages.some(page => page.id === uiState.activePageId && !page.deletedAt) ? uiState.activePageId : loaded.workspace.pages.find(page => !page.deletedAt)?.id ?? null, expandedPageIds: Array.isArray(uiState.expandedPageIds) ? uiState.expandedPageIds : [], activeViewIds: uiState.activeViewIds ?? {}, collapsedBlockIds: survivingCollapsedBlockIds(loaded.workspace, uiState.workspaceId === selected.id ? uiState.collapsedBlockIds : []) };
         break;
       }
       if (!summaries.length) { result = { schemaVersion: 1, pages: [], activePageId: null }; break; }
@@ -137,7 +137,7 @@ async function dispatch(rawRequest) {
             || Object.keys(request.payload).some(key => !["schemaVersion", "document"].includes(key))
             || !isValidUiState(candidate)) throw new MotionAppError("INVALID_INPUT", "Invalid UI state request");
         const summaries = service.query({ type: "workspace.list" }); const current = summaries.find(summary => summary.id === candidate?.workspaceId) ?? summaries[0];
-        if (current) writeUiState({ workspaceId: current.id, activePageId: candidate?.activePageId ?? null, expandedPageIds: candidate?.expandedPageIds, activeViewIds: candidate?.activeViewIds });
+        if (current) writeUiState({ workspaceId: current.id, activePageId: candidate?.activePageId ?? null, expandedPageIds: candidate?.expandedPageIds, activeViewIds: candidate?.activeViewIds, collapsedBlockIds: survivingCollapsedBlockIds(service.query({ type: "workspace.get", workspaceId: current.id }).workspace, candidate?.collapsedBlockIds) });
         result = { saved: true }; break;
       }
       throw new MotionAppError("INVALID_INPUT", "Whole-workspace UI save is not supported");

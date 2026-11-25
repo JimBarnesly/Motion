@@ -1,3 +1,5 @@
+import { blockLocations, findBlockLocation } from "./block-tree.js";
+
 const normalize = value => String(value ?? "").normalize("NFKC").toLocaleLowerCase();
 const queryTerms = query => [...new Set(normalize(query).trim().split(/\s+/).filter(Boolean))];
 
@@ -6,10 +8,6 @@ function scalarText(value) {
   if (Array.isArray(value)) return value.flatMap(scalarText);
   if (value && typeof value === "object" && !Array.isArray(value.attachmentIds)) return Object.values(value).flatMap(scalarText);
   return [];
-}
-
-function flattenBlocks(blocks = []) {
-  return blocks.flatMap(block => [block, ...flattenBlocks(block?.children ?? [])]);
 }
 
 function matchingSnippet(sources, terms) {
@@ -56,12 +54,19 @@ export function buildBrowserSearchHits(workspace, query, limit = 50) {
       const values = [...scalarText(value), ...fileNames];
       return values.map(item => `${label}: ${item}`);
     });
-    const blocks = flattenBlocks(page.blocks);
+    const blocks = [...blockLocations(page.blocks)].map(location => location.block);
     const blockText = blocks.map(block => block?.text).filter(value => typeof value === "string" && value);
     const blockFiles = blocks.map(block => attachments.get(block?.attachmentId)).filter(Boolean);
     const sources = [page.title, ...blockText, ...blockFiles, ...properties].filter(value => typeof value === "string" && value);
     const combined = normalize(sources.join(" \n"));
     if (!terms.every(term => combined.includes(term))) continue;
+    const pageMatch = normalize([page.title, ...properties].join(" \n"));
+    const matchingBlocks = blocks.filter(block => terms.every(term => normalize([block.text, attachments.get(block.attachmentId)].filter(Boolean).join(" \n")).includes(term)));
+    if (!terms.every(term => pageMatch.includes(term)) && matchingBlocks.length) {
+      for (const block of matchingBlocks) hits.push({ entityId: block.id, entityType: "block", ownerEntityId: page.id,
+        title: page.title || "Untitled", snippet: matchingSnippet([block.text, attachments.get(block.attachmentId)].filter(Boolean), terms) });
+      continue;
+    }
     hits.push({
       entityId: page.id,
       entityType: "page",
@@ -75,7 +80,10 @@ export function buildBrowserSearchHits(workspace, query, limit = 50) {
 
 export function resolveSearchTarget(hit, workspace) {
   if (!hit || !workspace) return null;
-  if (hit.entityType === "block") return hit.ownerEntityId ? { pageId: hit.ownerEntityId, blockId: hit.entityId } : null;
+  if (hit.entityType === "block") {
+    const page = workspace.pages?.find(candidate => candidate.id === hit.ownerEntityId && !candidate.deletedAt);
+    return page && findBlockLocation(page.blocks, hit.entityId) ? { pageId: page.id, blockId: hit.entityId } : null;
+  }
   if (hit.entityType === "row") {
     if (!hit.ownerEntityId) return null;
     const database = (workspace.databases ?? []).find(candidate => candidate.pageId === hit.ownerEntityId);

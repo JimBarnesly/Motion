@@ -29,7 +29,7 @@ async function seed(page: Page, blocks: Block[]) {
   await page.evaluate(async initialBlocks => {
     const stamp = "2026-11-25T00:00:00.000Z";
     const value = {
-      schemaVersion: 2, revision: 9, activePageId: "writing-page", expandedPageIds: [], activeViewIds: {},
+      schemaVersion: 2, revision: 9, activePageId: "writing-page", expandedPageIds: [], activeViewIds: {}, collapsedBlockIds: [],
       workspace: {
         schemaVersion: 2, id: "writing-workspace", name: "Nested writing", createdAt: stamp, updatedAt: stamp,
         databases: [], linkIndex: [],
@@ -127,13 +127,15 @@ test("Ctrl+D preserves a nested subtree and its targets through undo, redo, and 
   await expect(page.locator(".block-input.file")).toHaveCount(2);
 
   await page.keyboard.press("Control+z");
-  await expect.poll(() => readStored(page)).toEqual(before);
+  await expect.poll(async () => (await readStored(page)).workspace.pages[0].blocks).toEqual(before.workspace.pages[0].blocks);
   await expect(page.locator(`[data-block-id="${copied.id}"]`)).toHaveCount(0);
   await page.keyboard.press("Control+Shift+z");
-  await expect.poll(() => readStored(page)).toEqual(duplicated);
+  await expect.poll(async () => (await readStored(page)).workspace.pages[0].blocks).toEqual(duplicated.workspace.pages[0].blocks);
+  const redone = await readStored(page);expect(redone.revision).toBe(duplicated.revision + 2);
+  expect(redone.workspace.pages.slice(1)).toEqual(before.workspace.pages.slice(1));expect(redone.workspace.attachments).toEqual(before.workspace.attachments);
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Page title", exact: true })).toHaveValue("Nested writing");
-  expect(await readStored(page)).toEqual(duplicated);
+  expect(await readStored(page)).toEqual(redone);
   await expect(page.locator(`[data-block="${copied.id}:1.0"]`)).toHaveText("[[Target]] detail");
 
   await page.locator(`[data-block="${copied.id}:1.0"]`).fill("[[Target]] edited copy");
@@ -190,16 +192,18 @@ for (const leadingDivider of [false, true]) {
     await expect(page.locator(`[data-block-id="${task.id}"]`)).toHaveCSS("--indent", "2");
 
     await page.keyboard.press("Control+z");
-    await expect.poll(() => readStored(page)).toEqual(before);
+    await expect.poll(async () => (await readStored(page)).workspace.pages[0].blocks).toEqual(before.workspace.pages[0].blocks);
     await expect(page.locator('[data-block="active"]')).toHaveText(active.text);
     await page.keyboard.press("Control+Shift+z");
-    await expect.poll(() => readStored(page)).toEqual(pasted);
+    await expect.poll(async () => (await readStored(page)).workspace.pages[0].blocks).toEqual(pasted.workspace.pages[0].blocks);
+    const redone = await readStored(page);expect(redone.revision).toBe(pasted.revision + 2);
+    expect(redone.workspace.pages.slice(1)).toEqual(before.workspace.pages.slice(1));expect(redone.workspace.attachments).toEqual(before.workspace.attachments);
     await page.reload();
     await expect(page.getByRole("textbox", { name: "Page title", exact: true })).toHaveValue("Nested writing");
     await expect(page.locator(`[data-block="${task.id}"]`)).toHaveText("Checklist tail");
     await expect(page.locator('[data-block="retained-child"]')).toHaveText("Keep this child");
     await expect(page.locator(`[data-block-id="${task.id}"]`)).toHaveCSS("--indent", "2");
-    expect(await readStored(page)).toEqual(pasted);
+    expect(await readStored(page)).toEqual(redone);
     expect(pageErrors).toEqual([]);
   });
 }

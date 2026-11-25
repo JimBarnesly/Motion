@@ -92,23 +92,25 @@ fn validate_ui_state_document(document: &Value) -> Result<(), IpcError> {
         .ok_or_else(|| reject("INVALID_INPUT", "Invalid UI state request"))?;
     if state
         .keys()
-        .any(|key| !matches!(key.as_str(), "workspaceId" | "activePageId" | "expandedPageIds" | "activeViewIds"))
+        .any(|key| !matches!(key.as_str(), "workspaceId" | "activePageId" | "expandedPageIds" | "activeViewIds" | "collapsedBlockIds"))
         || !state.get("workspaceId").is_none_or(valid_ui_state_id)
         || !state.get("activePageId").is_none_or(valid_ui_state_id)
     {
         return Err(reject("INVALID_INPUT", "Invalid UI state request"));
     }
-    if let Some(expanded) = state.get("expandedPageIds") {
-        let ids = expanded
-            .as_array()
-            .filter(|ids| ids.len() <= 256)
-            .ok_or_else(|| reject("INVALID_INPUT", "Invalid UI state request"))?;
-        let mut unique = std::collections::HashSet::new();
-        if ids.iter().any(|id| {
-            let Some(id_text) = id.as_str() else { return true; };
-            !valid_ui_state_id(id) || !unique.insert(id_text)
-        }) {
-            return Err(reject("INVALID_INPUT", "Invalid UI state request"));
+    for field in ["expandedPageIds", "collapsedBlockIds"] {
+        if let Some(value) = state.get(field) {
+            let ids = value
+                .as_array()
+                .filter(|ids| ids.len() <= 256)
+                .ok_or_else(|| reject("INVALID_INPUT", "Invalid UI state request"))?;
+            let mut unique = std::collections::HashSet::new();
+            if ids.iter().any(|id| {
+                let Some(id_text) = id.as_str() else { return true; };
+                !valid_ui_state_id(id) || !unique.insert(id_text)
+            }) {
+                return Err(reject("INVALID_INPUT", "Invalid UI state request"));
+            }
         }
     }
     if let Some(active_views) = state.get("activeViewIds") {
@@ -1014,12 +1016,18 @@ mod tests {
     #[test]
     fn ui_state_boundary_accepts_only_bounded_ephemeral_fields() {
         assert!(validate_ui_state_document(&json!({
-            "workspaceId": "workspace-1", "activePageId": null, "expandedPageIds": ["page-1"], "activeViewIds": { "database-1": "view-1" }
+            "workspaceId": "workspace-1", "activePageId": null, "expandedPageIds": ["page-1"], "activeViewIds": { "database-1": "view-1" }, "collapsedBlockIds": ["toggle-1"]
         }))
         .is_ok());
         for invalid in [
             json!({ "workspace": { "pages": [] }, "workspaceId": "workspace-1" }),
             json!({ "pages": [] }),
+            json!({ "collapsedBlockIds": null }),
+            json!({ "collapsedBlockIds": ["toggle-1", "toggle-1"] }),
+            json!({ "collapsedBlockIds": ["bad/id"] }),
+            json!({ "collapsedBlockIds": ["toggle-1\n"] }),
+            json!({ "collapsedBlockIds": [null] }),
+            json!({ "collapsedBlockIds": (0..257).map(|i| format!("block-{i}")).collect::<Vec<_>>() }),
             json!({ "workspaceId": "workspace-1", "expandedPageIds": ["page-1", "page-1"] }),
             json!({ "workspaceId": "workspace-1", "activeViewIds": { "bad/id": "view-1" } }),
             json!({ "workspaceId": "workspace-1", "activePageId": "bad/id" }),

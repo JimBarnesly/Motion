@@ -1,3 +1,4 @@
+import { exerciseContainerWriting } from "./windows-container-writing.mjs";
 import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -458,11 +459,29 @@ async function saveNativeBackupThroughDialog(current) {
     assert.equal(selected.filename?.control?.controlType, "ControlType.Edit");
     assert.equal(selected.filename?.control?.processId, current.child.pid);
     assert.equal(selected.filename?.exactDestinationReadBack, true);
-    assert.equal(selected.filename?.valuePattern, true);
+    assert.equal(selected.filename?.valuePatternReadBack, true);
+    assert.equal(selected.filename?.keyboardInput, true);
     assert.equal(selected.filenameFocus?.observed, true);
     assert.equal(selected.filenameFocus?.control?.processId, current.child.pid);
     assert.equal(selected.filenameFocus?.control?.automationId, "1001");
     assert.equal(selected.filenameFocus?.control?.hasKeyboardFocus, true);
+    assert.ok(Number.isSafeInteger(selected.filename?.control?.nativeWindowHandle) && selected.filename.control.nativeWindowHandle !== 0);
+    assert.equal(selected.filenameFocus?.control?.nativeWindowHandle, selected.filename.control.nativeWindowHandle);
+    assert.equal(selected.keyboard?.method, "SendInput");
+    assert.equal(selected.keyboard?.selection, "Ctrl+A");
+    assert.equal(selected.keyboard?.encoding, "UTF-16");
+    assert.equal(selected.keyboard?.batches, 1);
+    assert.equal(selected.keyboard?.utf16CodeUnits, destination.length);
+    assert.equal(selected.keyboard?.expectedEvents, 4 + destination.length * 2);
+    assert.equal(selected.keyboard?.insertedEvents, selected.keyboard.expectedEvents);
+    assert.equal(selected.keyboard?.modifiersClearBefore, true);
+    for (const target of [selected.keyboard?.foregroundBefore, selected.keyboard?.foregroundAfter]) {
+      assert.equal(target?.processId, current.child.pid);
+      assert.ok(Number.isSafeInteger(target?.threadId) && target.threadId > 0);
+      assert.equal(target?.foregroundWindow, selected.dialog.nativeWindowHandle);
+      assert.equal(target?.focusedWindow, selected.filename.control.nativeWindowHandle);
+    }
+    assert.equal(selected.keyboard.foregroundBefore.threadId, selected.keyboard.foregroundAfter.threadId);
     assert.equal(selected.saveFocus?.observed, true);
     assert.equal(selected.saveFocus?.control?.processId, current.child.pid);
     assert.equal(selected.saveFocus?.control?.name, "Save");
@@ -531,7 +550,7 @@ async function saveNativeBackupThroughDialog(current) {
   return { bytes: savedBytes, evidence: { freshFileSavedThroughRealButtonAndDialog: true,
     processIdentityAuthenticated: true, staleProcessIdentityRejectedBeforeUiAction: true,
     filenameAndSaveFocusAuthenticated: true,
-    filenameValuePatternAndSaveInvokePattern: true, savedFile: proof.savedFile, cleanupPassed: true,
+    authenticatedKeyboardInputAndSaveInvokePattern: true, savedFile: proof.savedFile, cleanupPassed: true,
     scope: proof.scope } };
 }
 
@@ -676,7 +695,7 @@ async function cleanupInstances() {
 let acceptanceFailure, result;
 try {
   let current = await launch();
-  let baseline, backupEvidence;
+  let baseline, backupEvidence, containerWriting;
   if (phase === "installed") {
     const initial = await nativeSnapshot(current.page);
     assert.equal(initial.selected.workspace, null, "Installed acceptance starts with an empty Motion profile");
@@ -690,6 +709,7 @@ try {
     await expect(current.page.locator('[contenteditable="true"][data-block]')).toHaveCount(1);
     await current.page.locator('[contenteditable="true"][data-block]').first().fill(notebookText);
     await expect(current.page.locator("#saveState")).toHaveText("Saved to Motion");
+    containerWriting = await exerciseContainerWriting({ page: current.page, readSnapshot: nativeSnapshot, notebookTitle, notebookText });
     await current.page.locator("#attachmentFile").setInputFiles({ name: attachmentName, mimeType: "text/plain", buffer: attachmentBytes });
     await expect(current.page.locator(".block-input.file")).toContainText(attachmentName);
     ({ baseline, evidence: backupEvidence } = await restoreVerifiedNotebook(current));
@@ -723,7 +743,7 @@ try {
     checks: ["native adapter", ...(phase === "installed" ? ["empty profile", "page editing", "attachment ingest", "real Verified backup button and native Save As", "verified saved-backup bytes and preview", "UI confirmation and restore into new workspace"] : ["selected restored notebook after uninstall/reinstall"]),
       "unchanged original workspace and revision", "exact restored attachment bytes", "second installed GUI exclusion", "same GUI retry after owner closes",
       "normal window close", "selected restored notebook after restart", "native search", "no external renderer requests observed after CDP connection"],
-    backup: backupEvidence, singleWriter: exclusion.evidence,
+    backup: backupEvidence, singleWriter: exclusion.evidence, ...(containerWriting ? { containerWriting } : {}),
     networkBoundary: "Windows firewall blocks application, local service and WebView2 outbound traffic before launch" };
 } catch (error) {
   acceptanceFailure = error;

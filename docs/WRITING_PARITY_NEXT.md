@@ -190,3 +190,26 @@ page.replace-blocks path instead of an unawaited whole-state replacement. Test
 save/transaction failures as well as successful keyboard, focus, duplicate,
 paste, search/backlink and restart/export/backup flows. Add the finished writing
 flow to installed Windows acceptance before declaring the container slice done.
+
+
+## Integrated container candidate — 25 November 2026
+
+The complete toggle/callout increment is integrated over `4dfed50`, preserving
+its native backup diagnostics. Existing canonical schema 2, UI-state format 1 and
+IPC 2 remain unchanged; folded IDs are an optional bounded UI preference.
+
+The integrated candidate passes 236 focused Node tests and all 107 browser cases,
+including 13 new container cases. It covers header Enter/paste, child structure,
+fold/reveal failure recovery, native-control locking, same-page history, canonical
+service restart, export, reference remapping and exact attachment backup/restore.
+An inherited markup rewrite could match a filename inside an escaped attribute;
+the actual DOM regression reproduced it, and attributes are now emitted only in
+the editable renderer branch. Fold presentation no longer mutates canonical link
+indexes. The 16 existing HTML sink sites were mapped and independently reviewed
+before their coordinate fingerprints were rebound; rules, ownership and expiry
+were retained. Evidence: `CONTAINER_WRITING_REVIEW_2026-11-25.json`.
+
+This remains a candidate. Native Rust validator execution and an actual installed
+Windows container-writing workflow must pass before changing the rows to complete.
+The next document-writing increment is the coordinated versioned inline-mark
+slice described above; do not replace the existing editor to begin that work.

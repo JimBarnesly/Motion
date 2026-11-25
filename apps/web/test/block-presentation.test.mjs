@@ -91,7 +91,7 @@ test("canonical renderer classes retain heading, list, and unsupported-block pre
   assert.ok(supportedTypes.includes("bulleted-list"));
   assert.ok(supportedTypes.includes("numbered-list"));
   assert.match(rule(".block-input.bulleted-list::before"), /content:\s*"• "/);
-  assert.match(rule(".block-input.numbered-list::before"), /content:\s*counter\(motion-list-number\)\s*"\. "/);
+  assert.match(rule(".block-input.numbered-list::before"), /content:\s*attr\(data-list-number\)\s*"\. "/);
   // File blocks currently share the unsupported row class, but render supported
   // file content. Warn only when the content renderer itself is unsupported.
   assert.match(rule(".block-row.unsupported:has(> .block-input.unsupported)"), /border:\s*1px dashed/);
@@ -99,12 +99,11 @@ test("canonical renderer classes retain heading, list, and unsupported-block pre
   assert.equal(rule(".block-row.unsupported"), "");
 });
 
-test("flat numbered runs increment and restart without empty placeholders hiding list markers", async () => {
+test("sibling-derived numbered markers render without empty placeholders hiding list markers", async () => {
   const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
 
-  assert.match(styles, /\.blocks\s*\{[^}]*counter-reset:\s*motion-list-number/);
-  assert.match(styles, /\.block-row\.numbered-list\s*\{[^}]*counter-increment:\s*motion-list-number/);
-  assert.match(styles, /\.block-row:not\(\.numbered-list\)\s*\{[^}]*counter-reset:\s*motion-list-number/);
+  assert.match(styles, /content:attr\(data-list-number\)/);
+  assert.doesNotMatch(styles, /counter-increment:\s*motion-list-number/);
   assert.doesNotMatch(styles, /\.block-input\.numbered-list::before\s*\{[^}]*content:\s*"1\. "/);
   assert.doesNotMatch(styles, /\.block-input:empty::before\s*\{/);
   assert.match(styles, /\.block-input:not\(\.bulleted-list\):not\(\.numbered-list\):empty::before\s*\{[^}]*content:attr\(data-placeholder\)/);

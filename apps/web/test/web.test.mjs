@@ -75,7 +75,7 @@ test("schema-v2 typed edits use the canonical recoverable confirmation boundary"
 test("root creation is single-flight, truthful, rollback-safe, and restores deterministic focus", async () => {
   const source = await readFile(resolve(root, "app.js"), "utf8");
   const html = await readFile(resolve(root, "index.html"), "utf8");
-  assert.match(source, /function findBlockLocation\(blocks,id,parent=null\)/);
+  assert.match(source, /import \{[^}]*findBlockLocation[^}]*\} from "\.\/block-tree\.js"/);
   assert.match(source, /location\.blocks\.splice\(location\.index,1\)/);
   assert.match(source, /rootCreationInFlight/);
   assert.match(source, /const previous=structuredClone\(state\)/);
@@ -117,7 +117,7 @@ test("canonical editor exposes non-trapping indent and outdent through typed com
   assert.match(source, /aria-keyshortcuts="Alt\+BracketRight Alt\+BracketLeft"/);
   assert.match(source, /event\.key==="Tab"&&!mod&&!event\.altKey/);
   assert.match(source, /findByDataValue\("\[data-delete-block\]","deleteBlock",input\.dataset\.block\)/);
-  assert.match(source, /render\(\);findByDataValue\("\[data-block\]","block",block\.id\)\?\.focus\(\);return;/);
+  assert.match(source, /restoreVisibleEditorFocus\(\{blockId:block\.id,offset:0\}\);return;/);
   assert.doesNotMatch(source, /render\(\);requestAnimationFrame\(\(\)=>findByDataValue\("\[data-block\]","block",block\.id\)\?\.focus\(\)\);return;/);
   assert.match(source, /data-indent="\$\{depth\}"/);
   assert.match(source, /Number\.isSafeInteger\(value\) && value >= 0/);
@@ -546,7 +546,7 @@ test("normal native page and block editing source never calls whole-document sav
   assert.doesNotMatch(source, /adapter\.execute\(["']workspace\.import-web-v1/);
   assert.match(source, /confirmEditorHistory\(\{current:state,target/);
   assert.match(source, /nativeCommands\.execute\(type,payload\)/);
-  assert.match(source, /function rebuildLinks\(\) \{ if \(adapter\.kind === "tauri"\) return;/);
+  assert.match(source, /function rebuildLinks\(source=workspace\(\)\) \{ if \(adapter\.kind === "tauri"\) return source\?\.linkIndex/);
   assert.match(source, /nativeCommands\.execute\("workspace\.create"/);
   assert.equal([...source.matchAll(/adapter\.execute\(/g)].length, 1);
   assert.match(source, /createNativeCommandController\(\{execute:\(type,payload\)=>adapter\.execute\(type,payload\)/);
@@ -733,7 +733,9 @@ test("document editor handles multiline paste through one canonical block batch"
   const build = await readFile(resolve(root, "scripts/build.mjs"), "utf8");
   assert.match(source, /from "\.\/markdown-paste\.js"/);
   assert.match(source, /addEventListener\("paste"/);
-  assert.ok(source.indexOf('event.preventDefault();let commands;try{commands=multilinePasteCommands') > -1);
+  const handler=source.slice(source.indexOf('document.addEventListener("paste"'),source.indexOf('document.addEventListener("focusin"'));
+  assert.ok(handler.indexOf("event.preventDefault()") < handler.indexOf("await flushCanonicalEdit"));
+  assert.ok(handler.indexOf("await flushCanonicalEdit") < handler.indexOf("commands=multilinePasteCommands"));
   assert.match(source, /selectionTextParts\(input\)/);
   assert.match(source, /resolveReferences:referencesForText/);
   assert.match(source, /candidate:\{type:"block\.batch"/);

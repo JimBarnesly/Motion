@@ -52,7 +52,7 @@ export function mergeAdjacentBlockCommands({ pageId, previousBlock, currentBlock
 }
 
 export function splitBlockCommands({ pageId, block, offset, endOffset = offset, parentBlockId = null, beforeBlockId = null, createId }) {
-  const splittable = new Set(["paragraph", "heading-1", "heading-2", "heading-3", "bulleted-list", "numbered-list", "task", "quote", "code"]);
+  const splittable = new Set(["paragraph", "heading-1", "heading-2", "heading-3", "bulleted-list", "numbered-list", "task", "quote", "code", "toggle", "callout"]);
   if (!splittable.has(block?.type) || block.unknownData !== undefined) return null;
   const text = String(block.text ?? "");
   if (!Number.isInteger(offset) || !Number.isInteger(endOffset) || offset < 0 || endOffset < offset || endOffset > text.length) {
@@ -99,7 +99,8 @@ export function splitBlockCommands({ pageId, block, offset, endOffset = offset, 
     };
   }
   const nextBlockId = createId();
-  const nextType = ["heading-1", "heading-2", "heading-3"].includes(block.type) && endOffset === text.length
+  const container = ["toggle", "callout"].includes(block.type);
+  const nextType = container || (["heading-1", "heading-2", "heading-3"].includes(block.type) && endOffset === text.length)
     ? "paragraph"
     : block.type;
   const nextBlock = {
@@ -122,7 +123,7 @@ export function splitBlockCommands({ pageId, block, offset, endOffset = offset, 
       {
         type: "block.create",
         pageId,
-        position: { parentBlockId, beforeBlockId },
+        position: container ? { parentBlockId: block.id, beforeBlockId: block.children[0]?.id ?? null } : { parentBlockId, beforeBlockId },
         block: nextBlock
       }
     ],

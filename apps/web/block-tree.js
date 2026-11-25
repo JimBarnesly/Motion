@@ -7,8 +7,9 @@ const LEAF_BLOCK_TYPES = new Set(["divider", "image", "file", "bookmark", "child
 
 export const canContainBlockChildren = type => !LEAF_BLOCK_TYPES.has(type);
 
-function* blockLocations(blocks, parent = null) {
-  const pending = [{ blocks: blocks ?? [], parent, index: 0, depth: 0 }];
+export function* blockLocations(blocks, parent = null, collapsedBlockIds = []) {
+  const collapsed = new Set(collapsedBlockIds);
+  const pending = [{ blocks: blocks ?? [], parent, index: 0, ancestors: [], depth: 0 }];
   let count = 0;
   while (pending.length) {
     const frame = pending.at(-1);
@@ -18,14 +19,42 @@ function* blockLocations(blocks, parent = null) {
     if (!block || typeof block !== "object" || !Array.isArray(block.children) || ++count > MAX_BLOCKS) {
       throw new Error("Block subtree exceeds limits");
     }
-    yield { block, blocks: frame.blocks, index, parent: frame.parent };
-    if (block.children.length) pending.push({ blocks: block.children, parent: block, index: 0, depth: frame.depth + 1 });
+    yield { block, blocks: frame.blocks, index, parent: frame.parent, ancestors: frame.ancestors, depth: frame.depth };
+    if (block.children.length && !(block.type === "toggle" && collapsed.has(block.id))) {
+      pending.push({ blocks: block.children, parent: block, index: 0, ancestors: [...frame.ancestors, block], depth: frame.depth + 1 });
+    }
   }
 }
 
 export function findBlockLocation(blocks, id, parent = null) {
   for (const location of blockLocations(blocks, parent)) if (location.block.id === id) return location;
   return null;
+}
+
+export function visibleBlockLocations(blocks, collapsedBlockIds = []) {
+  return [...blockLocations(blocks, null, collapsedBlockIds)];
+}
+
+export function survivingCollapsedBlockIds(workspace, collapsedBlockIds = []) {
+  const toggles = new Set();
+  for (const page of workspace?.pages ?? []) {
+    for (const { block } of blockLocations(page.blocks)) if (block.type === "toggle") toggles.add(block.id);
+  }
+  return [...new Set(collapsedBlockIds)].filter(id => toggles.has(id)).slice(0, 256);
+}
+
+export function expandedForBlock(blocks, blockId, collapsedBlockIds = []) {
+  const location = findBlockLocation(blocks, blockId);
+  if (!location) throw new Error("Block was not found");
+  const ancestors = new Set(location.ancestors.map(block => block.id));
+  return collapsedBlockIds.filter(id => !ancestors.has(id));
+}
+
+export function numberedSiblingPosition({ blocks, index }) {
+  if (blocks[index]?.type !== "numbered-list") return null;
+  let start = index;
+  while (start > 0 && blocks[start - 1].type === "numbered-list") start -= 1;
+  return index - start + 1;
 }
 
 function workspaceIdentities(workspace) {

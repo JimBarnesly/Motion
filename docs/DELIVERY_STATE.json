@@ -5,12 +5,12 @@
   "branch": "feat/windows-notebook-resume",
   "pullRequest": 2,
   "releaseStatus": "in-development",
-  "priority": "Execute the evidence-bound native Save As selector correction; prepare offline prerequisite upgrade separately",
+  "priority": "Repair the real backup save failure after successful native Save As; complete separate offline runtime upgrade candidate",
   "lastVerifiedCommit": "820998286a9083c0edbe663e6981945e59ad0ec4",
   "activeLease": {
     "owner": "interactive-windows-installer-2026-11-25",
-    "startedAt": "2026-11-25T14:12:52Z",
-    "expiresAt": "2026-11-25T16:12:52Z",
+    "startedAt": "2026-11-25T14:58:10Z",
+    "expiresAt": "2026-11-25T16:58:10Z",
     "scope": "Windows installed attachment/backup/lifecycle acceptance and continuation"
   },
   "continuationAutomation": "Automation_1b45f83f28188191b31f671c6229efd8",
@@ -39,7 +39,7 @@
     "503ae3d passed complete core CI with 89 browser cases plus both Linux packaged/native/offline jobs, covering reviewed nested writing and native nested-search repair"
   ],
   "next": [
-    "Execute the real Verified backup button and native Save As candidate, then verify/restore its exact disk bytes",
+    "Repair and re-execute the actual Verified backup action after native Save As succeeds, then verify and restore exact disk bytes",
     "Execute the reviewed nested duplicate/paste and native nested-search repair through full CI and installed baseline",
     "Resolve offline prerequisite handling: current inventory observes existing WebView2 131.0.2903.86, unchanged after setup; do not assume the minimum-version option upgrades offline",
     "Complete exact-payload runtime terms/notices mapping and determine whether an actual policy decision is necessary",
@@ -47,13 +47,13 @@
     "Obtain genuine initially-absent-WebView and Windows 11 first-install evidence"
   ],
   "openBlockers": [
-    "503ae3d native Save As opened the correct authenticated dialog and passed the stale-identity negative control, then failed to select eligible controls by the deadline. The recorded filename label/ID now drives a reviewed bounded selector; actual corrected Windows execution remains pending. Previous complete installed baseline 8209982 remains valid.",
+    "f9cba2a passed the authenticated native Save As controls, full-path readback, Save invocation and dialog close, then the application action rejected with pageerror Object and never showed successful save status. Native saved-file verification and later installed flow remain pending. The complete installed baseline at 8209982 remains valid.",
     "Initially absent WebView2 and fully offline first installation are unproven. Existing registry/file version131.0.2903.86 is not running-engine identity evidence. The locked older-runtime upgrade path requires review before modification.",
     "Glib renewal and exact five-file governance record pass the actual PR-base machine gate. Existing Code Owner review is outstanding; no submitted PR reviews observed, and live branch-protection settings are unverified.",
     "Evergreen classification/downstream terms are unfinished evidence work, not an observed npm/Cargo licence-gate failure or a separate existing binary-signoff form. Resolve applicable exact-payload terms/notices before deciding if policy changes are needed.",
     "Practical local feature parity remains unfinished; writing/search fixes are candidates, while toggle/callout UI, inline marks, additional database views and interchange remain delivery work."
   ],
-  "notes": "Last full installed baseline remains 8209982. Latest 503ae3d passed all general/Linux jobs including 89 browser cases and all Windows native/payload checks, then new actual Save As acceptance failed in control selection. Exact small diagnostic ZIP and control evidence retained in WINDOWS_SAVE_DIALOG_EVIDENCE_503ae3d.json. Root corrected the selector using the observed filename Edit label/ID and added bounded pre-mutation pattern diagnostics; independent review passed. No unsupported UI fallback, file-check relaxation or guessed extension cause. Separate isolated work prepares offline runtime upgrade, terms/notices and active engine evidence. Release remains in development.",
+  "notes": "General CI at f9cba2a passed all 89 browser cases and both Linux jobs. Windows native, payload, installed storage and mapped-SMB checks passed. The actual Save As driver now passes; the production action fails afterward with an unhandled object and unchanged attachment status. Exact diagnostic ZIP and proofs are retained in WINDOWS_SAVE_DIALOG_EVIDENCE_f9cba2a.json. The candidate makes backup failures visible and retryable, validates the complete native acknowledgement, and records the stage, bounded error code and destination observation for the next Windows run. The original native rejection remains unresolved. Offline runtime, notices, active-engine and network-window work remains isolated. Release status is in development.",
   "candidateVerification": {
     "portableWorkspaceTests": {
       "passed": 426,
@@ -132,12 +132,12 @@
       },
       "windowsRegressionCompile": "Full actual Windows Tauri debug/release builds and native regression execution passed at a64ceb0"
     },
-    "latestCoreCi": "All three jobs passed at 503ae3d, run45628198236",
+    "latestCoreCi": "All three jobs passed at f9cba2a, run 45631846366, including 89 browser cases.",
     "backupCodecCandidate": {
       "actualServiceRoundtrip": "passed locally and in complete core CI at a64ceb0, with real workspace and binary attachment, file publication, corruption rejection and new-identity restore",
       "webAdapterTests": 54,
       "installedAcceptance": "PASSED at 8209982 with encoded native backup and real UI restore",
-      "nativeSaveDialog": "503ae3d reached the actual authenticated dialog and passed stale-identity rejection; control selection failed. Observed-selector correction is source-reviewed and pending Windows."
+      "nativeSaveDialog": "The actual native Save As dialog passed at f9cba2a; application save completion failed before disk-byte acceptance."
     },
     "installerPayloadGateCandidate": {
       "localContractTests": 8,
@@ -202,16 +202,29 @@
       "ci": "Complete general CI and both Linux jobs passed at 503ae3d"
     },
     "nativeSaveDialogAttempt": {
-      "headCommit": "503ae3d776d92e8db66dd4403101554ef54cd0f5",
-      "testedMergeCommit": "aa8961179bfced88b9b19c63b3819104beed65b5",
-      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45628198328",
-      "job": 139253956163,
+      "headCommit": "f9cba2aa904fc493d9468aa39604f5b97bd08cf3",
+      "testedMergeCommit": "2f884b8a231d591c9bf9f49aae8debf1787a2310",
+      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45631846475",
+      "job": 139266846025,
       "installedNativePassed": 23,
       "nativeIdentityNegativeControl": "passed",
       "actualDialogOpened": "passed",
-      "controlSelection": "failed; unsupported/mismatch detail unobserved in old diagnostic",
-      "correction": "source-reviewed, Windows pending"
+      "controlSelection": "passed",
+      "exactDestinationReadBack": "passed",
+      "saveInvokedAndDialogClosed": "passed",
+      "applicationSaveCompletion": "failed: unchanged attachment status and unhandled pageerror Object",
+      "savedFileValidation": "not reached",
+      "correction": "Candidate adds truthful failure/cancellation status, retry, strict publication acknowledgement and bounded stage/code/destination diagnostics. The original native rejection still requires actual Windows evidence."
+    },
+    "backupRecoveryCandidate": {
+      "newBrowserCasesPassed": 5,
+      "existingNativeRestoreBrowserCasesPassed": 1,
+      "existingBackupUnitTestsPassed": 5,
+      "coordinatorAndConfinementTestsPassed": 22,
+      "review": "Independent editor, Notion and root source reviews passed; all 16 existing app HTML-sink fingerprints are unchanged.",
+      "coverage": "Real production service, destination inspection, damaged-bundle rejection, missing or malformed publication acknowledgement, cancellation, exact attachment bytes and successful retry without notebook changes. Rust dialog transport is substituted only in these browser cases.",
+      "actualWindows": "Pending; do not infer that handling the failure fixes its native cause."
     }
   },
-  "lastObservedCommit": "503ae3d776d92e8db66dd4403101554ef54cd0f5"
+  "lastObservedCommit": "f9cba2aa904fc493d9468aa39604f5b97bd08cf3"
 }

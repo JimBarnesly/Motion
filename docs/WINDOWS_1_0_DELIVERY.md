@@ -136,13 +136,28 @@ implied. Practical local feature work continues under `DELIVERY_STATE.json`;
 version and release status remain in development.
 
 
-### Latest acceptance increment: `503ae3d`
+### Latest acceptance increment: `f9cba2a`
 
 Complete general CI, all 89 browser tests and both Linux platform jobs passed.
-Windows native, prerequisite trust and installed storage checks also passed.
-The new native Save As test opened the real authenticated dialog and rejected a
-stale process identity, then failed while selecting its controls. The recorded
-filename Edit label and ID now drive a reviewed selector with bounded pattern
-and original-value diagnostics. Corrected Windows execution is pending; the
-last complete installed/restart/reinstall baseline remains `8209982`.
-See `WINDOWS_SAVE_DIALOG_EVIDENCE_503ae3d.json` for the failed-run evidence.
+Windows native, prerequisite trust, mapped-SMB and installed storage checks also
+passed. The corrected native Save As test authenticated the exact process and
+dialog, rejected the stale-process control, wrote/read back the selected path,
+invoked Save and observed the dialog close. The actual application backup action
+then failed: its success status never appeared, and the renderer reported an
+unhandled object rejection. Saved-file validation and the later installed flow
+were not reached. The production cause is under investigation; no successful
+native file-save claim is made from dialog closure alone.
+
+The last complete installed/restart/reinstall baseline remains `8209982`.
+See `WINDOWS_SAVE_DIALOG_EVIDENCE_f9cba2a.json` for the exact failed-run evidence.
+Separate isolated work prepares the bundled offline runtime upgrade, actual
+running-engine measurement, offline vendor notices and installer network denial.
+
+The next candidate handles backup preparation and save failures visibly, releases
+the operation for retry, and requires the complete native publication response
+before reporting success. Five real-service browser regressions and the existing
+native restore browser case passed, alongside five backup unit cases and 22
+coordinator/confinement cases. Windows diagnostics now record the failure stage,
+bounded error code and selected destination before cleanup. These changes do not
+establish the cause of the original native rejection; that remains the next
+actual Windows run's task.

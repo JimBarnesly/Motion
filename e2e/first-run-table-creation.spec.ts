@@ -196,7 +196,7 @@ test("MOTION-UX-008: native verified backup restores created content and stable 
     (window as any).__TAURI__ = { core: { invoke: async (command: string, args: any) => {
       if (command === "motion_ui_load") return structuredClone(loadDocument());
       if (command === "motion_ui_save") { const document=loadDocument(); document.activePageId=args.request.document.activePageId; document.expandedPageIds=args.request.document.expandedPageIds; saveDocument(document); return null; }
-      if (command === "motion_backup_save") { (window as any).__motionSavedBackup = structuredClone(args.request.bundle); return { saved: true, replaced: false, cancelled: false }; }
+      if (command === "motion_backup_save") { (window as any).__motionSavedBackup = structuredClone(args.request.bundle); return { saved: true, replaced: false, cancelled: false, byteLength: new TextEncoder().encode(JSON.stringify(args.request.bundle)).byteLength }; }
       if (command !== "app_dispatch") throw new Error(`unexpected native request: ${command}`);
       const payload = args.request.payload;
       if (payload.type === "workspace.create") return mutate(document => { document.workspace={schemaVersion:2,id:"native-workspace",name:payload.name,pages:[],databases:[],attachments:[],linkIndex:[],createdAt:stamp,updatedAt:stamp}; });

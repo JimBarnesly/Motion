@@ -66,8 +66,12 @@ async function captureFailureDiagnostics(current = running) {
           url: location.href, readyState: document.readyState,
           contentChildren: document.querySelector("#content")?.childElementCount ?? null,
           saveState: document.querySelector("#saveState")?.textContent ?? null,
+          backupState: document.querySelector("#saveState")?.dataset.backupState ?? null,
+          backupStage: document.querySelector("#saveState")?.dataset.backupStage ?? null,
+          backupErrorCode: document.querySelector("#saveState")?.dataset.backupErrorCode ?? null,
           scripts: [...document.scripts].map(script => ({ type: script.type, src: script.src })),
-          invokeAvailable: typeof window.__TAURI__?.core?.invoke === "function"
+          invokeAvailable: typeof window.__TAURI__?.core?.invoke === "function",
+          unhandledRejections: window.__motionAcceptanceRejections ?? []
         };
         if (!startup.invokeAvailable) return startup;
         // Read-only, bounded probe. Keep workspace contents out of diagnostic artifacts.
@@ -162,6 +166,19 @@ async function launch({ startup = "ready", role = "owner" } = {}) {
     ?? await context.waitForEvent("page", { timeout: 15_000 });
   current.page = page;
   page.setDefaultTimeout(15_000);
+  // Observe only bounded error fields. Do not intercept IPC, suppress events,
+  // or change application failure handling to obtain a passing result.
+  await page.evaluate(() => {
+    const observations = [];
+    Object.defineProperty(window, "__motionAcceptanceRejections", { value: observations });
+    window.addEventListener("unhandledrejection", event => {
+      const reason = event.reason;
+      observations.push({ type: typeof reason,
+        code: typeof reason?.code === "string" ? reason.code.slice(0, 100) : null,
+        message: typeof reason?.message === "string" ? reason.message.slice(0, 512) : null });
+      if (observations.length > 20) observations.shift();
+    });
+  });
   page.on("pageerror", error => record(pageErrors, { instance: current.label, message: error.message }));
   page.on("console", message => record(current.console, { type: message.type(), text: message.text().slice(0, 2000), location: message.location() }));
   page.on("requestfailed", request => record(current.failedRequests, { url: request.url(), failure: request.failure()?.errorText }));
@@ -462,6 +479,34 @@ async function saveNativeBackupThroughDialog(current) {
   } catch (error) {
     operationFailure = error;
     proof.failure = String(error.message).slice(0, 2000);
+    try {
+      proof.applicationStatus = await bounded(current.page.locator("#saveState").evaluate(element => ({
+        text: element.textContent?.slice(0, 512) ?? null,
+        state: element.dataset.backupState ?? null, stage: element.dataset.backupStage ?? null,
+        code: element.dataset.backupErrorCode ?? null
+      })), 3000, "Backup failure status observation");
+    } catch (statusError) { proof.statusObservationFailure = String(statusError.message).slice(0, 512); }
+    // Preserve observations of the selected destination before fixture cleanup.
+    // These read-only diagnostics never authorize or retry an application save.
+    try {
+      const metadata = await lstat(destination).catch(failure => {
+        if (failure.code === "ENOENT") return null;
+        throw failure;
+      });
+      proof.destinationAfterFailure = metadata === null ? { exists: false } : {
+        exists: true, regularFile: metadata.isFile(), symbolicLink: metadata.isSymbolicLink(),
+        links: metadata.nlink, byteLength: metadata.size
+      };
+      const inspected = invokeWindowsNativeHelper({ operation: "backup.inspect", path: destination });
+      proof.nativeInspectionAfterFailure = { exists: inspected.exists,
+        identity: typeof inspected.identity === "string" ? inspected.identity : null,
+        byteLength: typeof inspected.contents === "string" ? Buffer.byteLength(inspected.contents, "utf8") : null,
+        sha256: typeof inspected.contents === "string" ? createHash("sha256").update(inspected.contents).digest("hex") : null };
+    } catch (inspectionError) {
+      proof.nativeInspectionAfterFailure = { failed: true,
+        code: typeof inspectionError.code === "string" ? inspectionError.code.slice(0, 100) : null,
+        message: String(inspectionError.message).slice(0, 512) };
+    }
   } finally {
     try { await rm(fixture, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); proof.cleanupPassed = true; }
     catch (error) { operationFailure ??= error; proof.cleanupPassed = false; proof.cleanupFailure = error.message; }

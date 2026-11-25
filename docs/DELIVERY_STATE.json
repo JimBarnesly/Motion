@@ -5,14 +5,9 @@
   "branch": "feat/windows-notebook-resume",
   "pullRequest": 2,
   "releaseStatus": "in-development",
-  "priority": "Finish actual Windows Save As and offline installer acceptance; continue practical local writing and database parity",
+  "priority": "Restore executable workspace access; continue actual Windows Save As and offline installer acceptance before local feature expansion",
   "lastVerifiedCommit": "820998286a9083c0edbe663e6981945e59ad0ec4",
-  "activeLease": {
-    "owner": "interactive-windows-installer-2026-11-25",
-    "startedAt": "2026-11-25T16:32:00Z",
-    "expiresAt": "2026-11-25T18:32:00Z",
-    "scope": "Windows native Save As and offline installer acceptance; integrated local writing and board continuation"
-  },
+  "activeLease": null,
   "continuationAutomation": "Automation_1b45f83f28188191b31f671c6229efd8",
   "completed": [
     "Recovered existing advanced branch",
@@ -42,21 +37,23 @@
     "Integrated independently reviewed local Board UI and explicit-null filter clearing; full119-case browser suite and8 focused real-service/browser tests passed"
   ],
   "next": [
-    "Execute the same authenticated Windows Save As interaction with separate exact identity/readiness diagnostics; require intended private disk bytes, verified restore and complete installed lifecycle",
-    "Retain completed toggle/callout writing evidence before later installed acceptance steps; then qualify the integrated board through actual Windows controls",
-    "Diagnose offline pilot f7f3ea6 retained worker executable/session refusal with exact expected/actual observations, before claiming licence or firewall/runtime-upgrade coverage",
-    "Integrate the offline pilot with the exact five-file governance comparison for continuation PR2 after actual installer execution evidence",
-    "Extend versioned inline formatting, additional database views and local interchange using the recovered architecture",
-    "Obtain genuine initially-absent-WebView and Windows11 first-install evidence"
+    "Inspect this exact recovery candidate's general/Linux and Windows CI; require native Save As intended disk bytes and complete installed lifecycle",
+    "Restore an executable workspace, inspect all existing worktrees without overwriting them, and recover the reviewed staged changes by exact path/hash from WORKSPACE_RECOVERY_2026-11-25.json",
+    "Correct the inline test-only credential fixture through structured URL components, re-run its focused suite and secret scan, and update evidence hashes before publication; scanner policy remains unchanged",
+    "Recover installed Board helper/actual-service test and canonical backup preview count correction, integrate with current startup controller, and qualify through actual Windows controls",
+    "Recover pilot worker identity diagnostics before retrying real licence inspection and offline runtime qualification; exact mismatched executable/session is still unknown",
+    "Complete Gallery browser and actual-service verification, then coordinate the entire canonical3 formatting slice using INLINE_V3_IMPLEMENTATION_PLAN.md",
+    "Regenerate exact PR2 governance comparison when integrating offline pilot; obtain genuine initially absent WebView2 and Windows11 first-install evidence"
   ],
   "openBlockers": [
-    "At c6844f9 the real Save As test delivered166/166 input events under exact native focus, then a combined dialog check failed before filename readback or Save. The failed predicate is unproved. Intended saved bytes and full installed lifecycle remain required.",
-    "Genuinely absent WebView2 and Windows11 hardware first installation remain unproven. Offline pilot f7f3ea6 built and passed payload verification but stopped at its UI worker executable/session guard before licence inspection, offline firewall, runtime upgrade or active-engine observation.",
-    "Glib renewal and exact five-file governance record pass the actual PR-base machine gate. Existing Code Owner review is outstanding; no submitted PR reviews observed, and live branch-protection settings are unverified.",
-    "Exact Evergreen vendor classification and byte-preserved terms/notices are implemented in isolated PR3 without policy broadening. Actual interactive page and installed-resource checks are pending; existing Code Owner review remains outstanding.",
-    "Practical local feature parity remains unfinished. Toggle/callout and Board UI are integrated tested candidates; inline formatting, additional database views and interchange remain delivery work."
+    "The development execution environment became unavailable; local filesystem/build/browser/test commands cannot run. GitHub remains accessible. Unpublished work is recorded for exact recovery, not treated as lost or safely persisted.",
+    "At e17b33c, installed acceptance stopped before readiness with an execution context destroyed during initial navigation. This candidate waits for the exact application URL and DOMContentLoaded. Actual execution remains required.",
+    "At c6844f9, real Save As delivered166/166 input events under exact focus but the following combined dialog guard failed before filename readback or Save. Intended saved bytes and full installed lifecycle remain unproven for subsequent candidates.",
+    "Genuinely absent WebView2 and Windows11 hardware first installation remain unproven. Pilot f7f3ea6 stopped at retained worker executable/session guard before licence inspection, firewall, runtime upgrade or active-engine observation.",
+    "Practical local feature parity remains unfinished. Board and toggle/callout are published tested candidates; Gallery is local/unpublished and inline formatting has only a reviewed unused local helper and design.",
+    "Existing human Code Owner review remains outstanding. Preserve all existing release/security gates and regenerate the exact five-file governance comparison for PR2 when integrating the pilot."
   ],
-  "notes": "At c6844f9 all three core/Linux CI jobs passed with107 browser cases. Windows passed28 Rust,24 filesystem/service,3 startup and24 installed native cases, built/installed and verified the payload, and delivered166/166 keyboard events to the authenticated Save As edit. A combined dialog guard then refused before exact filename readback/Save; the rejected field was not recorded. The next candidate separates identity from bounded readiness and retains exact observations. Local board UI, canonical filter clearing and durable view selection are now integrated with119 browser cases and8 focused service/browser cases passing. Offline pilot f7f3ea6 core CI passed, but Windows stopped before licence inspection at a worker identity guard; actual compared field is unproved. Release remains in development.",
+  "notes": "At e17b33c, all three general CI jobs failed the same obsolete source-import assertion after filtering moved through record-selector.js. Windows built/installed and passed native gates but stopped at the first page.evaluate during initial navigation, before readiness, container writing or Save As. This narrow recovery candidate corrects that source assertion and synchronizes the acceptance document before evaluation, preserving all later gates. The development environment disconnected on 25 November at about17:47UTC before the prepared15-file MAIN and6-file pilot candidates were published. Their exact local files and validation must be recovered; do not report them as shipped. Larger Gallery and inline-schema work is not released. See WORKSPACE_RECOVERY_2026-11-25.json.",
   "candidateVerification": {
     "portableWorkspaceTests": {
       "passed": 426,
@@ -135,7 +132,7 @@
       },
       "windowsRegressionCompile": "Full actual Windows Tauri debug/release builds and native regression execution passed at a64ceb0"
     },
-    "latestCoreCi": "All three jobs passed at c6844f9 in run45656813712, including107 browser cases.",
+    "latestCoreCi": "All three jobs failed at e17b33c in run45663035557 on the same obsolete relative-date.test.mjs direct-import assertion; last all-green general/Linux run was c6844f9 run45656813712.",
     "backupCodecCandidate": {
       "actualServiceRoundtrip": "passed locally and in complete core CI at a64ceb0, with real workspace and binary attachment, file publication, corruption rejection and new-identity restore",
       "webAdapterTests": 54,
@@ -292,7 +289,7 @@
       "independentSourceReview": "passed",
       "scope": "Immutable process/dialog identity remains fail-fast; only exact retained/found enabled/offscreen readiness may wait less than3000ms. Separate complete observations retained. No input or Save retry.",
       "evidence": "docs/WINDOWS_SAVE_READINESS_REVIEW_2026-11-25.json",
-      "actualWindows": "pending next exact-candidate run"
+      "actualWindows": "23 pure contract checks passed on Windows PowerShell5.1 at e17b33c; real Save As readiness logic was not reached because startup navigation failed first."
     },
     "boardUiCandidate": {
       "ownedFiles": 4,
@@ -314,7 +311,19 @@
       "nativeServiceTypeEquivalence": "passed after additive adapter declaration alignment",
       "scope": "Explicit-null update command clears optional stored filter; omitted preserves, stored view remains non-null, validation precedes mutation. Actual SQLite/JSON/export/reopen regressions pass.",
       "evidence": "docs/FILTER_CLEAR_REVIEW_2026-11-25.json"
+    },
+    "startupSynchronizationCandidate": {
+      "sourceBase": "e17b33cdf6bd23dee61f70b92d3761694a0747bb",
+      "scope": "Synchronous host observers precede evaluation; rejection observer is idempotent, added to future documents, and evaluated only after exact application URL/DOMContentLoaded. Ready/blocked/CSP/SaveAs/backup/restart gates unchanged.",
+      "localLimitation": "Reconstructed narrowly from exact GitHub source after environment outage. V8 grammar/source checks only after reconstruction; complete Node and actual Windows checks await CI.",
+      "evidence": "docs/WORKSPACE_RECOVERY_2026-11-25.json"
     }
   },
-  "lastObservedCommit": "c6844f99579257f6d71136c25042a79896424b40"
+  "lastObservedCommit": "e17b33cdf6bd23dee61f70b92d3761694a0747bb",
+  "lastHandoff": {
+    "at": "2026-11-25T17:56:00Z",
+    "reason": "Execution environment unavailable; release lease for the next authorized bounded continuation. Published source plus checkpoint are authoritative; local staged payload parents are obsolete after this recovery commit.",
+    "recoveryRecord": "docs/WORKSPACE_RECOVERY_2026-11-25.json",
+    "automation": "Automation_1b45f83f28188191b31f671c6229efd8"
+  }
 }

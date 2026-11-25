@@ -168,19 +168,6 @@ async function launch({ startup = "ready", role = "owner" } = {}) {
     ?? await context.waitForEvent("page", { timeout: 15_000 });
   current.page = page;
   page.setDefaultTimeout(15_000);
-  // Observe only bounded error fields. Do not intercept IPC, suppress events,
-  // or change application failure handling to obtain a passing result.
-  await page.evaluate(() => {
-    const observations = [];
-    Object.defineProperty(window, "__motionAcceptanceRejections", { value: observations });
-    window.addEventListener("unhandledrejection", event => {
-      const reason = event.reason;
-      observations.push({ type: typeof reason,
-        code: typeof reason?.code === "string" ? reason.code.slice(0, 100) : null,
-        message: typeof reason?.message === "string" ? reason.message.slice(0, 512) : null });
-      if (observations.length > 20) observations.shift();
-    });
-  });
   page.on("pageerror", error => record(pageErrors, { instance: current.label, message: error.message }));
   page.on("console", message => record(current.console, { type: message.type(), text: message.text().slice(0, 2000), location: message.location() }));
   page.on("requestfailed", request => record(current.failedRequests, { url: request.url(), failure: request.failure()?.errorText }));
@@ -205,6 +192,23 @@ async function launch({ startup = "ready", role = "owner" } = {}) {
       record(unexpectedDialogs, { ...detail, failure: error.message });
     }
   });
+  // Observe only bounded error fields. Do not intercept IPC, suppress events,
+  // or change application failure handling to obtain a passing result.
+  const observeRejections = () => {
+    if (Object.hasOwn(window, "__motionAcceptanceRejections")) return;
+    const observations = [];
+    Object.defineProperty(window, "__motionAcceptanceRejections", { value: observations });
+    window.addEventListener("unhandledrejection", event => {
+      const reason = event.reason;
+      observations.push({ type: typeof reason,
+        code: typeof reason?.code === "string" ? reason.code.slice(0, 100) : null,
+        message: typeof reason?.message === "string" ? reason.message.slice(0, 512) : null });
+      if (observations.length > 20) observations.shift();
+    });
+  };
+  await page.addInitScript(observeRejections);
+  await page.waitForURL("http://tauri.localhost/", { waitUntil: "domcontentloaded", timeout: 30_000 });
+  await page.evaluate(observeRejections);
   // CDP Log.enable replays retained browser entries, including CSP/module errors
   // that occurred before this controller connected. Do not reload past a failure.
   const logs = await context.newCDPSession(page);

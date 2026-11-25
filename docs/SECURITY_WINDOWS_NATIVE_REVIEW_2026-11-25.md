@@ -317,7 +317,7 @@ dead86ef764480f11afc9248b89ddc0cb176a29faa0afb332f9dfae1f1c78118  apps/desktop/s
 98f8487e4b828e07692b8e3fd16094cf5f65d5133a2fddb3e1989648acbc816c  packages/storage/src/windows-native-helper.ts
 782cc56aebc22a835a5d1b978704910f0912db0d0b664089039c248ae8f2e174  packages/storage/src/windows-attachments.ts
 ecb1979f8a5a4df947f1aa85427783b427a02a69728c1737f13c195ee6b0156e  scripts/windows-installed-acceptance.ps1
-2639d11164066580c479320992aad0d6e7197df6d9b3d0a1e6e90944be54c1ba  scripts/windows-installed-ui.mjs
+99d3d3593a03229a0d934f0eab24864174903987ea9e8b6e51d772966b71ce2e  scripts/windows-installed-ui.mjs
 21dafe879d39246b959ac93772fe1db52bf784a078de714426393bd2f9682019  .github/workflows/windows.yml
 ```
 
@@ -720,3 +720,69 @@ Windows platform modules for `x86_64-pc-windows-msvc --tests` with zero errors i
 the existing source harness. Full local Tauri compilation lacks the Windows
 resource compiler, so actual Windows execution remains required. After adding
 the regression, the unchanged source gate passed for **121 first-party files**.
+
+
+## Observed GUI startup and mapped-volume result at `fbdbbd8`
+
+[Windows run 45608035891](https://github.com/JimBarnesly/Motion/actions/runs/45608035891)
+completed all **28 native Rust tests**, **23 Windows filesystem/service tests**,
+**three startup-gate tests**, and **23 installed native tests** without skips or
+ignored cases. The new original-format canonicalized entrypoint regression
+passed. The installed GUI then opened, created a page and saved its title;
+a bounded native diagnostic returned revision 3 and one page. This establishes
+the bundled runtime correction in the actual desktop launch path.
+
+The next GUI action failed because the acceptance fixture expected a starter
+paragraph that only the browser-development mutation creates. Native
+`page.create` correctly starts with an empty block list; the screenshot shows the
+real **+ Add block** control. The revised fixture clicks that control and requires
+one editable block before typing. No assertion is removed or replaced by a stub.
+Restart and uninstall/reinstall were not reached in this run.
+
+The real mapped-SMB fixture also passed: local native/service controls, reachable
+mapped read/write control, all five native refusals and the queued-service refusal,
+physical and security snapshot preservation, and exact owned fixture cleanup.
+The raw result and independently verified artifact/installer hashes are retained
+in `WINDOWS_INSTALLED_EVIDENCE_fbdbbd8.json`. The test ran the PR merge commit
+`b62797a0002802c9ce54fc6fbefbe6c38e16c064` for head `fbdbbd8`; head and tested
+merge identity are recorded separately.
+
+### Reviewed backup transport and installed-lifecycle increment
+
+A real transport defect was reproduced between the web adapter and service.
+Tauri serializes nested `Uint8Array` values as ordinary arrays, while Motion's
+service revives the existing exact `$motionBytes` envelope. The adapter now
+recursively encodes typed bytes before `app_dispatch` and native backup save,
+and strictly validates byte envelopes on decode. It changes neither the wire
+protocol nor permissions, dependency packages, native file publication or schema.
+
+The root independently read the codec and the actual-service regression, and ran
+that regression successfully. It uses nonempty canonical data and bytes including
+0 and 255; checks verification/preview, actual file publication/readback,
+corruption rejection without creating a workspace, new-identity restoration,
+unchanged original revision and exact restored attachment bytes. Native Save As
+interaction is explicitly outside this portable test. The web adapter's 54 tests
+and typecheck also pass locally.
+
+The desktop/backup reviewer independently reviewed the native-boundary author's
+installed GUI increment, and the root reviewed the final diff. It uses the actual
+installed adapter, exact encoded backup file, observed matching confirmation and
+real UI restore. Canonical snapshots establish original-workspace preservation,
+exactly one new workspace, exact bytes and persistent restored selection across
+restart/reinstall. A separate WebView profile and debug port ensure the second-GUI
+case tests native ownership, not a browser-profile collision. Its valid mutation
+canary must fail without changing the open owner; the same contender must recover
+through its Retry control after the owner closes. All instances have bounded
+cleanup, and cleanup failures prevent the PASS artifact. Actual Windows execution
+remains required; native Save As dialog automation is not claimed. Normal window
+close terminates the service process, so restart verifies durability/recovery,
+not graceful SQLite shutdown.
+
+Both Linux architecture jobs passed in general CI run45608036035. Its verify job
+failed on one public EULA-document digest field named `api_response_sha256`.
+Independent recomputation of the retained 24,565-byte public API response gives
+`821657eb0994850b0ea86b53242c52a22016e45859fee74bcd456dd77c0ba18e`, exactly the
+reported value. Renaming the metadata key to `response_document_sha256` removes
+the lexical false positive without changing the digest, scanner, policy or
+allowlist. All **11 unchanged secret-scan regressions** pass locally, including
+seeded-secret rejection. Complete CI remains mandatory for the next candidate.

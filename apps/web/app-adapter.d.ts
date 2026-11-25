@@ -176,4 +176,6 @@ export interface MotionUiRuntime {
 }
 
 export declare function createMotionUiAdapter(runtime?: MotionUiRuntime): MotionUiAdapter;
+export declare function encodeBinary(value: unknown): unknown;
+export declare function decodeBinary(value: unknown): unknown;
 export declare const EMPTY_WORKSPACE: Readonly<WebWorkspaceV1>;

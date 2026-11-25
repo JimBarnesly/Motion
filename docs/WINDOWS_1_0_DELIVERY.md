@@ -88,22 +88,33 @@ there is no network listener.
 
 ## Current release evidence — 25 November 2026
 
-Candidate `0d1dd27475525597c9d7fb6f02c75d0fbf01780d` passed all three jobs in
-[general CI run 45599716573](https://github.com/JimBarnesly/Motion/actions/runs/45599716573):
-complete verification plus Linux x64 and ARM64 native/package/offline acceptance.
-The prior ARM64 inventory mismatch has a source-bound evidence record; the glib
-exception has a dated source review and still needs the required human review.
+Candidate `fbdbbd8170781472b0118ef87e9a45ee38ab68ce` built and installed its
+current-user NSIS package in [Windows run45608035891](https://github.com/JimBarnesly/Motion/actions/runs/45608035891).
+All **28 Rust**, **23 Windows native/service**, **three startup-gate**, and
+**23 installed native** tests passed. Actual mapped-SMB controls, refusals,
+unchanged physical/security snapshots and fixture cleanup passed as well.
 
-[Windows run 45599716432](https://github.com/JimBarnesly/Motion/actions/runs/45599716432)
-passed 27 Rust tests, 23 Windows native/service tests and three startup-gate tests.
-The per-user NSIS installer built and installed successfully, and all 23 tests
-passed again against installed resources. The GUI opened its static document but
-failed to render its initial workspace within 30 seconds. This is a real startup
-blocker: a valid fresh workspace should display the welcome screen. Restart and
-uninstall/reinstall checks were not reached. The candidate is not release-ready.
+The bundled Node24.22.3 correction is confirmed: the actual installed GUI opened,
+created a page and saved its title. The next body-edit action exposed a test
+assumption: native pages are empty until the real **Add block** control is used.
+The corrected fixture uses that action. Its next candidate also exercises real
+backup create/verify/preview and confirmed restore, preserves the original
+workspace/revision, checks restored bytes and selection across restart/reinstall,
+and proves concurrent-GUI exclusion and same-GUI recovery. Those additions still
+require actual Windows execution; no 1.0 acceptance is inferred.
 
-The next diagnostic preserves that success requirement, captures bounded native
-load/browser/process evidence, and adds a genuine mapped-SMB rejection fixture.
-Offline operation is tested by executable-specific firewall rules; fully offline
+Both Linux architecture jobs in [general CI run45608036035](https://github.com/JimBarnesly/Motion/actions/runs/45608036035)
+passed. General verification failed on a public document-hash metadata key that
+the secret scanner interpreted as an API key. The key is renamed with the exact
+verified digest retained; unchanged local secret-gate tests pass 11/11. The next
+complete CI run must pass. Earlier complete core verification passed at `0d1dd27`.
+
+The actual-service backup roundtrip also identified and now locally verifies a
+fix for byte-envelope serialization through the native adapter. Native Save As
+dialog automation remains distinct from the new installed restore proof.
+
+Offline operation uses executable-specific firewall rules; fully offline
 installation with initially absent WebView2 still needs clean-image evidence.
-See `DELIVERY_STATE.json` for exact candidate status and continuation ownership.
+The Evergreen payload's binary-policy classification and Windows trust checks
+remain release work, as do required review items. See `DELIVERY_STATE.json` and
+`WINDOWS_INSTALLED_EVIDENCE_fbdbbd8.json` for exact current evidence and ownership.

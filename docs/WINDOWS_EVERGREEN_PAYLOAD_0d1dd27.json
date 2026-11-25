@@ -163,7 +163,7 @@
     "title": "MICROSOFT EDGE WEBVIEW2 RUNTIME",
     "utf8_bytes": 21639,
     "html_sha256": "ce6fa83e57c338256e5cabe9e1eea83076c271b0fdb253408213eeb08859d7b6",
-    "api_response_sha256": "821657eb0994850b0ea86b53242c52a22016e45859fee74bcd456dd77c0ba18e"
+    "response_document_sha256": "821657eb0994850b0ea86b53242c52a22016e45859fee74bcd456dd77c0ba18e"
   },
   "method": [
     "Checked extracted NSIS bytes against supplied artifact SHA256SUMS.",

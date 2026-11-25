@@ -21,10 +21,26 @@ const WORKSPACE_KEY = "default";
 const UI_STATE_FIELDS = new Set(["workspaceId", "activePageId", "expandedPageIds", "activeViewIds"]);
 const UI_STATE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
 
+export function encodeBinary(value) {
+  if (value instanceof Uint8Array) return { $motionBytes: Array.from(value) };
+  if (Array.isArray(value)) return value.map(encodeBinary);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, encodeBinary(child)]));
+  }
+  return value;
+}
+
 export function decodeBinary(value) {
   if (Array.isArray(value)) return value.map(decodeBinary);
   if (value && typeof value === "object") {
-    if (Object.keys(value).length === 1 && Array.isArray(value.$motionBytes)) return Uint8Array.from(value.$motionBytes);
+    if (Object.keys(value).length === 1 && Object.hasOwn(value, "$motionBytes")) {
+      const bytes = value.$motionBytes;
+      if (!Array.isArray(bytes)) throw new TypeError("Invalid Motion byte envelope");
+      for (const byte of bytes) {
+        if (!Number.isInteger(byte) || byte < 0 || byte > 255) throw new TypeError("Invalid Motion byte envelope");
+      }
+      return Uint8Array.from(bytes);
+    }
     return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, decodeBinary(child)]));
   }
   return value;
@@ -120,7 +136,7 @@ function tauriAdapter(invoke) {
     }
     workspaceSummary = { id: current.id, revision: result.revision };
   };
-  const dispatch = async (lane, payload) => decodeBinary(await invoke("app_dispatch", { request: { protocolVersion: 1, lane, payload } }));
+  const dispatch = async (lane, payload) => decodeBinary(await invoke("app_dispatch", { request: { protocolVersion: 1, lane, payload: encodeBinary(payload) } }));
   const validSummary = summary => typeof summary?.id === "string" && UI_STATE_ID.test(summary.id)
     && Number.isSafeInteger(summary.revision) && summary.revision >= 0;
   const transitionSummary = (result, allowEmpty) => {
@@ -267,7 +283,7 @@ function tauriAdapter(invoke) {
     },
     async readAttachment(attachmentId) { return dispatchCurrentWorkspace("async-query", { type: "attachment.read", attachmentId }); },
     async createBackup() { return dispatchCurrentWorkspace("async-query", { type: "backup.create" }); },
-    async saveBackup(bundle) { return invoke("motion_backup_save", { request: { schemaVersion: 1, bundle } }); },
+    async saveBackup(bundle) { return invoke("motion_backup_save", { request: { schemaVersion: 1, bundle: encodeBinary(bundle) } }); },
     async verifyBackup(bundle) { return dispatch("async-query", { type: "backup.verify", bundle }); },
     async previewBackup(bundle) { return dispatch("async-query", { type: "backup.preview", bundle }); },
     async restoreBackup(bundle) {

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { applyLocalEdit } from "../browser-edit-confirmation.js";
-import { decodeBinary } from "../app-adapter.js";
+import { decodeBinary, encodeBinary } from "../app-adapter.js";
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
@@ -782,6 +782,27 @@ test("search remains available when every page is in Trash", async () => {
 test("verified backup JSON revives attachment payload byte envelopes", () => {
   const restored = decodeBinary(JSON.parse('{"files":{"attachment":{"$motionBytes":[0,127,255]}}}'));
   assert.deepEqual(restored.files.attachment, Uint8Array.of(0, 127, 255));
+});
+
+test("binary transport preserves nested byte views without changing the source", () => {
+  const backing = Uint8Array.of(99, 0, 127, 255, 88);
+  const source = { files: { proof: backing.subarray(1, 4), empty: new Uint8Array() }, nested: [Uint8Array.of(128)] };
+  const before = structuredClone(source);
+  const encoded = encodeBinary(source);
+  assert.deepEqual(encoded, {
+    files: { proof: { $motionBytes: [0, 127, 255] }, empty: { $motionBytes: [] } },
+    nested: [{ $motionBytes: [128] }]
+  });
+  assert.deepEqual(decodeBinary(JSON.parse(JSON.stringify(encoded))), source);
+  assert.deepEqual(source, before);
+  assert.deepEqual(backing, Uint8Array.of(99, 0, 127, 255, 88));
+});
+
+test("binary decoding rejects malformed byte envelopes instead of coercing their content", () => {
+  for (const bytes of [null, undefined, {}, "bytes", [-1], [256], [1.5], ["1"], [null], [true], [NaN], [Infinity], [undefined], Array(1)]) {
+    assert.throws(() => decodeBinary({ files: { proof: { $motionBytes: bytes } } }),
+      { name: "TypeError", message: "Invalid Motion byte envelope" });
+  }
 });
 
 test("verified backup creation delegates publication to the native safe-save boundary", async () => {

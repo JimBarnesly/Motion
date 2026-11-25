@@ -1,6 +1,7 @@
 use super::{
-    acquire_private_file_lease, create_private_file, open_private_file, pin_directory,
-    publish_no_replace, replace_private_file, PinnedDirectory, PinnedFile,
+    acquire_private_file_lease, create_private_file, open_private_file, open_replacement_target,
+    pin_directory, publish_no_replace, replace_private_file, verify_published_file,
+    PinnedDirectory, PinnedFile,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -146,7 +147,18 @@ fn save(request: Save) -> io::Result<Value> {
     lease_name.push(request.path.file_name().ok_or_else(|| invalid("Backup filename is unavailable"))?);
     lease_name.push(".motion-backup.owner-v3");
     let _lease = acquire_private_file_lease(&parent.path().join(lease_name))?;
-    let mut existing = open_existing(&destination)?;
+    let mut existing = if request.expected_identity.is_some() {
+        // Replacement retains the authenticated file and denies concurrent data
+        // writes, but permits the delete sharing required by Windows rename.
+        // The private parent and exclusive Motion lease remain held throughout.
+        match open_replacement_target(&destination) {
+            Ok(file) => Some(file),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+            Err(error) => return Err(error),
+        }
+    } else {
+        open_existing(&destination)?
+    };
     match (&mut existing, &request.expected_identity) {
         (Some(target), Some(expected)) => {
             let bytes = read_contents(target)?;
@@ -165,12 +177,27 @@ fn save(request: Save) -> io::Result<Value> {
     if read_contents(temporary.file_mut())? != bytes {
         return Err(invalid("Backup write did not persist the complete canonical payload"));
     }
-    if let Some(target) = &existing {
-        // Retain the authenticated target's no-delete/no-write guard through the
-        // native atomic replacement. Unsupported filesystems fail closed.
+    if let Some(target) = &mut existing {
+        // Reauthenticate after staging, as close to the swap as possible. The
+        // common primitive then checks the final name relative to its retained
+        // parent immediately before renaming. Together with the Motion lease,
+        // this protects cooperating writers; it is not a kernel compare-and-swap
+        // against arbitrary namespace mutation by another same-user process.
+        let expected = request.expected_identity.as_deref()
+            .ok_or_else(|| invalid("Existing backup requires replacement identity"))?;
+        let current = read_contents(target)?;
+        if identity(target, &current)? != expected {
+            return Err(invalid("Existing backup changed while preparing replacement"));
+        }
         replace_private_file(temporary.file(), target)?;
-        // The held source now names the destination. Never delete it in Drop.
-        let published = temporary.0.take().ok_or_else(|| invalid("Published backup is unavailable"))?;
+        // Disarm cleanup before any fallible postcondition or durability check:
+        // the source handle now identifies the published destination.
+        let mut published = temporary.0.take().ok_or_else(|| invalid("Published backup is unavailable"))?;
+        verify_published_file(&published, &parent,
+            request.path.file_name().ok_or_else(|| invalid("Backup filename is unavailable"))?)?;
+        if read_contents(&mut published)? != bytes {
+            return Err(invalid("Published backup differs from the verified payload"));
+        }
         published.file().sync_all()?;
     } else {
         publish_no_replace(temporary.file(), &parent,

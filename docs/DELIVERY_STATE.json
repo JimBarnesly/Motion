@@ -20,24 +20,28 @@
     "Attachment metadata import hardening",
     "Local baseline tests and Linux x64 packaged CI",
     "Implemented independently source-reviewed Windows native storage, attachments, backup and UI-state candidates",
-    "Added pinned local runtime, per-user offline NSIS packaging and installed acceptance workflow"
+    "Added pinned local runtime, per-user offline NSIS packaging and installed acceptance workflow",
+    "Executed real Windows in-place junction and inherited-ACL preservation attack regressions: all four pass at 57db2c8",
+    "Resolved the exact five-package Debian security inventory drift; ARM isolated validation now passes",
+    "Complete core CI and Linux x64 packaged acceptance pass at 57db2c8"
   ],
   "next": [
-    "Publish focused Windows CI follow-up and inspect its native replacement regression before claiming the installer works",
-    "Execute deterministic in-place junction and inherited-ACL preservation regressions on actual Windows",
+    "Execute Windows replacement, confirmation continuity and fresh-launch root corrections, then proceed to NSIS installed acceptance",
+    "Retain actual passing junction/ACL evidence and complete a real mapped-drive rejection fixture",
     "Prove installed restart, backup/restore and uninstall/reinstall data preservation",
     "Exercise offline installation with WebView2 initially absent on a clean Windows image",
     "Continue practical local writing, database views and portability parity after Windows installer acceptance"
   ],
   "openBlockers": [
-    "Windows candidate 0f91da4 compiles and passes 18 native tests, but existing backup replacement returns EBUSY and UI-state replacement fails; installer acceptance has not run",
-    "Two Windows ACL assertions failed because PowerShell 5.1 inherited a PowerShell 7 module path; scoped fixture fix awaits Windows execution",
-    "Cross-platform browser network fixture rejected a regex .test token in attachment-metadata.spec.ts; equivalent includes assertion passes all 19 local confinement tests",
-    "Inherited ARM64 inventory drift was traced to five official Debian security package updates; reviewed digest update awaits actual isolated build",
+    "Windows candidate 57db2c8 native diagnostic proves that no-delete target sharing prevents backup replacement (OS error 32); dedicated backup-only sharing correction is under independent review",
+    "Fresh Windows app root must be created privately before Tauri initializes its configured WebView; corrected startup candidate awaits installed execution",
+    "Native backup overwrite confirmation must retain the pre-dialog target identity through the internal save request; correction and regression in progress",
+    "PowerShell module-path fixture correction still awaits Windows service suite execution",
+    "Actual NSIS package and installed offline/uninstall/reinstall acceptance not yet observed",
     "The glib exception renewal and governed changes remain draft CODEOWNERS review items",
-    "Windows mapped-volume, in-place reparse and inherited-ACL preservation attack fixtures require execution evidence"
+    "Mapped-drive rejection and initially absent WebView2 still require real Windows evidence"
   ],
-  "notes": "Windows implementation is a candidate, not a completed installer or 1.0 release. Read exact latest commit CI and SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md. All 19 unsafe scopes are individually source-bound; no human approval or Windows runtime pass is inferred from source review. Current interactive lease prevents overlapping scheduled writes.",
+  "notes": "Windows implementation remains a candidate, not a completed installer or 1.0 release. Actual 57db2c8 CI passed the full core verification and Linux x64 packaged suite; Windows diagnostic proved the replacement design needed correction. Read exact latest commit CI and SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md. Supported Windows replacement uses a private parent, a cooperating-writer lease and final name/content validation, not kernel CAS against arbitrary same-user namespace mutation. All 19 unsafe scopes are individually reviewed; no human approval is inferred. The active lease prevents overlapping scheduled writes.",
   "candidateVerification": {
     "portableWorkspaceTests": {
       "passed": 426,
@@ -49,23 +53,27 @@
     "build": "passed",
     "dependencyInventory": "436 production packages, passed",
     "sourceSecurity": "119 first-party files, 8 unchanged rules, passed with 19 individually reviewed Windows FFI scopes",
-    "windowsNativeCompile": "Passed full native Windows Tauri application compilation on windows-2022, commit 0f91da4",
+    "windowsNativeCompile": "Passed full native Windows Tauri compilation at 57db2c8 on windows-2022",
     "fullWindowsTauriBuild": "Native debug executable compiled; NSIS release packaging not reached because Windows service tests failed",
     "windowsExecution": {
-      "commit": "0f91da4b3439b2b4a51bf43b7d4dd15ef5ab882b",
-      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45594915480",
+      "commit": "57db2c8ffb8b60f4d98bbbb8eca581112299a914",
+      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45597659367",
       "rust": {
-        "passed": 18,
+        "passed": 23,
+        "failed": 1,
+        "ignored": 0
+      },
+      "adversarialJunctionAndAclTests": {
+        "passed": 4,
         "failed": 0,
         "ignored": 0
       },
-      "javascript": {
-        "passed": 17,
-        "failed": 4,
-        "skipped": 0
-      },
+      "failure": "Same-directory replacement with retained no-delete target fails OS32 sharing violation",
+      "javascript": "Not reached; previous0f91da4 run had17passed4failed",
       "installedAcceptance": "not reached"
     },
-    "linuxX64Packaged": "Passed native compile, Clippy, packages, offline restart and packaged M2 acceptance at 0f91da4, run 45594915283"
+    "linuxX64Packaged": "Passed native compile, Clippy, packages, offline restart and packaged M2 acceptance at 57db2c8, run 45597659138",
+    "completeCoreCi": "Passed complete verify job 139147906221 at 57db2c8, run 45597659138, including browser, offline, security and benchmark gates",
+    "arm64IsolatedValidation": "Passed the formerly blocked isolated validation step at 57db2c8, run 45597659138; later package checks still running"
   }
 }

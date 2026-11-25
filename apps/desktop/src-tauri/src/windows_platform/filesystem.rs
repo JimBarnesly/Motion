@@ -445,8 +445,9 @@ pub(super) fn replace_private_file(source: &PinnedFile, target: &PinnedFile) -> 
     let mut status_block = IO_STATUS_BLOCK::default();
     // SAFETY: usize storage aligns FILE_RENAME_INFORMATION; the allocation includes the
     // complete UTF-16 trailing array. NULL root anchors the single target name to
-    // the source's verified same parent. All handles stay pinned; there is
-    // deliberately no path-based fallback after releasing the target handle.
+    // the source's verified same parent. The backup target permits delete sharing;
+    // its writer lease and final identity check coordinate Motion writers, not CAS.
+    confirm_replacement_target(target)?;
     unsafe {
         let information = storage.as_mut_ptr().cast::<FILE_RENAME_INFORMATION>();
         (*information).Anonymous = FILE_RENAME_INFORMATION_0 { Flags: FILE_RENAME_FLAG_REPLACE_IF_EXISTS | FILE_RENAME_FLAG_POSIX_SEMANTICS };
@@ -460,6 +461,48 @@ pub(super) fn replace_private_file(source: &PinnedFile, target: &PinnedFile) -> 
     // drop it, never call remove(). The handle still authenticates published bytes.
     // No fallible work follows the rename: the caller can disarm its temporary
     // cleanup guard before requesting any further durability check.
+    Ok(())
+}
+
+/// Only backup/UI-state replacement uses this sharing mode. The retained handle
+/// denies content writes while permitting the OS's atomic namespace replacement.
+/// Ordinary attachment readers and mutable database pins keep denying deletion.
+pub(super) fn open_replacement_target(path: &Path) -> io::Result<PinnedFile> {
+    let parent = parent_for_file(path)?;
+    let file = relative_open(&parent.file, path.file_name().ok_or_else(denied)?,
+        GENERIC_READ | READ_CONTROL, FILE_SHARE_READ | FILE_SHARE_DELETE, false, false)?;
+    checked_file(path, file, parent, 1)
+}
+
+/// Recheck the destination through the retained parent immediately before the
+/// native rename. This detects earlier substitutions; it does not implement an
+/// atomic compare-and-swap against another process in the trusted user session.
+pub(super) fn confirm_replacement_target(target: &PinnedFile) -> io::Result<()> {
+    validate_private(&target._parent.file)?;
+    let current = relative_open(&target._parent.file, target.path.file_name().ok_or_else(denied)?,
+        FILE_READ_ATTRIBUTES | READ_CONTROL, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, false, false)?;
+    validate_private(&current)?;
+    let named = inspect(&current, false)?;
+    let retained = target.identity()?;
+    if named.links != 1 || retained.links != 1 || !named.same_file(&retained) {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "IDENTITY_CHANGED: Replacement target changed before publication"));
+    }
+    Ok(())
+}
+
+/// Call only after disarming temporary-name cleanup following a successful
+/// rename. The source handle now pins the published object against displacement.
+pub(super) fn verify_published_file(source: &PinnedFile, destination: &PinnedDirectory, name: &OsStr) -> io::Result<()> {
+    checked_name(name)?;
+    validate_private(&destination.file)?;
+    let published = relative_open(&destination.file, name, FILE_READ_ATTRIBUTES | READ_CONTROL,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, false, false)?;
+    validate_private(&published)?;
+    let named = inspect(&published, false)?;
+    let retained = source.identity()?;
+    if named.links != 1 || retained.links != 1 || !named.same_file(&retained) {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "IDENTITY_CHANGED: Published object could not be authenticated"));
+    }
     Ok(())
 }
 

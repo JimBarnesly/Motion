@@ -36,7 +36,9 @@ export function inspectWindowsBackupDestination(destination, verify) {
   const result = inspectWindowsPrivateFile(destination);
   if (!result.exists) return { exists: false, replacement: false };
   authenticateContents(result, verify);
-  return { exists: true, replacement: true };
+  // This token stays on the native dialog/service channel. The host retains it
+  // across confirmation so a later save cannot approve a different snapshot.
+  return { exists: true, replacement: true, replacementIdentity: result.identity };
 }
 
 export function readAndVerifyWindowsBackupFile(destination, verify) {
@@ -50,10 +52,18 @@ export function readAndVerifyWindowsBackupFile(destination, verify) {
 export async function createWindowsBackupFile(destination, bytes, verify, options) {
   // POSIX filesystem-injection hooks cannot replace native handle operations.
   // Reject them explicitly so a test or caller cannot silently bypass a check.
-  if (Object.keys(options).some(key => !["confirmReplace", "verify"].includes(key))) {
+  if (Object.keys(options).some(key => !["confirmReplace", "verify", "expectedIdentity"].includes(key))) {
     throw new Error("Unsupported Windows backup writer option");
   }
+  const hasConfirmedIdentity = Object.hasOwn(options, "expectedIdentity");
+  if (hasConfirmedIdentity && (typeof options.expectedIdentity !== "string"
+      || !/^[a-f0-9]{64}$/.test(options.expectedIdentity))) {
+    throw new Error("Invalid confirmed Windows backup identity");
+  }
   const existing = inspectWindowsPrivateFile(destination);
+  if (hasConfirmedIdentity && (!existing.exists || existing.identity !== options.expectedIdentity)) {
+    throw new Error("Existing backup changed after native confirmation");
+  }
   if (existing.exists) {
     if (typeof options.confirmReplace !== "function") throw new Error("Backup destination already exists");
     authenticateContents(existing, verify);
@@ -63,5 +73,6 @@ export async function createWindowsBackupFile(destination, bytes, verify, option
   // serializeBackup has verified the canonical bundle before entering here.
   // The helper owns every file handle, flushes, and compares the persisted bytes
   // with this exact payload before publishing. It never trusts rendered HTML.
-  return writeWindowsPrivateFile(destination, bytes.toString("utf8"), existing.exists ? existing.identity : undefined);
+  const expectedIdentity = hasConfirmedIdentity ? options.expectedIdentity : existing.exists ? existing.identity : undefined;
+  return writeWindowsPrivateFile(destination, bytes.toString("utf8"), expectedIdentity);
 }

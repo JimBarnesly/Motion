@@ -471,6 +471,26 @@ async fn motion_ui_save(app: tauri::AppHandle, request: UiSaveRequest) -> Result
     run_service(app, serde_json::json!({ "lane": "ui-save", "payload": { "schemaVersion": request.schema_version, "document": request.document } })).await
 }
 
+#[cfg(windows)]
+fn windows_backup_replacement_identity(inspected: &Value) -> Result<Option<String>, IpcError> {
+    let invalid = || reject("STORAGE_FAILURE", "Backup inspection could not be authenticated");
+    let fields = inspected.as_object().ok_or_else(invalid)?;
+    if fields.keys().any(|key| !matches!(key.as_str(), "exists" | "replacement" | "replacementIdentity")) {
+        return Err(invalid());
+    }
+    match (fields.get("exists").and_then(Value::as_bool), fields.get("replacement").and_then(Value::as_bool)) {
+        (Some(false), Some(false)) if !fields.contains_key("replacementIdentity") => Ok(None),
+        (Some(true), Some(true)) => {
+            let identity = fields.get("replacementIdentity").and_then(Value::as_str)
+                .filter(|value| value.len() == 64 && value.bytes().all(|byte|
+                    byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)))
+                .ok_or_else(invalid)?;
+            Ok(Some(identity.to_owned()))
+        },
+        _ => Err(invalid()),
+    }
+}
+
 #[tauri::command]
 async fn motion_backup_save(
     app: tauri::AppHandle,
@@ -509,6 +529,8 @@ async fn motion_backup_save(
         .get("replacement")
         .and_then(Value::as_bool)
         .unwrap_or(false);
+    #[cfg(windows)]
+    let expected_identity = windows_backup_replacement_identity(&inspected)?;
     if replacement {
         let confirmed = tauri::async_runtime::spawn_blocking(|| {
             MessageDialog::new()
@@ -522,9 +544,21 @@ async fn motion_backup_save(
             return Ok(serde_json::json!({ "saved": false, "cancelled": true }));
         }
     }
+    let payload = serde_json::json!({
+        "destination": destination_text, "replaceConfirmed": replacement, "bundle": request.bundle
+    });
+    #[cfg(windows)]
+    let payload = {
+        let mut payload = payload;
+        // Keep the identity inspected before the native confirmation dialog.
+        // A later service inspection must not authorize a replacement target
+        // that appeared or changed while the user was reading that dialog.
+        if let Some(identity) = expected_identity { payload["expectedIdentity"] = Value::String(identity); }
+        payload
+    };
     let saved = run_service(app, serde_json::json!({
         "lane": "native-backup-save",
-        "payload": { "destination": destination_text, "replaceConfirmed": replacement, "bundle": request.bundle }
+        "payload": payload
     })).await?;
     Ok(serde_json::json!({
         "saved": true,
@@ -595,7 +629,7 @@ async fn run_service(app: tauri::AppHandle, envelope: Value) -> Result<Value, Ip
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(ServiceState::default())
         .invoke_handler(tauri::generate_handler![
             app_dispatch,
@@ -603,8 +637,19 @@ pub fn run() {
             motion_ui_load,
             motion_ui_save
         ])
-        .run(tauri::generate_context!())
-        .expect("failed to run Motion desktop");
+        .build(tauri::generate_context!())
+        .expect("failed to build Motion desktop");
+    #[cfg(windows)]
+    {
+        // Tauri creates configured WebViews during App::run, before Builder's
+        // setup hook. Establish the explicit current-user owner/DACL first,
+        // then retain its authenticated ancestry for the application's lifetime.
+        let path = app.path().app_local_data_dir().expect("Motion local data path unavailable");
+        let root = windows_platform::pin_private_directory(&path, true)
+            .expect("Motion cannot authenticate its private Windows data folder");
+        app.manage(root);
+    }
+    app.run(|_, _| {});
 }
 
 /// Native subprocess modes are handled before constructing Tauri or a WebView.
@@ -991,5 +1036,31 @@ mod tests {
             "replaceConfirmed": true
         });
         assert!(serde_json::from_value::<BackupSaveRequest>(injected).is_err());
+        assert!(serde_json::from_value::<BackupSaveRequest>(json!({
+            "schemaVersion": 1, "bundle": {}, "expectedIdentity": "a".repeat(64)
+        })).is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn native_backup_confirmation_requires_the_complete_inspected_identity() {
+        use super::windows_backup_replacement_identity;
+        let expected = "a1".repeat(32);
+        assert_eq!(windows_backup_replacement_identity(&json!({
+            "exists": true, "replacement": true, "replacementIdentity": expected
+        })).unwrap(), Some(expected));
+        assert_eq!(windows_backup_replacement_identity(&json!({
+            "exists": false, "replacement": false
+        })).unwrap(), None);
+        for invalid in [
+            json!({ "exists": true, "replacement": true }),
+            json!({ "exists": true, "replacement": true, "replacementIdentity": "a".repeat(63) }),
+            json!({ "exists": true, "replacement": true, "replacementIdentity": "G".repeat(64) }),
+            json!({ "exists": false, "replacement": false, "replacementIdentity": "a".repeat(64) }),
+            json!({ "exists": true, "replacement": false }),
+            json!({ "exists": true, "replacement": true, "replacementIdentity": "a".repeat(64), "path": "untrusted" }),
+        ] {
+            assert_eq!(windows_backup_replacement_identity(&invalid).unwrap_err().code, "STORAGE_FAILURE");
+        }
     }
 }

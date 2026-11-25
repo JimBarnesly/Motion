@@ -14,6 +14,7 @@ use filesystem::{
     acquire_private_file_lease, acquire_root_writer, create_private_file,
     open_private_file, open_private_file_with_links, pin_directory, pin_mutable_file,
     publish_no_replace, replace_private_file, verify_link_target, PinnedFile,
+    open_replacement_target, verify_published_file,
 };
 pub(super) use process::ServiceJob;
 

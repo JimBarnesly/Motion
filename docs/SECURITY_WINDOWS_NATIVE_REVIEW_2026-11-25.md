@@ -3,10 +3,11 @@
 ## Status and scope
 
 This is a source review of the Windows implementation being added on top of
-`09376b09b2ad8e0217d0466ef60608feb3c3c605`. It is not a Windows runtime pass or
-release approval. At the final source checkpoint recorded below, all four
-identified common-boundary defects have source corrections. The independent
-review found no remaining known source defect within this bounded scope.
+`09376b09b2ad8e0217d0466ef60608feb3c3c605`. It is not a complete Windows acceptance
+pass or release approval. At the latest source checkpoint recorded below, all
+six identified boundary/integration findings have source corrections. The
+independent review found no remaining known source defect within this bounded
+scope and the explicitly stated trusted-session, non-CAS replacement contract.
 Actual Windows filesystem, process, installed-app, and recovery tests remain
 required; source correction is not proof that an OS operation behaves as intended.
 
@@ -30,10 +31,12 @@ running with the user's full authority. See [SECURITY.md](SECURITY.md).
 
 | ID | Finding | Initial impact | State |
 | --- | --- | --- | --- |
-| WN-01 | Reapplying an inheritable DACL to an existing root can alter unreviewed descendants. | Unintended permission changes before a foreign child is rejected. | Corrected in source: existing private ACLs are preserved; the repair API was removed. Child preservation and inheritance positive-control regressions are written; Windows execution remains pending. |
+| WN-01 | Reapplying an inheritable DACL to an existing root can alter unreviewed descendants. | Unintended permission changes before a foreign child is rejected. | Corrected in source. Both child preservation and inheritance positive-control regressions passed on real Windows in candidate `57db2c8`. |
 | WN-02 | A drive-letter prefix does not establish that storage is local. | A mapped network drive could pass the advertised local-only path boundary. | Corrected in source: the opened volume must produce a local volume-GUID path, which anchors subsequent access. Windows mapped-drive fixture remains pending. |
-| WN-03 | Denying directory deletion does not prevent an empty directory becoming a reparse point in place. | Path-based create/link can follow a newly installed junction after the directory check. | Corrected in source: component traversal/create and publication use directory/file handles. After-pin junction create/link regressions are written; Windows execution remains pending. |
+| WN-03 | Denying directory deletion does not prevent an empty directory becoming a reparse point in place. | Path-based create/link can follow a newly installed junction after the directory check. | Corrected in source. Both after-pin junction create/link regressions passed on real Windows in candidate `57db2c8`. |
 | WN-04 | Guardian-only ownership can be released before the runner observes guardian death. | A blocked runner can still be active while a successor acquires its released writer lease. | Corrected in source: authenticated runner-lifetime duplicate handles retain authority. Blocked-runner regression is written; Windows execution remains pending. |
+| WN-05 | Tauri creates its default Windows WebView data directory before the first service request. | Elevated first launch can create the Motion root with the token's default Administrators owner, then fail current-user ownership validation. | Corrected in source: create/validate and retain the native private root after Builder.build and before App.run creates configured windows. Installed Windows execution remains pending. |
+| WN-06 | The real native backup dialog discarded its initial inspection identity. | A changed valid backup during the dialog could be inspected again and treated as newly approved by the later save call. | Corrected in the Windows path: the original opaque identity crosses the internal dialog/service handoff and cannot be replaced by a fresh snapshot. Windows two-request regressions are written; execution remains pending. |
 
 ### WN-01 — inherited ACL propagation
 
@@ -139,11 +142,11 @@ runner to exit before starting a successor, which did not cover this interval.
 
 | Boundary | Reviewed evidence | Remaining practical limit |
 | --- | --- | --- |
-| Native allocations | `LocalAllocation` has a single `LocalFree` owner; token handles use `OwnedHandle`; SID/ACE parsing checks length/type before use. | New native calls added to resolve the findings need another bounded review. |
+| Native allocations | `LocalAllocation` has a single `LocalFree` owner; token handles use `OwnedHandle`; SID/ACE parsing checks length/type before use. | This source review does not substitute for actual OS behavior tests. |
 | Ownership and ACL | Current process SID is compared with the opened object's owner; null/empty DACLs and unsupported ACE types fail closed; grants are restricted to the current user, SYSTEM, or Administrators. | Real Windows owner/DACL fixtures must verify behavior for ordinary and elevated accounts. |
 | File identity | The facade obtains volume identity plus a 128-bit file ID and tracks link count. Public receipts use an opaque digest of identity; normal attachment opens require one link. | Identity equality does not by itself freeze a directory's reparse metadata. |
 | Publication | New targets use no-replace semantics; the source is flushed and the resulting identity/link count is checked; cleanup targets the opened staging object. | Actual native hard-link, removal, and crash tests remain required. |
-| Replacement | The temporary file is verified before replacement; backup cleanup is disarmed immediately after successful rename, before later fallible work. | Replacement while a no-delete target handle is retained must be demonstrated on supported Windows versions. |
+| Replacement | A dedicated backup/UI-state reader permits delete sharing, denies writes, and retains authenticated identity; the native lease and final parent-relative lookup coordinate publication. Temporary cleanup is disarmed before post-publication checks. | This is not atomic compare-and-swap against arbitrary same-user namespace changes; actual supported-sharing replacement execution remains pending. |
 | Helper dispatch | Native helper modes are handled before Tauri/WebView startup; operation names are allowlisted; the versioned request/response is bounded at 64 MiB; errors omit paths and hostile request text. | This bounds transport, not a proof against every memory-exhaustion pattern in JSON parsing. |
 | Service containment | A non-inheritable unnamed job has `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`; Node is assigned before its startup gate is released. | A guardian dying alone is different from the Tauri-owned job closing; WN-04 remains separate. |
 
@@ -281,7 +284,7 @@ unsafe code, a different call signature, or a changed implementation.
 | `filesystem.rs:179` | `relative_open` | One validated component, bounded UTF-16 length, live parent/security descriptor, synchronous mode plus SYNCHRONIZE, checked status/handle, immediate File ownership and shape check. |
 | `filesystem.rs:307` | `PinnedFile::remove` | DELETE-capable exact file handle; fixed SDK disposition struct; consumes the wrapper and closes that handle after marking deletion. |
 | `filesystem.rs:418` | `publish_no_replace` | Generated FILE_LINK_INFORMATION layout; usize-aligned allocation covers header and name; no-replace flag and live source/destination handles; native status checked. |
-| `filesystem.rs:450` | `replace_private_file` | Generated FILE_RENAME_INFORMATION layout; checked byte length/alignment; retained same-volume source/target and identical parent identity; null-root bare-leaf same-directory rename; no fallible post-rename work in the primitive. |
+| `filesystem.rs:451` | `replace_private_file` | Generated FILE_RENAME_INFORMATION layout; checked byte length/alignment; retained same-volume source/target and identical parent identity; final parent-relative target identity check; null-root bare-leaf same-directory rename; no fallible post-rename work in the primitive. Backup-specific delete sharing is explicitly non-CAS. |
 | `security.rs:43` | `LocalAllocation::drop` | One non-cloned owner frees the documented LocalAlloc-compatible result exactly once. |
 | `security.rs:51` | `sid_text` | SID is validated; converted string allocation remains owned; bounded scan and UTF-16 decode precede release. |
 | `security.rs:68` | `current_user_sid` | Current-process pseudo-handle is borrowed only for a synchronous token query, never closed as owned. |
@@ -298,18 +301,18 @@ unsafe code, a different call signature, or a changed implementation.
 Reviewed SHA-256 snapshots:
 
 ```text
-752f41f1be66aa55ea8e39991f193a92d968dbae9b4a2e6595b36446258c6fc6  apps/desktop/src-tauri/src/windows_platform/filesystem.rs
+7dd3dc5f4b3e547db3ed5a2ee01594fcc58c445f4284dde49b2d005af12cbf78  apps/desktop/src-tauri/src/windows_platform/filesystem.rs
 7c82a8712b8dcd9972ecb3ade2b73581bd65033c7d2d0815732d6ccdaa7cba78  apps/desktop/src-tauri/src/windows_platform/security.rs
 1466e055d8a910a9deb57c4274ab17197039aa4ae9ffe9307b32bf2bada22322  apps/desktop/src-tauri/src/windows_platform/process.rs
 a9a1b1968216158b9d1f9200e9511fb54b6fe0c9a6c59b98d5d0b893dabdbc4e  apps/desktop/src-tauri/src/windows_platform/root_guard.rs
-bb08920017bcb4619c5bd2c1b91a92194afa8cc0b034f758991b274eb9d4c7b2  apps/desktop/src-tauri/src/windows_platform/mod.rs
-0b014778d42898e8ad38ddfbfd3e91cbccb69e9ad2e536667b5fea9f720c3dec  apps/desktop/src-tauri/src/lib.rs
+4176437315a7d4fe6eb2d23149d470f7bcecc02fe554e2ba549165bef781a8e3  apps/desktop/src-tauri/src/windows_platform/mod.rs
+51a748e922d504f0345cd2c707dd58bbf23177d77b54d48326b13cb73b0230f6  apps/desktop/src-tauri/src/lib.rs
 0fce34529a6e6642a2cbaa7abb3bf32c2a1b5acc418a72f7ef9e8726ce4cd47f  apps/desktop/src-tauri/src/main.rs
 ad0c777bb2dd37d76647a06d578984f2d5d8d622bb544833308480f8857f8c52  apps/desktop/windows-service-lock.mjs
-255ea34c4e9bdd4a4412ec61c6e6b97c8cbdd22ea84c72e43b7b6de7c964f77c  apps/desktop/service-runner.mjs
+5f58d96a885cc113203a2a511aba67d52ac8979ce05ca852b51a398e0d37ae04  apps/desktop/service-runner.mjs
 6836a78813de26b03c27242f7b0fbefc402959b09d79587ff7b91182de5451eb  apps/desktop/windows-ui-state.mjs
-38fa8447d55c46540d80a7280fd3cba0e89f17858e165fc2d5c6a59b6d8da990  apps/desktop/windows-backup-file.mjs
-7e811b46fb4bae8697f0ff52bcecacf64318733e540af7415fd5686b72b62644  apps/desktop/src-tauri/src/windows_platform/backup.rs
+f8503fdfd8114bd81085f21c887625328236d7010ef765886d44cc723a944095  apps/desktop/windows-backup-file.mjs
+58b7b97004641330007c027ce7f542d2c1134e685516bbf012c1bb49f0c5ac5c  apps/desktop/src-tauri/src/windows_platform/backup.rs
 dead86ef764480f11afc9248b89ddc0cb176a29faa0afb332f9dfae1f1c78118  apps/desktop/src-tauri/src/windows_platform/attachments.rs
 98f8487e4b828e07692b8e3fd16094cf5f65d5133a2fddb3e1989648acbc816c  packages/storage/src/windows-native-helper.ts
 782cc56aebc22a835a5d1b978704910f0912db0d0b664089039c248ae8f2e174  packages/storage/src/windows-attachments.ts
@@ -350,8 +353,10 @@ backup publication, and SQLite service restart. The blocked-runner and in-place
 reparse regressions above are additional required coverage, not implied by
 those existing test names.
 
-No Windows execution, installer success, release signing, or full release
-security-chain pass is asserted by this review.
+The original source checkpoint did not assert Windows execution. Subsequent
+Windows evidence is recorded below with its candidate and run identifiers.
+Installer success, release signing, and a full release security-chain pass are
+not asserted by this review.
 
 ## Independent final integration cross-check
 
@@ -395,12 +400,13 @@ and the old held reader to retain its bytes; a negative test requires rejection
 across different parents. This is a diagnostic candidate, not evidence that the
 observed Windows failure has been fixed.
 
-The only moved production unsafe scope is `filesystem.rs:450`, occurrence 0,
+At that diagnostic checkpoint, the only moved production unsafe scope was
+`filesystem.rs:450`, occurrence 0,
 with scanner fingerprint
 `sha256:b1f910df8d9f0d13472bbea085970b9257ca4f69f9d076c362c774326a146a29`.
-The other 18 reviewed production scopes retain their locations and call bodies.
-The file digests above bind this diagnostic source checkpoint, including both
-appended test-module declarations.
+The other 18 reviewed production scopes retained their locations and call bodies.
+That fingerprint is historical; the current source digests and replacement
+scope are bound to the supported-sharing checkpoint below.
 
 ### Deterministic Windows attack regressions
 
@@ -425,8 +431,8 @@ clears through its original handle before directory cleanup.
 The common-boundary reviewer compiled these actual modules and tests with
 `cargo check --locked --offline --target x86_64-pc-windows-msvc --tests` in a
 temporary harness. Compilation passed. It does not execute `FSCTL_SET_REPARSE_POINT`,
-ACL propagation, replacement, or any other Windows behavior. Those test results
-remain pending the next real Windows run. The test-directory README documents
+ACL propagation, replacement, or any other Windows behavior. Subsequent actual
+Windows results are recorded below. The test-directory README documents
 the real SMB/share/logon-session prerequisites for mapped-drive coverage; a
 missing share, local `SUBST` alias, or UNC syntax rejection is not counted as
 that regression.
@@ -442,3 +448,126 @@ through Node from PowerShell 7, a scenario documented in
 ACL ownership assertions are unchanged. The UI-close command still interpolates
 only a validated positive integer PID. This changes test-process environment
 construction, not application permissions or the native storage boundary.
+
+### Actual Windows diagnostic result for `57db2c8`
+
+The root agent retrieved Windows run **45597659367**, job **139147906481**:
+the native Rust step completed with **23 passed, 1 failed, 0 ignored**. The
+four deterministic junction/ACL regressions above all passed. The different-parent
+replacement rejection also passed. These are actual Windows filesystem results,
+not outcomes inferred from compilation or denied attack setup.
+
+The only failure was same-directory replacement while retaining the original
+no-delete target guard; Windows returned sharing violation **32**. Therefore
+the null-root diagnostic did not fix the replacement operation. No installer
+or complete Windows acceptance pass is inferred from this partial run. Mapped
+SMB drive rejection remains untested by this fixture set.
+
+## Supported-sharing and launcher checkpoint after `57db2c8`
+
+The common-boundary reviewer independently reread the frozen replacement
+primitives, native backup transaction, Windows writer adapter, service request
+validation, native dialog handoff, pre-window startup and associated regressions.
+No additional known source defect was identified in the final diff. The scope
+below supersedes the failed no-delete replacement assumption; the failure
+remains recorded above rather than being reclassified as success.
+
+### Backup/UI-state replacement contract and limit
+
+Only `open_replacement_target` grants `FILE_SHARE_READ | FILE_SHARE_DELETE`.
+It denies concurrent data writes and retains the opened file, authenticated
+private parent ancestry, current-user ownership, acceptable DACL and single-link
+identity. Ordinary attachment openers and database/sidecar pins retain their
+existing deletion restrictions. The private per-destination Motion writer lease
+remains exclusive for the complete backup transaction.
+
+After flushing and reading back the complete temporary payload, `backup.rs`
+rehashes the retained target against the original confirmed identity.
+`confirm_replacement_target` then resolves the current leaf relative to the
+retained parent and checks private ACLs, file identity and one-link state.
+Replacement uses the verified same-parent, null-root native rename. Following
+success, temporary cleanup is immediately disarmed before the published name is
+checked against the retained source, its bytes are read back, and a final flush
+is requested. A post-publication failure cannot delete the new destination.
+The Windows error message acknowledges unconfirmed completion instead of
+promising that the old file must have survived every failure.
+
+This contract coordinates Motion writers within the trusted unlocked user
+session. **It is not kernel compare-and-swap against arbitrary same-user
+namespace mutation.** Another process with that user's authority can change the
+leaf between the final identity check and rename; in that interval an object
+other than the confirmed one could be replaced. A successful source-identity
+postcondition does not eliminate that race. This is an explicit limitation of
+the lease-plus-final-check design, consistent with the existing Linux contract;
+it is not claimed as protection from malicious code holding the user's full
+authority. No relaxation was made to attachment publication, SQLite pins,
+root ownership or reparse rejection.
+
+Native regressions now cover successful replacement with the dedicated reader,
+retained old-reader contents, denied content writes, the published source pin,
+substitution after authentication, additional hard links and parent mismatch.
+Windows service tests cover repeated UI-state saves, two real competing backup
+writers, complete payloads observed by readers and stale identity rejection.
+Their source and compilation are reviewed; execution of this revised Windows
+candidate remains pending.
+
+### WN-05 — establish ownership before the WebView
+
+The locked `tauri` **2.11.5** source was inspected directly. In
+`src/manager/webview.rs`, the Windows default WebView directory is
+`LocalData/<identifier>` and absent directories are created with
+`std::fs::create_dir_all`. In `src/app.rs::setup`, configured windows are built
+before the user `Builder.setup` callback. Motion's prior first-service-request
+pin therefore occurred too late to establish an explicit owner for a fresh
+elevated launch. The test's `WEBVIEW2_USER_DATA_FOLDER` override does not prevent
+Tauri's earlier directory creation.
+
+The reviewed correction uses `Builder.build`, obtains the application's local
+data path, creates or validates it with the native private-directory primitive,
+and stores its pin in managed application state before `App.run`. Configured
+windows are created later during the Ready/setup event. Existing unacceptable
+owners or ACLs still fail without repair; accepted existing ACLs are preserved.
+The directory and ancestry remain pinned for the application lifetime. The Unix
+path preserves the previous `Builder.run` build-then-run sequence. This is a
+source correction; actual installed first-launch evidence is still required.
+
+### WN-06 — preserve the identity shown to native confirmation
+
+Previously, the native host inspected a backup, displayed its real confirmation
+dialog, then passed only the destination and a confirmation boolean to the
+service. The later writer inspected again and used an always-true callback,
+allowing a different valid object to acquire the original approval. Direct
+writer callback tests did not cover this two-request native-dialog interval.
+
+The Windows inspection now returns an opaque `replacementIdentity`. The native
+host validates the closed result shape and exact lowercase hex64 value before
+displaying the dialog, retains that value across the await, and sends it only
+through the internal confirmed-save envelope. The renderer-facing request still
+accepts only schema version and bundle; a test rejects injected identity data.
+The service requires the original token for confirmed Windows replacement and
+rejects tokens on a new-file save. The writer compares fresh validation to the
+original token and forwards that same token to the helper; it cannot rebaseline
+approval on a new snapshot.
+
+The actual Windows service regression exercises separate inspection/save
+requests with changed contents, identical contents in a different file, missing
+approval tokens and a late new-file collision. All must preserve the intervening
+data. The Linux legacy native-dialog handoff is unchanged and remains outside
+this Windows patch; no Linux correction is asserted here.
+
+### Current source binding and validation
+
+The final frozen diff adds no production unsafe block. The existing rename
+scope is now `filesystem.rs:451`, column 5, occurrence 0, with independently
+recomputed scanner fingerprint
+`sha256:3723f61d01061ed4418e377e435dc11bc622cdb3d884a1d83809d32449b423e8`.
+The other 18 production scopes retain their locations and call bodies. The
+SHA-256 table above binds this complete reviewed source, including the startup
+and original-confirmation-token corrections.
+
+The implementation owners report a successful integrated MSVC modules/tests
+compile, desktop build, and **12/12** focused portable runner/startup/UI delegate
+tests. These checks do not execute the revised Windows replacement or real
+installed dialog. The previously reported `57db2c8` four attack passes remain
+actual evidence only for that recorded candidate. Full Windows acceptance,
+mapped-share behavior, installer success and release signing remain separate.

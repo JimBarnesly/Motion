@@ -203,10 +203,10 @@
     {
       "rule": "rust-no-unsafe",
       "file": "apps/desktop/src-tauri/src/windows_platform/filesystem.rs",
-      "fingerprint": "sha256:b1f910df8d9f0d13472bbea085970b9257ca4f69f9d076c362c774326a146a29",
-      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and replace_private_file at reviewed line 450; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
+      "fingerprint": "sha256:3723f61d01061ed4418e377e435dc11bc622cdb3d884a1d83809d32449b423e8",
+      "evidence": "docs/SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md: independent source review, exact file SHA-256 and replace_private_file at reviewed line 451; actual-module MSVC-target compile. Windows execution and release approval remain separate required evidence.",
       "owner": "Operations & Security Director",
-      "rationale": "Generated FILE_RENAME_INFORMATION layout; checked byte length/alignment; retained same-volume source/target and identical authenticated parent; documented null-root single-leaf rename; no fallible post-rename work in the primitive.",
+      "rationale": "Generated FILE_RENAME_INFORMATION layout; checked allocation size/alignment; retained same-parent source and dedicated backup target; final relative name authentication; no fallible post-rename work before caller disarms cleanup. Cooperating-writer lease is not arbitrary same-user namespace compare-and-swap.",
       "expires": "2026-12-25"
     },
     {

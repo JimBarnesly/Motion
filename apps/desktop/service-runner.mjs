@@ -63,14 +63,25 @@ async function dispatch(rawRequest) {
       break;
     }
     case "native-backup-save": {
+      const windows = process.platform === "win32";
+      const allowed = windows ? ["destination", "replaceConfirmed", "bundle", "expectedIdentity"]
+        : ["destination", "replaceConfirmed", "bundle"];
       if (typeof request.payload?.destination !== "string" || typeof request.payload?.replaceConfirmed !== "boolean"
-          || !request.payload?.bundle || Object.keys(request.payload).some(key => !["destination", "replaceConfirmed", "bundle"].includes(key))) {
+          || !request.payload?.bundle || Object.keys(request.payload).some(key => !allowed.includes(key))
+          || (windows && (request.payload.replaceConfirmed
+            ? typeof request.payload.expectedIdentity !== "string" || !/^[a-f0-9]{64}$/.test(request.payload.expectedIdentity)
+            : Object.hasOwn(request.payload, "expectedIdentity")))) {
         throw new MotionAppError("INVALID_INPUT", "Invalid native backup save request");
       }
       try {
         result = await createAtomicBackupFile(request.payload.destination, request.payload.bundle,
-          request.payload.replaceConfirmed ? { confirmReplace: async () => true } : {});
-      } catch { throw new MotionAppError("STORAGE_FAILURE", "Backup could not be written safely; existing data was preserved"); }
+          request.payload.replaceConfirmed ? { confirmReplace: async () => true,
+            ...(windows ? { expectedIdentity: request.payload.expectedIdentity } : {}) } : {});
+      } catch {
+        throw new MotionAppError("STORAGE_FAILURE", windows
+          ? "Backup could not be confirmed; check the destination before retrying"
+          : "Backup could not be written safely; existing data was preserved");
+      }
       break;
     }
     case "command": result = service.execute(request.payload); break;

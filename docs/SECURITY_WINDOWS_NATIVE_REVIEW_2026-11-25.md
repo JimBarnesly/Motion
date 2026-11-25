@@ -306,7 +306,7 @@ Reviewed SHA-256 snapshots:
 1466e055d8a910a9deb57c4274ab17197039aa4ae9ffe9307b32bf2bada22322  apps/desktop/src-tauri/src/windows_platform/process.rs
 a9a1b1968216158b9d1f9200e9511fb54b6fe0c9a6c59b98d5d0b893dabdbc4e  apps/desktop/src-tauri/src/windows_platform/root_guard.rs
 4176437315a7d4fe6eb2d23149d470f7bcecc02fe554e2ba549165bef781a8e3  apps/desktop/src-tauri/src/windows_platform/mod.rs
-51a748e922d504f0345cd2c707dd58bbf23177d77b54d48326b13cb73b0230f6  apps/desktop/src-tauri/src/lib.rs
+253e251f042114f502483e22a7fdce8bd1a256c9760474d36be7dcfcaf9a51b4  apps/desktop/src-tauri/src/lib.rs
 0fce34529a6e6642a2cbaa7abb3bf32c2a1b5acc418a72f7ef9e8726ce4cd47f  apps/desktop/src-tauri/src/main.rs
 ad0c777bb2dd37d76647a06d578984f2d5d8d622bb544833308480f8857f8c52  apps/desktop/windows-service-lock.mjs
 5f58d96a885cc113203a2a511aba67d52ac8979ce05ca852b51a398e0d37ae04  apps/desktop/service-runner.mjs
@@ -316,8 +316,8 @@ f8503fdfd8114bd81085f21c887625328236d7010ef765886d44cc723a944095  apps/desktop/w
 dead86ef764480f11afc9248b89ddc0cb176a29faa0afb332f9dfae1f1c78118  apps/desktop/src-tauri/src/windows_platform/attachments.rs
 98f8487e4b828e07692b8e3fd16094cf5f65d5133a2fddb3e1989648acbc816c  packages/storage/src/windows-native-helper.ts
 782cc56aebc22a835a5d1b978704910f0912db0d0b664089039c248ae8f2e174  packages/storage/src/windows-attachments.ts
-858a04571aef058ea3fe9136722dd2526fa114ec60c220186fa71585cbdcba95  scripts/windows-installed-acceptance.ps1
-1aa7215bbeafd41fca11545a25e2c1a93ee005c22a49b5995df65483f81c1533  scripts/windows-installed-ui.mjs
+ecb1979f8a5a4df947f1aa85427783b427a02a69728c1737f13c195ee6b0156e  scripts/windows-installed-acceptance.ps1
+2639d11164066580c479320992aad0d6e7197df6d9b3d0a1e6e90944be54c1ba  scripts/windows-installed-ui.mjs
 21dafe879d39246b959ac93772fe1db52bf784a078de714426393bd2f9682019  .github/workflows/windows.yml
 ```
 
@@ -571,3 +571,152 @@ tests. These checks do not execute the revised Windows replacement or real
 installed dialog. The previously reported `57db2c8` four attack passes remain
 actual evidence only for that recorded candidate. Full Windows acceptance,
 mapped-share behavior, installer success and release signing remain separate.
+
+
+## Actual installed candidate result for `0d1dd27`
+
+[Windows run 45599716432](https://github.com/JimBarnesly/Motion/actions/runs/45599716432),
+job **139155092002**, executed the corrected candidate on Windows Server 2022.
+All **27 native Rust tests**, **23 Windows filesystem/service tests**, and
+**three startup-gate tests** passed with no ignored/skipped cases. The native
+replacement, before-dialog identity continuity, blocked-owner guardian-lifetime,
+and in-place junction/ACL regressions are now actual passing Windows evidence.
+
+The NSIS installer built and installed into a path containing spaces. All
+**23 installed native/service tests passed**. The executable SHA-256 is
+`e74d9293cb8bc0430bf4c20de9a59c967cfec63586fb0c0afdd8a90858fab130`.
+The downloaded candidate/evidence ZIP was independently verified against GitHub's
+reported digest
+`909ab9c6ff49a17c52f799baff093c610fb681336cedba173d5c257f3636192b`.
+These hashes identify a development candidate; they are not a release signature.
+
+The graphical test failed: WebView2/CDP exposed the actual static application
+document, but `#content` remained empty for 30 seconds. A legitimate empty native
+workspace renders a welcome screen, so this is not a reason to weaken the test.
+The test did not reach normal restart or uninstall/reinstall. WN-05's early
+private-root creation got as far as WebView creation, but successful application
+startup is not established.
+
+The three jobs in [general CI run45599716573](https://github.com/JimBarnesly/Motion/actions/runs/45599716573)
+all passed, including complete ARM64 isolated/native/package/offline acceptance.
+That is separate evidence from Windows graphical acceptance.
+
+### Reviewed diagnostic and recovery delta
+
+The root reviewer independently read the startup-recovery implementation.
+The page now starts with an accessible opening state. A rejected native/browser
+load or invalid canonical document presents fixed text and a one-shot retry;
+initial editor handlers remain behind the successful awaited load. It does not
+reset storage, substitute empty data, disclose the underlying private error, or
+race a retry against a still-pending load. Existing reviewed HTML-sink locations
+are unchanged, and the new UI uses only DOM creation and text setters. Two
+browser regressions passed for native failure/invalid-data/retry and preservation
+of an existing IndexedDB document. These do not claim a Windows launcher fix.
+
+The native-boundary author independently reviewed the installed UI diagnostics.
+The success assertion now requires `Connected to Motion` as well as content, so
+a loading or error panel cannot pass. Failure retains bounded console/process/
+CDP log evidence, resource failures and a screenshot. A read-only native-load
+probe has a five-second in-page and eight-second controller bound and records
+only status/metadata or bounded error details, never the returned workspace.
+It does not reload past the failed first launch. Process output is refreshed
+after the probe so its own launcher errors are retained. CSP, plugin capability
+permissions, canonical requests and native storage code remain unchanged.
+
+The real mapped-SMB fixture was independently reviewed by the root and
+desktop/backup reviewers. It uses a unique temporary share restricted to the
+current CI identity and a nonpersistent real per-logon mapping. Local native/
+service controls and a mapped read/write control must succeed before refusal
+counts as evidence. It compares physical file IDs, links, bytes, tree contents,
+and owner/DACL descriptors across the attempted operations, then verifies exact
+owned mapping/share/tree cleanup. It changes no credentials, SMB service policy,
+or persistent mapping. The test runs before firewall restrictions and is not
+part of the offline-network claim. Setup denial and cleanup failure cannot
+produce a passing result. Actual SMB execution remains pending.
+
+The installed acceptance coordinator records independent SMB and graphical
+outcomes. A mapped-volume failure is deferred only when preflight provably
+created no fixture, or fresh evidence proves exact cleanup succeeded. Missing
+post-setup evidence or failed cleanup stops immediately. A safely deferred
+failure still prevents final `acceptance.json` and fails overall acceptance
+after independent UI checks; this retains diagnosis without reducing the gate.
+
+The complete local Chromium suite subsequently passed **75/75 tests**, including
+the two new startup-recovery cases and all existing editor, property, search,
+accessibility, import and persistence cases. The unchanged eight-rule source
+scanner passed for 120 first-party files with no new exception.
+
+## Bundled runtime correction for the GUI launcher
+
+Two independent source traces identified a concrete difference between the
+passing service tests and the GUI launcher. Locked `tauri-utils2.9.3` obtains its
+resource directory from `starting_binary.rs` using Rust's filesystem
+canonicalization. On Windows this produces a namespaced drive path. Motion
+passes that unchanged as Node's entrypoint. In pinned Node24.18.0,
+`lib/internal/modules/run_main.js` resolves the entrypoint with `toRealPath`
+before loading the module, while `lib/fs.js` passes the namespaced drive root
+directly to its `lstat` binding.
+
+The official [Node issue62446](https://github.com/nodejs/node/issues/62446)
+and [upstream fix65378](https://github.com/nodejs/node/pull/65378) document the
+resulting `EISDIR` before script execution. The fix preserves namespaced paths
+and corrects only the drive-root probe. It entered the
+[24.21.0 release](https://nodejs.org/en/blog/release/v24.21.0). The independent
+reviewer confirmed the corrected root-probe helper in the exact24.22.3 source.
+This is a source-established launcher incompatibility; the prior UI artifact
+did not capture its process error, so the final installed outcome must still
+be observed before declaring the GUI failure resolved.
+
+The continuation upgrades the **bundled runtime** to official
+[Node24.22.3](https://nodejs.org/en/blog/release/v24.22.3), the 11 November
+security release, while leaving all production launcher path handling and
+authenticated GUID data-root authority unchanged. No string stripping, new
+MAX_PATH restriction, new dependency package, unsafe block, shell evaluation,
+CSP relaxation or capability grant is introduced. The separately pinned
+Node24.18.0 build tools and isolated image remain unchanged; they are not the
+runtime embedded in the new package. The existing cache key follows the new
+archive version.
+
+Both reviewers independently retrieved the official
+[checksum manifest](https://nodejs.org/dist/v24.22.3/SHASUMS256.txt), SHA-256
+`06d17307d84ec057dd2783863f12cb228c9273f9424b330532e4e3699f5d47c9`.
+Its four exact archive pins are:
+
+| Archive | SHA-256 |
+| --- | --- |
+| `node-v24.22.3-linux-x64.tar.xz` | `4f2b175a6d53a5c617a80dba2676238a0688cef28c6da4eba35c7d844e66fcfb` |
+| `node-v24.22.3-linux-arm64.tar.xz` | `6e51a2ada00f0011cc266f65d98922b403d7ad88f809ca2aa615a5fe1ce6e86c` |
+| `node-v24.22.3-win-x64.zip` | `e612af99f626ab415ea225af6bce5c971feb448cb5cae250bb1c3fa50c5f7d9f` |
+| `node-v24.22.3-win-arm64.zip` | `b3cc74a295b39d4f273271e96f58c06dd2b35757ca12abec64c7d0598b434f14` |
+
+Preparation still rejects redirects, authenticates the entire archive before
+extracting only the executable and its licence, and permits these four network
+URLs only in build preparation. Installed runtime downloads remain absent.
+The exact dependency-control record is refreshed only for the changed existing
+cache key; policy, trust anchor, five-file governed scope and required review
+role remain unchanged. Focused runtime/offline/release/workflow tests passed
+**26/26**. The new Windows entrypoint regression and complete installed suite
+remain required native evidence.
+
+The root and desktop/backup reviewers independently checked the new Windows-only
+Rust regression. It requires both ordinary and filesystem-canonicalized Node
+and `.mjs` resource paths, authenticates the actual `VerbatimDisk` spelling,
+and passes the original native-pinned volume-GUID root into the real prepared
+bundle. The actual Motion helper, service job and stdin startup gate are used;
+the exact empty `ui-load` reply and released fixture are required. A bounded
+wait closes the job to terminate a stalled process tree. The test deliberately
+does not claim to call `start_service`, whose `current_exe` would otherwise point
+to the test harness. Installed graphical acceptance covers that final integration.
+Only test inclusion changes `lib.rs`; production launch code remains unchanged.
+
+The root additionally downloaded and SHA-256 verified the24.22.3 Linux x64
+archive (32,064,292 bytes) and Windows x64 ZIP (37,762,649 bytes) against the
+official manifest. Local offline extraction of the Linux runtime returned
+`v24.22.3`, and all three actual bundled-service startup-gate tests passed.
+Ten dependency-governance regressions also passed.
+
+The implementing reviewer cross-compiled the actual new startup test source and
+Windows platform modules for `x86_64-pc-windows-msvc --tests` with zero errors in
+the existing source harness. Full local Tauri compilation lacks the Windows
+resource compiler, so actual Windows execution remains required. After adding
+the regression, the unchanged source gate passed for **121 first-party files**.

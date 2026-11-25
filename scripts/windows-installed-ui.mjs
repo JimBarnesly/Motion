@@ -22,6 +22,76 @@ const forbiddenRequests = [], pageErrors = [];
 const localOrigins = new Set(["http://tauri.localhost", "https://tauri.localhost", "http://ipc.localhost", "https://ipc.localhost"]);
 let running;
 
+function record(list, entry) {
+  list.push(entry);
+  if (list.length > 100) list.shift();
+}
+
+async function bounded(operation, milliseconds, description) {
+  let timer;
+  try {
+    return await Promise.race([operation, new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${description} timed out`)), milliseconds);
+    })]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function captureFailureDiagnostics() {
+  const current = running;
+  if (!current) return;
+  const diagnostics = {
+    schemaVersion: 1, commit: process.env.GITHUB_SHA, phase,
+    process: { exitCode: current.child.exitCode, signalCode: current.child.signalCode, stderr: current.stderr, stdout: current.stdout },
+    console: current.console, browserLog: current.browserLog,
+    failedRequests: current.failedRequests, failedResponses: current.failedResponses,
+    pageErrors, forbiddenRequests
+  };
+  const page = current.page;
+  if (page && !page.isClosed()) {
+    try {
+      diagnostics.startup = await bounded(page.evaluate(async () => {
+        const startup = {
+          url: location.href, readyState: document.readyState,
+          contentChildren: document.querySelector("#content")?.childElementCount ?? null,
+          saveState: document.querySelector("#saveState")?.textContent ?? null,
+          scripts: [...document.scripts].map(script => ({ type: script.type, src: script.src })),
+          invokeAvailable: typeof window.__TAURI__?.core?.invoke === "function"
+        };
+        if (!startup.invokeAvailable) return startup;
+        // Read-only, bounded probe. Keep workspace contents out of diagnostic artifacts.
+        let timer;
+        try {
+          startup.nativeLoad = await Promise.race([
+            window.__TAURI__.core.invoke("motion_ui_load", { request: { schemaVersion: 2 } }).then(value => ({
+              outcome: "resolved", schemaVersion: value?.schemaVersion,
+              revision: value?.revision, emptyWorkspace: value?.workspace === null,
+              pageCount: Array.isArray(value?.workspace?.pages) ? value.workspace.pages.length : null
+            }), error => ({ outcome: "rejected", code: String(error?.code ?? "unknown").slice(0, 100), message: String(error?.message ?? error).slice(0, 512) })),
+            new Promise(resolve => { timer = setTimeout(() => resolve({ outcome: "timeout" }), 5000); })
+          ]);
+        } finally {
+          clearTimeout(timer);
+        }
+        return startup;
+      }), 8000, "Startup diagnostic probe");
+    } catch (error) {
+      diagnostics.probeFailure = error.message;
+    }
+    try {
+      await page.screenshot({ path: join(output, `${phase}-ui-failure.png`), fullPage: true, timeout: 5000 });
+    } catch (error) {
+      diagnostics.screenshotFailure = error.message;
+    }
+  }
+  diagnostics.process = { exitCode: current.child.exitCode, signalCode: current.child.signalCode, stderr: current.stderr, stdout: current.stdout };
+  await writeFile(join(output, `${phase}-startup-diagnostics.json`), `${JSON.stringify(diagnostics, null, 2)}\n`);
+  console.error(`Installed startup diagnostic: ${JSON.stringify(diagnostics.startup ?? diagnostics.probeFailure ?? diagnostics.process)}`);
+  if (current.stderr) console.error(`Installed application stderr: ${current.stderr}`);
+  console.error(`Installed browser errors: ${JSON.stringify({ console: current.console.slice(-10), browserLog: current.browserLog.slice(-10), failedRequests: current.failedRequests.slice(-10), failedResponses: current.failedResponses.slice(-10), pageErrors })}`);
+}
+
 async function freePort() {
   const server = createServer();
   server.listen(0, "127.0.0.1");
@@ -38,20 +108,21 @@ async function launch() {
     WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port} --remote-debugging-address=127.0.0.1`,
     WEBVIEW2_USER_DATA_FOLDER: webviewProfile
   } });
-  let stderr = "", launchError;
-  child.stderr.on("data", bytes => { stderr = `${stderr}${bytes}`.slice(-12_000); });
-  child.stdout.resume();
+  let launchError;
+  const current = { child, browser: null, page: null, stderr: "", stdout: "", console: [], browserLog: [], failedRequests: [], failedResponses: [] };
+  child.stderr.on("data", bytes => { current.stderr = `${current.stderr}${bytes}`.slice(-12_000); });
+  child.stdout.on("data", bytes => { current.stdout = `${current.stdout}${bytes}`.slice(-12_000); });
   child.on("error", error => { launchError = error; });
-  running = { child, browser: null };
+  running = current;
   let browser, lastConnectionError;
   const deadline = Date.now() + 60_000;
   while (!browser && Date.now() < deadline) {
-    if (launchError || child.exitCode !== null) throw new Error(`Installed application did not stay running: ${launchError?.message ?? stderr}`);
+    if (launchError || child.exitCode !== null) throw new Error(`Installed application did not stay running: ${launchError?.message ?? current.stderr}`);
     try { browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, { timeout: 1500 }); }
     catch (error) { lastConnectionError = error; await delay(200); }
   }
-  if (!browser) throw new Error(`Installed WebView2 did not become available: ${lastConnectionError?.message ?? stderr}`);
-  running.browser = browser;
+  if (!browser) throw new Error(`Installed WebView2 did not become available: ${lastConnectionError?.message ?? current.stderr}`);
+  current.browser = browser;
   const context = browser.contexts()[0];
   assert.ok(context, "Installed application has a WebView2 context");
   await context.route("**/*", route => {
@@ -65,8 +136,22 @@ async function launch() {
     socket.close({ code: 1008, reason: "External networking is disabled during installed acceptance" });
   });
   const page = context.pages().find(candidate => candidate.url().includes("tauri.localhost")) ?? context.pages()[0] ?? await context.waitForEvent("page");
+  current.page = page;
   page.on("pageerror", error => pageErrors.push(error.message));
+  page.on("console", message => record(current.console, { type: message.type(), text: message.text().slice(0, 2000), location: message.location() }));
+  page.on("requestfailed", request => record(current.failedRequests, { url: request.url(), failure: request.failure()?.errorText }));
+  page.on("response", response => {
+    if (response.status() >= 400) record(current.failedResponses, { url: response.url(), status: response.status() });
+  });
   page.on("dialog", dialog => dialog.accept());
+  // CDP Log.enable replays retained browser entries, including CSP/module errors
+  // that occurred before this controller connected. Do not reload past a failure.
+  const logs = await context.newCDPSession(page);
+  logs.on("Log.entryAdded", ({ entry }) => record(current.browserLog, {
+    level: entry.level, source: entry.source, text: entry.text.slice(0, 2000), url: entry.url, lineNumber: entry.lineNumber
+  }));
+  await logs.send("Log.enable");
+  await expect(page.locator("#saveState")).toHaveText("Connected to Motion", { timeout: 30_000 });
   await expect(page.locator("#content")).not.toBeEmpty({ timeout: 30_000 });
   assert.equal(await page.evaluate(() => typeof window.__TAURI__?.core?.invoke), "function");
   return page;
@@ -124,6 +209,8 @@ try {
   await writeFile(join(output, `${phase}-ui.json`), `${JSON.stringify({ schemaVersion: 1, commit: process.env.GITHUB_SHA, phase, verdict: "PASS", checks: ["native adapter", ...(phase === "installed" ? ["empty profile", "page editing", "attachment ingest"] : ["retained notebook after uninstall/reinstall"]), "normal close", "restart persistence", "native search", "no external renderer requests observed after CDP connection"], networkBoundary: "Windows firewall blocks application, local service and WebView2 outbound traffic before launch" }, null, 2)}\n`);
   console.log("Installed Windows UI acceptance passed.");
 } catch (error) {
+  try { await captureFailureDiagnostics(); }
+  catch (diagnosticError) { console.error(`Unable to save installed startup diagnostics: ${diagnosticError.message}`); }
   await writeFile(join(output, `${phase}-ui-failure.txt`), `${error.stack ?? error}\n`);
   throw error;
 } finally {

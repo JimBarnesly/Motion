@@ -1,0 +1,216 @@
+{
+  "schema_version": 1,
+  "review_date": "2026-11-25",
+  "candidate": "0d1dd27475525597c9d7fb6f02c75d0fbf01780d",
+  "scope": "Static inspection of the candidate archive; not policy/legal approval or an installed-runtime observation",
+  "motion_installer": {
+    "name": "Motion_0.1.0_x64-setup.exe",
+    "bytes": 323288414,
+    "sha256": "e74d9293cb8bc0430bf4c20de9a59c967cfec63586fb0c0afdd8a90858fab130",
+    "matches_artifact_checksum": true,
+    "embedded_authenticode_table_present": false
+  },
+  "payload_layers": [
+    {
+      "layer": "embedded_evergreen_installer",
+      "file_version": "1.3.315.17",
+      "architecture": "x86",
+      "bytes": 294099168,
+      "sha256": "47bc51387aff95c1275ce38cfbbb5fbab99b43b33214049877bbcdbcc7a970d5",
+      "signature_evidence": {
+        "openssl_signature_math_verified": true,
+        "authenticode_image_digest_sha256": "6568048d78db25dca37bdf2705ef3ed589190e92ad3ca955ab8d2f6cdc74f32c",
+        "computed_image_digest_matches": true,
+        "windows_trust_chain_timestamp_revocation": "not verified"
+      },
+      "embedded_certificates": [
+        {
+          "subject": "CN=Microsoft Corporation,O=Microsoft Corporation,L=Redmond,ST=Washington,C=US",
+          "issuer": "CN=Microsoft Code Signing PCA 2024,O=Microsoft Corporation,C=US",
+          "serial_number": "0x33000002fa6df9e9fe5312b9e60000000002fa",
+          "not_valid_before_utc": "2026-07-30T20:30:30+00:00",
+          "not_valid_after_utc": "2027-07-28T20:30:30+00:00",
+          "certificate_sha256": "e0113ed8f5aebc48d48e53f699129d14ddedcfcae489aba7db411ed0838a14c0"
+        },
+        {
+          "subject": "CN=Microsoft Code Signing PCA 2024,O=Microsoft Corporation,C=US",
+          "issuer": "CN=Microsoft Root Certificate Authority 2011,O=Microsoft Corporation,L=Redmond,ST=Washington,C=US",
+          "serial_number": "0x33000000393bb63719bf061d67000000000039",
+          "not_valid_before_utc": "2024-08-08T20:54:18+00:00",
+          "not_valid_after_utc": "2036-03-22T22:13:04+00:00",
+          "certificate_sha256": "3dadfaf812dd1bbaef45834ccbd188f3cd97139e2ed1aca69c2dd63082142f8f"
+        }
+      ]
+    },
+    {
+      "layer": "runtime_installer",
+      "file_version": "158.0.4370.33",
+      "architecture": "x64",
+      "bytes": 286474064,
+      "sha256": "dc14ea63014de44430298e0883b75addc97a6297c13f1e4e95ce579fa7723309",
+      "signature_evidence": {
+        "openssl_signature_math_verified": true,
+        "authenticode_image_digest_sha256": "faffbd9fa22286fc96d0ef5b9b7e71c360b8164399305b0c4eca89c89ed3f8db",
+        "computed_image_digest_matches": true,
+        "windows_trust_chain_timestamp_revocation": "not verified"
+      },
+      "embedded_certificates": [
+        {
+          "subject": "CN=Microsoft Corporation,O=Microsoft Corporation,L=Redmond,ST=Washington,C=US",
+          "issuer": "CN=Microsoft Code Signing PCA 2024,O=Microsoft Corporation,C=US",
+          "serial_number": "0x33000002334ec248564c2b5c6f000000000233",
+          "not_valid_before_utc": "2026-04-16T19:00:11+00:00",
+          "not_valid_after_utc": "2027-04-15T19:00:11+00:00",
+          "certificate_sha256": "cb97e8e85e8e9321fb2646e9574efd17669b3b0581d24262ac7c8a227433a244"
+        },
+        {
+          "subject": "CN=Microsoft Code Signing PCA 2024,O=Microsoft Corporation,C=US",
+          "issuer": "CN=Microsoft Root Certificate Authority 2011,O=Microsoft Corporation,L=Redmond,ST=Washington,C=US",
+          "serial_number": "0x33000000393bb63719bf061d67000000000039",
+          "not_valid_before_utc": "2024-08-08T20:54:18+00:00",
+          "not_valid_after_utc": "2036-03-22T22:13:04+00:00",
+          "certificate_sha256": "3dadfaf812dd1bbaef45834ccbd188f3cd97139e2ed1aca69c2dd63082142f8f"
+        }
+      ]
+    },
+    {
+      "layer": "runtime_browser_executable",
+      "file_version": "158.0.4370.33",
+      "architecture": "x64",
+      "bytes": 4775752,
+      "sha256": "b9845539affbb9c8346bf56fcc28f57fcc5a9e8f7ddc67b20fad6ebcc663418e",
+      "signature_evidence": {
+        "openssl_signature_math_verified": true,
+        "authenticode_image_digest_sha256": "6fb5cec939cf5c40f6b5f5a41794a8f7aa16c3e73eb8264ee06f0d92ca6f3199",
+        "computed_image_digest_matches": true,
+        "windows_trust_chain_timestamp_revocation": "not verified"
+      },
+      "embedded_certificates": [
+        {
+          "subject": "CN=Microsoft Corporation,O=Microsoft Corporation,L=Redmond,ST=Washington,C=US",
+          "issuer": "CN=Microsoft Code Signing PCA 2024,O=Microsoft Corporation,C=US",
+          "serial_number": "0x33000002334ec248564c2b5c6f000000000233",
+          "not_valid_before_utc": "2026-04-16T19:00:11+00:00",
+          "not_valid_after_utc": "2027-04-15T19:00:11+00:00",
+          "certificate_sha256": "cb97e8e85e8e9321fb2646e9574efd17669b3b0581d24262ac7c8a227433a244"
+        },
+        {
+          "subject": "CN=Microsoft Code Signing PCA 2024,O=Microsoft Corporation,C=US",
+          "issuer": "CN=Microsoft Root Certificate Authority 2011,O=Microsoft Corporation,L=Redmond,ST=Washington,C=US",
+          "serial_number": "0x33000000393bb63719bf061d67000000000039",
+          "not_valid_before_utc": "2024-08-08T20:54:18+00:00",
+          "not_valid_after_utc": "2036-03-22T22:13:04+00:00",
+          "certificate_sha256": "3dadfaf812dd1bbaef45834ccbd188f3cd97139e2ed1aca69c2dd63082142f8f"
+        }
+      ]
+    }
+  ],
+  "offline_manifest": {
+    "member": "OfflineManifest.gup",
+    "sha256": "82c668d16a213540cffc4458054086c6824480ffe82f09c113e93e19d6b2ec49",
+    "webview2_app_id": "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}",
+    "webview2_package_name": "MicrosoftEdgeWebview_X64_158.0.4370.33.exe",
+    "package_hash_matches_extracted_runtime_installer": true,
+    "install_arguments": "--msedgewebview --verbose-logging --do-not-launch-msedge"
+  },
+  "runtime_archive": {
+    "name": "MSEDGE.7z",
+    "bytes": 1018641756,
+    "regular_files": 493,
+    "directories": 27,
+    "sum_member_bytes": 1018635388,
+    "limit": "Complete archive measurements, not installed footprint or proof every entry is installed by the WebView2 mode"
+  },
+  "notice_files": [
+    {
+      "member": "Chrome-bin/158.0.4370.33/Trust Protection Lists/Mu/LICENSE",
+      "bytes": 35147,
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+      "observed_notice": "GPL version 3 licence text"
+    },
+    {
+      "member": "Chrome-bin/158.0.4370.33/Trust Protection Lists/Sigma/LICENSE",
+      "bytes": 66,
+      "sha256": "44071e0fcffb9a9a32e8fa7010bb18dbc41afd0b176f81bf700b15b638a88a51",
+      "observed_notice": "Separate commercial licence notice from Disconnect, Inc."
+    },
+    {
+      "member": "Chrome-bin/158.0.4370.33/WidevineCdm/LICENSE",
+      "bytes": 473,
+      "sha256": "20de375707692099b3132084695377ce5fec0aec05813dedcce094b8eda44386",
+      "observed_notice": "Google proprietary notice requiring a separate licence agreement"
+    },
+    {
+      "member": "Chrome-bin/158.0.4370.33/show_third_party_software_licenses.bat",
+      "bytes": 270,
+      "sha256": "3e867e263b64592b2dad5c334b6aa46d0bb46a20aa0db01c5ff08c707c3e148d",
+      "observed_notice": "Credits launcher; inspected as text and not executed"
+    }
+  ],
+  "updater_notice": {
+    "member": "NOTICE.TXT",
+    "bytes": 4172,
+    "sha256": "91d3fc490565ded7621ff5198960e501b6db857d5dd45af2fe7c3ecd141145f5",
+    "observed_notices": [
+      "Omaha Apache-2.0",
+      "Boost Software License 1.0",
+      "Microsoft open-source information and an LGPL debugging qualification"
+    ]
+  },
+  "evergreen_terms": {
+    "url": "https://developer.microsoft.com/microsoft-edge/api/eula/webview2?locale=en-us",
+    "field": "evergreenHtml",
+    "title": "MICROSOFT EDGE WEBVIEW2 RUNTIME",
+    "utf8_bytes": 21639,
+    "html_sha256": "ce6fa83e57c338256e5cabe9e1eea83076c271b0fdb253408213eeb08859d7b6",
+    "api_response_sha256": "821657eb0994850b0ea86b53242c52a22016e45859fee74bcd456dd77c0ba18e"
+  },
+  "method": [
+    "Checked extracted NSIS bytes against supplied artifact SHA256SUMS.",
+    "Statically extracted the embedded Microsoft executable using official 7-Zip.",
+    "Decompressed its LZMA resource and decoded the four BCJ2 streams with the official 7-Zip source decoder; all streams consumed and decoded size matched.",
+    "Read the resulting TAR and verified its runtime installer against OfflineManifest.gup.",
+    "Extracted the nested runtime archive and selected PE/notice members without executing Windows code.",
+    "Verified three PKCS7 signatures with OpenSSL smime -verify -noverify; separately recomputed and matched each signed SHA-256 PE image digest."
+  ],
+  "tool_provenance": {
+    "official_download_page": "https://7-zip.org/download.html",
+    "release_api": "https://api.github.com/repos/ip7z/7zip/releases/tags/26.06",
+    "release_tag": "26.06",
+    "release_url": "https://github.com/ip7z/7zip/releases/tag/26.06",
+    "asset_url": "https://github.com/ip7z/7zip/releases/download/26.06/7z2606-linux-x64.tar.xz",
+    "asset_bytes": 1575552,
+    "asset_sha256": "2b539cf067b2ad48e1baa5093dbaa8818b73542d1222a0ffde9dc5f2922ea62e",
+    "github_asset_digest": "sha256:2b539cf067b2ad48e1baa5093dbaa8818b73542d1222a0ffde9dc5f2922ea62e",
+    "binary_sha256": "f94066e93f9a807547a3bff1021b3ec79d5ea4f57dfead018e9698182ad283b5",
+    "authenticity_limit": "HTTPS official project release link and matching GitHub release-asset SHA256; no detached author signature asserted"
+  },
+  "decoder_source_provenance": {
+    "asset_url": "https://github.com/ip7z/7zip/releases/download/26.06/7z2606-src.tar.xz",
+    "bytes": 1567328,
+    "sha256": "a4e374c8f864f51df48c2cfd0e1413ec3b2ea030deae852d6a655402ebb61ac4",
+    "github_asset_digest": "sha256:a4e374c8f864f51df48c2cfd0e1413ec3b2ea030deae852d6a655402ebb61ac4",
+    "extracted": [
+      "C/7zTypes.h",
+      "C/Bcj2.c",
+      "C/Bcj2.h",
+      "C/Compiler.h",
+      "C/CpuArch.h",
+      "C/Precomp.h"
+    ]
+  },
+  "limitations": [
+    "No Windows executable, installer or credits launcher was executed.",
+    "OpenSSL -noverify does not validate Windows trust chains, timestamps or revocation.",
+    "The complete browser credits were not reviewed.",
+    "The runtime actually selected on the hosted Windows machine was not established by this archive review.",
+    "Initial installation with WebView2 absent and the applicable binary/third-party licence policy scope remain unresolved."
+  ],
+  "primary_references": [
+    "https://developer.microsoft.com/en-us/microsoft-edge/webview2/",
+    "https://developer.microsoft.com/microsoft-edge/api/eula/webview2?locale=en-us",
+    "https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution",
+    "https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/evergreen-vs-fixed-version",
+    "https://learn.microsoft.com/en-us/windows/win32/debug/pe-format"
+  ]
+}

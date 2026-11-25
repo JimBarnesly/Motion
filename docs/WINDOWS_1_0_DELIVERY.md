@@ -86,12 +86,24 @@ operations that its portable APIs cannot safely express. Keep Linux descriptor
 semantics intact. Native helper messages are local bounded JSON over stdio;
 there is no network listener.
 
-## Known release evidence at handoff
+## Current release evidence — 25 November 2026
 
-The preceding increment passed 405 local workspace tests (one privilege-dependent
-skip), 73 browser tests and type/build/offline/source checks. GitHub run
-45585445817 passed the Linux x64 native build and packaged offline/restart checks.
-Its verify job failed on the inherited expired RUSTSEC-2024-0429 exception;
-ARM64 isolation failed the pinned package-inventory comparison. These failures
-remain open and must be resolved with evidence, not disabled checks. Windows
-implementation and installed acceptance are still pending.
+Candidate `0d1dd27475525597c9d7fb6f02c75d0fbf01780d` passed all three jobs in
+[general CI run 45599716573](https://github.com/JimBarnesly/Motion/actions/runs/45599716573):
+complete verification plus Linux x64 and ARM64 native/package/offline acceptance.
+The prior ARM64 inventory mismatch has a source-bound evidence record; the glib
+exception has a dated source review and still needs the required human review.
+
+[Windows run 45599716432](https://github.com/JimBarnesly/Motion/actions/runs/45599716432)
+passed 27 Rust tests, 23 Windows native/service tests and three startup-gate tests.
+The per-user NSIS installer built and installed successfully, and all 23 tests
+passed again against installed resources. The GUI opened its static document but
+failed to render its initial workspace within 30 seconds. This is a real startup
+blocker: a valid fresh workspace should display the welcome screen. Restart and
+uninstall/reinstall checks were not reached. The candidate is not release-ready.
+
+The next diagnostic preserves that success requirement, captures bounded native
+load/browser/process evidence, and adds a genuine mapped-SMB rejection fixture.
+Offline operation is tested by executable-specific firewall rules; fully offline
+installation with initially absent WebView2 still needs clean-image evidence.
+See `DELIVERY_STATE.json` for exact candidate status and continuation ownership.

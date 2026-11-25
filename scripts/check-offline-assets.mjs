@@ -8,10 +8,10 @@ const networkReference = /(?:https?:\/\/|(?<!:)\/\/)[^\s'"`)]+/gi;
 // The Tauri JSON schema is editor/build metadata, not a fetched runtime asset.
 const allowedRuntimeMetadata = /^(?:http:\/\/www\.w3\.org\/2000\/svg|https:\/\/schema\.tauri\.app\/config\/2|http:\/\/(?:localhost|127\.0\.0\.1)(?::|\/|$))/;
 const pinnedBuildToolUrls = new Set([
-  "https://nodejs.org/dist/v24.18.0/node-v24.18.0-linux-x64.tar.xz",
-  "https://nodejs.org/dist/v24.18.0/node-v24.18.0-linux-arm64.tar.xz",
-  "https://nodejs.org/dist/v24.18.0/node-v24.18.0-win-x64.zip",
-  "https://nodejs.org/dist/v24.18.0/node-v24.18.0-win-arm64.zip"
+  "https://nodejs.org/dist/v24.22.3/node-v24.22.3-linux-x64.tar.xz",
+  "https://nodejs.org/dist/v24.22.3/node-v24.22.3-linux-arm64.tar.xz",
+  "https://nodejs.org/dist/v24.22.3/node-v24.22.3-win-x64.zip",
+  "https://nodejs.org/dist/v24.22.3/node-v24.22.3-win-arm64.zip"
 ]);
 
 export function allowed(reference, sourcePath) {

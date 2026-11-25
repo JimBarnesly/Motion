@@ -5,14 +5,14 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
-export const NODE_VERSION = "24.18.0";
+export const NODE_VERSION = "24.22.3";
 export const OFFICIAL_ARCHIVES = Object.freeze({
-  x64: { file: `node-v${NODE_VERSION}-linux-x64.tar.xz`, url: "https://nodejs.org/dist/v24.18.0/node-v24.18.0-linux-x64.tar.xz", sha256: "55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742" },
-  arm64: { file: `node-v${NODE_VERSION}-linux-arm64.tar.xz`, url: "https://nodejs.org/dist/v24.18.0/node-v24.18.0-linux-arm64.tar.xz", sha256: "58c9520501f6ae2b52d5b210444e24b9d0c029a58c5011b797bc1fe7105886f6" }
+  x64: { file: `node-v${NODE_VERSION}-linux-x64.tar.xz`, url: "https://nodejs.org/dist/v24.22.3/node-v24.22.3-linux-x64.tar.xz", sha256: "4f2b175a6d53a5c617a80dba2676238a0688cef28c6da4eba35c7d844e66fcfb" },
+  arm64: { file: `node-v${NODE_VERSION}-linux-arm64.tar.xz`, url: "https://nodejs.org/dist/v24.22.3/node-v24.22.3-linux-arm64.tar.xz", sha256: "6e51a2ada00f0011cc266f65d98922b403d7ad88f809ca2aa615a5fe1ce6e86c" }
 });
 export const WINDOWS_ARCHIVES = Object.freeze({
-  x64: { file: `node-v${NODE_VERSION}-win-x64.zip`, url: "https://nodejs.org/dist/v24.18.0/node-v24.18.0-win-x64.zip", sha256: "0ae68406b42d7725661da979b1403ec9926da205c6770827f33aac9d8f26e821" },
-  arm64: { file: `node-v${NODE_VERSION}-win-arm64.zip`, url: "https://nodejs.org/dist/v24.18.0/node-v24.18.0-win-arm64.zip", sha256: "f274669adb93b1fd0fbf8f21fd078609e9dcc84333d4f2718d2dde3f9a161a01" }
+  x64: { file: `node-v${NODE_VERSION}-win-x64.zip`, url: "https://nodejs.org/dist/v24.22.3/node-v24.22.3-win-x64.zip", sha256: "e612af99f626ab415ea225af6bce5c971feb448cb5cae250bb1c3fa50c5f7d9f" },
+  arm64: { file: `node-v${NODE_VERSION}-win-arm64.zip`, url: "https://nodejs.org/dist/v24.22.3/node-v24.22.3-win-arm64.zip", sha256: "b3cc74a295b39d4f273271e96f58c06dd2b35757ca12abec64c7d0598b434f14" }
 });
 export const RUNTIME_ARCHIVES = Object.freeze({ linux: OFFICIAL_ARCHIVES, win32: WINDOWS_ARCHIVES });
 

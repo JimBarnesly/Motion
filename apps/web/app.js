@@ -29,7 +29,7 @@ const PROPERTY_LABELS = PROPERTY_TYPE_LABELS;
 const BLOCK_TYPES = ["paragraph","heading-1","heading-2","heading-3","bulleted-list","numbered-list","task","quote","code","divider"];
 const BLOCK_LABELS = { paragraph:"Text", "heading-1":"Heading 1", "heading-2":"Heading 2", "heading-3":"Heading 3", "bulleted-list":"Bulleted list", "numbered-list":"Numbered list", task:"Task", quote:"Quote", code:"Code", divider:"Divider" };
 const EMPTY = { schemaVersion:2, workspace:null, revision:0, activePageId:null, expandedPageIds:[], activeViewIds:{} };
-let state = migrateLoaded(await adapter.load()); const nativeCommands=adapter.kind==="tauri"?createNativeCommandController({execute:(type,payload)=>adapter.execute(type,payload),currentRevision:()=>state.revision,confirm:(confirmed,revision)=>confirmNativeSnapshot(confirmed,revision)}):null;
+let state = await loadInitialState(); const nativeCommands=adapter.kind==="tauri"?createNativeCommandController({execute:(type,payload)=>adapter.execute(type,payload),currentRevision:()=>state.revision,confirm:(confirmed,revision)=>confirmNativeSnapshot(confirmed,revision)}):null;
 let history = [], future = [], navigation = [], saveQueue = Promise.resolve(), editing = null, editTimer = null, activeEditMeta = null, searchRequest = 0, currentSearchHits = new Map(), activeMention = null, activeSlash = null, rootCreationInFlight = false, browserCommitInFlight = false;
 let composingInput = null, completedComposition = null;
 
@@ -416,3 +416,44 @@ $("#saveState").textContent=adapter.kind==="tauri"?"Connected to Motion":"Browse
 for(const id of ["attachFile","createVerifiedBackup","restoreVerifiedBackup"]){const button=$(`#${id}`);button.disabled=adapter.kind!=="tauri";if(button.disabled)button.title="Available in the native Motion application";}
 function tagRecordRows(database){if(activeView(database).type!=="table")return;const items=records(database,activeView(database)).slice(0,500);[...$("#content").querySelectorAll("tbody tr")].forEach((row,index)=>{row.dataset.recordId=items[index].id;});}
 render();
+$("#content").setAttribute("aria-busy","false");
+
+async function loadInitialState() {
+  const content = $("#content"), status = $("#saveState");
+  for (;;) {
+    content.setAttribute("aria-busy", "true");
+    status.className = "save-state";
+    status.textContent = "Opening Motion…";
+    const panel = document.createElement("div"), title = document.createElement("h1"), message = document.createElement("p");
+    panel.className = "empty-state";
+    panel.dataset.startupState = "opening";
+    title.textContent = "Opening Motion…";
+    message.textContent = "Loading your local workspace.";
+    panel.append(title, message);
+    content.replaceChildren(panel);
+    try {
+      // Editor handlers and confirmed state are initialized only after a valid
+      // load. Retrying never substitutes an empty workspace or resets storage.
+      return migrateLoaded(await adapter.load());
+    } catch {
+      content.setAttribute("aria-busy", "false");
+      status.className = "save-state unsaved";
+      status.textContent = "Could not open Motion";
+      panel.dataset.startupState = "error";
+      title.textContent = "Motion could not open your workspace";
+      message.textContent = "Try again to load your local workspace.";
+      message.setAttribute("role", "alert");
+      const actions = document.createElement("div"), retry = document.createElement("button");
+      actions.className = "empty-actions";
+      retry.className = "primary";
+      retry.type = "button";
+      retry.textContent = "Retry opening Motion";
+      actions.append(retry);
+      panel.append(actions);
+      await new Promise(resolve => {
+        retry.addEventListener("click", resolve, { once: true });
+        retry.focus();
+      });
+    }
+  }
+}

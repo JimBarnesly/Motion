@@ -667,6 +667,10 @@ pub fn run_native_helper_if_requested() -> bool {
     }
 }
 
+#[cfg(all(test, windows))]
+#[path = "windows_startup_tests.rs"]
+mod windows_startup_tests;
+
 #[cfg(test)]
 mod tests {
     use super::{

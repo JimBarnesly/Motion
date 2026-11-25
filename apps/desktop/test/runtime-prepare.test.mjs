@@ -6,9 +6,9 @@ import test from "node:test";
 import { OFFICIAL_ARCHIVES, WINDOWS_ARCHIVES, NODE_VERSION, prepareNodeRuntime, runtimeSpecification } from "../scripts/prepare-node-runtime.mjs";
 
 test("runtime provenance pins official Node 24 archives and SHA-256", () => {
-  assert.equal(NODE_VERSION, "24.18.0");
+  assert.equal(NODE_VERSION, "24.22.3");
   for (const entry of Object.values(OFFICIAL_ARCHIVES)) {
-    assert.match(entry.file, /^node-v24\.18\.0-linux-(x64|arm64)\.tar\.xz$/);
+    assert.match(entry.file, /^node-v24\.22\.3-linux-(x64|arm64)\.tar\.xz$/);
     assert.match(entry.sha256, /^[0-9a-f]{64}$/);
   }
 });

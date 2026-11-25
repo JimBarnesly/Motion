@@ -5,12 +5,12 @@
   "branch": "feat/windows-notebook-resume",
   "pullRequest": 2,
   "releaseStatus": "in-development",
-  "priority": "Resolve Windows backup replacement sharing failure, then run installed acceptance",
+  "priority": "Verify bundled Node24.22.3 fixes the Windows namespaced-entrypoint startup failure; finish installed acceptance",
   "lastVerifiedCommit": "fed424dd9681e047ad74f0396f501928e70ccf8b",
   "activeLease": {
     "owner": "interactive-windows-installer-2026-11-25",
-    "startedAt": "2026-11-25T10:23:41Z",
-    "expiresAt": "2026-11-25T12:23:41Z",
+    "startedAt": "2026-11-25T11:47:56Z",
+    "expiresAt": "2026-11-25T13:47:56Z",
     "scope": "Windows native candidate CI and installed acceptance"
   },
   "continuationAutomation": "Automation_1b45f83f28188191b31f671c6229efd8",
@@ -23,25 +23,27 @@
     "Added pinned local runtime, per-user offline NSIS packaging and installed acceptance workflow",
     "Executed real Windows in-place junction and inherited-ACL preservation attack regressions: all four pass at 57db2c8",
     "Resolved the exact five-package Debian security inventory drift; ARM isolated validation now passes",
-    "Complete core CI and Linux x64 packaged acceptance pass at 57db2c8"
+    "Complete core CI and Linux x64 packaged acceptance pass at 57db2c8",
+    "Windows candidate 0d1dd27 passed all 27 native Rust tests and all 23 Windows filesystem/service tests with no skips",
+    "Built and installed the actual current-user Windows NSIS candidate into a path with spaces; installed native suite passed 23/23",
+    "Complete core verification, Linux x64 packaged acceptance and ARM64 isolated/package/offline acceptance all passed at 0d1dd27"
   ],
   "next": [
-    "Execute Windows replacement, confirmation continuity and fresh-launch root corrections, then proceed to NSIS installed acceptance",
-    "Retain actual passing junction/ACL evidence and complete a real mapped-drive rejection fixture",
-    "Prove installed restart, backup/restore and uninstall/reinstall data preservation",
+    "Execute the exact Tauri-style namespaced entrypoint regression with bundled Node24.22.3 and the installed graphical acceptance",
+    "Run the new real mapped-SMB rejection fixture with reachable-network positive controls and exact cleanup",
+    "Prove installed editing, attachments, search, normal close/restart and uninstall/reinstall data preservation",
     "Exercise offline installation with WebView2 initially absent on a clean Windows image",
-    "Continue practical local writing, database views and portability parity after Windows installer acceptance"
+    "Continue the concrete writing slice in WRITING_PARITY_NEXT.md after Windows baseline acceptance"
   ],
   "openBlockers": [
-    "Windows candidate 57db2c8 native diagnostic proves that no-delete target sharing prevents backup replacement (OS error 32); dedicated backup-only sharing correction is under independent review",
-    "Fresh Windows app root must be created privately before Tauri initializes its configured WebView; corrected startup candidate awaits installed execution",
-    "Native backup overwrite confirmation must retain the pre-dialog target identity through the internal save request; correction and regression in progress",
-    "PowerShell module-path fixture correction still awaits Windows service suite execution",
-    "Actual NSIS package and installed offline/uninstall/reinstall acceptance not yet observed",
+    "At 0d1dd27 installed GUI did not render: source review traced Tauri canonicalized resource paths into the pinned Node24.18.0 namespaced-entrypoint bug. Bundled runtime24.22.3 contains the upstream fix and awaits exact Windows execution; diagnostics remain mandatory if startup still fails.",
+    "Installed GUI restart and uninstall/reinstall checks were not reached after the startup failure",
+    "Mapped SMB rejection still awaits real Windows execution; new fixture must not treat unavailable setup as passing evidence",
+    "Initially absent WebView2 and fully offline installation still require a clean Windows image; runner already has WebView2",
     "The glib exception renewal and governed changes remain draft CODEOWNERS review items",
-    "Mapped-drive rejection and initially absent WebView2 still require real Windows evidence"
+    "The current Evergreen redistributable is now statically identified (runtime158.0.4370.33); contained third-party notices require explicit binary-policy classification before release, for current Evergreen as well as proposed Fixed. No policy exception or Windows trust verdict is inferred."
   ],
-  "notes": "Windows implementation remains a candidate, not a completed installer or 1.0 release. Actual 57db2c8 CI passed the full core verification and Linux x64 packaged suite; Windows diagnostic proved the replacement design needed correction. Read exact latest commit CI and SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md. Supported Windows replacement uses a private parent, a cooperating-writer lease and final name/content validation, not kernel CAS against arbitrary same-user namespace mutation. All 19 unsafe scopes are individually reviewed; no human approval is inferred. The active lease prevents overlapping scheduled writes.",
+  "notes": "0d1dd27 is a built/installed development candidate, not a 1.0 release. Its 27 Rust and 23 Windows native/service tests, including the installed suite, passed. The installed GUI failed its correct first-render check; do not weaken that assertion or assume CSP without evidence. All three general CI jobs passed, including complete ARM64 packaging. Read exact latest commit CI and SECURITY_WINDOWS_NATIVE_REVIEW_2026-11-25.md. Supported Windows replacement uses a private parent, cooperating-writer lease and final name/content validation, not kernel CAS against arbitrary same-user namespace mutation. No human approval is inferred. The active lease prevents overlapping scheduled writes. The current continuation updates only the bundled Node package to24.22.3 (four official archive pins) and its cache key/contracts. Development/build/isolation Node24.18.0 pins remain separately fixed. Original Windows path handling, GUID data-root authority and IPC/CSP permissions are unchanged; no lossy path conversion was adopted.",
   "candidateVerification": {
     "portableWorkspaceTests": {
       "passed": 426,
@@ -52,15 +54,15 @@
     "typecheck": "passed",
     "build": "passed",
     "dependencyInventory": "436 production packages, passed",
-    "sourceSecurity": "119 first-party files, 8 unchanged rules, passed with 19 individually reviewed Windows FFI scopes",
-    "windowsNativeCompile": "Passed full native Windows Tauri compilation at 57db2c8 on windows-2022",
-    "fullWindowsTauriBuild": "Native debug executable compiled; NSIS release packaging not reached because Windows service tests failed",
+    "sourceSecurity": "121 first-party files, 8 unchanged rules passed after the startup-recovery/runtime delta; no new exception",
+    "windowsNativeCompile": "Passed full native Windows debug and release Tauri compilation at 0d1dd27 on windows-2022",
+    "fullWindowsTauriBuild": "NSIS release installer built and installed successfully at 0d1dd27; installed GUI acceptance failed at initial render",
     "windowsExecution": {
-      "commit": "57db2c8ffb8b60f4d98bbbb8eca581112299a914",
-      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45597659367",
+      "commit": "0d1dd27475525597c9d7fb6f02c75d0fbf01780d",
+      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45599716432",
       "rust": {
-        "passed": 23,
-        "failed": 1,
+        "passed": 27,
+        "failed": 0,
         "ignored": 0
       },
       "adversarialJunctionAndAclTests": {
@@ -68,12 +70,55 @@
         "failed": 0,
         "ignored": 0
       },
-      "failure": "Same-directory replacement with retained no-delete target fails OS32 sharing violation",
-      "javascript": "Not reached; previous0f91da4 run had17passed4failed",
-      "installedAcceptance": "not reached"
+      "javascript": {
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0
+      },
+      "startupGateTests": {
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0
+      },
+      "installedNativeTests": {
+        "passed": 23,
+        "failed": 0,
+        "skipped": 0
+      },
+      "installer": {
+        "built": true,
+        "installed": true,
+        "sha256": "e74d9293cb8bc0430bf4c20de9a59c967cfec63586fb0c0afdd8a90858fab130",
+        "artifact": "https://github.com/JimBarnesly/Motion/actions/runs/45599716432/artifacts/15015641896"
+      },
+      "installedAcceptance": "FAILED: #content remained empty for30 seconds; valid empty-workspace state must render a welcome screen",
+      "uninstallReinstall": "not reached"
     },
-    "linuxX64Packaged": "Passed native compile, Clippy, packages, offline restart and packaged M2 acceptance at 57db2c8, run 45597659138",
-    "completeCoreCi": "Passed complete verify job 139147906221 at 57db2c8, run 45597659138, including browser, offline, security and benchmark gates",
-    "arm64IsolatedValidation": "Passed the formerly blocked isolated validation step at 57db2c8, run 45597659138; later package checks still running"
+    "linuxX64Packaged": "Passed native build, Clippy, packages, offline restart and packaged M2 acceptance at 0d1dd27, run45599716573, job139155243097",
+    "completeCoreCi": "Passed complete verify job139155243482 at 0d1dd27, run45599716573, including browser/offline/security/benchmark gates",
+    "arm64IsolatedValidation": "Passed entire ARM64 job139155242616 at 0d1dd27, run45599716573: isolated validation, native build/Clippy, packages, offline restart and packaged M2 acceptance",
+    "startupRecoveryBrowserTests": {
+      "passed": 75,
+      "failed": 0,
+      "skipped": 0,
+      "note": "Complete local Chromium suite after the startup-recovery change; Windows startup diagnostics and mapped-SMB fixture still require the next native CI run."
+    },
+    "runtimeCandidate": {
+      "version": "24.22.3",
+      "officialRelease": "https://nodejs.org/en/blog/release/v24.22.3",
+      "namespacedPathFix": "https://github.com/nodejs/node/pull/65378",
+      "focusedRuntimeContractTests": 26,
+      "windowsExecution": "pending",
+      "verifiedArchives": [
+        "linux-x64.tar.xz",
+        "win-x64.zip"
+      ],
+      "linuxBundledStartupGateTests": {
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0
+      },
+      "windowsRegressionCompile": "Actual new test source and Windows platform modules cross-compiled for x86_64-pc-windows-msvc --tests with zero errors; execution pending CI"
+    }
   }
 }

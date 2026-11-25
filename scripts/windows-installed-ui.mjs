@@ -459,6 +459,15 @@ async function saveNativeBackupThroughDialog(current) {
     assert.equal(selected.filename?.control?.processId, current.child.pid);
     assert.equal(selected.filename?.exactDestinationReadBack, true);
     assert.equal(selected.filename?.valuePattern, true);
+    assert.equal(selected.filenameFocus?.observed, true);
+    assert.equal(selected.filenameFocus?.control?.processId, current.child.pid);
+    assert.equal(selected.filenameFocus?.control?.automationId, "1001");
+    assert.equal(selected.filenameFocus?.control?.hasKeyboardFocus, true);
+    assert.equal(selected.saveFocus?.observed, true);
+    assert.equal(selected.saveFocus?.control?.processId, current.child.pid);
+    assert.equal(selected.saveFocus?.control?.name, "Save");
+    assert.equal(selected.saveFocus?.control?.hasKeyboardFocus, true);
+    assert.equal(selected.filename?.exactDestinationAfterFocusChange, true);
     assert.equal(selected.invokePattern, true);
     assert.equal(selected.dialogClosed, true);
     await expect(current.page.locator("#saveState")).toHaveText("Verified backup saved safely.", { timeout: 30_000 });
@@ -521,6 +530,7 @@ async function saveNativeBackupThroughDialog(current) {
   if (operationFailure) throw operationFailure;
   return { bytes: savedBytes, evidence: { freshFileSavedThroughRealButtonAndDialog: true,
     processIdentityAuthenticated: true, staleProcessIdentityRejectedBeforeUiAction: true,
+    filenameAndSaveFocusAuthenticated: true,
     filenameValuePatternAndSaveInvokePattern: true, savedFile: proof.savedFile, cleanupPassed: true,
     scope: proof.scope } };
 }

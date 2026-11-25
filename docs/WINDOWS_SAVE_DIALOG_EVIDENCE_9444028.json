@@ -1,0 +1,839 @@
+{
+  "schemaVersion": 1,
+  "headCommit": "9444028353a2568b2f0bb062cdc0e03be2500c2d",
+  "testedMergeCommit": "9840594e63c933feba955359b2ebb101a4db0c56",
+  "run": "https://github.com/JimBarnesly/Motion/actions/runs/45644660654",
+  "job": 139312277713,
+  "conclusion": "failure",
+  "scope": "Native dialog automation selected its original default path despite successful edit-control readback; the filesystem boundary rejected that unintended destination.",
+  "evidenceArtifact": {
+    "id": 15036684885,
+    "byteLength": 61247,
+    "sha256": "c8af3b637a36ec6ffa6f22b92de69d87f577264a4e39ce05c585c9a31b4fbea2",
+    "downloadedViaGitHub": true,
+    "independentlyRehashedByRoot": true,
+    "digestAlsoConfirmedFromGitHubMetadata": true,
+    "files": [
+      {
+        "name": "SHA256SUMS.txt",
+        "bytes": 94,
+        "sha256": "392d12be9dafb9fcf3b7ae23c198bfa0ce957b7e82eecba1496529605459c0ba"
+      },
+      {
+        "name": "installed-native-save-dialog.json",
+        "bytes": 19257,
+        "sha256": "08d47207916d4f5af7e84526df82bbd24ed8fe3ffe051a75e8b5035fc0f28208"
+      },
+      {
+        "name": "installed-native-tests.log",
+        "bytes": 2562,
+        "sha256": "3758c9ee749105936e4a029710ef67785bbb3972907a32de3b6ce7b71a4b6f87"
+      },
+      {
+        "name": "installed-startup-diagnostics.json",
+        "bytes": 3455,
+        "sha256": "ba771a427b5f3425b34f6e7d8805b4678fd60a4cba7bd4155ff86909a8d160c2"
+      },
+      {
+        "name": "installed-ui-failure.png",
+        "bytes": 50207,
+        "sha256": "a7b69d00c6751c44a9e9c4f474e4238ea3958266e621fc26c42b45f155a4f2de"
+      },
+      {
+        "name": "installed-ui-failure.txt",
+        "bytes": 1299,
+        "sha256": "2172bce5961314ffa3dcbb60db3ab73376919805f213ff0764c773f71a476d16"
+      },
+      {
+        "name": "installer-payload-verification.json",
+        "bytes": 5071,
+        "sha256": "2479d018a7e0a2a4b6798301f8a4d53959df5f9d57da58ce12724f36c63e1f1d"
+      },
+      {
+        "name": "installer-payload-verification.json.extraction.txt",
+        "bytes": 629,
+        "sha256": "7535a9724c5372e38d8ad33d7164c708f7f12f64f072e18142b39dd228b4998a"
+      },
+      {
+        "name": "installer-payload-verification.json.listing.txt",
+        "bytes": 2288,
+        "sha256": "a100bcef0361b4dc76ef9af7d85a4cf5e5d9742e1c2ab837670bfe00783ecb46"
+      },
+      {
+        "name": "installer-payload-verification.json.signtool.txt",
+        "bytes": 1912,
+        "sha256": "c419d3e4791720112744bfaa2daa0e8f4c8fea6b7c5bf4ec186cf4c3ce286296"
+      },
+      {
+        "name": "mapped-share-acceptance.json",
+        "bytes": 858,
+        "sha256": "aedf6a39b42accd7ae4112df643aa4c4dcc837acdf8c49a2c50229585089c7d9"
+      },
+      {
+        "name": "mapped-share-prepare.log",
+        "bytes": 60,
+        "sha256": "708456506b04f61fca80a572f77d70f815d70c27c47d0efb48c6852a9ddd493a"
+      },
+      {
+        "name": "mapped-share-verify.log",
+        "bytes": 469,
+        "sha256": "c737a5e0fb1bf9ae67727ca5468ee23d52e20e2f98641c46e0db1b79e2c8ec50"
+      },
+      {
+        "name": "webview-after-install.json",
+        "bytes": 2680,
+        "sha256": "a524906c4eff81eada44c8ba5ddf795e3de17144319ad730b59e6f1c3f052c7e"
+      },
+      {
+        "name": "webview-before-install.json",
+        "bytes": 2681,
+        "sha256": "65c350565477ddde8c692af1a452cb5bcf2e10d0c70609124a6dad922156ad92"
+      }
+    ]
+  },
+  "generalCi": {
+    "run": "https://github.com/JimBarnesly/Motion/actions/runs/45644660524",
+    "verify": 139312278102,
+    "browserPassed": 94,
+    "linuxX64": 139312278777,
+    "linuxArm64": 139312278843,
+    "allJobsPassed": true
+  },
+  "windowsTests": {
+    "rust": 28,
+    "nativeService": 23,
+    "startup": 3,
+    "installedNative": 23,
+    "allPassedBeforeGuiFailure": true,
+    "mappedSmbPassed": true
+  },
+  "diagnosis": {
+    "serviceTrace": {
+      "schemaVersion": 1,
+      "event": "native-backup-inspection-rejected",
+      "nativeCode": "EACCES",
+      "errorType": "Error",
+      "destinationShape": "drive",
+      "destinationLength": 46,
+      "normalizedPathSha256": "dd71e5c55c0e834f79c7fc52ae5ae663a04584d8bc8649fb896fa6a316a2a793",
+      "normalizedParentSha256": "b26496cd0fa3e882407527dc27e7e0a31c14b871b948a2ca5a5170cab4f39720",
+      "resolvedNativePathSha256": "dd71e5c55c0e834f79c7fc52ae5ae663a04584d8bc8649fb896fa6a316a2a793"
+    },
+    "expectedDestination": {
+      "shape": "drive",
+      "length": 81,
+      "normalizedPathSha256": "aa92409432d0a58cb7bf3dadf2d6dffa705c8625c00fec6ac7784c650d3572be",
+      "normalizedParentSha256": "c5013f69b57e71839e7ee320a2c7948cd4df0e5d079704cc42a84f53ee4b49d2"
+    },
+    "knownControlledDialogDefault": "D:\\a\\Motion\\Motion\\motion-verified-backup.json",
+    "knownControlledDialogDefaultParent": "D:\\a\\Motion\\Motion",
+    "normalizedDefaultAndParentHashesMatch": true,
+    "nodeResolveDidNotChangeNormalizedPath": true,
+    "expectedSelectedPathDiffers": true,
+    "expectedDestinationAbsent": true,
+    "independentExpectedPathInspection": {
+      "exists": false,
+      "identity": null,
+      "byteLength": null,
+      "sha256": null
+    },
+    "conclusion": "The matched fingerprint and length identify the controlled original default path as the service input. Filename edit readback did not establish the final dialog result. The EACCES refusal is retained; this evidence calls for a UI-driver correction, not a production storage exception."
+  },
+  "nativeSaveDialog": {
+    "schemaVersion": 1,
+    "commit": "9840594e63c933feba955359b2ebb101a4db0c56",
+    "phase": "installed",
+    "instance": "owner-1",
+    "status": "failed",
+    "scope": "Actual fresh-file native Save As; native cancellation and overwrite confirmations remain untested.",
+    "drivers": [
+      {
+        "messages": [
+          {
+            "schemaVersion": 1,
+            "event": "result",
+            "operation": "identify",
+            "ok": true,
+            "phase": "complete",
+            "identity": {
+              "processId": 3008,
+              "executablePath": "D:\\a\\_temp\\Motion installed acceptance\\motion-desktop.exe",
+              "startTimeFileTimeUtc": "134400943455207817",
+              "sessionId": 2
+            }
+          }
+        ],
+        "stderr": "",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      },
+      {
+        "messages": [
+          {
+            "schemaVersion": 1,
+            "event": "result",
+            "operation": "save",
+            "ok": false,
+            "phase": "authenticate",
+            "error": {
+              "code": "PROCESS_IDENTITY_MISMATCH",
+              "message": "The original process identity no longer matches the selected Motion process."
+            }
+          }
+        ],
+        "stderr": "",
+        "exit": {
+          "code": 1,
+          "signal": null
+        }
+      },
+      {
+        "messages": [
+          {
+            "schemaVersion": 1,
+            "operation": "save",
+            "event": "ready",
+            "identity": {
+              "processId": 3008,
+              "executablePath": "D:\\a\\_temp\\Motion installed acceptance\\motion-desktop.exe",
+              "startTimeFileTimeUtc": "134400943455207817",
+              "sessionId": 2
+            }
+          },
+          {
+            "schemaVersion": 1,
+            "operation": "save",
+            "event": "dialog",
+            "dialog": {
+              "title": "Save verified Motion backup",
+              "processId": 3008,
+              "nativeWindowHandle": 66180,
+              "runtimeId": "42,66180",
+              "className": "#32770"
+            }
+          },
+          {
+            "schemaVersion": 1,
+            "operation": "save",
+            "event": "filename",
+            "exactDestinationReadBack": true
+          },
+          {
+            "schemaVersion": 1,
+            "event": "result",
+            "operation": "save",
+            "ok": true,
+            "phase": "complete",
+            "identity": {
+              "processId": 3008,
+              "executablePath": "D:\\a\\_temp\\Motion installed acceptance\\motion-desktop.exe",
+              "startTimeFileTimeUtc": "134400943455207817",
+              "sessionId": 2
+            },
+            "dialog": {
+              "title": "Save verified Motion backup",
+              "processId": 3008,
+              "nativeWindowHandle": 66180,
+              "runtimeId": "42,66180",
+              "className": "#32770"
+            },
+            "controls": [
+              {
+                "name": "Save verified Motion backup",
+                "automationId": "",
+                "controlType": "ControlType.Window",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "",
+                "automationId": "",
+                "controlType": "ControlType.Pane",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "",
+                "automationId": "",
+                "controlType": "ControlType.ToolBar",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Save",
+                "automationId": "1",
+                "controlType": "ControlType.Button",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Cancel",
+                "automationId": "2",
+                "controlType": "ControlType.Button",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "",
+                "automationId": "",
+                "controlType": "ControlType.Pane",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "",
+                "automationId": "40965",
+                "controlType": "ControlType.Pane",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Save verified Motion backup",
+                "automationId": "TitleBar",
+                "controlType": "ControlType.TitleBar",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Command Module",
+                "automationId": "FolderBandModuleInner",
+                "controlType": "ControlType.ToolBar",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Control Host",
+                "automationId": "ProperTreeHost",
+                "controlType": "ControlType.Pane",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Shell Folder View",
+                "automationId": "listview",
+                "controlType": "ControlType.Pane",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "File name:",
+                "automationId": "SaveDialogLabel",
+                "controlType": "ControlType.Text",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "File name:",
+                "automationId": "FileNameControlHost",
+                "controlType": "ControlType.ComboBox",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Save as type:",
+                "automationId": "SaveDialogLabel",
+                "controlType": "ControlType.Text",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Save as type:",
+                "automationId": "FileTypeControlHost",
+                "controlType": "ControlType.ComboBox",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Save Fields",
+                "automationId": "SaveDialogPreviewMetadataInner",
+                "controlType": "ControlType.Tree",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": true
+              },
+              {
+                "name": "Application Controls",
+                "automationId": "AppControlsModuleInner",
+                "controlType": "ControlType.Tree",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": true
+              },
+              {
+                "name": "Hide Folders",
+                "automationId": "Item 103",
+                "controlType": "ControlType.Button",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Navigation buttons",
+                "automationId": "",
+                "controlType": "ControlType.ToolBar",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Up band",
+                "automationId": "",
+                "controlType": "ControlType.ToolBar",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "",
+                "automationId": "",
+                "controlType": "ControlType.ProgressBar",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "",
+                "automationId": "",
+                "controlType": "ControlType.Pane",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "",
+                "automationId": "",
+                "controlType": "ControlType.Pane",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "",
+                "automationId": "",
+                "controlType": "ControlType.Pane",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "System Menu Bar",
+                "automationId": "SystemMenuBar",
+                "controlType": "ControlType.MenuBar",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": true
+              },
+              {
+                "name": "Close",
+                "automationId": "Close",
+                "controlType": "ControlType.Button",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "&Help",
+                "automationId": "HelpButton",
+                "controlType": "ControlType.Button",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Views",
+                "automationId": "ViewControl",
+                "controlType": "ControlType.SplitButton",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Organize",
+                "automationId": "{7DDC1264-7E4D-4F74-BBC0-D191987C8D0F}",
+                "controlType": "ControlType.Button",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "New folder",
+                "automationId": "{E44616AD-6DF1-4B94-85A4-E465AE8A19DB}",
+                "controlType": "ControlType.Button",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Namespace Tree Control",
+                "automationId": "100",
+                "controlType": "ControlType.Tree",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Items View",
+                "automationId": "",
+                "controlType": "ControlType.List",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "File name:",
+                "automationId": "1001",
+                "controlType": "ControlType.Edit",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "File name:",
+                "automationId": "ListBox",
+                "controlType": "ControlType.List",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": true
+              },
+              {
+                "name": "Drop Down Button",
+                "automationId": "DropDown",
+                "controlType": "ControlType.Button",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Save as type:",
+                "automationId": "ListBox",
+                "controlType": "ControlType.List",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": true
+              },
+              {
+                "name": "Drop Down Button",
+                "automationId": "DropDown",
+                "controlType": "ControlType.Button",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Back (Alt + Left Arrow)",
+                "automationId": "Item 256",
+                "controlType": "ControlType.Button",
+                "processId": 3008,
+                "enabled": false,
+                "offscreen": false
+              },
+              {
+                "name": "Forward (Alt + Right Arrow)",
+                "automationId": "Item 257",
+                "controlType": "ControlType.Button",
+                "processId": 3008,
+                "enabled": false,
+                "offscreen": false
+              },
+              {
+                "name": "Recent locations",
+                "automationId": "Item 258",
+                "controlType": "ControlType.Button",
+                "processId": 3008,
+                "enabled": false,
+                "offscreen": false
+              },
+              {
+                "name": "Up to \"Motion\" (Alt + Up Arrow)",
+                "automationId": "Item 256",
+                "controlType": "ControlType.Button",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "",
+                "automationId": "",
+                "controlType": "ControlType.Pane",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Address band toolbar",
+                "automationId": "",
+                "controlType": "ControlType.ToolBar",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "",
+                "automationId": "",
+                "controlType": "ControlType.Pane",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "System",
+                "automationId": "Item 1",
+                "controlType": "ControlType.MenuItem",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "View Slider",
+                "automationId": "SplitMenuButton",
+                "controlType": "ControlType.Button",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Quick access",
+                "automationId": "",
+                "controlType": "ControlType.TreeItem",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              },
+              {
+                "name": "Desktop",
+                "automationId": "",
+                "controlType": "ControlType.TreeItem",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": true
+              }
+            ],
+            "matchingControls": {
+              "filename": 1,
+              "save": 1
+            },
+            "candidatePatterns": {
+              "filename": [
+                {
+                  "valuePatternAvailable": true,
+                  "control": {
+                    "name": "File name:",
+                    "automationId": "1001",
+                    "controlType": "ControlType.Edit",
+                    "processId": 3008,
+                    "enabled": true,
+                    "offscreen": false
+                  },
+                  "isReadOnly": false,
+                  "originalValue": "motion-verified-backup"
+                }
+              ],
+              "save": [
+                {
+                  "invokePatternAvailable": true,
+                  "control": {
+                    "name": "Save",
+                    "automationId": "1",
+                    "controlType": "ControlType.Button",
+                    "processId": 3008,
+                    "enabled": true,
+                    "offscreen": false
+                  }
+                }
+              ]
+            },
+            "filenameBeforeWrite": {
+              "originalValue": "motion-verified-backup",
+              "control": {
+                "name": "File name:",
+                "automationId": "1001",
+                "controlType": "ControlType.Edit",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              }
+            },
+            "filename": {
+              "observedControlMatched": true,
+              "originalValue": "motion-verified-backup",
+              "exactDestinationReadBack": true,
+              "valuePattern": true,
+              "control": {
+                "name": "File name:",
+                "automationId": "1001",
+                "controlType": "ControlType.Edit",
+                "processId": 3008,
+                "enabled": true,
+                "offscreen": false
+              }
+            },
+            "saveButton": {
+              "name": "Save",
+              "automationId": "1",
+              "controlType": "ControlType.Button",
+              "processId": 3008,
+              "enabled": true,
+              "offscreen": false
+            },
+            "dialogClosed": true,
+            "invokePattern": true,
+            "scope": "Fresh-file native Save As only; cancellation and overwrite confirmations are not automated."
+          }
+        ],
+        "stderr": "",
+        "exit": {
+          "code": 0,
+          "signal": null
+        }
+      }
+    ],
+    "expectedDestination": {
+      "shape": "drive",
+      "length": 81,
+      "normalizedPathSha256": "aa92409432d0a58cb7bf3dadf2d6dffa705c8625c00fec6ac7784c650d3572be",
+      "normalizedParentSha256": "c5013f69b57e71839e7ee320a2c7948cd4df0e5d079704cc42a84f53ee4b49d2"
+    },
+    "processIdentity": {
+      "processId": 3008,
+      "executablePath": "D:\\a\\_temp\\Motion installed acceptance\\motion-desktop.exe",
+      "startTimeFileTimeUtc": "134400943455207817",
+      "sessionId": 2
+    },
+    "staleProcessIdentityRejectedBeforeUiAction": true,
+    "failure": "expect(locator).toHaveText(expected) failed\n\nLocator:  locator('#saveState')\nExpected: \"Verified backup saved safely.\"\nReceived: \"Backup save could not be confirmed. Check the selected destination, then try Verified backup again.\"\nTimeout:  30000ms\n\nCall log:\n  - Expect \"to.have.text\" with timeout 30000ms\n  - waiting for locator('#saveState')\n    63 \u00d7 locator resolved to <span role=\"status\" id=\"saveState\" class=\"save-state\" data-backup-stage=\"save\" data-backup-state=\"failed\" data-backup-error-code=\"VALIDATION_FAILED\">Backup save could not be confirmed. Check the sel\u2026</span>\n       - unexpected value \"Backup save could not be confirmed. Check the selected destination, then try Verified backup again.\"\n",
+    "applicationStatus": {
+      "text": "Backup save could not be confirmed. Check the selected destination, then try Verified backup again.",
+      "state": "failed",
+      "stage": "save",
+      "code": "VALIDATION_FAILED"
+    },
+    "destinationAfterFailure": {
+      "exists": false
+    },
+    "nativeInspectionAfterFailure": {
+      "exists": false,
+      "identity": null,
+      "byteLength": null,
+      "sha256": null
+    },
+    "cleanupPassed": true
+  },
+  "startupDiagnostic": {
+    "schemaVersion": 1,
+    "commit": "9840594e63c933feba955359b2ebb101a4db0c56",
+    "phase": "installed",
+    "instance": "owner-1",
+    "process": {
+      "exitCode": null,
+      "signalCode": null,
+      "stderr": "{\"schemaVersion\":1,\"event\":\"native-backup-inspection-rejected\",\"nativeCode\":\"EACCES\",\"errorType\":\"Error\",\"destinationShape\":\"drive\",\"destinationLength\":46,\"normalizedPathSha256\":\"dd71e5c55c0e834f79c7fc52ae5ae663a04584d8bc8649fb896fa6a316a2a793\",\"normalizedParentSha256\":\"b26496cd0fa3e882407527dc27e7e0a31c14b871b948a2ca5a5170cab4f39720\",\"resolvedNativePathSha256\":\"dd71e5c55c0e834f79c7fc52ae5ae663a04584d8bc8649fb896fa6a316a2a793\"}\n",
+      "stdout": ""
+    },
+    "console": [
+      {
+        "type": "error",
+        "text": "Refused to connect to 'http://ipc.localhost/motion_ui_load' because it violates the following Content Security Policy directive: \"connect-src 'none'\".\n",
+        "location": {
+          "url": "",
+          "line": 82,
+          "column": 0,
+          "lineNumber": 82,
+          "columnNumber": 0
+        }
+      },
+      {
+        "type": "error",
+        "text": "Refused to connect to 'http://ipc.localhost/motion_ui_load' because it violates the document's Content Security Policy.",
+        "location": {
+          "url": "",
+          "line": 82,
+          "column": 0,
+          "lineNumber": 82,
+          "columnNumber": 0
+        }
+      },
+      {
+        "type": "warning",
+        "text": "IPC custom protocol failed, Tauri will now use the postMessage interface instead TypeError: Failed to fetch\n    at Object.sendIpcMessage (<anonymous>:83:7)\n    at Object.<anonymous> (<anonymous>:177:38)\n    at action (<anonymous>:336:38)\n    at <anonymous>:345:11\n    at new Promise (<anonymous>)\n    at Object.value (<anonymous>:325:14)\n    at h (<anonymous>:1:2176)\n    at http://tauri.localhost/app-adapter.js:225:30\n    at transitionWorkspace (http://tauri.localhost/app-adapter.js:162:28)\n    at Object.load (http://tauri.localhost/app-adapter.js:224:14)",
+        "location": {
+          "url": "",
+          "line": 105,
+          "column": 20,
+          "lineNumber": 105,
+          "columnNumber": 20
+        }
+      }
+    ],
+    "browserLog": [
+      {
+        "level": "error",
+        "source": "security",
+        "text": "Refused to connect to 'http://ipc.localhost/motion_ui_load' because it violates the following Content Security Policy directive: \"connect-src 'none'\".\n",
+        "lineNumber": 82
+      },
+      {
+        "level": "error",
+        "source": "javascript",
+        "text": "Refused to connect to 'http://ipc.localhost/motion_ui_load' because it violates the document's Content Security Policy.",
+        "lineNumber": 82
+      }
+    ],
+    "failedRequests": [],
+    "failedResponses": [],
+    "pageErrors": [],
+    "forbiddenRequests": [],
+    "dialogs": [],
+    "unexpectedDialogs": [],
+    "startup": {
+      "url": "http://tauri.localhost/",
+      "readyState": "complete",
+      "contentChildren": 1,
+      "saveState": "Backup save could not be confirmed. Check the selected destination, then try Verified backup again.",
+      "backupState": "failed",
+      "backupStage": "save",
+      "backupErrorCode": "VALIDATION_FAILED",
+      "scripts": [
+        {
+          "type": "module",
+          "src": "http://tauri.localhost/app.js"
+        }
+      ],
+      "invokeAvailable": true,
+      "unhandledRejections": [],
+      "nativeLoad": {
+        "outcome": "resolved",
+        "schemaVersion": 2,
+        "revision": 6,
+        "emptyWorkspace": false,
+        "pageCount": 1
+      }
+    }
+  },
+  "candidateCorrection": "Authenticate and observe focus on the retained filename Edit before SetValue, move focus to the retained Save control, recheck the exact text, then Invoke once. Actual saved destination bytes remain authoritative.",
+  "limits": [
+    "The focus-transition correction still requires real Windows execution.",
+    "No actual file-save/restore/later lifecycle pass is inferred from the dialog closing.",
+    "Complete installed baseline8209982 remains the latest fully passing Windows baseline."
+  ],
+  "sources": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-getfilename",
+    "https://learn.microsoft.com/en-us/dotnet/framework/ui-automation/add-content-to-a-text-box-using-ui-automation"
+  ]
+}

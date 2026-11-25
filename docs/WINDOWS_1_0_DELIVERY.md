@@ -162,13 +162,14 @@ bounded error code and selected destination before cleanup. These changes do not
 establish the cause of the original native rejection; that remains the next
 actual Windows run's task.
 
-### Latest acceptance increment: `b295a52`
+### Visible backup recovery increment: `b295a52`
 
 Complete core CI, all 94 browser cases and both Linux packaged/native/offline
 jobs passed. Windows again passed all 28 Rust, 23 native/service, three startup
 and 23 installed native cases, plus prerequisite trust and mapped-SMB checks.
 
-Actual Save As succeeded. The application then reported `VALIDATION_FAILED`
+The native driver closed Save As after an exact text readback. The application
+then reported `VALIDATION_FAILED`
 during the service's destination-inspection lane, with a visible retry status
 and no unhandled rejection. No file existed at the expected selected path; an
 independent installed-helper inspection accepted that same expected path as
@@ -181,3 +182,33 @@ when both CI acceptance gates are explicitly set, it records fixed native error
 codes/types and path fingerprints after an inspection failure. Raw paths, error
 messages and notebook content are excluded. The next Windows run must establish
 the discrepancy before a production fix or successful native-save claim.
+
+### Latest native Save As diagnosis: `9444028`
+
+Complete general CI, all 94 browser cases and both Linux jobs passed. Windows
+again passed the native, prerequisite-trust, installed-storage and mapped-SMB
+checks before the actual save acceptance failed.
+
+The bounded service trace now establishes the discrepancy. Its normalized path
+and parent fingerprints exactly match the controlled dialog default under the
+CI working directory, with length 46, rather than the requested private fixture
+path with length 81. Node path resolution did not change that fingerprint. The
+native helper returned `EACCES` for this unintended destination, while the
+expected fixture remained absent and independently inspectable.
+
+The candidate therefore changes the UI test interaction: authenticate and
+observe focus on the retained filename Edit before setting its value; move focus
+to the retained Save control; reread the exact path; invoke once. Successful
+saved disk bytes remain mandatory. Independent source review found no blocking
+defect; actual Windows execution is pending. The production filesystem boundary requires
+no exception. See `WINDOWS_SAVE_DIALOG_EVIDENCE_9444028.json` for the evidence.
+
+The offline runtime implementation now has a separate draft PR3, branch
+`feat/windows-offline-pilot`, head `14fc73302bbb0d199505610fe2335e017bb65b0f`.
+Its Windows run is independent of native Save As correction work. The exact
+vendor notices, constrained upstream-template change, real first-rule cleanup
+control, active-engine probe and independent offline-window watchdog are
+candidates until that actual Windows run supplies evidence. Before integrating
+it here, regenerate the governed comparison record for this continuation PR's
+actual merge base; its pilot record is intentionally based on 9444028. Existing
+human Code Owner review and release acceptance remain outstanding.

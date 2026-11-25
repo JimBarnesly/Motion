@@ -104,6 +104,31 @@ function Assert-DialogIdentity {
     }
 }
 
+function Set-DialogControlFocus($Element) {
+    Assert-DialogIdentity
+    $runtime = Get-RuntimeKey $Element
+    if ($Element.Current.ProcessId -ne $identity.processId -or -not $Element.Current.IsEnabled -or
+        $Element.Current.IsOffscreen -or -not $Element.Current.IsKeyboardFocusable) {
+        throw 'The retained dialog control cannot receive focus.'
+    }
+    $Element.SetFocus()
+    $focusDeadline = $clock.ElapsedMilliseconds + 3000
+    while ($true) {
+        Assert-DialogIdentity
+        if ((Get-RuntimeKey $Element) -cne $runtime -or $Element.Current.ProcessId -ne $identity.processId -or
+            -not $Element.Current.IsEnabled -or $Element.Current.IsOffscreen) {
+            throw 'The retained dialog control changed while receiving focus.'
+        }
+        $focused = [System.Windows.Automation.AutomationElement]::FocusedElement
+        if ($Element.Current.HasKeyboardFocus -and $null -ne $focused -and
+            $focused.Current.ProcessId -eq $identity.processId -and (Get-RuntimeKey $focused) -ceq $runtime) {
+            return [ordered]@{ observed = $true; runtimeId = $runtime; control = Get-ControlSummary $Element }
+        }
+        if ($clock.ElapsedMilliseconds -ge $focusDeadline) { throw 'The retained dialog control did not receive focus.' }
+        Start-Sleep -Milliseconds 50
+    }
+}
+
 function Get-DialogElements($Root) {
     $queue = [Collections.Generic.Queue[object]]::new()
     $queue.Enqueue([pscustomobject]@{ element = $Root; depth = 0 })
@@ -134,6 +159,8 @@ function Get-ControlSummary($Element) {
         processId = $current.ProcessId
         enabled = $current.IsEnabled
         offscreen = $current.IsOffscreen
+        keyboardFocusable = $current.IsKeyboardFocusable
+        hasKeyboardFocus = $current.HasKeyboardFocus
     }
 }
 
@@ -267,6 +294,11 @@ try {
         if ($originalValue.Length -gt 32768) { throw 'The observed filename value exceeded its bound.' }
         $proof['filenameBeforeWrite'] = [ordered]@{ originalValue = $originalValue.Substring(0, [Math]::Min(256, $originalValue.Length));
             control = Get-ControlSummary $filename.element }
+        # The 9444028 fixture read back its new edit text, but GetResult still
+        # returned the original default filename. Follow the documented UIA
+        # focus-before-SetValue sequence, then move focus explicitly to Save.
+        # The actual destination's saved bytes remain the acceptance authority.
+        $proof['filenameFocus'] = Set-DialogControlFocus $filename.element
         $filename.pattern.SetValue($request.destination)
         Assert-DialogIdentity
         if ($filename.pattern.Current.Value -cne $request.destination -or $filename.pattern.Current.IsReadOnly -or
@@ -278,8 +310,14 @@ try {
             valuePattern = $true; control = Get-ControlSummary $filename.element }
         Write-Protocol ([ordered]@{ schemaVersion = 1; operation = 'save'; event = 'filename'; exactDestinationReadBack = $true })
         $proof.phase = 'save'
+        $proof['saveFocus'] = Set-DialogControlFocus $saveButton.element
         Assert-DialogIdentity
+        if ($filename.pattern.Current.Value -cne $request.destination) {
+            throw 'The selected destination changed when focus moved to Save.'
+        }
+        $proof.filename['exactDestinationAfterFocusChange'] = $true
         if (-not $saveButton.element.Current.IsEnabled -or $saveButton.element.Current.IsOffscreen -or
+            -not $saveButton.element.Current.HasKeyboardFocus -or
             $saveButton.element.Current.ProcessId -ne $identity.processId -or $saveButton.element.Current.Name -cne 'Save' -or
             (Test-Path -LiteralPath $request.destination)) { throw 'The original fresh-file Save action is no longer valid.' }
         $proof['saveButton'] = Get-ControlSummary $saveButton.element

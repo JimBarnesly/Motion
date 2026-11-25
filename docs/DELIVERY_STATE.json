@@ -5,7 +5,7 @@
   "branch": "feat/windows-notebook-resume",
   "pullRequest": 2,
   "releaseStatus": "in-development",
-  "priority": "Resolve real native backup destination-inspection refusal, then execute the isolated offline runtime installer candidate",
+  "priority": "Correct native Save As focus/commit interaction while the isolated offline prerequisite pilot runs",
   "lastVerifiedCommit": "820998286a9083c0edbe663e6981945e59ad0ec4",
   "activeLease": {
     "owner": "interactive-windows-installer-2026-11-25",
@@ -40,21 +40,21 @@
     "b295a52 passed all 94 browser cases and complete core/Linux x64/ARM64 CI; real installed Windows now reports the backup validation failure visibly with no unhandled rejection"
   ],
   "next": [
-    "Trace the actual native Save As destination and underlying helper refusal with bounded failure-only diagnostics, fix the established cause, and re-run native disk-byte/restore acceptance",
+    "Execute the reviewed native Save As focus correction, then verify actual private disk bytes, restore and the complete installed lifecycle",
     "Execute the reviewed nested duplicate/paste and native nested-search repair through full CI and installed baseline",
-    "Resolve offline prerequisite handling: current inventory observes existing WebView2 131.0.2903.86, unchanged after setup; do not assume the minimum-version option upgrades offline",
-    "Complete exact-payload runtime terms/notices mapping and determine whether an actual policy decision is necessary",
+    "Observe the isolated offline prerequisite pilot PR3 at14fc733; repair actual Windows failures, then integrate with an exact governance record for the continuation PR base",
+    "Verify the actual licence page and installed vendor notice bytes in the isolated offline pilot; existing human Code Owner review remains outstanding",
     "Continue complete toggle/callout writing in WRITING_PARITY_NEXT.md, including folded focus/search and recoverable editing",
     "Obtain genuine initially-absent-WebView and Windows 11 first-install evidence"
   ],
   "openBlockers": [
-    "b295a52 passes actual native Save As, then the service destination-inspection lane returns VALIDATION_FAILED. The expected destination remains absent and a separate installed-helper inspection of that expected path succeeds. This does not prove which path the dialog returned to Rust. Full native save/restore acceptance remains pending; the complete baseline at 8209982 remains valid.",
-    "Initially absent WebView2 and fully offline first installation are unproven. Existing registry/file version131.0.2903.86 is not running-engine identity evidence. The locked older-runtime upgrade path requires review before modification.",
+    "At9444028, diagnostic hashes identify the original dialog default under the CI working directory as the service input, despite the driver reading back the requested private fixture path. The native helper refuses that unintended parent with EACCES. The focused UI-driver correction must pass actual Windows execution; no filesystem exception is justified.",
+    "Genuinely absent WebView2 and Windows11 hardware first installation remain unproven. The older-runtime offline upgrade, actual active-engine and temporary network-window candidate is now published separately in PR3; actual Windows evidence is pending.",
     "Glib renewal and exact five-file governance record pass the actual PR-base machine gate. Existing Code Owner review is outstanding; no submitted PR reviews observed, and live branch-protection settings are unverified.",
-    "Evergreen classification/downstream terms are unfinished evidence work, not an observed npm/Cargo licence-gate failure or a separate existing binary-signoff form. Resolve applicable exact-payload terms/notices before deciding if policy changes are needed.",
+    "Exact Evergreen vendor classification and byte-preserved terms/notices are implemented in isolated PR3 without policy broadening. Actual interactive page and installed-resource checks are pending; existing Code Owner review remains outstanding.",
     "Practical local feature parity remains unfinished; writing/search fixes are candidates, while toggle/callout UI, inline marks, additional database views and interchange remain delivery work."
   ],
-  "notes": "At b295a52, general CI passed 94 browser cases and both Linux jobs. Windows passed 28 Rust tests, 23 native/service tests, three startup tests, 23 installed native tests, mapped SMB and prerequisite trust. Actual Save As passed, then service destination inspection refused with VALIDATION_FAILED; the application displayed a safe retry status with no unhandled rejection. The expected file was absent and its independent helper inspection succeeded. Exact failure evidence is retained in WINDOWS_SAVE_DIALOG_EVIDENCE_b295a52.json. The next candidate adds strictly gated failure-only fingerprints and fixed native error codes to distinguish the actual selected path from a helper rejection. It preserves storage decisions and logs no raw path, message or notebook content. Offline runtime/notice/engine/firewall work remains isolated. Release status is in development.",
+  "notes": "9444028 passed complete general CI, all 94 browser cases and both Linux jobs. Windows native/payload/installed storage/mapped-SMB checks passed. Failure-only diagnostics establish that the test dialog returned its original default path, and the native helper correctly refused that unintended destination. The candidate corrects observed control focus and commit interaction; production storage decisions are unchanged. The separately published offline pilot is PR3, head 14fc73302bbb0d199505610fe2335e017bb65b0f, with its own Windows run 45647724585. Container writing remains isolated and under verification. Release status remains in development.",
   "candidateVerification": {
     "portableWorkspaceTests": {
       "passed": 426,
@@ -107,9 +107,9 @@
       "testedMergeCommit": "f1f0e6b180fa50269c955bc64203819b4699c74e",
       "mappedShare": "PASSED: reachable local and mapped controls, five native refusals, service refusal, unchanged physical/security snapshots, exact cleanup"
     },
-    "linuxX64Packaged": "Passed job 139296378561 at b295a52",
-    "completeCoreCi": "Passed verify job 139296379087 at b295a52, run 45640186343, with all 94 browser cases and unchanged offline/security/benchmark gates",
-    "arm64IsolatedValidation": "Passed job 139296379092 at b295a52",
+    "linuxX64Packaged": "Passed139312278777 at9444028",
+    "completeCoreCi": "Passed verify139312278102 at9444028 with94 browser cases and existing gates",
+    "arm64IsolatedValidation": "Passed139312278843 at9444028",
     "startupRecoveryBrowserTests": {
       "passed": 75,
       "failed": 0,
@@ -133,7 +133,7 @@
       },
       "windowsRegressionCompile": "Full actual Windows Tauri debug/release builds and native regression execution passed at a64ceb0"
     },
-    "latestCoreCi": "All three jobs passed at b295a52, run 45640186343, including 94 browser cases.",
+    "latestCoreCi": "All three jobs passed at9444028, run45644660524, including94 browser cases.",
     "backupCodecCandidate": {
       "actualServiceRoundtrip": "passed locally and in complete core CI at a64ceb0, with real workspace and binary attachment, file publication, corruption rejection and new-identity restore",
       "webAdapterTests": 54,
@@ -203,19 +203,19 @@
       "ci": "Complete general CI and both Linux jobs passed at 503ae3d"
     },
     "nativeSaveDialogAttempt": {
-      "headCommit": "b295a52468a00aa8d985e905711ee5dc72e8fb99",
-      "testedMergeCommit": "ffbb49f71f8fadbdff732184b9fc9d7cac824187",
-      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45640186203",
-      "job": 139296377630,
+      "headCommit": "9444028353a2568b2f0bb062cdc0e03be2500c2d",
+      "testedMergeCommit": "9840594e63c933feba955359b2ebb101a4db0c56",
+      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45644660654",
+      "job": 139312277713,
       "installedNativePassed": 23,
       "nativeIdentityNegativeControl": "passed",
       "actualDialogOpened": "passed",
       "controlSelection": "passed",
       "exactDestinationReadBack": "passed",
       "saveInvokedAndDialogClosed": "passed",
-      "applicationSaveCompletion": "failed visibly: service destination-inspection refusal VALIDATION_FAILED",
+      "applicationSaveCompletion": "Refused unintended original default path with native EACCES; requested fixture destination was not returned by the dialog.",
       "savedFileValidation": "not reached",
-      "correction": "Candidate adds dual-gated failure diagnostics containing only fixed codes/types and path fingerprints; original refusal and filesystem checks are unchanged.",
+      "correction": "Authenticate and observe focus on the retained filename Edit before SetValue, move focus to the retained Save control, recheck the exact text, then Invoke once. Actual saved destination bytes remain authoritative.",
       "selectedExpectedFileExists": false,
       "independentExpectedPathInspection": "passed: exists false",
       "unhandledRejections": 0
@@ -232,9 +232,25 @@
     "backupInspectionDiagnosticsCandidate": {
       "privacyAndGateSubprocessTestsPassed": 2,
       "scope": "Failure-only stderr instrumentation requires both GITHUB_ACTIONS=true and MOTION_ACCEPTANCE_TRACE_BACKUP=1. Records closed error-code/type allowlists, path shape/length and SHA-256 fingerprints; no raw path, error message or notebook content.",
-      "actualWindows": "Pending; no inference about the original native failure cause.",
+      "actualWindows": "At9444028, the bounded trace established native EACCES and exact normalized default-path/parent hash matches, differing from the expected fixture destination. Raw path/message/content were not logged.",
       "review": "Independent source review passed, including complete native STORAGE_FAILURE enumeration; two subprocess privacy/gating cases passed and desktop bundle rebuilt."
+    },
+    "nativeSaveFocusCandidate": {
+      "sourceReview": "Windows author, root and independent Notion reviews completed with no blocking source finding; both source hashes matched the frozen review manifest.",
+      "syntax": "PowerShell7.5.4 parse and ScriptBlock creation plus Node syntax passed without UI execution.",
+      "actualWindows": "Pending; control focus/readback alone cannot substitute for saved disk-byte acceptance."
+    },
+    "offlinePrerequisitePilot": {
+      "branch": "feat/windows-offline-pilot",
+      "pullRequest": 3,
+      "head": "14fc73302bbb0d199505610fe2335e017bb65b0f",
+      "base": "9444028353a2568b2f0bb062cdc0e03be2500c2d",
+      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45647724585",
+      "localContractsPassed": 26,
+      "portableHelperSemanticChecksPassed": 24,
+      "actualWindows": "Running; PS5.1/native-declaration preflight and package contracts passed. Core verification passed the complete browser suite but failed the subsequent local-only source audit; diagnosis is underway. Linux x64 package/native/offline job passed.",
+      "integration": "Regenerate dependency-policy-change.json against continuation PR2 merge base; pilot record intentionally targets its own base. Existing human Code Owner review is not granted by AI source reviews."
     }
   },
-  "lastObservedCommit": "b295a52468a00aa8d985e905711ee5dc72e8fb99"
+  "lastObservedCommit": "9444028353a2568b2f0bb062cdc0e03be2500c2d"
 }

@@ -5,7 +5,7 @@
   "branch": "feat/windows-notebook-resume",
   "pullRequest": 2,
   "releaseStatus": "in-development",
-  "priority": "Complete authenticated native keyboard Save As acceptance while offline prerequisite pilot and installed container-writing checks advance",
+  "priority": "Finish actual Windows keyboard Save As and offline licence acceptance; integrate local database boards",
   "lastVerifiedCommit": "820998286a9083c0edbe663e6981945e59ad0ec4",
   "activeLease": {
     "owner": "interactive-windows-installer-2026-11-25",
@@ -54,7 +54,7 @@
     "Exact Evergreen vendor classification and byte-preserved terms/notices are implemented in isolated PR3 without policy broadening. Actual interactive page and installed-resource checks are pending; existing Code Owner review remains outstanding.",
     "Practical local feature parity remains unfinished. Toggle/callout UI is an integrated tested candidate; inline marks, additional database views and interchange remain delivery work."
   ],
-  "notes": "4dfed50 passed all general CI jobs, but actual installed Save As still returned the default path despite observed focus. This candidate uses authenticated real keyboard input and retains all filesystem checks. Integrated toggle/callout writing passed 236 focused Node tests and all 107 browser tests; its installed helper passed one real local-service GUI fixture. Actual Windows execution remains pending. Offline pilot d7f29f5 passed all general CI jobs, built the installer and verified its embedded payload, then stopped in licence-page inspection after Next. The diagnostic does not distinguish immutable identity from transient readiness; no offline firewall, upgrade or active-engine pass is claimed. Release remains in development.",
+  "notes": "2cffa9a passed general verification and Linux x64 CI. Windows passed all 28 Rust tests, then its new pure Save As contract failed on a PowerShell 5.1 type alias before installer build. This candidate replaces only that alias with System.UInt16; the driver is unchanged and all 10 portable checks pass. Toggle/callout writing remains an integrated 107-browser-case candidate with an actual local-service helper pass, awaiting installed execution. The independently reviewed board/query foundation now passes 312 integrated core/web tests; board UI is not yet integrated. Offline pilot d7f29f5 built and verified the installer payload but stopped in licence inspection. Release remains in development.",
   "candidateVerification": {
     "portableWorkspaceTests": {
       "passed": 426,
@@ -133,7 +133,7 @@
       },
       "windowsRegressionCompile": "Full actual Windows Tauri debug/release builds and native regression execution passed at a64ceb0"
     },
-    "latestCoreCi": "All three jobs passed at 4dfed50, run 45649097527, including the existing 94 browser cases.",
+    "latestCoreCi": "Verification and Linux x64 jobs passed at 2cffa9a, run 45655062697; ARM64 was still running when recorded.",
     "backupCodecCandidate": {
       "actualServiceRoundtrip": "passed locally and in complete core CI at a64ceb0, with real workspace and binary attachment, file publication, corruption rejection and new-identity restore",
       "webAdapterTests": 54,
@@ -262,17 +262,27 @@
       "newBrowserCases": 13,
       "independentReview": "Passed. The original 20-file integration preserves current backup diagnostics; separate helper and CSS increments have exact source bindings. Sixteen existing HTML sink sites were rebound after source review, retaining all eight rules and role/expiry metadata.",
       "build": "passed",
-      "nativeRust": "pending actual CI",
+      "nativeRust": "28 native Rust tests passed at 2cffa9a on actual Windows; installed writing was not reached.",
       "installedWindows": "Source-reviewed helper integrated before attachments and backup; one real local-service Chromium fixture passed, including bounded incoherent-read handling. Actual installed Windows execution pending.",
-      "evidence": "docs/CONTAINER_WRITING_REVIEW_2026-11-25.json"
+      "evidence": "docs/CONTAINER_WRITING_REVIEW_2026-11-25.json",
+      "generalVerification": "At 2cffa9a, complete verification passed with all 107 browser cases; Linux x64 passed. ARM64 remains in progress at record time."
     },
     "nativeSaveKeyboardCandidate": {
       "portableChecksPassed": 10,
       "nativeInputExecutedLocally": false,
       "independentSourceReview": "passed",
-      "actualWindows": "pending",
-      "evidence": "docs/WINDOWS_SAVE_KEYBOARD_CANDIDATE.json"
+      "actualWindows": "At 2cffa9a, Windows PowerShell 5.1 rejected the test-only [ushort] type alias; the driver compiled and ABI checks ran. Corrected to explicit System.UInt16; next actual run pending.",
+      "evidence": "docs/WINDOWS_SAVE_KEYBOARD_CANDIDATE.json",
+      "failureEvidence": "docs/WINDOWS_SAVE_KEYBOARD_EVIDENCE_2cffa9a.json"
+    },
+    "boardFoundationCandidate": {
+      "files": 8,
+      "integratedCoreWebPassed": 312,
+      "focusedNewCasesPassed": 16,
+      "independentReview": "passed",
+      "scope": "Stable board projection and record query parity, with derived native title projection; no board UI yet.",
+      "evidence": "docs/BOARD_FOUNDATION_REVIEW_2026-11-25.json"
     }
   },
-  "lastObservedCommit": "4dfed50c012debcdffe26a2351e2385abe0934af"
+  "lastObservedCommit": "2cffa9a97b75e0eecb4d9b3627c75376b6cd4094"
 }

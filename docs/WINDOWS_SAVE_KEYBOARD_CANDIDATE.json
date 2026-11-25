@@ -13,7 +13,7 @@
     },
     {
       "path": "scripts/windows-native-save-dialog-contract.test.ps1",
-      "sha256": "ae8354d7ee2c4d8742d4141a39077a3270a6f57413ddfda07da7bc3921463092"
+      "sha256": "128547b90f7dc2d413dd96c42f9f74339cc05f52461785e8253e8001fd3ff7c3"
     },
     {
       "path": "apps/desktop/test/windows/native-save-dialog.test.mjs",
@@ -94,5 +94,15 @@
     "sha256": "2f10eb3ebaae3ee89bd877a96683c9ed3c03f69ea7339d72b2c7b9fd49302a55",
     "saveFunctionSha256": "3a237242f7d0afe0b86830d179fd258a2d67053d7c6b93aa1c98506db0ad0bf5",
     "helperSha256": "5835d2779ec09b6068fa73bc318d11d0feadd6d2f212a608f09f3ef71624defc"
+  },
+  "powerShell51CompatibilityCorrection": {
+    "observedHead": "2cffa9a97b75e0eecb4d9b3627c75376b6cd4094",
+    "workflowRun": 45655062659,
+    "job": 139349405078,
+    "failure": "The new pure contract failed at its UTF-16 assertion because Windows PowerShell 5.1 cannot resolve [ushort]. The actual driver C# had compiled and its ABI checks had executed before that assertion.",
+    "change": "Use explicit [System.UInt16] for the expected UTF-16 code unit. All assertions and the driver remain unchanged.",
+    "contractSha256": "128547b90f7dc2d413dd96c42f9f74339cc05f52461785e8253e8001fd3ff7c3",
+    "portableChecksPassed": 10,
+    "actualWindowsAfterCorrection": "pending"
   }
 }

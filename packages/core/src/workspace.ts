@@ -32,7 +32,8 @@ export function projectRecordProperties(database: Database, page: Page): Record<
   const values = Object.fromEntries(Object.entries(structuredClone(page.properties ?? {})).filter(([propertyId]) => liveIds.has(propertyId)));
   for (const property of database.properties.filter(property => property.deletedAt === undefined)) {
     const field = COMPUTED_PROPERTY_FIELDS[property.type as keyof typeof COMPUTED_PROPERTY_FIELDS];
-    if (field !== undefined) values[property.id] = page[field] ?? null;
+    if (property.type === "title") values[property.id] = page.title;
+    else if (field !== undefined) values[property.id] = page[field] ?? null;
   }
   return values;
 }

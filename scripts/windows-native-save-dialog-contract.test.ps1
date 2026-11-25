@@ -44,7 +44,7 @@ function Check-Inputs([string]$Text) {
         foreach ($up in @(0, 1)) {
             $event = $inputs[4 + $index * 2 + $up].data.keyboard
             Assert-Equal $event.virtualKey 0 'Unicode virtual key'
-            Assert-Equal $event.scan ([ushort][char]$Text[$index]) 'Exact UTF-16 code unit'
+            Assert-Equal $event.scan ([System.UInt16][char]$Text[$index]) 'Exact UTF-16 code unit'
             Assert-Equal $event.flags (4 + $up * 2) 'Unicode down/up ordering'
         }
     }

@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "sourceBase": "4dfed50c012debcdffe26a2351e2385abe0934af",
+  "integrationBase": "2cffa9a97b75e0eecb4d9b3627c75376b6cd4094",
+  "files": [
+    {
+      "path": "apps/web/record-selector.js",
+      "bytes": 1957,
+      "sha256": "e69149bca92eeefd86e05d6603e576b55efc77cd3419cc49e431c80c27bccb12"
+    },
+    {
+      "path": "apps/web/board-projection.js",
+      "bytes": 2150,
+      "sha256": "7466592e671b90cdb1fa71b04fb761c56efcc153ea823ce4aabbe5bfb73c2d1b"
+    },
+    {
+      "path": "apps/web/scripts/build-assets.mjs",
+      "bytes": 934,
+      "sha256": "7efdb53e72dfbd78012aa4d84d4e0b3e725eb63df93c1400bf8beb77bc5054e5"
+    },
+    {
+      "path": "apps/web/test/record-selector.test.mjs",
+      "bytes": 7955,
+      "sha256": "81c95d7ad82cd12a20640307e5a0fe0c4d5d3ea355e69b0521467a1a35df5d1f"
+    },
+    {
+      "path": "apps/web/test/board-projection.test.mjs",
+      "bytes": 9365,
+      "sha256": "429d1637894fff94d844b87d0c76cf0372ead78374bfc3fc3b0872e53afc85fa"
+    },
+    {
+      "path": "packages/core/src/workspace.ts",
+      "bytes": 47053,
+      "sha256": "ec00657276d079ae9ea037d7d6b49ab238b8a3cbd49f8ce74e87ae5d7dc4b720"
+    },
+    {
+      "path": "packages/core/src/test/core.test.ts",
+      "bytes": 84472,
+      "sha256": "3c57a9f1c728fccc5c69fa06c7390ec5bf1d3815a258fed669c1fe3b0faeedbc"
+    },
+    {
+      "path": "packages/core/src/test/record-query.test.ts",
+      "bytes": 3536,
+      "sha256": "bddeb03fef1974b8dbb28fdfcfa448125ccc16c2ce375c14e2fc0f5956db1a08"
+    }
+  ],
+  "scope": "Pure record selector/board projection, asset inclusion, derived core title projection and focused tests; no app UI/schema/dependency/policy changes.",
+  "independentReview": {
+    "reviewer": "Root independent source review; no human approval claimed",
+    "verdict": "No blocking finding in the eight-file foundation",
+    "checks": [
+      "Core title query projection derives Page.title without persisting stored legacy values or timestamps. Legacy-only rows retain their export behavior.",
+      "Browser selector follows actual native null placement, per-clause locale, computed metadata, stable manual order and common nested filters.",
+      "Board lanes use declared stable option IDs, preserve option order and assign null/missing values exactly once to Unassigned.",
+      "Real JSON transport retains explicit null on unassignment. Existing browser and canonical commands preserve record identity, nested body and opaque data.",
+      "Unsupported grouping/subgroup metadata is retained and reported explicitly; no imported layout rewrite.",
+      "Only the two new local asset entries are added; no schema, dependency or policy change."
+    ],
+    "limitations": [
+      "Board UI integration and installed Windows board execution remain pending."
+    ]
+  },
+  "authorValidation": {
+    "focused": {
+      "tests": 17,
+      "passed": 17,
+      "failed": 0,
+      "skipped": 0
+    },
+    "coreAndWeb": {
+      "command": "node --test packages/core/dist/test/*.test.js apps/web/test/*.test.mjs",
+      "tests": 305,
+      "passed": 305,
+      "failed": 0,
+      "skipped": 0,
+      "log": "/tmp/motion-board-foundation-tests.txt"
+    },
+    "coreBuild": "passed",
+    "webBuild": "passed; both new modules byte-match emitted assets",
+    "syntax": "both new modules passed",
+    "diffCheck": "passed",
+    "titleBefore": "/tmp/motion-board-title-before.txt",
+    "selectorBefore": "/tmp/motion-board-selector-before.json",
+    "staticAnalysis": {
+      "status": "passed",
+      "firstPartyFiles": 126,
+      "securityRules": 8,
+      "policyChanged": false,
+      "report": "/tmp/motion-board-static-analysis.json"
+    },
+    "offlineAssets": "passed with unchanged scanner"
+  },
+  "integratedValidation": {
+    "coreWebBuild": "passed",
+    "coreAndWebNodeTests": {
+      "passed": 312,
+      "failed": 0,
+      "skipped": 0
+    },
+    "focusedNewCasesPassed": 16,
+    "runtimeBoardUi": "not yet integrated",
+    "installedWindowsBoard": "pending"
+  }
+}

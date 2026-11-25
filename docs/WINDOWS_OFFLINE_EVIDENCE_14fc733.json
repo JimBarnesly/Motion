@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 1,
+  "head": "14fc73302bbb0d199505610fe2335e017bb65b0f",
+  "windows": {
+    "runId": 45647724585,
+    "jobId": 139323164733,
+    "firstFailingStep": "Test Windows filesystem and service behavior",
+    "passedRustTests": 28,
+    "passedJsTests": 23,
+    "failedJsTests": 1,
+    "failure": [
+      "2026-11-25T15:44:26.1447989Z   AssertionError [ERR_ASSERTION]: Exception calling \".ctor\" with \"3\" argument(s): \"The system cannot find the file specified\"",
+      "2026-11-25T15:44:26.1448637Z   At D:\\a\\Motion\\Motion\\scripts\\windows-installer-offline-contract.test.ps1:42 char:5",
+      "2026-11-25T15:44:26.1449180Z   +     $child=[MotionOfflineProcess]::new($node,'-e \"process.stdout.writ ...",
+      "2026-11-25T15:44:26.1449581Z   +     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+      "2026-11-25T15:44:26.1450019Z       + CategoryInfo          : NotSpecified: (:) [], ParentContainsErrorRecordException",
+      "2026-11-25T15:44:26.1450426Z       + FullyQualifiedErrorId : Win32Exception",
+      "2026-11-25T15:44:26.1450658Z    ",
+      "2026-11-25T15:44:26.1450802Z   ",
+      "2026-11-25T15:44:26.1450932Z   ",
+      "2026-11-25T15:44:26.1451062Z   1 !== 0",
+      "2026-11-25T15:44:26.1451242Z   ",
+      "2026-11-25T15:44:26.1451684Z       at TestContext.<anonymous> (file:///D:/a/Motion/Motion/apps/desktop/test/windows/offline-window.test.mjs:18:10)",
+      "2026-11-25T15:44:26.1452232Z       at Test.runInAsyncScope (node:async_hooks:227:14)",
+      "2026-11-25T15:44:26.1452584Z       at Test.run (node:internal/test_runner/test:1325:25)",
+      "2026-11-25T15:44:26.1452940Z       at Test.start (node:internal/test_runner/test:1191:17)",
+      "2026-11-25T15:44:26.1453396Z       at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {",
+      "2026-11-25T15:44:26.1453767Z     generatedMessage: false,",
+      "2026-11-25T15:44:26.1453982Z     code: 'ERR_ASSERTION',",
+      "2026-11-25T15:44:26.1454177Z     actual: 1,",
+      "2026-11-25T15:44:26.1454339Z     expected: 0,",
+      "2026-11-25T15:44:26.1454522Z     operator: 'strictEqual',",
+      "2026-11-25T15:44:26.1454993Z     diff: 'simple'",
+      "2026-11-25T15:44:26.1455157Z   }"
+    ],
+    "artifactInventory": [],
+    "installerBuilt": false,
+    "installerExecuted": false,
+    "firewallExecuted": false,
+    "licenceUiExecuted": false,
+    "runtimeUpgradeObserved": false,
+    "activeRuntimeObserved": false
+  },
+  "core": {
+    "jobId": 139323164438,
+    "browserTestsPassed": 94,
+    "firstFailingStep": "Verify local-only application sources",
+    "scannerFindings": [
+      "2026-11-25T15:45:21.4309469Z Unexpected network-dependent application references:",
+      "2026-11-25T15:45:21.4310330Z desktop/licenses/windows/WebView2-Evergreen-Terms.html: https://aka.ms/privacy",
+      "2026-11-25T15:45:21.4311788Z desktop/licenses/windows/WebView2-Evergreen-Terms.html: https://aka.ms/privacy</a>.",
+      "2026-11-25T15:45:21.4313888Z desktop/licenses/windows/WebView2-Evergreen-Terms.html: https://learn.microsoft.com/en-us/microsoft-edge/privacy-whitepaper#smartscreen",
+      "2026-11-25T15:45:21.4315416Z desktop/licenses/windows/WebView2-Evergreen-Terms.html: https://learn.microsoft.com/en-us/microsoft-edge/privacy-whitepaper#smartscreen</a>.",
+      "2026-11-25T15:45:21.4316677Z desktop/licenses/windows/WebView2-Evergreen-Terms.html: https://learn.microsoft.com/en-us/legal/gdpr",
+      "2026-11-25T15:45:21.4317773Z desktop/licenses/windows/WebView2-Evergreen-Terms.html: https://learn.microsoft.com/en-us/legal/gdpr</a>.",
+      "2026-11-25T15:45:21.4318748Z desktop/licenses/windows/WebView2-Evergreen-Terms.html: HTTPS://WWW.MPEGLA.COM",
+      "2026-11-25T15:45:21.4319641Z desktop/licenses/windows/WebView2-Evergreen-Terms.html: HTTPS://WWW.MPEGLA.COM</a>.",
+      "2026-11-25T15:45:21.4320508Z desktop/licenses/windows/WebView2-Evergreen-Terms.html: https://aka.ms/exporting",
+      "2026-11-25T15:45:21.4321684Z desktop/licenses/windows/WebView2-Evergreen-Terms.html: https://aka.ms/exporting</a>.",
+      "2026-11-25T15:45:21.4322715Z desktop/licenses/windows/WebView2-Evergreen-Terms.html: https://aka.ms/privacy",
+      "2026-11-25T15:45:21.4323414Z desktop/licenses/windows/WebView2-Evergreen-Terms.html: https://aka.ms/privacy</a>",
+      "2026-11-25T15:45:21.4324372Z desktop/licenses/windows/WebView2-Evergreen-Terms.html: https://learn.microsoft.com/en-us/microsoft-edge/privacy-whitepaper#smartscreen",
+      "2026-11-25T15:45:21.4325526Z desktop/licenses/windows/WebView2-Evergreen-Terms.html: https://learn.microsoft.com/en-us/microsoft-edge/privacy-whitepaper#smartscreen</a>.",
+      "2026-11-25T15:45:21.4326456Z desktop/licenses/windows/WebView2-Evergreen-Terms.html: https://aka.ms/arb-agreement-4",
+      "2026-11-25T15:45:21.4327216Z desktop/licenses/windows/WebView2-Evergreen-Terms.html: https://aka.ms/arb-agreement-4</a>.",
+      "2026-11-25T15:45:21.4328016Z desktop/licenses/windows/WebView2-Evergreen-Terms.html: https://thirdpartysource.microsoft.com",
+      "2026-11-25T15:45:21.4328857Z desktop/licenses/windows/WebView2-Evergreen-Terms.html: https://thirdpartysource.microsoft.com</a>,",
+      "2026-11-25T15:45:21.4329684Z desktop/src-tauri/windows/nsis-template-provenance.json: https://github.com/tauri-apps/tauri",
+      "2026-11-25T15:45:21.4332239Z desktop/src-tauri/windows/nsis-template-provenance.json: https://raw.githubusercontent.com/tauri-apps/tauri/8909f221d1515955fc843808032bdc5d62209c96/LICENSE_MIT",
+      "2026-11-25T15:45:21.4333839Z desktop/src-tauri/windows/nsis-template-provenance.json: https://raw.githubusercontent.com/tauri-apps/tauri/8909f221d1515955fc843808032bdc5d62209c96/LICENSE_APACHE-2.0",
+      "2026-11-25T15:45:21.4334998Z desktop/src-tauri/windows/nsis-template-provenance.json: https://go.microsoft.com/fwlink/p/?LinkId=2124703\\",
+      "2026-11-25T15:45:21.4336092Z desktop/src-tauri/windows/nsis-template-provenance.json: https://source.chromium.org/chromium/chromium/src/+/main:docs/updater/user_manual.md\\n",
+      "2026-11-25T15:45:21.4337326Z desktop/test/windows-prerequisite-template.test.mjs: https://raw.githubusercontent.com/tauri-apps/tauri/${provenance.upstream.commit}/${licence.file}",
+      "2026-11-25T15:45:21.4371691Z ##[error]Process completed with exit code 1."
+    ]
+  },
+  "sourceHashes": [
+    {
+      "path": "scripts/windows-installer-offline-contract.test.ps1",
+      "bytes": 16228,
+      "sha256": "e3ea80c205d44f3ef37ebdbe3f264769422e29394d6055b74660832fcd6f0cc5"
+    },
+    {
+      "path": "apps/desktop/test/windows/offline-window.test.mjs",
+      "bytes": 3003,
+      "sha256": "d4d4c60242f327524ec62b641e28b8640e2bc4b843ef589a987417deed31ba83"
+    },
+    {
+      "path": "scripts/windows-installed-acceptance.ps1",
+      "bytes": 20613,
+      "sha256": "c80225c8879a7d2d43f4b8cca2def6b9a65850c5eaec135ba4bc9563cee13e9a"
+    },
+    {
+      "path": "scripts/windows-installer-payload.test.mjs",
+      "bytes": 13143,
+      "sha256": "466b464bb6bf6a07e589ab0d3003bad146d8429622fd55a7a259c729291a5f0e"
+    }
+  ],
+  "validation": {
+    "portableChecksPassed": 31,
+    "embeddedCsharp": "C#5 compilation passed through actual contract test",
+    "nodeSyntaxExit": 0,
+    "gitDiffCheckExit": 0,
+    "windowsJobManifestFirewallAndCanaryExecution": "not performed locally",
+    "payloadTestsPassed": 8
+  },
+  "testedMergeCommit": "6e2f2aa7d29946d235438bb77ec2a5314beb098b",
+  "diagnosis": {
+    "ciObserved": "First controlled child constructor failed with Win32 file-not-found. CI did not print the selected Node path.",
+    "sourceDefect": "Get-Command node -CommandType Application can return multiple ApplicationInfo values; .Source then converts to a space-joined string when bound to the C# constructor.",
+    "reproduction": "The original contract failed at the same constructor under a controlled multiple-Node PATH. The fixed contract passed 31 checks with two non-executable PATH sentinels, an explicit Node path, and source-extracted coordinator resolver cases for multiple matches, order, empty input, and a disappeared selected executable."
+  },
+  "change": {
+    "ownedFiles": [
+      "scripts/windows-installer-offline-contract.test.ps1",
+      "apps/desktop/test/windows/offline-window.test.mjs",
+      "scripts/windows-installed-acceptance.ps1",
+      "scripts/windows-installer-payload.test.mjs"
+    ],
+    "productionHelperChanged": false,
+    "scannerChangedByThisAgent": false,
+    "windowsExecutionAfterFix": "pending",
+    "coordinator": "Resolve one first ApplicationInfo once, validate one exact absolute existing node.exe path, reuse it for all controller Node calls and both callback arguments; no fallback/path rewrite."
+  },
+  "portableBefore": {
+    "schemaVersion": 1,
+    "case": "before-fix duplicate executable PATH discovery",
+    "host": "Linux; official PowerShell 7.5.4",
+    "windowsExecution": false,
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "ParentContainsErrorRecordException: /tmp/motion-offline-node-before-e7u0w0u2/windows-installer-offline-contract.test.ps1:42\nLine |\n  42 |      $child=[MotionOfflineProcess]::new($node,'-e \"process.stdout.writ \u2026\n     |      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n     | Exception calling \".ctor\" with \"3\" argument(s): \"An error occurred\n     | trying to start process\n     | '/tmp/motion-offline-node-before-e7u0w0u2/first/node\n     | /tmp/motion-offline-node-before-e7u0w0u2/second/node\n     | /opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node'\n     | with working directory '/tmp/motion-offline-node-before-e7u0w0u2'. No\n     | such file or directory\"\n",
+    "executables": [
+      "/tmp/motion-offline-node-before-e7u0w0u2/first",
+      "/tmp/motion-offline-node-before-e7u0w0u2/second"
+    ],
+    "actualNode": "/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node"
+  },
+  "portableAfter": {
+    "schemaVersion": 1,
+    "case": "after-fix explicit Node with two non-executable PATH sentinels and source-extracted coordinator resolver",
+    "host": "Linux; official PowerShell 7.5.4",
+    "windowsExecution": false,
+    "returncode": 0,
+    "proof": {
+      "schemaVersion": 1,
+      "status": "passed",
+      "nodeExecutable": "/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node",
+      "checks": [
+        "parse windows-installer-offline-window.ps1",
+        "parse windows-installer-offline-watchdog.ps1",
+        "new window is within deadline",
+        "pre-deadline completion is eligible",
+        "exact deadline rejects completion",
+        "late completion is rejected",
+        "non-finite deadline is rejected",
+        "negative deadline is rejected",
+        "one bounded-process declaration",
+        "SDK job layouts match the supported x64 ABI",
+        "zero-response transport timeout is distinguished",
+        "partial reply followed by timeout cannot prove blocked traffic",
+        "received HTTP error cannot prove blocked traffic",
+        "protocol failure is never classified as blocked",
+        "partial reply followed by termination cannot prove blocked traffic",
+        "one explicit existing absolute Node executable",
+        "parse installed acceptance coordinator",
+        "one source-bound controller Node resolver",
+        "controller preserves the first application match without joining paths",
+        "controller preserves supplied application precedence",
+        "controller refuses an empty application collection",
+        "controller does not fall back after the selected executable disappears",
+        "controlled child exits",
+        "bounded capture preserves actual output",
+        "excess-output child is terminated",
+        "combined output bound is enforced",
+        "truncated child cannot produce success",
+        "disposal terminates the exact owned child within its bound",
+        "the exact production bootstrap is available for gate tests",
+        "unreleased bootstrap exits on parent stdin EOF",
+        "EOF never imports the callback controller"
+      ],
+      "manifestChecks": "not-run-portable",
+      "jobChecks": "not-run-portable",
+      "networkPolicyOrCanaryExecuted": false
+    },
+    "stderr": ""
+  }
+}

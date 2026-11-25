@@ -1,6 +1,6 @@
 #requires -Version 5.1
 # Semantic helper tests only. No firewall/task mutation or network canary runs.
-param([switch] $Portable)
+param([Parameter(Mandatory=$true)][string] $NodeExecutable, [switch] $Portable)
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 [Console]::InputEncoding=[Text.UTF8Encoding]::new($false)
@@ -36,7 +36,40 @@ Reject { [MotionOfflineCanary]::ClassifyRetainedFailure([TimeoutException]::new(
 Reject { [MotionOfflineCanary]::ClassifyRetainedFailure([IO.InvalidDataException]::new('HTTP error response'),12) } 'received HTTP error cannot prove blocked traffic'
 Reject { [MotionOfflineCanary]::ClassifyRetainedFailure([IO.InvalidDataException]::new(),0) } 'protocol failure is never classified as blocked'
 Reject { [MotionOfflineCanary]::ClassifyRetainedFailure([IO.IOException]::new(),1) } 'partial reply followed by termination cannot prove blocked traffic'
-$node=(Get-Command node -CommandType Application -ErrorAction Stop).Source
+# The calling Node test supplies its own executable. Get-Command can return
+# multiple ApplicationInfo matches and coerce their paths into one nonexistent
+# filename; this contract must not discover its child runtime through PATH.
+Check ([IO.Path]::IsPathRooted($NodeExecutable) -and [IO.File]::Exists($NodeExecutable) -and
+    [string]::Equals([IO.Path]::GetFullPath($NodeExecutable),$NodeExecutable,[StringComparison]::Ordinal)) 'one explicit existing absolute Node executable'
+$node=$NodeExecutable
+# Evaluate only the coordinator's resolver definition, never its installation
+# or firewall body. Real ApplicationInfo fixtures exercise multiple matches.
+$tokens=$null;$errors=$null
+$coordinatorAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'windows-installed-acceptance.ps1'),[ref]$tokens,[ref]$errors)
+Check (@($errors).Count -eq 0) 'parse installed acceptance coordinator'
+$resolvers=@($coordinatorAst.FindAll({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -ceq 'Resolve-WindowsAcceptanceNode'},$true))
+Check ($resolvers.Count -eq 1) 'one source-bound controller Node resolver'
+. ([scriptblock]::Create($resolvers[0].Extent.Text))
+$resolutionRoot=[IO.Path]::Combine([IO.Path]::GetTempPath(),('motion-node-resolution-'+[Guid]::NewGuid().ToString('N')))
+if(Test-Path -LiteralPath $resolutionRoot){throw 'Node resolution fixture collision.'}
+try{
+    $candidates=@()
+    foreach($name in @('first match','second match')){
+        $directory=[IO.Path]::Combine($resolutionRoot,$name);[void][IO.Directory]::CreateDirectory($directory)
+        $candidate=[IO.Path]::Combine($directory,'node.exe')
+        [IO.File]::WriteAllText($candidate,'This command-discovery fixture must never execute.')
+        if($env:OS -cne 'Windows_NT'){
+            & $node -e 'require("node:fs").chmodSync(process.argv[1],0o700)' $candidate
+            if($LASTEXITCODE -ne 0){throw 'Portable command-discovery fixture setup failed.'}
+        }
+        $candidates+=Get-Command -Name $candidate -CommandType Application -ErrorAction Stop
+    }
+    Check ((Resolve-WindowsAcceptanceNode $candidates) -ceq $candidates[0].Source) 'controller preserves the first application match without joining paths'
+    Check ((Resolve-WindowsAcceptanceNode @($candidates[1],$candidates[0])) -ceq $candidates[1].Source) 'controller preserves supplied application precedence'
+    Reject {Resolve-WindowsAcceptanceNode @()} 'controller refuses an empty application collection'
+    [IO.File]::Delete($candidates[0].Source)
+    Reject {Resolve-WindowsAcceptanceNode $candidates} 'controller does not fall back after the selected executable disappears'
+}finally{if([IO.Directory]::Exists($resolutionRoot)){[IO.Directory]::Delete($resolutionRoot,$true)}}
 $child=$null;$retained=$null
 try{
     $child=[MotionOfflineProcess]::new($node,'-e "process.stdout.write(''ok'');process.stderr.write(''err'')"',$PSScriptRoot)
@@ -175,4 +208,4 @@ if(-not $Portable){
         [IO.Directory]::Delete($directory,$false)
     }
 }
-[Console]::Out.WriteLine((ConvertTo-Json -InputObject ([ordered]@{schemaVersion=1;status='passed';checks=$checks.ToArray();manifestChecks=$manifestChecks;jobChecks=$jobChecks;networkPolicyOrCanaryExecuted=$false}) -Depth 4 -Compress))
+[Console]::Out.WriteLine((ConvertTo-Json -InputObject ([ordered]@{schemaVersion=1;status='passed';nodeExecutable=$node;checks=$checks.ToArray();manifestChecks=$manifestChecks;jobChecks=$jobChecks;networkPolicyOrCanaryExecuted=$false}) -Depth 4 -Compress))

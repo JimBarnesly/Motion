@@ -5,6 +5,20 @@ if (-not $IsWindows -or $env:GITHUB_ACTIONS -ne 'true') {
     throw 'Installed acceptance runs only on a disposable Windows GitHub Actions runner.'
 }
 
+function Resolve-WindowsAcceptanceNode([Management.Automation.ApplicationInfo[]] $Candidates) {
+    if ($null -eq $Candidates -or $Candidates.Count -eq 0) { throw 'The acceptance Node executable is unavailable.' }
+    # Preserve normal application lookup precedence without converting the
+    # collection of all matches into one filename or resolving it again later.
+    $path = $Candidates[0].Source
+    if (-not [IO.Path]::IsPathRooted($path) -or -not [IO.File]::Exists($path) -or
+        -not [string]::Equals([IO.Path]::GetFileName($path), 'node.exe', [StringComparison]::OrdinalIgnoreCase) -or
+        -not [string]::Equals([IO.Path]::GetFullPath($path), $path, [StringComparison]::Ordinal)) {
+        throw 'The acceptance Node executable must be one existing absolute node.exe path.'
+    }
+    return $path
+}
+$controllerNode = Resolve-WindowsAcceptanceNode @(Get-Command node -CommandType Application -ErrorAction Stop)
+
 $repositoryRoot = Split-Path $PSScriptRoot -Parent
 $evidenceRoot = Join-Path $repositoryRoot 'artifacts/windows-acceptance'
 New-Item -ItemType Directory -Force $evidenceRoot | Out-Null
@@ -17,7 +31,7 @@ if (Test-Path $installRoot) { throw 'Acceptance destination must start empty.' }
 # Authenticate the actual embedded prerequisite before executing any installer.
 # Verification failure is retained as evidence, but never uploads setup.exe.
 $payloadEvidence = Join-Path $evidenceRoot 'installer-payload-verification.json'
-node (Join-Path $PSScriptRoot 'windows-verify-installer-payload.mjs') --installer $installer.FullName --output $payloadEvidence
+& $controllerNode (Join-Path $PSScriptRoot 'windows-verify-installer-payload.mjs') --installer $installer.FullName --output $payloadEvidence
 if ($LASTEXITCODE -ne 0) { throw 'The embedded Windows prerequisite failed verification; installer was not executed.' }
 $payloadProof = Get-Content -LiteralPath $payloadEvidence -Raw | ConvertFrom-Json
 $installerHash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -94,7 +108,7 @@ try {
     Invoke-WindowsAcceptanceTool 'windows-installer-offline-window.ps1' @(
         '-InstallerPath', $installer.FullName, '-InstallRoot', $installRoot,
         '-PayloadEvidencePath', $payloadEvidence, '-OutputPath', $faultEvidence,
-        '-PostInstallExecutable', (Get-Command node -CommandType Application).Source,
+        '-PostInstallExecutable', $controllerNode,
         '-PostInstallArguments', (Join-Path $PSScriptRoot 'windows-installed-ui.mjs'),
         '-TestFault', 'after-first-rule'
     ) 180 1
@@ -117,7 +131,7 @@ try {
     Invoke-WindowsAcceptanceTool 'windows-installer-offline-window.ps1' @(
         '-InstallerPath', $installer.FullName, '-InstallRoot', $installRoot,
         '-PayloadEvidencePath', $payloadEvidence, '-OutputPath', $offlineEvidence,
-        '-PostInstallExecutable', (Get-Command node -CommandType Application).Source,
+        '-PostInstallExecutable', $controllerNode,
         '-PostInstallArguments', (Join-Path $PSScriptRoot 'windows-installed-ui.mjs')
     ) 360
 } finally { $env:MOTION_ACCEPTANCE_PHASE = 'installed' }
@@ -227,12 +241,12 @@ try {
     $env:MOTION_ACCEPTANCE_BLOCKED_WEBVIEW_PATHS = ConvertTo-Json -InputObject @($webviewPrograms) -Compress
     [ordered]@{ schemaVersion = 1; commit = $env:GITHUB_SHA; status = 'passed'; programs = $firewallPrograms } |
         ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 (Join-Path $evidenceRoot 'installed-outbound-firewall.json')
-    node --test apps/desktop/test/windows/*.test.mjs packages/storage/dist/test/windows/*.test.js *> (Join-Path $evidenceRoot 'installed-native-tests.log')
+    & $controllerNode --test apps/desktop/test/windows/*.test.mjs packages/storage/dist/test/windows/*.test.js *> (Join-Path $evidenceRoot 'installed-native-tests.log')
     if ($LASTEXITCODE -ne 0) {
         Get-Content (Join-Path $evidenceRoot 'installed-native-tests.log') -Tail 100
         throw 'Installed native acceptance failed.'
     }
-    node scripts/windows-installed-ui.mjs
+    & $controllerNode scripts/windows-installed-ui.mjs
     if ($LASTEXITCODE -ne 0) { throw 'Installed Windows UI acceptance failed.' }
     $configuration = Get-Content (Join-Path $repositoryRoot 'apps/desktop/src-tauri/tauri.conf.json') -Raw | ConvertFrom-Json
     $dataRoot = Join-Path $env:LOCALAPPDATA $configuration.identifier
@@ -258,7 +272,7 @@ try {
     $reinstalled = Start-Process -FilePath $installer.FullName -ArgumentList "/S /D=$installRoot" -PassThru -Wait
     if ($reinstalled.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $application)) { throw 'Reinstallation failed.' }
     $env:MOTION_ACCEPTANCE_PHASE = 'reinstalled'
-    node scripts/windows-installed-ui.mjs
+    & $controllerNode scripts/windows-installed-ui.mjs
     if ($LASTEXITCODE -ne 0) { throw 'The reinstalled application did not retain the notebook.' }
     if (-not $mappedSharePassed) {
         throw 'Installed checks completed, but mapped SMB acceptance failed; see mapped-share-acceptance.json and the workflow warning.'

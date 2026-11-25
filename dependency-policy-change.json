@@ -2,10 +2,11 @@
   "schemaVersion": 2,
   "oldPolicySha256": "e6f39d7b204bf45a00e3a5f67a378ea529396cfcdfb1295ad95ffab91734a679",
   "newPolicySha256": "e6f39d7b204bf45a00e3a5f67a378ea529396cfcdfb1295ad95ffab91734a679",
-  "rationale": "Prepared for independent Code Owner review of the offline Windows installer pilot, compared with continuation base9444028. The Windows workflow adds PowerShell5.1/C# preflight, prerequisite/active-engine contract coverage, and exact offline-fixture cleanup after failure. The existing payload trust gate and separate failed-diagnostic retention remain mandatory. No dependency policy, trust anchor, licence allowlist, vulnerability threshold or security rule is relaxed. approverRole names the required existing review role; this draft metadata is not human approval and does not authorize release. Regenerate this exact comparison record against the actual continuation PR base when integrating the pilot.",
+  "rationale": "Prepared for independent Code Owner review of the offline Windows installer pilot, compared with continuation merge base9444028. The Windows workflow adds PowerShell5.1/C# preflight, prerequisite/active-engine contract coverage, and exact offline-fixture cleanup after failure. The core workflow now executes the exact-path/full-byte offline-evidence regression tests before the existing direct source audit. The existing payload trust gate and separate failed-diagnostic retention remain mandatory. No dependency policy, trust anchor, licence allowlist, vulnerability threshold or security rule is relaxed. approverRole names the required existing review role; this draft metadata is not human approval and does not authorize release. Regenerate this exact comparison record against the actual continuation PR base when integrating the pilot.",
   "approverRole": "Operations & Security Director",
   "scopeDiff": [],
   "controlPlaneDiff": [
+    ".github/workflows/ci.yml:sha256:6c6acad4e594966dbb072a3a0e53cef79edc57dd6d4e4577f673999ade01d107->sha256:ae3e5bfcab7bd0d9fd99ae698f06a085f1fae0f3c3c63c277288d1bfc4cc91ab",
     ".github/workflows/windows.yml:sha256:ab68efabe92214bb718778169abffa262c5d58fbeddd322dad782748bc069073->sha256:b380f76d14e2754cb7841e6f9a10eb1476d7b4a8fb8209f416ab0b5fb77f43a0"
   ]
 }

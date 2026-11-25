@@ -88,5 +88,13 @@
     "Initially absent WebView2 and fully offline installation are not proven by this runner",
     "Installed restore, concurrent GUI exclusion and restart/reinstall still require successful execution",
     "No outer-installer signature or release approval is inferred"
-  ]
+  ],
+  "embeddedWebView": {
+    "member": "$TEMP/MicrosoftEdgeWebView2RuntimeInstaller.exe",
+    "byteLength": 294099168,
+    "sha256": "47bc51387aff95c1275ce38cfbbb5fbab99b43b33214049877bbcdbcc7a970d5",
+    "staticExtractionToolVersion": "7-Zip 26.06 Linux x64",
+    "matchesReviewed0d1dd27Payload": true,
+    "windowsTrust": "Not performed in this static inspection"
+  }
 }

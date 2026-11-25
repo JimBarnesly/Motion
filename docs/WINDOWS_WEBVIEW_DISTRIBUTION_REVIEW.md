@@ -240,3 +240,98 @@ Evergreen package as well as the proposed Fixed package.** These observations
 do not determine the obligations for every contained work, whether all entries
 are installed, or a policy exception. Preserve the notices and obtain the
 required classification/decision before any distribution approval.
+
+## Hosted-runner inventory and genuine initial absence
+
+**Source review: 25 November 2026. Actual host inventory remains pending.**
+The reviewed `fbdbbd8` Windows run reported Windows Server 2022 Datacenter
+`10.0.20348`, image `20261116.370.1`. This identifies the test host; it does not
+identify the WebView2 engine that Motion selected. Neither the embedded
+`158.0.4370.33` payload nor the installed Edge browser version establishes that
+engine version.
+
+The matching runner source is tag `win22/20261116.370`, Git tree
+`b47f3f6dc25e42d39230fef67b53c60044baa7f3`:
+
+- The [image readme](https://github.com/actions/runner-images/blob/win22/20261116.370/images/windows/Windows2022-Readme.md)
+  identifies the image and included browser/SDK tooling.
+- Its [Windows feature configuration](https://github.com/actions/runner-images/blob/win22/20261116.370/images/windows/toolsets/toolset-2022.json)
+  does not explicitly enable the RDS session-host role. That does not establish
+  the complete base-image or live-machine feature state.
+- Its [Edge provisioning script](https://github.com/actions/runner-images/blob/win22/20261116.370/images/windows/scripts/build/Install-EdgeDriver.ps1)
+  stops Edge Update and renames `MicrosoftEdgeUpdate.exe` to
+  `Disabled_MicrosoftEdgeUpdate.exe`. This is a customized hosted Server image,
+  not a fresh Windows 11 machine.
+
+### Read-only inventory design
+
+[`windows-webview-inventory.ps1`](../scripts/windows-webview-inventory.ps1)
+accepts an absolute, new JSON `-OutputPath` and `-Phase` of `before-install`,
+`after-install`, or `diagnostic`. It records machine/current-user WebView2 `pv`
+values in both registry views; uninstall registration flags and command
+presence; and known-location `msedgewebview2.exe` versions, byte lengths and
+SHA-256 hashes. Uninstall command text is neither emitted nor executed.
+
+File inspection is limited to 16 version directories per known Program Files
+or Local AppData location and 64 MiB per executable. Reparse entries are not
+inspected. The optional `RDS-RD-Server` query has a 20-second job timeout;
+unsupported queries and errors remain explicit observations. Errors record
+type, HRESULT and category rather than raw diagnostic messages. The only write
+is the requested fresh evidence file, limited to 128 KiB.
+
+The script does not load a native DLL, change registry/services/policies, or
+attempt removal. Its native API probe is explicitly `untested`, and
+`genuineAbsenceProven` remains `false`, including when every registry/file probe
+finds nothing. The design received two independent source reviews; no local
+PowerShell execution or Windows inventory result is asserted by this entry.
+
+### Supported-removal finding
+
+Microsoft's [current Windows Server support guidance](https://learn.microsoft.com/en-us/troubleshoot/microsoft-edge/development/webview2-unexpected-install-windows-server)
+states that WebView2 force-installed for multi-session support cannot be
+uninstalled. It identifies the installed roles and Edge Update log markers
+needed to diagnose that case. Its installation-block policy prevents future
+installs and does not remove an existing runtime. Separately, the
+[Edge 131 announcement](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-relnote-archive-stable-channel#version-1310290348-november-14-2024)
+describes WebView2 as a persistent component that no longer appears in Installed
+Apps. Older command-line uninstall examples do not establish a supported
+removal route for this particular 2026 hosted image.
+
+Consequently, a supported genuine-removal procedure is **not established** by
+this review. A registered command's existence alone would not override a
+non-removable component state. No forced uninstall, `NoRemove`/`AllowUninstall`
+change, registry deletion, runtime-folder deletion, or synthetic runtime-path
+override was attempted or adopted as test setup.
+
+### Requirements for a future initially-absent test
+
+A valid test must independently establish all of the following:
+
+1. **Genuine absence before setup.** Observe both registry scopes and runtime
+   files, and use a verified native loader's
+   [`GetAvailableCoreWebView2BrowserVersionString`](https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/webview2-idl#getavailablecorewebview2browserversionstring)
+   with unchanged/default engine selection. Its missing-runtime result must not
+   be manufactured by environment or policy overrides; preview-channel
+   fallback must also be accounted for. The existing locked
+   `webview2-com-sys` package includes a loader DLL, but a checksum-verified
+   test-only probe has not been implemented or executed.
+2. **The real missing-runtime installer branch.** Microsoft's
+   [detection contract](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution#detect-if-a-webview2-runtime-is-already-installed)
+   recognizes `0.0.0.0` as absent, whereas the
+   [locked NSIS template](https://github.com/tauri-apps/tauri/blob/8909f221d1515955fc843808032bdc5d62209c96/crates/tauri-bundler/src/bundle/windows/nsis/installer.nsi)
+   only enters installation when `pv` is empty and update mode is inactive.
+   A legitimate removal leaving `0.0.0.0` would therefore block or fail this
+   acceptance scenario; editing the value away would invalidate the evidence.
+3. **Outbound denial before installation.** Stage the authenticated candidate
+   first, then establish effective denial covering the Microsoft wrapper,
+   extracted setup/updater processes, any brokered updater service, and browser
+   throughout installation and application checks. The current rules added
+   after installation do not demonstrate this condition. Runtime selection and
+   the selected executable's version/path must be observed after installation.
+4. **Existing functional acceptance still passes.** Exercise the installed
+   notebook under outbound blocks and retain failure evidence. An eventual
+   successful result could establish Server 2022 behavior after genuine runtime
+   removal; it would not establish clean Windows 11 hardware acceptance.
+
+This append records engineering scope and unresolved test evidence. It changes
+no packaging choice, licence classification, policy decision, or approval.

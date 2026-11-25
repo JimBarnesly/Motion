@@ -87,7 +87,7 @@ for (const hasFollowingSibling of [false, true]) {
     await expect.poll(async () => (await savedBlocks(page))[0].children[1].text).toBe("New After");
 
     await page.reload();
-    await expect(page.locator(`[data-block-id="${continuationId}"]`)).toHaveAttribute("style", /--indent:1/);
+    await expect(page.locator(`[data-block-id="${continuationId}"]`)).toHaveCSS("--indent", "1");
     await expect(page.locator(`[data-block="${continuationId}"]`)).toHaveText("New After");
     await expect(page.locator('[data-block="child"]')).toHaveText("Before");
   });

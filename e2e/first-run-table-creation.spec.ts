@@ -121,7 +121,10 @@ for (const layout of layouts) {
       if (layout.viewport.width <= 720) await page.getByRole("button", { name: "Open navigation" }).click();
       await expect(page.getByRole("navigation", { name: "Trash" }).getByRole("button", { name: "Restore Persistent readings" })).toBeVisible();
       await page.getByRole("navigation", { name: "Trash" }).getByRole("button", { name: "Restore Persistent readings" }).click();
+      await expect(page.getByRole("status")).toHaveText("Page restored");
       await expect(page.getByRole("textbox", { name: "Database title" })).toHaveValue("Persistent readings");
+      await expect(page.getByRole("textbox", { name: "Database title" })).toBeFocused();
+      await expect(page.locator("#sidebar")).not.toHaveClass(/\bopen\b/);
 
       page.once("dialog", dialog => dialog.accept());
       await page.locator("#restoreFile").setInputFiles({ name: "motion-backup.json", mimeType: "application/json", buffer: backup });

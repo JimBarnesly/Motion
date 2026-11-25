@@ -84,6 +84,26 @@ test("local Web workspace persists, searches and exports without external networ
   });
 
   await trashNavigation.getByRole("button", { name: "Restore Pump commissioning notes" }).click();
+  await expect(page.locator("#saveState")).toHaveText("Page restored");
+  const restoredSelection = await page.evaluate(async pageId => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("motion-web-development", 1);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      return await new Promise<any>((resolve, reject) => {
+        const transaction = database.transaction("workspace", "readonly");
+        const request = transaction.objectStore("workspace").get("default");
+        transaction.oncomplete = () => resolve({ activePageId: request.result.activePageId,
+          page: request.result.workspace.pages.find((candidate: any) => candidate.id === pageId) });
+        transaction.onabort = () => reject(transaction.error);
+        transaction.onerror = () => reject(transaction.error);
+      });
+    } finally { database.close(); }
+  }, trashedPage.id);
+  expect(restoredSelection.activePageId).toBe(trashedPage.id);
+  expect(restoredSelection.page).not.toHaveProperty("deletedAt");
   await expect(page.getByRole("textbox", { name: "Page title" })).toHaveValue("Pump commissioning notes");
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Page title" })).toHaveValue("Pump commissioning notes");

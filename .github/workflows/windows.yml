@@ -42,7 +42,7 @@ jobs:
       - name: Prepare checksum-verified Windows runtime
         run: npm run runtime:prepare --workspace @motion/desktop
       - name: Verify Windows package contract
-        run: node --test apps/desktop/test/runtime-prepare.test.mjs apps/desktop/test/windows-package.test.mjs
+        run: node --test apps/desktop/test/runtime-prepare.test.mjs apps/desktop/test/windows-package.test.mjs scripts/windows-installer-payload.test.mjs
       - name: Compile native Windows application
         run: cargo build --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
       - name: Test native Windows Rust boundary
@@ -58,10 +58,11 @@ jobs:
       - name: Build offline per-user Windows installer
         run: npm run tauri:build --workspace @motion/desktop -- --target x86_64-pc-windows-msvc --bundles nsis -- --locked
       - name: Install and test the actual packaged application
+        id: installed_acceptance
         shell: pwsh
         run: ./scripts/windows-installed-acceptance.ps1
-      - name: Upload Windows installer and acceptance evidence
-        if: always()
+      - name: Upload verified-payload Windows candidate and acceptance evidence
+        if: ${{ always() && steps.installed_acceptance.outputs.installer_payload_verified == 'true' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: motion-windows-x64-candidate
@@ -69,4 +70,12 @@ jobs:
             apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe
             artifacts/windows-acceptance/**
           if-no-files-found: error
+          retention-days: 14
+      - name: Retain Windows acceptance and prerequisite diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: motion-windows-x64-evidence
+          path: artifacts/windows-acceptance/**
+          if-no-files-found: warn
           retention-days: 14

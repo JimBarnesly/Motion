@@ -88,33 +88,46 @@ there is no network listener.
 
 ## Current release evidence — 25 November 2026
 
-Candidate `fbdbbd8170781472b0118ef87e9a45ee38ab68ce` built and installed its
-current-user NSIS package in [Windows run45608035891](https://github.com/JimBarnesly/Motion/actions/runs/45608035891).
+Candidate `a64ceb03a9fb773285ca8633e5c84981d396c5db` built and installed its
+current-user NSIS package in [Windows run45612288185](https://github.com/JimBarnesly/Motion/actions/runs/45612288185).
 All **28 Rust**, **23 Windows native/service**, **three startup-gate**, and
 **23 installed native** tests passed. Actual mapped-SMB controls, refusals,
 unchanged physical/security snapshots and fixture cleanup passed as well.
 
-The bundled Node24.22.3 correction is confirmed: the actual installed GUI opened,
-created a page and saved its title. The next body-edit action exposed a test
-assumption: native pages are empty until the real **Add block** control is used.
-The corrected fixture uses that action. Its next candidate also exercises real
-backup create/verify/preview and confirmed restore, preserves the original
-workspace/revision, checks restored bytes and selection across restart/reinstall,
-and proves concurrent-GUI exclusion and same-GUI recovery. Those additions still
-require actual Windows execution; no 1.0 acceptance is inferred.
+The actual installed GUI opened, created a page and saved its title and body.
+Attachment selection then exposed a production defect: the renderer retained a
+live `FileList`, cleared the input, and therefore handed an empty selection to
+the ingestion controller. The next candidate copies the selected `File` objects
+before clearing the input. A real browser file-input regression reproduced the
+failure and now passes, including exact bytes and selecting the same file again.
+The installed attachment, backup/restore, concurrent-GUI, restart and
+uninstall/reinstall checks still have to complete; none is inferred from the
+portable tests. This remains a development candidate, not 1.0.
 
-Both Linux architecture jobs in [general CI run45608036035](https://github.com/JimBarnesly/Motion/actions/runs/45608036035)
-passed. General verification failed on a public document-hash metadata key that
-the secret scanner interpreted as an API key. The key is renamed with the exact
-verified digest retained; unchanged local secret-gate tests pass 11/11. The next
-complete CI run must pass. Earlier complete core verification passed at `0d1dd27`.
+All three jobs in [general CI run45612288566](https://github.com/JimBarnesly/Motion/actions/runs/45612288566)
+passed: complete core verification, Linux x64 packaged acceptance and ARM64
+isolated/native/package/offline acceptance. This also confirms the unchanged
+secret scanner accepts the corrected public-document hash metadata. The real
+service backup roundtrip passes with nonempty canonical content and binary
+attachments. Native Save As dialog automation remains separate coverage.
 
-The actual-service backup roundtrip also identified and now locally verifies a
-fix for byte-envelope serialization through the native adapter. Native Save As
-dialog automation remains distinct from the new installed restore proof.
+The next installer increment authenticates the exact embedded Evergreen payload
+and its Windows signature before execution, gates installer upload on successful
+verification, and records before/after runtime inventory. It preserves the
+existing offline packaging mode. The inventory explicitly does not establish
+genuine runtime absence. These new Windows-specific checks require execution in
+the next native job.
+
+Browser regressions also exposed a page-restore durability race and a stale
+selection that could reopen a trashed page. The candidate now waits for the real
+IndexedDB transaction to complete, persists page selection with the browser
+canonical mutation, rejects overlapping lifecycle actions, and reports native
+selection-save failure separately from a successful canonical change. The
+existing desktop CSP remains unchanged; numeric layout styles now use validated
+CSSOM assignments so indentation and column widths render under that policy.
 
 Offline operation uses executable-specific firewall rules; fully offline
 installation with initially absent WebView2 still needs clean-image evidence.
-The Evergreen payload's binary-policy classification and Windows trust checks
-remain release work, as do required review items. See `DELIVERY_STATE.json` and
-`WINDOWS_INSTALLED_EVIDENCE_fbdbbd8.json` for exact current evidence and ownership.
+The Evergreen payload's binary-policy classification remains release work, as
+do required review items. See `DELIVERY_STATE.json` and
+`WINDOWS_INSTALLED_EVIDENCE_a64ceb0.json` for exact current evidence and ownership.

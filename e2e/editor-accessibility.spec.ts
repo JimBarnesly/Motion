@@ -68,7 +68,7 @@ for (const layout of layouts) {
       await editor.focus();
       await page.keyboard.press("Alt+]");
       await expect(editor).toBeFocused();
-      await expect(page.locator('[data-block-id="block-editor"]')).toHaveAttribute("style", /--indent:1/);
+      await expect(page.locator('[data-block-id="block-editor"]')).toHaveCSS("--indent", "1");
 
       await page.keyboard.press("Tab");
       await expect(editor).not.toBeFocused();

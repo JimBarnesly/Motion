@@ -79,8 +79,8 @@ A permissive type union or migration field is not a shipped feature.
 | To-do blocks | Complete | Checked state and list exit behavior | shipped |
 | Quote, code, divider | Complete | Canonical typed payloads | shipped |
 | Nested blocks / indent / outdent | Complete | Stable nested model and non-trapping shortcuts | shipped |
-| Split, merge, duplicate and move blocks | Complete | Canonical batch operations and history | shipped |
-| Multiline Markdown paste | Complete | One validated canonical batch | shipped |
+| Split, merge, duplicate and move blocks | Partial | Native canonical batches/history exist; browser Ctrl+D must remap descendant IDs and container leaf conversions must match the native guard | Slice BLOCK-1 |
+| Multiline Markdown paste | Partial | Root-block paste uses one canonical batch; helper still assumes root parent and must preserve the actual parent for nested paste | Slice BLOCK-1 |
 | Markdown typing shortcuts | Complete | Headings, lists, task, quote, code and divider | shipped |
 | `@` page mentions and `[[…]]` links | Complete | Stable ID references; duplicate-title safe | shipped |
 | File block | Complete | Native canonical attachment identity and restart-safe access | shipped |
@@ -141,7 +141,7 @@ A permissive type union or migration field is not a shipped feature.
 | Relative-date filters | Candidate | Core/browser evaluation, bounded preset controls, parity tests and saved-view persistence exist | Slice DB-1 |
 | Manual record ordering | Candidate | Canonical record-reorder command, pointer/keyboard UI, membership checks and restart/export tests exist | Slice DB-1 |
 | Group/subgroup configuration | Model only | View fields exist; no complete UI/runtime | Slice BOARD-1 |
-| Board view | Candidate elsewhere | Implemented in isolated `/root/motion-m4-board`, not reviewed/integrated | Slice BOARD-1 |
+| Board view | Model only in recovered source | Historical isolated candidate was reported but its checkout is absent and no implementation was found in advertised remote branches; recover it if available before rebuilding the renderer | Slice BOARD-1 |
 | Calendar view | Absent | Type accepted but no renderer/interaction | Slice CALENDAR-1 |
 | Gallery view | Absent | Type accepted but no renderer/card configuration | Slice GALLERY-1 |
 | Timeline view | Absent | Type accepted but no date-range renderer | Slice TIMELINE-1 |
@@ -163,7 +163,7 @@ A permissive type union or migration field is not a shipped feature.
 | Native typed mutation boundary | Complete | Revisioned exact-shape commands |
 | Atomic browser mutation rollback | Complete | Failed browser saves restore exact confirmed state |
 | Durable attachment identity | Complete | Hash, length and canonical object path |
-| Backup/restore | Complete | Versioned verified native backup lane |
+| Backup/restore | Candidate | Versioned native lane exists; a real adapter byte-transport defect is fixed at a64ceb0 with an actual-service roundtrip, while installed UI restore verification is running |
 | Search after restart | Complete | Canonical native index and startup verification |
 | Unknown future block preservation | Complete | Open block type and `unknownData` round trip |
 | Architecture-isolated ARM validation | Complete at stabilization SHA | Fail-closed isolated Rust/Tauri job; lock fingerprint updated |
@@ -172,14 +172,14 @@ A permissive type union or migration field is not a shipped feature.
 | Reduced-motion support | Complete | Global reduced-motion rule |
 | Focus-visible consistency | Partial | Most controls covered; complete focus traversal audit still required |
 | Large-workspace stress | Partial | Storage/performance tests exist; historical 100k rollback defect remains unresolved |
-| Packaged graphical acceptance | Pending | Replacement AppImage must exercise actual UI → Tauri → native service path |
+| Packaged graphical acceptance | Partial | Windows fbdbbd8 installer opens and saves a page; native/installed storage tests pass, but full GUI restore/restart/reinstall is pending. Linux packaged service tests do not substitute for graphical acceptance. |
 
 ## Dependency-ordered delivery graph
 
 1. **Stabilization:** exact-SHA green CI, artifact qualification and graphical AppImage startup.
 2. **UI-1 + EDIT-1:** contextual editor chrome, quiet shell, utility disclosure and slash menu (current candidate).
 3. **DB-1:** relative-date evaluation, manual order and honest nested filter builder.
-4. **BOARD-1:** integrate and independently review the isolated Board candidate.
+4. **BOARD-1:** recover the historical Board candidate if available; no matching checkout or advertised implementation was recovered. Otherwise extend the existing canonical saved-view model and independently review the renderer.
 5. **INLINE-1:** canonical rich-text mark spans, selection toolbar, paste/export and migration behavior.
 6. **BLOCK-1/2:** toggle, callout, image and bookmark through validated payloads.
 7. **DB-2/3:** bulk/property conversion, relations and rollups.

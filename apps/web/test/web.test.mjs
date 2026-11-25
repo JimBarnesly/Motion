@@ -119,7 +119,9 @@ test("canonical editor exposes non-trapping indent and outdent through typed com
   assert.match(source, /findByDataValue\("\[data-delete-block\]","deleteBlock",input\.dataset\.block\)/);
   assert.match(source, /render\(\);findByDataValue\("\[data-block\]","block",block\.id\)\?\.focus\(\);return;/);
   assert.doesNotMatch(source, /render\(\);requestAnimationFrame\(\(\)=>findByDataValue\("\[data-block\]","block",block\.id\)\?\.focus\(\)\);return;/);
-  assert.match(source, /style="--indent:\$\{depth\}"/);
+  assert.match(source, /data-indent="\$\{depth\}"/);
+  assert.match(source, /Number\.isSafeInteger\(value\) && value >= 0/);
+  assert.match(source, /element\.style\.setProperty\(cssProperty, String\(value\)\)/);
 });
 
 test("destructive block deletion and workspace replacement require cancellable confirmations", async () => {

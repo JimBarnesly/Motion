@@ -14,10 +14,25 @@ $installer = $installers[0]
 $installRoot = Join-Path $env:RUNNER_TEMP 'Motion installed acceptance'
 if (Test-Path $installRoot) { throw 'Acceptance destination must start empty.' }
 
+# Authenticate the actual embedded prerequisite before executing any installer.
+# Verification failure is retained as evidence, but never uploads setup.exe.
+$payloadEvidence = Join-Path $evidenceRoot 'installer-payload-verification.json'
+node (Join-Path $PSScriptRoot 'windows-verify-installer-payload.mjs') --installer $installer.FullName --output $payloadEvidence
+if ($LASTEXITCODE -ne 0) { throw 'The embedded Windows prerequisite failed verification; installer was not executed.' }
+$payloadProof = Get-Content -LiteralPath $payloadEvidence -Raw | ConvertFrom-Json
 $installerHash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($payloadProof.schemaVersion -ne 1 -or $payloadProof.status -cne 'passed' -or
+    $payloadProof.commit -cne $env:GITHUB_SHA -or $payloadProof.installer.sha256 -cne $installerHash) {
+    throw 'Installer identity no longer matches its current verification evidence.'
+}
+if (-not $env:GITHUB_OUTPUT) { throw 'GitHub step output is unavailable for verified-candidate publication.' }
+Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value 'installer_payload_verified=true' -Encoding utf8
+
+& (Join-Path $PSScriptRoot 'windows-webview-inventory.ps1') -OutputPath (Join-Path $evidenceRoot 'webview-before-install.json') -Phase 'before-install'
 "$installerHash  $($installer.Name)" | Set-Content -Encoding utf8 (Join-Path $evidenceRoot 'SHA256SUMS.txt')
 $setup = Start-Process -FilePath $installer.FullName -ArgumentList "/S /D=$installRoot" -PassThru -Wait
 if ($setup.ExitCode -ne 0) { throw "Installer exited with $($setup.ExitCode)." }
+& (Join-Path $PSScriptRoot 'windows-webview-inventory.ps1') -OutputPath (Join-Path $evidenceRoot 'webview-after-install.json') -Phase 'after-install'
 
 $application = Join-Path $installRoot 'motion-desktop.exe'
 $runtime = Join-Path $installRoot 'node-runtime.exe'

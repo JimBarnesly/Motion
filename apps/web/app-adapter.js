@@ -85,9 +85,13 @@ function browserDevelopmentAdapter() {
     try {
       return await new Promise((resolve, reject) => {
         const transaction = database.transaction(STORE_NAME, mode);
+        let result;
+        transaction.oncomplete = () => resolve(result);
+        transaction.onabort = () => reject(transaction.error ?? new DOMException("Workspace transaction aborted", "AbortError"));
         const request = action(transaction.objectStore(STORE_NAME));
+        transaction.onerror = () => reject(transaction.error ?? request.error ?? new Error("Workspace transaction failed"));
         request.onerror = () => reject(request.error);
-        request.onsuccess = () => resolve(request.result);
+        request.onsuccess = () => { result = request.result; };
       });
     } finally {
       database.close();

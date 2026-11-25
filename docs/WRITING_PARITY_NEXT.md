@@ -115,3 +115,48 @@ lifecycle and runtime work. `git cherry` confirms the link-lifecycle change is
 already present by patch; the current implementation also adds previews. There
 is one checkout and no stash. Do not merge older branches just to obtain these
 already-present features.
+
+
+## Bounded container contract after Windows baseline
+
+Independent source review at `a64ceb03a9fb773285ca8633e5c84981d396c5db`
+confirmed three additional browser/editor defects to include in this slice:
+
+- Browser Ctrl+D currently changes only the copied root block ID. Descendant
+  IDs must also be remapped, matching native `duplicateBlock` behavior.
+- Browser `block.transform` must match the native guard against converting a
+  container with children into a leaf block; hidden content must never be lost.
+- `editor-history.nonEditorState` compares all view state. Folding must not
+  invalidate text undo, and block undo must retain current fold preferences.
+
+For a complete first increment, make `collapsedBlockIds` an optional view-state
+array of at most 256 distinct existing canonical ID strings, with absent meaning
+empty. Filter it to extant toggle IDs in the selected workspace. Retain the
+existing stored UI-state format and optional-field compatibility; update every
+Rust, runner and web validator together. Fold writes do not change canonical
+workspace revisions. A newly restored workspace opens all containers; backups
+preserve the entire canonical tree independently of folding.
+
+Enter in a toggle/callout header retains its identity, type and existing children,
+replaces the selected header range, and inserts the remaining suffix as a new
+first paragraph child through one atomic batch. Shift+Enter retains a newline.
+Backspace merges only eligible leaf siblings in the same parent; it never crosses
+a container boundary or deletes hidden children. Multiline paste in a child
+inserts siblings under its real parent; a container-header paste preserves the
+header type and puts subsequent lines into children. Unsupported opaque payloads
+retain their fail-safe editing restrictions.
+
+Collapse must wait for composition and pending edits to finish. A failed edit or
+fold-state write keeps the subtree visible with its draft and focus recoverable.
+If focused descendants become hidden, focus moves to the container control or
+header. Search/backlink navigation expands all toggle ancestors before targeting
+a child. New/indented children reveal their destination. Move controls and list
+numbering use actual sibling positions instead of flattened traversal indexes.
+
+Implementation can be divided without replacing the editor: a shared pure
+`block-tree.js` for location/ancestors/visible projection and recursive ID copying;
+existing structural, paste, history and browser-confirmation helpers; coordinated
+view-state validation; then app/slash/presentation/CSS integration. New modules
+must enter the existing local asset list. Verify real browser failure recovery,
+canonical service restart/export/restore and a final installed Windows writing
+case before changing the feature rows to complete.

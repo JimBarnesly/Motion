@@ -786,3 +786,79 @@ reported value. Renaming the metadata key to `response_document_sha256` removes
 the lexical false positive without changing the digest, scanner, policy or
 allowlist. All **11 unchanged secret-scan regressions** pass locally, including
 seeded-secret rejection. Complete CI remains mandatory for the next candidate.
+
+
+## Installed attachment finding and prerequisite verification continuation
+
+[Windows run45612288185](https://github.com/JimBarnesly/Motion/actions/runs/45612288185)
+for head `a64ceb0` passed all 28 Rust, 23 native/service, three startup and
+23 installed native tests again. Mapped-SMB controls, rejection, preservation
+and cleanup passed. The actual GUI created and saved its page/title/body; the
+attachment picker then failed with `No file selected`. The frozen evidence
+record `WINDOWS_INSTALLED_EVIDENCE_a64ceb0.json` binds the exact tested merge,
+verified ZIP/installer and small evidence files. The real FileList defect and
+renderer correction are reviewed separately in the renderer review. Backup
+restore, concurrent GUI, normal close/restart and uninstall/reinstall were not
+reached. All three general CI jobs in
+[run45612288566](https://github.com/JimBarnesly/Motion/actions/runs/45612288566)
+passed, including the unchanged secret scanner and actual-service backup test.
+
+Before the next candidate executes NSIS, a bounded verifier measures the final
+installer and its complete member listing, requires the sole exact embedded
+Evergreen wrapper, extracts only that literal member, and checks the reviewed
+byte length and SHA-256. The 7-Zip executable and DLL are themselves measured
+against the independently inspected official release and copied into an empty
+owned tool directory without optional plugin directories. Child tools receive
+argument vectors, bounded output/time, a controlled working directory and a
+System32-only PATH. The verifier measures an installed Microsoft-signed SDK
+SignTool before using Windows trust verification on every payload signature;
+the payload also requires its exact Microsoft signing certificate, timestamp
+certificate and wrapper version. The outer installer and extracted payload are
+remeasured, and owned temporary-file cleanup must succeed before PASS.
+
+The root independently reviewed the final verifier, PowerShell trust probe,
+exact pin, acceptance coordinator and workflow ordering. The editor/backup
+reviewer independently reviewed the author implementation and wiring with no
+blocking finding. Eight portable tests cover listing ambiguity/path/type/size,
+exact measurements, signature rejection, bounded tool failures/output/timeout
+and eight negative source-contract mutations that prevent execution/upload
+before successful verification. The root also parsed the actual prior final
+NSIS listing and independently confirmed the embedded payload's exact reviewed
+bytes. None of this portable evidence is a Windows trust execution claim; the
+next native CI run must produce that verdict.
+
+The acceptance coordinator requires the verifier's exact current commit and
+installer SHA before writing its success output or executing setup. Candidate
+upload requires that output; diagnostics are retained separately on failure.
+Passing prerequisite verification can retain a development installer after a
+later GUI failure, but does not make it a release. No packaging mode, runtime
+fetch policy, CSP, dependency trust anchor or licence classification changes.
+
+The read-only before/after WebView inventory reports separate registry, file
+and optional bounded RDS observations. It emits no uninstall command text,
+executes no removal, changes no registry/policy/service, and always records
+`genuineAbsenceProven: false` because it has no native default-engine absence
+probe. Hosted-runner presence cannot substitute for clean-image offline
+installation. Its source was independently reviewed by the root and native
+boundary reviewer; actual PowerShell execution is still required.
+
+Reviewed candidate file SHA-256 bindings:
+
+| Source | SHA-256 |
+| --- | --- |
+| `scripts/windows-installer-payload-pin.json` | `fc151f26878fab1d76acf8fc67356ff36a9f8003200931dc537ef0386d9082e9` |
+| `scripts/windows-verify-installer-payload.mjs` | `08a811f2541fa9e458c0fde0f8d6f34e70f07c8db19c4d3a72871fb718466a7e` |
+| `scripts/windows-authenticode-probe.ps1` | `013dbdbab49757f2182da6a56d454a924ed4b263b3625ece1c3485c046710e28` |
+| `scripts/windows-installer-payload.test.mjs` | `a4e70dd520143bcf3fcecb7213849860f57cfc1e63a2680cee514d0a62820605` |
+| `scripts/windows-webview-inventory.ps1` | `c80edbab982f12168105908abcd9e355262a36ec06f60bd51949aec5030f1785` |
+| `scripts/windows-installed-acceptance.ps1` | `48fded6b189398164fa86ee61fa8ced9a479115400df8f4c6fe0ff8bb5b9df54` |
+| `.github/workflows/windows.yml` | `ab68efabe92214bb718778169abffa262c5d58fbeddd322dad782748bc069073` |
+
+
+Static import inspection of the actual `a64ceb0` installer also found no direct
+or delay import of a VC++/STL/debug CRT or developer-tool DLL in Motion or bundled
+Node. The executable hashes, exact DLL lists, empty delay-import directories and
+byte-identical official Node comparison are retained in the installed-evidence
+JSON. The locked MSVC WebView binding links its loader statically. This is a
+bounded static finding, not recursive resolution against a Windows 11 system or
+proof of fresh-machine launch; no packaging change is inferred from it.

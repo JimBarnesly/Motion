@@ -5,13 +5,13 @@
   "branch": "feat/windows-notebook-resume",
   "pullRequest": 2,
   "releaseStatus": "in-development",
-  "priority": "Finish installed Windows backup/restore, concurrent-GUI exclusion, restart and uninstall/reinstall acceptance",
+  "priority": "Finish installed Windows attachments, backup/restore, concurrent-GUI exclusion, restart and uninstall/reinstall acceptance",
   "lastVerifiedCommit": "fed424dd9681e047ad74f0396f501928e70ccf8b",
   "activeLease": {
     "owner": "interactive-windows-installer-2026-11-25",
-    "startedAt": "2026-11-25T12:15:58Z",
-    "expiresAt": "2026-11-25T14:15:58Z",
-    "scope": "Windows native candidate CI and installed acceptance"
+    "startedAt": "2026-11-25T12:59:04Z",
+    "expiresAt": "2026-11-25T14:59:04Z",
+    "scope": "Windows installed attachment/backup/lifecycle acceptance and continuation"
   },
   "continuationAutomation": "Automation_1b45f83f28188191b31f671c6229efd8",
   "completed": [
@@ -30,26 +30,27 @@
     "Bundled Node24.22.3 passed the exact Tauri canonical-path regression on Windows; actual installed GUI opened and saved a page at fbdbbd8",
     "All 28 Windows Rust tests, 23 native/service tests, three startup-gate tests and 23 installed native tests passed at fbdbbd8",
     "Real mapped-SMB positive controls, all mapped-volume refusals, physical/security preservation and exact fixture cleanup passed at fbdbbd8",
-    "Both Linux x64 and ARM64 native/package/offline jobs passed at fbdbbd8"
+    "Both Linux x64 and ARM64 native/package/offline jobs passed at fbdbbd8",
+    "Complete core verification and both Linux native/package/offline jobs passed at a64ceb0",
+    "Actual installed Windows page/title and body editing passed at a64ceb0; all prior native and mapped-SMB checks remained green",
+    "Reproduced and corrected the real attachment FileList clearing defect, strict-CSP layout defect and browser page lifecycle durability race"
   ],
   "next": [
-    "Execute the corrected installed fixture that explicitly adds a block before typing on a native empty page",
-    "Execute installed real backup create/verify/preview and confirmed restore, original preservation, exact restored attachment bytes and persisted selected workspace",
+    "Execute the next payload-verification gate on actual Windows before NSIS installation; retain the exact hash and Windows trust evidence",
+    "Execute the corrected real attachment-picker path and installed backup create/verify/preview/confirmed restore, preserving the original workspace and exact restored bytes",
     "Prove second installed GUI rejection while owner remains open, then same-GUI Retry after owner closes",
     "Complete normal window close/restart and uninstall/reinstall data preservation with outbound networking blocked",
-    "Verify the bundled Evergreen payload and Windows trust before executing installer; preserve existing distribution mode",
-    "Exercise offline installation with WebView2 initially absent on a clean Windows image",
+    "Exercise offline installation with WebView2 initially absent on a clean Windows image; inventory alone cannot prove absence",
     "Continue the concrete writing slice in WRITING_PARITY_NEXT.md after Windows baseline acceptance"
   ],
   "openBlockers": [
-    "The fbdbbd8 installed fixture stopped after page/title save because it assumed a browser-only starter paragraph. The next fixture explicitly clicks the real Add block control; later installed acceptance remains unproven.",
-    "A real backup transport defect is corrected locally: Uint8Array payloads must be encoded as the existing $motionBytes envelope before Tauri serialization. Actual-service roundtrip passes; installed restore and native Save As dialog coverage remain separate.",
-    "The latest fbdbbd8 general verify job rejected a public EULA-document SHA256 named api_response_sha256 as a generic API key. The harmless key is renamed response_document_sha256 with identical verified bytes; unchanged secret-scan tests pass 11/11 locally. Next complete CI must pass.",
-    "Initially absent WebView2 and fully offline installation still require a clean Windows image; runner already has WebView2",
-    "The glib exception renewal and governed changes remain draft CODEOWNERS review items",
-    "Current Evergreen third-party notices require explicit binary-policy classification before release; payload pinning and Windows trust evidence are still separate work. No policy exception or approval is inferred."
+    "The a64ceb0 installed GUI saved a page/title and body, then attachment input supplied an empty live FileList after clearing it. The next candidate captures File objects before clearing; its focused real file-input regression passes. Later installed acceptance remains unproven.",
+    "Actual-service backup byte transport and roundtrip pass, and complete core CI at a64ceb0 passes. Installed restore and native Save As dialog coverage remain separate outstanding evidence.",
+    "Initially absent WebView2 and fully offline installation still require a clean Windows image; the hosted runner already has WebView2. Before/after inventory explicitly does not claim genuine absence.",
+    "The glib exception renewal and governed changes remain draft CODEOWNERS review items.",
+    "Current Evergreen third-party notices require explicit binary-policy classification before release. The next fail-closed payload/signature gate does not confer distribution approval. No exception or human approval is inferred."
   ],
-  "notes": "fbdbbd8 is a built and installed development candidate, not 1.0. Its real GUI startup and page/title save passed after the bundled Node24.22.3 correction. The body-edit fixture error is corrected without weakening feature assertions. Read WINDOWS_INSTALLED_EVIDENCE_fbdbbd8.json for exact run, PR merge SHA, independently verified artifact and mapped-SMB outcome. Production Windows path/GUID authority and IPC/CSP permissions remain unchanged. The backup codec fix uses the existing wire envelope; no schema or dependency change. Normal window close terminates the local service; restart acceptance proves durable recovery, not graceful SQLite-close execution. No human approval is inferred. The active lease prevents overlapping scheduled writes.",
+  "notes": "a64ceb0 is a built and installed development candidate, not 1.0. Actual installed startup and page/title/body save pass; the attachment input defect is reproduced and corrected without weakening feature assertions. Read WINDOWS_INSTALLED_EVIDENCE_a64ceb0.json for exact run, tested merge SHA, independently verified artifact and mapped-SMB evidence. The next candidate keeps production Windows path/GUID authority, native backup protocol, schema, IPC capabilities and CSP unchanged. Browser lifecycle changes await committed IndexedDB transactions and persist canonical mutation plus selection together; native selection-save failure is distinguished from canonical success. New payload verification runs before installer execution, gates candidate upload, and uses exact reviewed bytes plus actual Windows trust. Runtime inventory is read-only and does not prove clean-image absence. Normal window close terminates the local service; restart acceptance proves durable recovery, not graceful SQLite-close execution. Active lease prevents overlapping scheduled writes.",
   "candidateVerification": {
     "portableWorkspaceTests": {
       "passed": 426,
@@ -60,12 +61,12 @@
     "typecheck": "passed",
     "build": "passed",
     "dependencyInventory": "436 production packages, passed",
-    "sourceSecurity": "121 first-party files, 8 unchanged rules passed after the startup-recovery/runtime delta; no new exception",
-    "windowsNativeCompile": "Passed full Windows debug and release Tauri compilation at fbdbbd8 on windows-2022",
-    "fullWindowsTauriBuild": "NSIS installer built, installed and launched at fbdbbd8; page/title save passed, later fixture omitted Add block",
+    "sourceSecurity": "122 first-party files, 8 unchanged rules passed; one existing HTML fingerprint rebound after reviewed strict-CSP layout fix",
+    "windowsNativeCompile": "Passed full Windows debug and release Tauri compilation at a64ceb0 on windows-2022",
+    "fullWindowsTauriBuild": "NSIS built, installed and launched at a64ceb0; page/title/body save passed, attachment input exposed production FileList defect",
     "windowsExecution": {
-      "commit": "fbdbbd8170781472b0118ef87e9a45ee38ab68ce",
-      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45608035891",
+      "commit": "a64ceb03a9fb773285ca8633e5c84981d396c5db",
+      "run": "https://github.com/JimBarnesly/Motion/actions/runs/45612288185",
       "rust": {
         "passed": 28,
         "failed": 0,
@@ -94,17 +95,17 @@
       "installer": {
         "built": true,
         "installed": true,
-        "sha256": "adbd9be9d031425d8f6813d4edec96e2c057bf509551353abf9325716631cbe5",
-        "artifact": "https://github.com/JimBarnesly/Motion/actions/runs/45608035891/artifacts/15020031511"
+        "sha256": "c6374c9d0dfdfec0b72a1053577a23c170df4c6780484cea80595161fc3ec5c4",
+        "artifact": "https://github.com/JimBarnesly/Motion/actions/runs/45612288185/artifacts/15021887477"
       },
-      "installedAcceptance": "STARTUP AND PAGE/TITLE SAVE PASSED; body edit blocked by missing Add block action in fixture; backup/restore and later lifecycle checks await next candidate",
+      "installedAcceptance": "STARTUP AND PAGE/TITLE/BODY SAVE PASSED; attachment input failed with No file selected. Backup/restore and later lifecycle checks await next candidate.",
       "uninstallReinstall": "not reached",
-      "testedMergeCommit": "b62797a0002802c9ce54fc6fbefbe6c38e16c064",
+      "testedMergeCommit": "124e65bd8b8283847fa3683b2cf9423286e6b968",
       "mappedShare": "PASSED: reachable local and mapped controls, five native refusals, service refusal, unchanged physical/security snapshots, exact cleanup"
     },
-    "linuxX64Packaged": "Passed entire Linux x64 job139183936407 at fbdbbd8, run45608036035",
-    "completeCoreCi": "Passed complete verify job139155243482 at 0d1dd27, run45599716573, including browser/offline/security/benchmark gates",
-    "arm64IsolatedValidation": "Passed entire ARM64 job139183935970 at fbdbbd8, run45608036035",
+    "linuxX64Packaged": "Passed entire Linux x64 job139198630057 at a64ceb0, run45612288566",
+    "completeCoreCi": "Passed complete verify job139198629866 at a64ceb0, run45612288566, including browser/offline/security/benchmark gates",
+    "arm64IsolatedValidation": "Passed entire ARM64 job139198629231 at a64ceb0, run45612288566",
     "startupRecoveryBrowserTests": {
       "passed": 75,
       "failed": 0,
@@ -116,7 +117,7 @@
       "officialRelease": "https://nodejs.org/en/blog/release/v24.22.3",
       "namespacedPathFix": "https://github.com/nodejs/node/pull/65378",
       "focusedRuntimeContractTests": 26,
-      "windowsExecution": "PASSED: 28 Rust tests including exact canonical-path regression; actual installed GUI opened and saved a page",
+      "windowsExecution": "PASSED at a64ceb0: 28 Rust tests including exact canonical-path regression; actual installed GUI opened and saved page/title/body",
       "verifiedArchives": [
         "linux-x64.tar.xz",
         "win-x64.zip"
@@ -126,15 +127,39 @@
         "failed": 0,
         "skipped": 0
       },
-      "windowsRegressionCompile": "Full actual Windows Tauri debug/release builds and native regression execution passed at fbdbbd8"
+      "windowsRegressionCompile": "Full actual Windows Tauri debug/release builds and native regression execution passed at a64ceb0"
     },
-    "latestCoreCi": "fbdbbd8 job139183936480 passed earlier gates but failed secret-scan positives on a public document-hash field; local key rename retains exact hash and unchanged scanner tests pass 11/11",
+    "latestCoreCi": "Passed complete verify job139198629866 at a64ceb0, run45612288566, including browser/offline/security/benchmark gates",
     "backupCodecCandidate": {
-      "actualServiceRoundtrip": "passed locally with real workspace and binary attachment, file publication, corruption rejection and new-identity restore",
+      "actualServiceRoundtrip": "passed locally and in complete core CI at a64ceb0, with real workspace and binary attachment, file publication, corruption rejection and new-identity restore",
       "webAdapterTests": 54,
       "installedAcceptance": "pending",
       "nativeSaveDialog": "not automated by the new GUI test"
+    },
+    "installerPayloadGateCandidate": {
+      "localContractTests": 8,
+      "windowsExecution": "pending next candidate",
+      "inventory": "read-only before/after; genuineAbsenceProven remains false",
+      "upload": "NSIS candidate upload requires payload verification success; diagnostic evidence is retained separately"
+    },
+    "rendererDurabilityCandidate": {
+      "chromium": {
+        "passed": 86,
+        "failed": 0,
+        "skipped": 0,
+        "note": "Complete final suite after attachment FileList, strict-CSP layout, IndexedDB lifecycle durability and mobile restore correction"
+      },
+      "webAndActualServiceTests": {
+        "passed": 55,
+        "failed": 0,
+        "skipped": 0
+      },
+      "allWorkspaceTypecheck": "passed",
+      "lint": "passed: 162 JavaScript files and 51 JSON files",
+      "secretScan": "passed: 425 tracked/non-ignored files with unchanged scanner policy",
+      "nativeSelectionSaveFailure": "source reviewed; no new injected native failure fixture",
+      "windowsExecution": "pending next native run"
     }
   },
-  "lastObservedCommit": "fbdbbd8170781472b0118ef87e9a45ee38ab68ce"
+  "lastObservedCommit": "a64ceb03a9fb773285ca8633e5c84981d396c5db"
 }

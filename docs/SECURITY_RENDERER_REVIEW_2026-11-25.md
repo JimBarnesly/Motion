@@ -206,3 +206,127 @@ are expired on the review date. The maintenance plan is:
 
 This document records review evidence and the maintenance plan. The reviewing
 agent made no policy, scanner, or application-source edits during this review.
+
+
+## Desktop CSP layout correction — 25 November continuation
+
+Actual installed Windows diagnostics at `fbdbbd8` showed that the unchanged
+`style-src 'self'` policy blocked the renderer's generated style attributes.
+The blocked declarations controlled page-tree depth, block indentation and table
+column widths. This was a presentation defect, distinct from the resolved native
+startup failure.
+
+The implementing reviewer replaced those declarations with numeric data
+attributes and one post-render CSSOM helper. The root and desktop/backup reviewer
+independently inspected all render entry points and escaping boundaries. Page
+and block depths accept only nonnegative safe integers. Column widths remain
+escaped in attributes and accept only positive finite numbers before assignment
+to the fixed width property. Property names are fixed; no arbitrary CSS string,
+new HTML sink, permission, canonical mutation or CSP change is introduced.
+Separate navigation refreshes and both document/database rendering apply the
+helper. The CSP-only reviewed `apps/web/app.js` SHA-256 was
+`7e6325c7a7f88cfbb7e3ee7d77bc27ca6705d512cbd8cada15e3bcf7ce11805e`.
+The later lifecycle/attachment increment below records the final source identity;
+its sink inventory is unchanged from this reviewed CSP baseline.
+
+The final sink inventory still has 16 entries. Only the database composition
+line changes from column 2143 to 2140 at line 261, occurrence 0. Its reviewed
+fingerprint changes from
+`sha256:1bc923721124ff4078bf583f6bbe7d75633474f9aab8c694c37911652977e724`
+to
+`sha256:5ce05a7c3d6d1e006c894cd355c06e420d7fe44914bb90d8a9c6f4c3d4587a63`.
+The other 15 HTML fingerprints and all native unsafe fingerprints are unchanged.
+The root rebinds only that existing exception, retaining its rule, file, owner
+and 23 February 2027 expiry, and adds this review/test evidence. No human approval
+or broader allowance is inferred.
+
+The new regression reads the actual server CSP header and compares it with the
+unchanged desktop configuration. It first reproduced the old ignored depth and
+width declarations; both cases pass after the correction. It checks computed
+page/block indentation, mobile indentation, actual column geometry, saved width
+persistence after reload and zero application policy violations. A deliberately
+injected inline style remains blocked, establishing that CSP is still enforced.
+Twelve existing editor/accessibility cases and all 54 web adapter/source tests
+also pass. These are Chromium browser results; the next installed Windows run
+must still cover the packaged UI.
+
+
+## Page lifecycle durability and attachment selection continuation
+
+The full Chromium suite exposed an actual browser restore race. The saved
+selection could still identify a deleted page, so the old test's title assertion
+succeeded before restore persisted. Trace evidence showed reload while the UI
+still said `Saving…`. Independent source review also found that the adapter
+resolved a successful IndexedDB request before the containing transaction
+completed; a later transaction abort could therefore be reported as success.
+
+The browser adapter now resolves on transaction completion, rejects transaction
+abort/error (including abort after request success), and closes the connection.
+Browser trash/restore saves canonical content and selected page in the same
+rollback-safe candidate. `saveLocal` snapshots its candidate before queueing it.
+Load and active-page resolution exclude deleted/stale page selections while
+preserving an explicit null/home selection. Native canonical commands retain
+their existing durability boundary; the separate UI-selection write is awaited,
+and its failure reports a saved page change with unsaved selection instead of
+claiming full completion or rolling back already committed canonical content.
+
+A narrow lifecycle guard blocks another page lifecycle/navigation action and
+history shortcuts while this write is pending. Independent review caught an
+initial Ctrl+Z bypass: it could enqueue an old deleted snapshot behind restore.
+Real held-transaction regressions failed with two writes before the guard and
+pass with exactly one afterward, on both successful completion and abort.
+Ordinary focus navigation remains available. These changes introduce no HTML
+sink, dependency, wire protocol, canonical schema, CSP or capability change.
+
+The actual Windows attachment test independently exposed a live `FileList`
+being emptied when the input was cleared. The handler now captures an array of
+`File` objects first. The regression uses a real DOM input and File bytes through
+the unchanged ingestion controller and native adapter, with only the service
+reply supplied by a fixture. It verifies exact bytes/authority/revision, selecting
+the same file twice, input reset and cancelled selection. That browser regression
+failed before the fix and passes afterward; installed publication/restore is
+still required Windows evidence.
+
+The root reviewed the final source and regression diff. The independent
+editor/backup reviewer confirmed the transaction, rollback, selection, keyboard
+and attachment boundaries. Focused Chromium execution passed **32/32**: eight
+page-lifecycle cases, three original web cases, 20 destructive-accessibility
+cases and the actual attachment-input case. Web adapter/source plus actual
+service backup bridge tests passed **55/55**, and web typecheck passed. No new
+injected native UI-selection failure fixture is claimed; that branch is source
+reviewed, and complete installed Windows acceptance remains pending.
+
+Final reviewed SHA-256 bindings:
+
+| Source | SHA-256 |
+| --- | --- |
+| `apps/web/app.js` | `e90ee20af284f531f3b7d80c801c89c84800167f3b26747b5ac1b1d51b6f74ff` |
+| `apps/web/app-adapter.js` | `1786df1a690752c4d675d343cba00d291469045ebe93f174c4f131fd8ac14227` |
+| `e2e/page-lifecycle-persistence.spec.ts` | `5f09c37189b0d0a6a29e712b16d195438c80f3bd62ea9c41b90a0b143d7fa46e` |
+| `e2e/attachment-file-input.spec.ts` | `170dff9017a4db5ad47bb859e22c8bc83fa7c7ff50830cae5ddade61d671516f` |
+| `e2e/web.spec.ts` | `a87477895cc369bb72513a60197045d006447021a7f1a17ae71655b5efc9fabb` |
+
+All 16 HTML sink fingerprints match the reviewed CSP baseline above. The only
+existing suppression changed in this candidate remains its database-layout
+fingerprint; rule, file, owner and expiry are retained.
+
+
+The complete integration run then caught one presentation regression at the
+narrow/200% layout: replacing the old `openPage` call had retained the open
+sidebar after successful page restore, covering the page receiving focus. The
+final restore path closes navigation only after durable lifecycle completion;
+Trash and failed saves retain their prior behavior. Independent review confirmed
+that ordering. Both full page-first flows now explicitly require the completion
+announcement, page-title focus and closed sidebar. Those two flows plus the
+eight lifecycle regressions pass **10/10**. The final app hash above includes
+this correction. The original failed full run passed 85/86 and remains failure
+evidence; the final complete run is recorded separately after it finishes.
+
+Additional reviewed regression SHA-256: `e2e/first-run-table-creation.spec.ts` —
+`ada0da3d9b6c9bab1517604aa41c4317459014d54c5a6122250b3db1fcd043c0`.
+
+The root final complete Chromium run passed **86/86**, zero skipped, after the
+mobile correction. All-workspace typecheck, lint and the unchanged secret scan
+also passed. Source analysis passed for 122 first-party files under all eight
+unchanged rules, with only the reviewed existing database-layout fingerprint
+rebound. Actual installed Windows execution remains the next acceptance step.

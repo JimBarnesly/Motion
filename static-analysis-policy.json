@@ -59,10 +59,10 @@
     {
       "rule": "js-no-html-sink",
       "file": "apps/web/app.js",
-      "fingerprint": "sha256:1bc923721124ff4078bf583f6bbe7d75633474f9aab8c694c37911652977e724",
-      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/record-order.test.mjs canonical exact-order, hidden-slot, keyboard/pointer, and labelled-control tests; apps/web/test/property-editors.test.mjs escaping/projection tests; apps/web/test/canonical-security.test.mjs hostile canonical ID matrix",
+      "fingerprint": "sha256:5ce05a7c3d6d1e006c894cd355c06e420d7fe44914bb90d8a9c6f4c3d4587a63",
+      "evidence": "docs/SECURITY_RENDERER_REVIEW_2026-11-25.md independent AI source review; apps/web/test/record-order.test.mjs canonical exact-order, hidden-slot, keyboard/pointer, and labelled-control tests; apps/web/test/property-editors.test.mjs escaping/projection tests; apps/web/test/canonical-security.test.mjs hostile canonical ID matrix; e2e/desktop-csp-layout.spec.ts exact desktop-policy computed layout, persistence and blocked-inline-style positive control",
       "owner": "Operations & Security Director",
-      "rationale": "Database table/list, record-order controls, and property-definition order composition attribute-escape every persisted ID and HTML-escape record titles and property names; property text and controls use reviewed escaping helpers, view types are closed enums, and system metadata renders without mutation authority. Column widths pass finite-positive-number validation before rendering.",
+      "rationale": "Database table/list, record-order controls, and property-definition order composition attribute-escape every persisted ID and HTML-escape record titles and property names; property text and controls use reviewed escaping helpers, view types are closed enums, and system metadata renders without mutation authority. Column widths pass finite-positive-number validation before rendering. Widths now enter escaped data attributes and are applied only as validated positive finite numbers through a fixed CSSOM width property; no inline-style policy grant is introduced.",
       "expires": "2027-02-23"
     },
     {
